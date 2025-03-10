@@ -1,0 +1,242 @@
+/* CSS Variables for consistent theming */
+:root {
+    --primary-bg-color: rgba(0, 0, 0, 0.48);
+    --primary-border-color: rgb(255, 255, 255);
+    --hover-bg-color: rgba(255, 255, 255, 0.3);
+    --active-bg-color: rgba(255, 255, 255, 0.6);
+    --text-color: white;
+    --sidebar-width: 348px;
+    --button-height: 63px;
+    --icon-size: 34px;
+    --logo-size: 215px;
+}
+
+/* Reset Styles */
+*, html, body {
+    border: none;
+    padding: 0;
+    margin: 0;
+    box-sizing: border-box;
+    text-decoration: none;
+}
+
+html, body {
+    height: 100%;
+    width: 100%;
+}
+
+/* Debug Outlines - commented out for production */
+/** {
+    outline: solid 1px red;
+}*/
+
+/* Main Body Styles */
+body {
+    background-image: url(../images/BGimage2.jpeg);
+    background-repeat: no-repeat;
+    background-size: cover;
+    background-position: center;
+    min-height: 100%;
+    width: 100%;
+}
+
+body::-webkit-scrollbar {
+    display: none;
+}
+
+/* Main Navigation Sidebar */
+.main-navigation {
+    background: var(--primary-bg-color);
+    width: var(--sidebar-width);
+    height: 100%;
+    position: fixed;
+    min-height: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Logo Section */
+.logo-container {
+    height: 216px;
+    width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.logo img {
+    width: var(--logo-size);
+    height: var(--logo-size);
+    display: block;
+    margin-top: 12px;
+}
+
+.logo a:hover img {
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.7);
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.logo a:active img {
+    box-shadow: none;
+}
+
+/* Navigation Button Container */
+.NavButton-container {
+    box-sizing: border-box;
+    height: calc(100vh - 289px) !important;
+    overflow-y: auto;
+    padding: 10px 0;
+}
+
+.NavButton-container::-webkit-scrollbar {
+    display: none;
+}
+
+/* Navigation List */
+.nav-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+}
+
+/* Navigation Buttons */
+.button {
+    border: 2px solid var(--primary-border-color);
+    border-radius: 7px;
+    color: var(--text-color);
+    box-sizing: border-box;
+    width: 67%;
+    height: var(--button-height);
+    min-height: var(--button-height);
+    display: flex;
+    margin-bottom: 7px;
+    align-items: center;
+    text-align: center;
+    transition: background-color 0.2s ease, border 0.2s ease;
+}
+
+.button:hover {
+    background-color: var(--hover-bg-color);
+    cursor: pointer;
+}
+
+.button:active {
+    background-color: var(--active-bg-color);
+    border: 3px solid var(--primary-border-color);
+}
+
+.button1 {
+    margin-top: 10px;
+}
+
+.button-link {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+}
+
+.button h2 {
+    font-family: sans-serif;
+    font-weight: 200;
+    font-size: 24px;
+    letter-spacing: 1.4px;
+    width: 100%;
+    text-align: center;
+}
+
+.button h2:active {
+    font-weight: 100;
+}
+
+/* Link Styles */
+a:link, a:visited {
+    color: var(--text-color);
+    text-decoration: none;
+}
+
+a:focus {
+    outline: 2px dashed rgba(255, 255, 255, 0.6);
+    outline-offset: 2px;
+}
+
+/* Social Media Footer */
+.socialMedia-container {
+    box-sizing: border-box;
+    height: 60px;
+    width: var(--sidebar-width);
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    bottom: 0;
+    z-index: 3;
+}
+
+.socialMedia-container img {
+    width: var(--icon-size);
+    height: var(--icon-size);
+    transition: transform 0.2s ease;
+}
+
+.socialMedia-container img:hover {
+    transform: scale(1.25);
+    cursor: pointer;
+}
+
+.socialMedia-container img:active {
+    transform: scale(1.0);
+}
+
+.socialMedia-container a {
+    height: var(--icon-size);
+    width: var(--icon-size);
+    margin: 3px;
+    padding: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Content Area */
+.content {
+    margin-left: var(--sidebar-width);
+    height: 100%;
+    position: relative;
+}
+
+/* Mobile Responsiveness */
+@media screen and (max-width: 450px) {
+    :root {
+        --sidebar-width: 100vw;
+        --logo-size: 200px;
+    }
+  
+    body {
+        background: url(../images/mobileImage1.jpeg) no-repeat center;
+        background-size: cover;
+        width: 100vw;
+        height: 100vh;
+        background-position: calc(100% + 360px) 0;
+    }
+
+    .logo-container {
+        height: 200px;
+    }
+
+    .logo img {
+        margin-top: 20px;
+    }
+
+    .NavButton-container {
+        height: calc(100vh - 280px) !important;
+    }
+}
