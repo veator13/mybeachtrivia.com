@@ -20,7 +20,7 @@
     /* border: 5px green solid;*/
      position: relative;
      box-sizing: border-box;
-     background-image: url(../images/BGimage2.jpeg);
+     background-image: url(../images/BGimage2.jpeg");
      background-repeat: no-repeat;
      background-size: cover;
      background-attachment: fixed;
