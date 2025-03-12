@@ -14,7 +14,8 @@
 body {
     background-image: url(beachTriviaPages/images/barCelebrationHomepage.jpeg);
     background-repeat: no-repeat;
-    background-size: cover;
+    background-size: auto 100%;
+    background-position: right top;
     height: 100%;
     width: 100%;
 }
@@ -173,11 +174,11 @@ a:visited {
 
 @media screen and (max-width: 450px){
   body {
-    background: url(/images/mobileImage1.jpeg) no-repeat center;
-    background-size: cover;
+    background: url(beachTriviaPages/images/mobileImage1.jpeg) no-repeat;
+    background-size: auto 100%;
     width: 100vw;
     height: 100vh;
-    background-position: calc(100% + 360px) 0;
+    background-position: right top;
   }
 
   nav {
