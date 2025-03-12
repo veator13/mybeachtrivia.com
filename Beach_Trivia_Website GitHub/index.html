@@ -2,71 +2,87 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Beach Trivia</title>
-    <link rel="stylesheet" href="../2-OurServices/style.css">
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="images/Interrobang.svg.png" type="image/png">
 </head>
 <body>
     <header>
+        <div class="logo">
+            <img src="images/Interrobang.svg.png" alt="Beach Trivia Logo">
+            <h1>My Beach Trivia</h1>
+        </div>
         <nav>
-            <div class="logo-container">
-                <a href="../0-HomePage/index.html"><img src="../images/BTlogo.png" alt="Beach Trivia Logo - Home Button"></a>
-            </div>
-            <div class="nav-button-container">
-                <ul>
-                    <li><a href="#">GET STARTED</a></li>
-                    <li class="current-page"><a href="">OUR SERVICES</a></li>
-                    <li><a href="">LOCATIONS</a></li>
-                    <li><a href="">JOIN OUR TEAM</a></li>
-                    <li><a href="../5-AboutUs/index.html">ABOUT US</a></li>
-                </ul>
-            </div>
-            <div class="login-container">
-                <div class="login-button">
-                    <h2>
-                        LOGIN
-                    </h2>
-                </div>
-            </div>
-            <div class="toggle-button">
-                <span class="bar"></span>
-                <span class="bar"></span>
-                <span class="bar"></span>
-            </div>
+            <ul>
+                <li><a href="#home">Home</a></li>
+                <li><a href="#about">About</a></li>
+                <li><a href="#trivia">Trivia</a></li>
+                <li><a href="#contact">Contact</a></li>
+            </ul>
         </nav>
     </header>
 
     <main>
-            <div id="trivia" class="service">
-                <img src="../images/Interrobang.svg.png" alt="Interrobang Image - Trivia">
-                <h2>Classic Trivia</h2>
-                <h5>Classic Trivia is the cornerstone of your entertainment offerings, running strong since 2017. This time-tested format challenges participants' knowledge across diverse subjects in a structured competition that builds excitement throughout the evening.<br><br>The format consists of four distinct rounds with five questions each, carefully crafted to test various knowledge domains. What makes this experience special is the progressive scoring system, where questions become increasingly valuable as the night advances, allowing teams to mount comebacks and creating sustained tension.<br><br>The event features two special segments that add unique twists: the halfway "Impossible Question" that challenges even the most knowledgeable participants, and the high-stakes final wager round where teams can strategically risk points based on their confidence. This combination of steady competition with strategic elements keeps participants engaged throughout.<br><br>Beyond the intellectual challenge, Classic Trivia fosters community through friendly competition. Teams not only compete for tangible prizes but also earn coveted "bragging rights" until the next event, creating a continuity that encourages regular participation and friendly rivalries between returning teams.</h5>
+        <section id="home" class="hero">
+            <div class="hero-content">
+                <h2>Welcome to Beach Trivia!</h2>
+                <p>Test your knowledge about beaches, oceans, and coastal life.</p>
+                <button class="play-button">Play Now</button>
             </div>
-            <div id="music-bingo" class="service">
-                <img src="../images/headphones.png" alt="Headphones Image - Music music-bingo">
-                <h2>Music Bingo</h2>
-                <h5>Music Bingo reimagines the traditional bingo experience by replacing number calls with a dynamic soundtrack of popular music. This innovative format bridges generations and musical tastes while maintaining the accessible gameplay that makes bingo universally appealing.<br><br>Players receive bingo cards featuring a mix of song titles and artist names instead of numbers. As curated playlists unfold, participants listen attentively to identify either the song title or the performing artist on their cards. This dual-matching system makes the game more accessible while still requiring musical knowledge.<br><br>The communal listening experience transforms what could be a quiet, focused game into an energetic social event where participants can sing along, dance, and share musical memories while playing. The variety of playlists can be customized to suit different audiences, themes, or decades, making each Music Bingo night a unique experience.<br><br>The familiar bingo winning patterns (horizontal, vertical, diagonal lines, or full card) provide a comfortable structure for newcomers while the musical element adds fresh excitement. Prizes for successful "BINGO" calls provide immediate gratification and celebration moments throughout the event.</h5>
+        </section>
+
+        <section id="about" class="about-section">
+            <h2>About Beach Trivia</h2>
+            <p>Beach Trivia is a fun, interactive game to test your knowledge about everything beach-related. From marine biology to beach destinations, we've got questions that will challenge and entertain you!</p>
+            <div class="features">
+                <div class="feature">
+                    <img src="images/feud.png" alt="Family Style Games">
+                    <h3>Family Style Games</h3>
+                    <p>Fun for the whole family</p>
+                </div>
+                <div class="feature">
+                    <img src="images/podium.png" alt="Competition">
+                    <h3>Compete with Friends</h3>
+                    <p>See who knows the most about beaches</p>
+                </div>
+                <div class="feature">
+                    <img src="images/headphones.png" alt="Audio Clues">
+                    <h3>Audio Clues</h3>
+                    <p>Listen to the sounds of the beach</p>
+                </div>
             </div>
-            <div id="feud" class="service">
-                <img src="../images/podium.png" alt="Survey Image - FEUD">
-                <h2>Beach Feud</h2>
-                <h5>Beach Feud adapts the beloved television game show format into an interactive group experience that rewards social intuition rather than factual knowledge. This psychological twist on trivia challenges players to think collectively rather than individually.<br><br>Unlike traditional trivia where there's typically one correct answer, Beach Feud presents survey questions where multiple answers earn points, with higher points awarded to responses that match the most popular survey answers. This scoring system rewards players who can anticipate common thinking, creating a different kind of intellectual challenge.<br><br>The format creates engaging moments of revelation as answers are unveiled in descending order of popularity, building anticipation as teams discover how well they predicted the collective mindset. The game inherently generates discussion and debate as teams must collaborate to guess what "most people" would say rather than simply recalling facts.<br><br>Beach Feud particularly excels in mixed groups where traditional knowledge-based trivia might create imbalances, as success depends more on understanding social patterns than specific expertise. The familiar game show inspiration provides immediate recognition while the beachy theme suggests a relaxed, fun atmosphere perfect for casual gatherings.</h5>
+        </section>
+
+        <section id="trivia" class="trivia-section">
+            <h2>Sample Trivia</h2>
+            <div class="trivia-card">
+                <h3>Did you know?</h3>
+                <p>The world's longest beach is Praia do Cassino Beach in Brazil, stretching for 157 miles!</p>
+                <img src="images/shutterstock_390074245.jpeg" alt="Beach scene">
             </div>
+        </section>
+
+        <section id="mobile" class="mobile-section">
+            <h2>Play on Mobile</h2>
+            <p>Take Beach Trivia with you wherever you go!</p>
+            <img src="images/mobileImage1.jpeg" alt="Mobile app screenshot">
+            <img src="images/mobile_bg_1.jpeg" alt="Mobile background">
+        </section>
     </main>
 
     <footer>
-        <div class="BeachTriviaLLC">
-            <h4 class="footer-text">Beach Trivia LLC</h4>
+        <div class="social-media">
+            <a href="mailto:contact@mybeachtrivia.com">
+                <img src="images/GMAILlogo.png" alt="Email us">
+            </a>
+            <a href="https://instagram.com/mybeachtrivia">
+                <img src="images/INSTAGRAMlogo.webp" alt="Follow us on Instagram">
+            </a>
         </div>
-        <div class="social-media-container">
-            <a href="#"><img src="../images/FBlogo2.png" id="fb-logo" alt="Facebook Logo Link"></a>
-            <a href="#"><img src="../images/GMAILlogo2.png" id="gmail-logo" alt="GMail logo Link"></a>
-            <a href="#" ><img src="../images/INSTAlogo2.png" id="instagram-logo" alt="Instagram Logo Link"></a>
-        </div>
-        <div class="contact">
-            <h4 class="footer-text">Contact Us</h4>
-        </div>
+        <p>&copy; 2025 My Beach Trivia. All rights reserved.</p>
     </footer>
+
+    <script src="script.js"></script>
 </body>
 </html>
