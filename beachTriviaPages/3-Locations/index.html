@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Beach Trivia</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="script.js" defer></script>
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="logo-container">
+                <a href="../0-HomePage/index.html"><img src="../images/BTlogo.png" alt="Beach Trivia Logo - Home Button"></a>
+            </div>
+            <div class="nav-button-container">
+                <ul>
+                    <li><a href="#">GET STARTED</a></li>
+                    <li><a href="">OUR SERVICES</a></li>
+                    <li class="current-page"><a href="">LOCATIONS</a></li>
+                    <li><a href="">JOIN OUR TEAM</a></li>
+                    <li><a href="../5-AboutUs/index.html">ABOUT US</a></li>
+                </ul>
+            </div>
+            <div class="login-container">
+                <div class="login-button">
+                    <h2>
+                        LOGIN
+                    </h2>
+                </div>
+            </div>
+            <div class="toggle-button">
+                <span class="bar"></span>
+                <span class="bar"></span>
+                <span class="bar"></span>
+            </div>
+        </nav>
+    </header>
+    
+    <!-- Background mask behind the header -->
+    <div id="header-mask"></div>
+    
+    <!-- Invisible barrier that marks where content should start fading -->
+    <div id="js-barrier"></div>
+
+    <main>
+        <div id="trivia" class="service">
+            <div class="fade-overlay"></div>
+            <div class="service-content">
+                <div class="image-container">
+                    <img src="../images/Interrobang.svg.png" alt="Interrobang Image - Trivia" class="service-image">
+                    <img src="../images/podium.png" alt="Survey Image - FEUD" class="service-image">
+                    <img src="../images/headphones.png" alt="Headphones Image - Music music-bingo" class="service-image">
+                </div>
+                <h2>Trivia Night Locations</h2>
+                <!-- Map container with iframe approach -->
+                <div id="map-container">
+                    <h3>Find Our Events</h3>
+                    <div id="map-wrapper">
+                        <!-- Different approach to show all three location markers -->
+                        <iframe id="map-iframe"
+                            src="https://www.google.com/maps/embed?pb=!1m16!1m12!1m3!1d408141.64627708895!2d-76.38417068394575!3d36.899126557010665!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!2m1!1ssly%20clyde%2C%20hampton%20va%2C%20tradition%20brewing%20company%2C%20newport%20news%20va%2C%20warriors%20taphouse%2C%20virginia%20beach%20va!5e0!3m2!1sen!2sus!4v1710225144729!5m2!1sen!2sus"
+                            width="100%" height="550" style="border:0; border-radius:10px;" allowfullscreen="" loading="eager" 
+                            referrerpolicy="no-referrer-when-downgrade"></iframe>
+                            
+                        <!-- Location info panel -->
+                        <div id="locations-overlay">
+                            <h4 class="overlay-title">Trivia Nights</h4>
+                            <div class="location-badge">
+                                <div class="location-info">
+                                    <h4>Sly Clyde</h4>
+                                    <p>207 E Mellen St, Hampton, VA 23663</p>
+                                    <p class="event-time">Trivia - Wednesday's 7pm</p>
+                                </div>
+                            </div>
+                            <div class="location-badge">
+                                <div class="location-info">
+                                    <h4>Tradition Brewing Company</h4>
+                                    <p>700 Thimble Shoals Blvd #100, Newport News, VA 23606</p>
+                                    <p class="event-time">Trivia - Wednesday's 7pm</p>
+                                </div>
+                            </div>
+                            <div class="location-badge">
+                                <div class="location-info">
+                                    <h4>Warriors Taphouse</h4>
+                                    <p>1630 General Booth Blvd Suite 100, Virginia Beach, VA 23454</p>
+                                    <p class="event-time">Trivia - Wednesday's 7pm</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <div class="BeachTriviaLLC">
+            <h4 class="footer-text">Beach Trivia LLC</h4>
+        </div>
+        <div class="social-media-container">
+            <a href="#"><img src="../images/FBlogo2.png" id="fb-logo" alt="Facebook Logo Link"></a>
+            <a href="#"><img src="../images/GMAILlogo2.png" id="gmail-logo" alt="GMail logo Link"></a>
+            <a href="#" ><img src="../images/INSTAlogo2.png" id="instagram-logo" alt="Instagram Logo Link"></a>
+        </div>
+        <div class="contact">
+            <h4 class="footer-text">Contact Us</h4>
+        </div>
+    </footer>
+</body>
+</html>
