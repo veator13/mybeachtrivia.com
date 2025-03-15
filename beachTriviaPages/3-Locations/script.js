@@ -80,7 +80,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Start smooth animation loop
     animate();
-    
+
     // Make sure the iframe has proper pointer events
     const mapIframe = document.getElementById('map-iframe');
     if (mapIframe) {
@@ -88,3 +88,5 @@ document.addEventListener('DOMContentLoaded', function() {
         mapIframe.style.pointerEvents = 'auto';
     }
 });
+
+//testing 123
