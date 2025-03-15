@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Beach Trivia - Join Our Team</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="header-mask"></div>
+    <div id="js-barrier"></div>
+    
+    <header>
+        <nav>
+            <div class="logo-container">
+                <a href="../../index.html"><img src="../images/BTlogo.png" alt="Beach Trivia Logo - Home Button"></a>
+            </div>
+            <div class="nav-button-container">
+                <ul>
+                    <li><a href="#">GET STARTED</a></li>
+                    <li><a href="../2-OurServices/index.html">OUR SERVICES</a></li>
+                    <li><a href="../3-Locations/index.html">LOCATIONS</a></li>
+                    <li class="current-page"><a href="">JOIN OUR TEAM</a></li>
+                    <li><a href="../5-AboutUs/index.html">ABOUT US</a></li>
+                    <li><a href="../6-Tournament/index.html">TOURNAMENT</a></li>
+                </ul>
+            </div>
+            <div class="login-container">
+                <div class="login-button">
+                    <h2>
+                        LOGIN
+                    </h2>
+                </div>
+            </div>
+            <div class="toggle-button">
+                <span class="bar"></span>
+                <span class="bar"></span>
+                <span class="bar"></span>
+            </div>
+        </nav>
+    </header>
+
+    <main>
+        <div class="details">
+            <div class="fade-overlay"></div>
+            <div class="details-content">
+                <h1 style="color: black; text-decoration: underline; font-weight: bold; text-align: center;">JOIN OUR TEAM</h1>
+                
+                <p>Interested in joining the Beach Trivia team? We're always looking for energetic and knowledgeable hosts to lead our trivia events.</p>
+                
+                <p>As a Beach Trivia host, you'll get to:</p>
+                <ul>
+                    <li>Lead exciting trivia events at local bars and restaurants</li>
+                    <li>Create a fun and engaging atmosphere for players</li>
+                    <li>Meet new people and build a community of trivia enthusiasts</li>
+                    <li>Earn competitive pay and flexible hours</li>
+                </ul>
+                
+                <!-- Application Form -->
+                <form id="teamApplicationForm">
+                    <div class="form-section">
+                        <h3>Personal Information</h3>
+                        
+                        <div class="form-field">
+                            <label for="fullName">Full Name <span class="required">*</span></label>
+                            <input type="text" id="fullName" name="fullName" required>
+                        </div>
+                        
+                        <div class="form-field">
+                            <label for="email">Email Address <span class="required">*</span></label>
+                            <input type="email" id="email" name="email" required>
+                        </div>
+                        
+                        <div class="form-field">
+                            <label for="phone">Phone Number <span class="required">*</span></label>
+                            <input type="tel" id="phone" name="phone" required>
+                        </div>
+                        
+                        <div class="form-field">
+                            <label for="address">Full Address</label>
+                            <textarea id="address" name="address" rows="3"></textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="form-section">
+                        <h3>Availability</h3>
+                        
+                        <div class="form-field">
+                            <label>Which days are you typically available? (Select all that apply) <span class="required">*</span></label>
+                            <div class="checkbox-group">
+                                <div class="checkbox-option">
+                                    <input type="checkbox" id="monday" name="availability" value="Monday">
+                                    <label for="monday">Monday</label>
+                                </div>
+                                <div class="checkbox-option">
+                                    <input type="checkbox" id="tuesday" name="availability" value="Tuesday">
+                                    <label for="tuesday">Tuesday</label>
+                                </div>
+                                <div class="checkbox-option">
+                                    <input type="checkbox" id="wednesday" name="availability" value="Wednesday">
+                                    <label for="wednesday">Wednesday</label>
+                                </div>
+                                <div class="checkbox-option">
+                                    <input type="checkbox" id="thursday" name="availability" value="Thursday">
+                                    <label for="thursday">Thursday</label>
+                                </div>
+                                <div class="checkbox-option">
+                                    <input type="checkbox" id="friday" name="availability" value="Friday">
+                                    <label for="friday">Friday</label>
+                                </div>
+                                <div class="checkbox-option">
+                                    <input type="checkbox" id="saturday" name="availability" value="Saturday">
+                                    <label for="saturday">Saturday</label>
+                                </div>
+                                <div class="checkbox-option">
+                                    <input type="checkbox" id="sunday" name="availability" value="Sunday">
+                                    <label for="sunday">Sunday</label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-field">
+                            <label>Which shift times do you prefer? <span class="required">*</span></label>
+                            <div class="radio-group">
+                                <div class="radio-option">
+                                    <input type="radio" id="evening" name="shiftPreference" value="Evening (6pm-10pm)" required>
+                                    <label for="evening">Evening (6pm-10pm)</label>
+                                </div>
+                                <div class="radio-option">
+                                    <input type="radio" id="afternoon" name="shiftPreference" value="Afternoon (2pm-6pm)">
+                                    <label for="afternoon">Afternoon (2pm-6pm)</label>
+                                </div>
+                                <div class="radio-option">
+                                    <input type="radio" id="either" name="shiftPreference" value="Either">
+                                    <label for="either">Either</label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-field">
+                            <label for="travelDistance">How far are you willing to travel for hosting gigs? <span class="required">*</span></label>
+                            <select id="travelDistance" name="travelDistance" required>
+                                <option value="">Please select</option>
+                                <option value="under5">Less than 5 miles</option>
+                                <option value="5to10">5-10 miles</option>
+                                <option value="10to20">10-20 miles</option>
+                                <option value="20to30">20-30 miles</option>
+                                <option value="over30">Over 30 miles</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-section">
+                        <h3>Experience & Skills</h3>
+                        
+                        <div class="form-field">
+                            <label for="experience">Previous Experience (entertainment, hosting, public speaking, etc.)</label>
+                            <textarea id="experience" name="experience" rows="4"></textarea>
+                        </div>
+                        
+                        <div class="form-field">
+                            <label>Do you have reliable transportation? <span class="required">*</span></label>
+                            <div class="radio-group">
+                                <div class="radio-option">
+                                    <input type="radio" id="transportYes" name="transportation" value="Yes" required>
+                                    <label for="transportYes">Yes</label>
+                                </div>
+                                <div class="radio-option">
+                                    <input type="radio" id="transportNo" name="transportation" value="No">
+                                    <label for="transportNo">No</label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-field">
+                            <label for="knowledgeAreas">What areas of trivia knowledge are you strongest in?</label>
+                            <textarea id="knowledgeAreas" name="knowledgeAreas" rows="3"></textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="form-section">
+                        <h3>Personality & Trivia Questions</h3>
+                        
+                        <div class="form-field">
+                            <label for="disputeHandling">How would you handle a dispute over an answer during a trivia night? <span class="required">*</span></label>
+                            <textarea id="disputeHandling" name="disputeHandling" rows="3" required></textarea>
+                        </div>
+                        
+                        <div class="form-field">
+                            <label for="techIssues">What would you do if technical difficulties occurred during an event? <span class="required">*</span></label>
+                            <textarea id="techIssues" name="techIssues" rows="3" required></textarea>
+                        </div>
+                        
+                        <div class="form-field">
+                            <label for="favoriteCategory">What's your favorite trivia category to play? <span class="required">*</span></label>
+                            <input type="text" id="favoriteCategory" name="favoriteCategory" required>
+                        </div>
+                        
+                        <div class="form-field">
+                            <label for="triviaEngagement">What makes a trivia night fun and engaging for participants? <span class="required">*</span></label>
+                            <textarea id="triviaEngagement" name="triviaEngagement" rows="3" required></textarea>
+                        </div>
+                        
+                        <div class="form-field">
+                            <label for="referralSource">How did you hear about this opportunity? <span class="required">*</span></label>
+                            <select id="referralSource" name="referralSource" required>
+                                <option value="">Please select</option>
+                                <option value="Website">Beach Trivia Website</option>
+                                <option value="SocialMedia">Social Media</option>
+                                <option value="Friend">Friend or Colleague</option>
+                                <option value="Event">At a Beach Trivia Event</option>
+                                <option value="JobBoard">Job Board</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-field">
+                            <label for="additionalInfo">Anything else you'd like us to know?</label>
+                            <textarea id="additionalInfo" name="additionalInfo" rows="4"></textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="form-submit">
+                        <button type="submit" class="submit-button">Submit Application</button>
+                    </div>
+                    
+                    <!-- Loading Indicator -->
+                    <div id="formLoading" class="form-loading">
+                        <div class="spinner"></div>
+                        <p>Submitting your application...</p>
+                    </div>
+                    
+                    <!-- Success Message -->
+                    <div id="formSuccess" class="form-success">
+                        <h3>Thank you for your application!</h3>
+                        <p>We've received your information and will be in touch soon.</p>
+                    </div>
+                </form>
+
+                <p class="email-alternative">If you prefer, you can also send your resume and a brief introduction to <a href="mailto:jobs@beachtrivia.com">jobs@beachtrivia.com</a>.</p>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <div class="BeachTriviaLLC">
+            <h4 class="footer-text">Beach Trivia LLC</h4>
+        </div>
+        <div class="social-media-container">
+            <a href="#"><img src="../images/FBlogo.png" id="fb-logo" alt="Facebook Logo Link"></a>
+            <a href="#"><img src="../images/GMAILlogo2.png" id="gmail-logo" alt="GMail logo Link"></a>
+            <a href="#" ><img src="../images/INSTAlogo2.png" id="instagram-logo" alt="Instagram Logo Link"></a>
+        </div>
+        <div class="contact">
+            <h4 class="footer-text">Contact Us</h4>
+        </div>
+    </footer>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    
+    <!-- Your existing script file (now with Firebase config included) -->
+    <script src="script.js"></script>
+</body>
+</html>
