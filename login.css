@@ -1,0 +1,569 @@
+/* Base Styles and Variables */
+:root {
+    --primary-color: #0099ff;
+    --secondary-color: #00bcd4;
+    --accent-color: #ff9800;
+    --text-color: #333;
+    --light-color: #f8f9fa;
+    --light-gray: #f1f1f1;
+    --success-color: #4caf50;
+    --error-color: #f44336;
+    --border-radius: 8px;
+    --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    --transition: all 0.3s ease;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+    background-color: #f5f5f5;
+    color: var(--text-color);
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-image: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+}
+
+/* Container Layout */
+.container {
+    display: flex;
+    width: 900px;
+    height: 600px;
+    background-color: white;
+    border-radius: var(--border-radius);
+    overflow: hidden;
+    box-shadow: var(--shadow);
+}
+
+.login-container {
+    width: 50%; /* Explicitly set to 50% */
+    padding: 40px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.info-container {
+    width: 50%; /* Explicitly set to 50% */
+    background: linear-gradient(45deg, var(--secondary-color), var(--primary-color));
+    color: white;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 40px;
+}
+
+/* Header Styles */
+.header {
+    margin-bottom: 30px;
+    text-align: center;
+}
+
+.header h1 {
+    font-size: 2.2rem;
+    color: var(--primary-color);
+    margin-bottom: 10px;
+}
+
+.header h2 {
+    font-size: 2.2rem;
+    color: var(--primary-color);
+    margin-bottom: 10px;
+}
+
+.header p {
+    color: #666;
+    font-size: 1.1rem;
+    margin-top: 10px;
+}
+
+/* Info Logo Styles */
+.info-logo-container {
+    width: 120px;
+    height: 120px;
+    margin-bottom: 20px;
+    z-index: 2;
+}
+
+.info-logo {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    filter: brightness(1.1) contrast(1.1);
+}
+
+/* Toggle Styles */
+.toggle-container {
+    display: flex;
+    background-color: var(--light-gray);
+    border-radius: 50px;
+    margin-bottom: 25px;
+    position: relative;
+    overflow: hidden;
+    width: 100% !important; /* Make it full width of the container */
+    height: 60px !important; /* Force specific height */
+    margin-left: auto;
+    margin-right: auto;
+    box-sizing: border-box !important; /* Make sure padding doesn't affect width */
+}
+
+.toggle-option {
+    flex: 1;
+    text-align: center;
+    cursor: pointer;
+    z-index: 1;
+    transition: var(--transition);
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.05rem;
+    height: 100%;
+}
+
+.toggle-option.active {
+    color: white;
+}
+
+.toggle-option.employee.active {
+    background-color: var(--primary-color);
+    height: 100%;
+}
+
+.toggle-option.admin.active {
+    background-color: var(--accent-color);
+    height: 100%;
+}
+
+/* Form Styles */
+form {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.form-group label {
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: #555;
+}
+
+.input-with-icon {
+    position: relative;
+}
+
+.input-with-icon input {
+    width: 100%;
+    padding: 12px 12px 12px 40px;
+    border: 1px solid #ddd;
+    border-radius: var(--border-radius);
+    font-size: 1rem;
+    transition: var(--transition);
+    height: 45px;
+}
+
+.input-with-icon input:focus {
+    border-color: var(--primary-color);
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(0, 153, 255, 0.2);
+}
+
+.input-with-icon i {
+    position: absolute;
+    left: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #aaa;
+}
+
+.input-with-icon .password-toggle {
+    position: absolute;
+    right: 15px;
+    left: auto;
+    cursor: pointer;
+}
+
+/* Form Options */
+.form-options {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.9rem;
+    margin-top: 5px;
+}
+
+.remember-me {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.remember-me input[type="checkbox"] {
+    accent-color: var(--primary-color);
+    width: 16px;
+    height: 16px;
+}
+
+.forgot-password {
+    color: var(--primary-color);
+    text-decoration: none;
+    transition: var(--transition);
+}
+
+.forgot-password:hover {
+    text-decoration: underline;
+}
+
+/* Button Styles */
+button {
+    width: 100%;
+    padding: 12px;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: var(--border-radius);
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    margin-top: 15px;
+    height: 45px;
+}
+
+button:hover {
+    background-color: #0088e6;
+}
+
+button i {
+    transition: transform 0.3s ease;
+}
+
+button:hover i {
+    transform: translateX(5px);
+}
+
+/* Info Container Styles */
+.wave-decoration {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    z-index: 1;
+}
+
+.info-content {
+    padding: 0 40px 40px;
+    z-index: 2;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    width: 100%;
+}
+
+.info-content h2 {
+    font-size: 2.2rem;
+    margin-bottom: 15px;
+}
+
+.info-content p {
+    font-size: 1rem;
+    opacity: 0.9;
+    line-height: 1.6;
+    margin-bottom: 30px;
+}
+
+.info-features {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    align-items: flex-start;
+    margin-top: 20px;
+}
+
+.feature {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 1.05rem;
+}
+
+.feature i {
+    font-size: 1.2rem;
+    width: 25px;
+}
+
+/* Message Container */
+#message-container {
+    margin-top: 20px;
+    padding: 10px;
+    border-radius: var(--border-radius);
+    text-align: center;
+    transition: var(--transition);
+}
+
+#message-container.success {
+    background-color: rgba(76, 175, 80, 0.1);
+    color: var(--success-color);
+    border: 1px solid rgba(76, 175, 80, 0.3);
+}
+
+#message-container.error {
+    background-color: rgba(244, 67, 54, 0.1);
+    color: var(--error-color);
+    border: 1px solid rgba(244, 67, 54, 0.3);
+}
+
+.hidden {
+    display: none;
+}
+
+/* Admin Mode Styles */
+.admin-mode button {
+    background-color: var(--accent-color);
+}
+
+.admin-mode button:hover {
+    background-color: #e68900;
+}
+
+.admin-mode .input-with-icon input:focus {
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px rgba(255, 152, 0, 0.2);
+}
+
+/* Responsive Styles */
+@media (max-width: 940px) {
+    .container {
+        width: 95%;
+        height: auto;
+        flex-direction: column;
+    }
+
+    .info-container {
+        display: none; /* Hide info section on small screens */
+    }
+
+    .login-container {
+        padding: 30px;
+        width: 100%; /* Full width on small screens */
+    }
+
+    .toggle-container {
+        width: 100% !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .login-container {
+        padding: 20px;
+    }
+
+    .form-options {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+}
+
+/* Password strength indicator */
+.password-strength {
+    margin-top: 5px;
+    display: none;
+}
+
+input[type="password"]:focus + .toggle-password + .password-strength {
+    display: block;
+}
+
+.strength-bar {
+    height: 5px;
+    background-color: #ddd;
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.bar-inner {
+    height: 100%;
+    width: 0;
+    background-color: #ddd;
+    transition: width 0.3s, background-color 0.3s;
+}
+
+.strength-text {
+    font-size: 12px;
+    color: #666;
+    margin-top: 3px;
+}
+
+/* Updated form elements for password reset pages */
+.checkbox-group {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.checkbox-group label {
+    display: flex;
+    align-items: center;
+}
+
+.checkbox-group input[type="checkbox"] {
+    margin-right: 5px;
+}
+
+/* Message container for password reset */
+.message-container {
+    margin-bottom: 15px;
+    display: none;
+}
+
+.message-container.active {
+    display: block;
+}
+
+.message {
+    padding: 10px;
+    border-radius: var(--border-radius);
+    font-size: 0.9rem;
+    text-align: center;
+}
+
+.message.success {
+    background-color: rgba(76, 175, 80, 0.1);
+    color: var(--success-color);
+    border: 1px solid rgba(76, 175, 80, 0.3);
+}
+
+.message.error {
+    background-color: rgba(244, 67, 54, 0.1);
+    color: var(--error-color);
+    border: 1px solid rgba(244, 67, 54, 0.3);
+}
+
+.message.info {
+    background-color: rgba(33, 150, 243, 0.1);
+    color: var(--primary-color);
+    border: 1px solid rgba(33, 150, 243, 0.3);
+}
+
+/* Form footer */
+.form-footer {
+    text-align: center;
+    margin-top: 10px;
+}
+
+.form-footer .link {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-size: 0.9rem;
+}
+
+.form-footer .link:hover {
+    text-decoration: underline;
+}
+
+/* Motivation container for password reset pages */
+.motivation-container {
+    width: 50%;
+    background: linear-gradient(45deg, var(--secondary-color), var(--primary-color));
+    color: white;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 40px;
+}
+
+.motivation-container .logo {
+    width: 120px;
+    height: auto;
+    margin-bottom: 30px;
+}
+
+.motivation-container h2 {
+    font-size: 2rem;
+    margin-bottom: 15px;
+}
+
+.motivation-container p {
+    font-size: 1rem;
+    text-align: center;
+    opacity: 0.9;
+}
+
+/* Make the toggle password button visible and clickable */
+.toggle-password {
+    position: absolute;
+    right: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    color: #aaa;
+}
+
+.toggle-password:hover {
+    color: var(--primary-color);
+}
+
+/* Styles for the login button on reset pages */
+.btn-login {
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: var(--border-radius);
+    padding: 12px;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: var(--transition);
+    width: 100%;
+    text-align: center;
+}
+
+.btn-login:hover {
+    background-color: #0088e6;
+}
+
+/* New styles for password requirements */
+.password-requirements {
+    margin-top: 10px;
+    font-size: 0.85rem;
+    color: #666;
+}
+
+.password-requirements ul {
+    margin: 0;
+    padding-left: 20px;
+}
+
+.password-requirements li {
+    margin-bottom: 3px;
+}
+
+.password-requirements li.valid {
+    color: var(--success-color);
+}
+
+/* Make password strength indicator always visible when focused */
+input[type="password"]:focus ~ .password-strength {
+    display: block;
+}

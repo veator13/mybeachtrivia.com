@@ -1,0 +1,18 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Employee collection rules
+    match /employees/{userId} {
+      // Only allow read access to the user's own document or admin users
+      allow read: if request.auth != null && 
+        (request.auth.uid == userId || 
+        get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.role == 'admin');
+      
+      // Only allow admins to create or update employee documents
+      allow write: if request.auth != null && 
+        get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    // Other collections can be added with appropriate rules
+  }
+}

@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Beach Trivia</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <link rel="stylesheet" href="login.css">
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="login-container">
+            <div class="form-container">
+                <div class="header">
+                    <h2 id="loginTitle">Employee Login</h2>
+                    <p>Please enter your credentials to access the system.</p>
+                </div>
+                
+                <div class="toggle-container">
+                    <div id="employee-toggle" class="toggle-option employee active">Employee</div>
+                    <div id="admin-toggle" class="toggle-option admin">Admin</div>
+                </div>
+
+                <div id="messageContainer" class="message-container"></div>
+                
+                <form id="loginForm">
+                    <input type="hidden" id="userType" name="userType" value="employee">
+                    
+                    <div class="form-group">
+                        <label for="username">Email</label>
+                        <div class="input-with-icon">
+                            <i class="fas fa-user"></i>
+                            <input type="email" id="username" name="username" required>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <div class="input-with-icon">
+                            <i class="fas fa-lock"></i>
+                            <input type="password" id="password" name="password" required>
+                            <div id="passwordStrength" class="password-strength">
+                                <div class="strength-bar">
+                                    <div id="strengthBarInner" class="bar-inner"></div>
+                                </div>
+                                <div id="strengthText" class="strength-text"></div>
+                            </div>
+                            <span id="togglePassword" class="toggle-password">
+                                <i class="fas fa-eye"></i>
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group checkbox-group">
+                        <label>
+                            <input type="checkbox" id="rememberMe" name="rememberMe">
+                            <span>Remember me</span>
+                        </label>
+                        <a href="#" id="forgotPassword" class="link forgot-password">Forgot password?</a>
+                    </div>
+                    
+                    <div class="form-group">
+                        <button type="submit" id="loginButton" class="btn-login">
+                            <span>Login</span><i class="fas fa-arrow-right"></i>
+                        </button>
+                    </div>
+                </form>
+
+                <div class="form-footer">
+                    <a href="#" class="link">Sign up for an account</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="motivation-container">
+            <img src="beachTriviaPages/images/BTlogo.png" alt="Beach Trivia Logo" class="logo">
+            <h2>Bring the Fun!</h2>
+            <p>Create memorable experiences for our guests with Beach Trivia.</p>
+        </div>
+    </div>
+
+    <script src="login.js"></script>
+</body>
+</html>

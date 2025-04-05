@@ -6,12 +6,77 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Beach Trivia</title>
     <link rel="stylesheet" href="style.css">
+    
+    <!-- Firebase SDK (Modular v9) -->
+    <script type="module">
+        // Import the functions you need from the SDKs you need
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
+
+        // Your web app's Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyDBKCotY1F943DKfVQqKQGPPkAkQe2Zgog",
+            authDomain: "beach-trivia-website.firebaseapp.com",
+            projectId: "beach-trivia-website",
+            storageBucket: "beach-trivia-website.appspot.com",
+            messagingSenderId: "459479368322",
+            appId: "1:459479368322:web:7bd3d080d3b9e77610aa9b"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // Authentication State Observer
+        onAuthStateChanged(auth, async (user) => {
+            const loginButton = document.getElementById('loginButton');
+            
+            if (user) {
+                // User is signed in - update button and redirect if clicked
+                loginButton.innerHTML = '<h2>MY DASHBOARD</h2>';
+                loginButton.onclick = async () => {
+                    // Get user role from Firestore
+                    const userDocRef = doc(db, 'employees', user.uid);
+                    const userDocSnap = await getDoc(userDocRef);
+                    
+                    if (userDocSnap.exists()) {
+                        const userData = userDocSnap.data();
+                        // Check if roles is an array and get the first role
+                        if (userData.roles && userData.roles.length > 0) {
+                            const role = userData.roles[0];
+                            // Convert role to lowercase and replace spaces with hyphens for filename
+                            const dashboardFile = role.toLowerCase().replace(/\s+/g, '-') + '.html';
+                            window.location.href = `dashboards/${dashboardFile}`;
+                        } else {
+                            // Fallback if no roles array or it's empty
+                            window.location.href = 'dashboards/default.html';
+                        }
+                    } else {
+                        console.error('User document not found in Firestore');
+                    }
+                };
+            } else {
+                // No user is signed in - link to login page
+                loginButton.innerHTML = '<h2>STAFF LOGIN</h2>';
+                loginButton.onclick = () => {
+                    window.location.href = 'login.html';
+                };
+            }
+        });
+    </script>
 </head>
 <body>
     <nav>
         <div class="logo-container">
             <div class="logo">
                 <a href="#"><img src="beachTriviaPages/images/BTlogo.png" alt="Beach Trivia Logo"></a>
+            </div>
+        </div>
+        <div class="login-container">
+            <div class="login-button" id="loginButton">
+                <h2>STAFF LOGIN</h2>
             </div>
         </div>
         <div class="NavButton-container">
