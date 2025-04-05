@@ -10,9 +10,18 @@
     ],
     "rewrites": [
       {
-        "source": "**",
+        "source": "/",
         "destination": "/index.html"
+      },
+      {
+        "source": "/login",
+        "destination": "/login.html"
+      },
+      {
+        "source": "/dashboard/**",
+        "destination": "/beachTriviaPages/dashboards/host-dashboard.html"
       }
-    ]
+    ],
+    "trailingSlash": false
   }
 }
