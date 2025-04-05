@@ -1,251 +1,200 @@
-/** {
-    outline: solid 1px red;
-}*/
-*, html, body {
-    border: none;
-    padding: 0;
+/* Reset and base styles */
+* {
     margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
     height: 100%;
     width: 100%;
-    text-decoration: none;
+    font-family: Arial, sans-serif;
 }
+
 body {
     background-image: url(beachTriviaPages/images/barCelebrationHomepage.jpeg);
     background-repeat: no-repeat;
     background-size: cover;
     background-position: center;
-    height: 100%;
-    width: 100%;
+    background-attachment: fixed;
+    overflow: hidden;
 }
-body::-webkit-scrollbar{
-    display: none;
-  }
+
+/* Main navigation panel */
 nav {
-    background: rgb(0, 0, 0, 0.48);
-    width: 348px;
-    height: 100%;
     position: fixed;
-    min-height: 100%;
-    box-sizing: border-box;
-    overflow-x: hidden;
-    overflow-y: hidden;   
+    left: 0;
+    top: 0;
+    width: 350px;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.48);
     display: flex;
     flex-direction: column;
-}
-
-.login-container {
-    width: 100%;
-    display: flex;
-    justify-content: center;
-    padding: 10px 0;
-    position: absolute;
-    top: 0;
-    left: 0;
-    z-index: 10;
-}
-
-.login-button {
-    background-color: rgb(85, 218, 255);
-    border: rgb(255, 255, 255) 2px solid;
-    border-radius: 25px;
-    width: 120px;
-    height: 40px;
-    display: flex;
-    justify-content: center;
     align-items: center;
-    transition: background-color 0.3s ease, transform 0.3s ease;
+    padding: 20px 0;
+}
+
+/* Logo styling */
+.logo-container {
+    margin-top: 20px;
+    margin-bottom: 30px;
+}
+
+.logo-container img {
+    width: 180px;
+    height: 180px;
+    border-radius: 50%;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.logo-container img:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.7);
+}
+
+/* Login button */
+.login-button {
+    background-color: #55DAFF;
+    color: white;
+    font-weight: bold;
+    padding: 12px 25px;
+    border-radius: 25px;
+    margin-bottom: 40px;
+    cursor: pointer;
+    border: 2px solid white;
+    transition: all 0.3s ease;
+    text-align: center;
 }
 
 .login-button:hover {
-    background-color: rgb(64, 196, 233);
+    background-color: #3AC0E6;
     transform: scale(1.05);
 }
 
 .login-button:active {
-    width: 118px;
-    height: 38px;
+    transform: scale(0.98);
 }
 
-.login-button h2 {
-    font-size: 14px;
-    font-weight: 100;
-    letter-spacing: 0px;
+/* Navigation menu - STYLING MATCHED TO IMAGE */
+.navigation-menu {
+    display: flex;
+    flex-direction: column;
+    width: 85%;
+    gap: 15px;
+    margin-bottom: auto;
+    overflow-y: auto;
+    max-height: calc(100% - 380px);
+    padding-right: 5px;
+}
+
+/* Hide scrollbar but allow scrolling */
+.navigation-menu::-webkit-scrollbar {
+    width: 0;
+    background: transparent;
+}
+
+/* Matched to the exact style in the image */
+.menu-button {
     display: flex;
     justify-content: center;
     align-items: center;
-    transition: font-size 0.3s ease;
-}
-
-.login-button h2:hover {
-    font-size: 15px;
-    cursor: pointer;
-}
-
-.login-button h2:active {
-    font-size: 14px;
-}
-
-.logo-container {
-    height: 216px;
-    width: 100%;
-    box-sizing: border-box;
-    display: block;
-    margin-top: 60px; /* Adjust to make space for login button */
-}
-
-.logo img {
-    width: 215px;
-    height: 215px;
-    display: block;
-    margin-top: 12px;
-    margin-left: auto;
-    margin-right: auto;
-}
-
-.logo img:hover {
-    box-shadow: 0 0 8px rgba(255, 255, 255, 0.7);
-    border-radius: 50%;
-    cursor: pointer;
-}
-
-.logo img:active {
-    box-shadow: none;
-}
-
-.NavButton-container {
-    box-sizing: border-box;
-    height: calc(100vh - 410px) !important; /* Adjusted to account for login and logo space */
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-start;
-    align-items: center;
-    overflow: scroll;
-}
-
-.NavButton-container::-webkit-scrollbar{
-    display: none;
-  }
-
-.button {
-    border: rgb(255, 255, 255) 2px solid;
-    border-radius: 7px;
-    color: white;
-    box-sizing: border-box;
-    width: 67%;
     height: 63px;
-    min-height: 63px;
-    display: flex;
-    margin-bottom: 7px;
-    align-items: center;
+    background-color: transparent;
+    color: white;
     text-align: center;
-}
-
-.button:hover {
-    background-color: rgba(255,255,255,0.3);
-    cursor: pointer;
-  }
-
-.button:active {
-    background-color: rgba(255,255,255,0.6);
-    border: rgb(255, 255, 255) 3px solid;
-}
-
-.button1 {
-    margin-top: 10px;
-}
-
-.button h2 {
-    font-family: sans-serif;
+    border-radius: 7px;
+    border: 2px solid white;
+    text-decoration: none;
     font-weight: 200;
     font-size: 24px;
     letter-spacing: 1.4px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
+    text-transform: uppercase;
+    transition: background-color 0.3s ease;
 }
 
-.button h2:active {
-    font-weight: 100;
-}
-
-a:link {
-    color: white;
-}
-
-a:visited {
-    text-decoration: none;
-    color: white;
-}
-
-.socialMedia-container {
-    box-sizing: border-box;
-    height: 60px;
-    width: 348px;
-    text-align: center;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: fixed;
-    bottom: 0;
-    z-index: 3;
-}
-
-.socialMedia-container img {
-    display: inline-block;
-    width: 40px;
-    height: 34px;
-    width: 34px;
-    bottom: 0;
-    display: inline-flex;
-}
-
-.socialMedia-container img:hover{
-    transform: scale(1.25); 
+.menu-button:hover {
+    background-color: rgba(255, 255, 255, 0.3);
     cursor: pointer;
 }
 
-.socialMedia-container img:active {
-    transform: scale(1.0); 
+.menu-button:active {
+    background-color: rgba(255, 255, 255, 0.6);
+    border: 3px solid white;
+    font-weight: 100;
 }
 
-.socialMedia-container a {
-    height: 34px;
-    width: 34px;
-    margin:  3px;
-    padding: 5px;
-}
-                            /*------ MOBILE SCREEN SETTINGS ------*/
-@media screen and (max-width: 450px){
-  body {
-    background: url(beachTriviaPages/images/mobileImage1.jpeg) no-repeat;
-    background-size: cover;
-    background-position: center;
-    width: 100vw;
-    height: 100vh;
-  }
-  nav {
-    width: 100vw;
-  }
-  .socialMedia-container {
-    width: 100vw;
-  }
-  .logo-container {
-    height: 200px;
-    margin-top: 40px; /* Adjusted for mobile */
-  }
-  .logo img {
+/* Social media links */
+.social-links {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
     margin-top: 20px;
-    height: 200px;
-    width: 200px;
-  }
-  .socialMedia-container {
-    height: 60px;
-  }
-  .NavButton-container {
-    height: calc(100vh - 340px) !important;
-  }
-  
-  .login-container {
-    display: none; /* Hide login button on mobile */
-  }
+    padding: 15px 0;
+    width: 100%;
+}
+
+.social-links a {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.3s ease;
+}
+
+.social-links img {
+    width: 30px;
+    height: 30px;
+}
+
+.social-links a:hover {
+    transform: scale(1.2);
+}
+
+/* Mobile styles */
+@media (max-width: 768px) {
+    nav {
+        width: 100%;
+        height: auto;
+        padding: 10px;
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: space-between;
+    }
+    
+    .logo-container {
+        width: 80px;
+        margin: 5px;
+    }
+    
+    .logo-container img {
+        width: 70px;
+        height: 70px;
+    }
+    
+    .login-button {
+        margin: 10px;
+        padding: 8px 15px;
+        font-size: 0.9em;
+    }
+    
+    .navigation-menu {
+        order: 3;
+        width: 100%;
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 10px;
+        margin-top: 10px;
+        max-height: none;
+    }
+    
+    .menu-button {
+        width: calc(50% - 10px);
+        padding: 10px 5px;
+        font-size: 0.9em;
+    }
+    
+    .social-links {
+        width: auto;
+        margin: 10px;
+    }
 }

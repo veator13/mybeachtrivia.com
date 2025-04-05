@@ -35,7 +35,7 @@
             
             if (user) {
                 // User is signed in - update button and redirect if clicked
-                loginButton.innerHTML = '<h2>MY DASHBOARD</h2>';
+                loginButton.innerHTML = 'MY DASHBOARD';
                 loginButton.onclick = async () => {
                     // Get user role from Firestore
                     const userDocRef = doc(db, 'employees', user.uid);
@@ -48,10 +48,10 @@
                             const role = userData.roles[0];
                             // Convert role to lowercase and replace spaces with hyphens for filename
                             const dashboardFile = role.toLowerCase().replace(/\s+/g, '-') + '.html';
-                            window.location.href = `beachTriviaPages/dashboards/${dashboardFile}`;
+                            window.location.href = `https://mybeachtrivia.com/beachTriviaPages/dashboards/${dashboardFile}`;
                         } else {
                             // Fallback if no roles array or it's empty
-                            window.location.href = 'beachTriviaPages/dashboards/host-dashboard.html';
+                            window.location.href = 'https://mybeachtrivia.com/beachTriviaPages/dashboards/host-dashboard.html';
                         }
                     } else {
                         console.error('User document not found in Firestore');
@@ -59,9 +59,9 @@
                 };
             } else {
                 // No user is signed in - link to login page
-                loginButton.innerHTML = '<h2>STAFF LOGIN</h2>';
+                loginButton.innerHTML = 'STAFF LOGIN';
                 loginButton.onclick = () => {
-                    window.location.href = 'login.html';
+                    window.location.href = 'https://mybeachtrivia.com/login.html';
                 };
             }
         });
@@ -70,39 +70,32 @@
 <body>
     <nav>
         <div class="logo-container">
-            <div class="logo">
-                <a href="index.html"><img src="beachTriviaPages/images/BTlogo.png" alt="Beach Trivia Logo"></a>
-            </div>
+            <a href="https://mybeachtrivia.com/">
+                <img src="beachTriviaPages/images/BTlogo.png" alt="Beach Trivia Logo">
+            </a>
         </div>
-        <div class="login-container">
-            <div class="login-button" id="loginButton">
-                <h2>STAFF LOGIN</h2>
-            </div>
+        
+        <div class="login-button" id="loginButton">STAFF LOGIN</div>
+        
+        <div class="navigation-menu">
+            <a href="https://mybeachtrivia.com/beachTriviaPages/1-GetStarted/index.html" class="menu-button">GET STARTED</a>
+            <a href="https://mybeachtrivia.com/beachTriviaPages/2-OurServices/index.html" class="menu-button">OUR SERVICES</a>
+            <a href="https://mybeachtrivia.com/beachTriviaPages/3-Locations/index.html" class="menu-button">LOCATIONS</a>
+            <a href="https://mybeachtrivia.com/beachTriviaPages/4-JoinOurTeam/index.html" class="menu-button">JOIN OUR TEAM</a>
+            <a href="https://mybeachtrivia.com/beachTriviaPages/5-AboutUs/index.html" class="menu-button">ABOUT US</a>
+            <a href="https://mybeachtrivia.com/beachTriviaPages/6-Tournament/index.html" class="menu-button">TOURNAMENT</a>
         </div>
-        <div class="NavButton-container">
-            <div class="button button1">
-                <a href="beachTriviaPages/1-GetStarted/index.html"><h2>GET STARTED</h2></a>
-            </div>
-            <div class="button button2">
-                <a href="beachTriviaPages/2-OurServices/index.html"><h2>OUR SERVICES</h2></a>
-            </div>
-            <div class="button button3">
-                <a href="beachTriviaPages/3-Locations/index.html"><h2>LOCATIONS</h2></a>
-            </div>
-            <div class="button button4">
-                <a href="beachTriviaPages/4-JoinOurTeam/index.html"><h2>JOIN OUR TEAM</h2></a>
-            </div>
-            <div class="button button5">
-                <a href="beachTriviaPages/5-AboutUs/index.html"><h2>ABOUT US</h2></a>
-            </div>
-            <div class="button button6">
-                <a href="beachTriviaPages/6-Tournament/index.html"><h2>TOURNAMENT</h2></a>
-            </div>
-        </div>
-        <div class="socialMedia-container">
-             <a href="https://www.facebook.com/BeachTrivia" target="_blank" rel="noopener noreferrer"><img src="beachTriviaPages/images/FBlogo.png" alt="Facebook Logo Link"></a>
-             <a href="mailto:mybeachtrivia@gmail.com" target="_blank" rel="noopener noreferrer"><img src="beachTriviaPages/images/GMAILlogo2.png" alt="Gmail Logo Link"></a>
-             <a href="https://www.instagram.com/beachtrivia/" target="_blank" rel="noopener noreferrer"><img src="beachTriviaPages/images/INSTAlogo2.png" alt="Instagram Logo Link"></a>
+        
+        <div class="social-links">
+            <a href="https://www.facebook.com/BeachTrivia" target="_blank" rel="noopener noreferrer">
+                <img src="beachTriviaPages/images/FBlogo.png" alt="Facebook">
+            </a>
+            <a href="mailto:mybeachtrivia@gmail.com">
+                <img src="beachTriviaPages/images/GMAILlogo2.png" alt="Email">
+            </a>
+            <a href="https://www.instagram.com/beachtrivia/" target="_blank" rel="noopener noreferrer">
+                <img src="beachTriviaPages/images/INSTAlogo2.png" alt="Instagram">
+            </a>
         </div>
     </nav>
 </body>
