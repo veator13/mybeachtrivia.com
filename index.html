@@ -48,10 +48,10 @@
                             const role = userData.roles[0];
                             // Convert role to lowercase and replace spaces with hyphens for filename
                             const dashboardFile = role.toLowerCase().replace(/\s+/g, '-') + '.html';
-                            window.location.href = `https://mybeachtrivia.com/beachTriviaPages/dashboards/${dashboardFile}`;
+                            window.location.href = `beachTriviaPages/dashboards/${dashboardFile}`;
                         } else {
                             // Fallback if no roles array or it's empty
-                            window.location.href = 'https://mybeachtrivia.com/beachTriviaPages/dashboards/host-dashboard.html';
+                            window.location.href = 'beachTriviaPages/dashboards/host-dashboard.html';
                         }
                     } else {
                         console.error('User document not found in Firestore');
@@ -61,7 +61,7 @@
                 // No user is signed in - link to login page
                 loginButton.innerHTML = 'STAFF LOGIN';
                 loginButton.onclick = () => {
-                    window.location.href = 'https://mybeachtrivia.com/login.html';
+                    window.location.href = 'login.html';
                 };
             }
         });
@@ -70,7 +70,7 @@
 <body>
     <nav>
         <div class="logo-container">
-            <a href="https://mybeachtrivia.com/">
+            <a href="index.html">
                 <img src="beachTriviaPages/images/BTlogo.png" alt="Beach Trivia Logo">
             </a>
         </div>
@@ -78,12 +78,12 @@
         <div class="login-button" id="loginButton">STAFF LOGIN</div>
         
         <div class="navigation-menu">
-            <a href="https://mybeachtrivia.com/beachTriviaPages/1-GetStarted/index.html" class="menu-button">GET STARTED</a>
-            <a href="https://mybeachtrivia.com/beachTriviaPages/2-OurServices/index.html" class="menu-button">OUR SERVICES</a>
-            <a href="https://mybeachtrivia.com/beachTriviaPages/3-Locations/index.html" class="menu-button">LOCATIONS</a>
-            <a href="https://mybeachtrivia.com/beachTriviaPages/4-JoinOurTeam/index.html" class="menu-button">JOIN OUR TEAM</a>
-            <a href="https://mybeachtrivia.com/beachTriviaPages/5-AboutUs/index.html" class="menu-button">ABOUT US</a>
-            <a href="https://mybeachtrivia.com/beachTriviaPages/6-Tournament/index.html" class="menu-button">TOURNAMENT</a>
+            <a href="beachTriviaPages/1-GetStarted/index.html" class="menu-button">GET STARTED</a>
+            <a href="beachTriviaPages/2-OurServices/index.html" class="menu-button">OUR SERVICES</a>
+            <a href="beachTriviaPages/3-Locations/index.html" class="menu-button">LOCATIONS</a>
+            <a href="beachTriviaPages/4-JoinOurTeam/index.html" class="menu-button">JOIN OUR TEAM</a>
+            <a href="beachTriviaPages/5-AboutUs/index.html" class="menu-button">ABOUT US</a>
+            <a href="beachTriviaPages/6-Tournament/index.html" class="menu-button">TOURNAMENT</a>
         </div>
         
         <div class="social-links">

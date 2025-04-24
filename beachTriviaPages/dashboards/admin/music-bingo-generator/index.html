@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Music Bingo Playlist Creator</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header-container">
+            <h1>Music Bingo Playlist Creator</h1>
+            <div class="header-buttons">
+                <button id="createNewPlaylistBtn" class="create-new-btn">Create New Playlist</button>
+                <button id="importCsvBtn" class="import-csv-btn">Import CSV</button>
+                <button id="createBoardBtn" class="create-board-btn">Create Printable Board</button>
+                <button id="deletePlaylistBtn" class="delete-playlist-btn">Delete Playlist</button>
+                <input type="file" id="csvFileInput" accept=".csv" style="display: none;">
+            </div>
+        </div>
+        
+        <div class="playlist-header">
+            <select id="existingPlaylists">
+                <option value="">Select Existing Playlist</option>
+                <!-- Existing playlists will be populated dynamically -->
+            </select>
+            <input type="text" id="playlistName" placeholder="Enter Playlist Name">
+        </div>
+
+        <div class="table-container">
+            <table id="songTable">
+                <thead>
+                    <tr>
+                        <th>Song Name</th>
+                        <th>Artist</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="songTableBody">
+                    <!-- Rows will be dynamically added here -->
+                </tbody>
+            </table>
+        </div>
+
+        <div class="btn-container">
+            <button class="add-row-btn" id="addRowBtn">Add Row</button>
+            <button class="save-playlist-btn" id="savePlaylistBtn">Save Playlist</button>
+        </div>
+    </div>
+
+    <!-- Validation Modal for Long Text -->
+    <div id="validationModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Long Text Warning</h2>
+            </div>
+            <div class="modal-body">
+                <p>The following entries exceed the recommended 40 character limit. Long text may display incorrectly in the interface.</p>
+                <p>Please edit them or click the override button to accept.</p>
+                
+                <div class="modal-table-container">
+                    <table id="validationTable">
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Content</th>
+                                <th>Length</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="validationTableBody">
+                            <!-- Rows will be dynamically added here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="approveBtn" class="approve-btn" disabled>Approve All</button>
+                <button id="cancelValidationBtn" class="cancel-btn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bingo Board Copies Modal -->
+    <div id="boardCopiesModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Create Bingo Boards</h2>
+            </div>
+            <div class="modal-body">
+                <p>Enter the number of copies (the system will generate twice this many unique boards):</p>
+                <input type="number" id="copiesInput" min="1" max="100" value="1" class="copies-input">
+                <div id="playlistWarning" class="warning-message" style="display: none;">
+                    <p>You need at least 40 songs in your playlist to create bingo boards.</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="generateBoardsBtn" class="approve-btn">Generate Boards</button>
+                <button id="cancelBoardsBtn" class="cancel-btn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add jsPDF library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    
+    <script type="module" src="js/script.js"></script>
+    <script type="module" src="js/validation.js"></script>
+    <script type="module" src="js/pdfGenerator.js"></script>
+</body>
+</html>

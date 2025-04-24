@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Employees Admin</title>
+    <!-- Auth Guard Script - Add this to protect the page -->
+    <script src="auth-guard.js"></script>
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- Firebase SDK scripts -->
+    <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+    <!-- Authentication Loading Overlay -->
+    <div id="auth-loading" class="auth-overlay">
+        <div class="spinner"></div>
+        <p>Verifying access...</p>
+    </div>
+
+    <div class="container" style="display: none;">
+        <h1>Employees Management</h1>
+        
+        <!-- Add New Employee Button -->
+        <button id="addNewEmployeeBtn">Add New Employee</button>
+
+        <!-- Employee Modal -->
+        <div id="employeeModal" class="modal">
+            <div class="modal-content">
+                <span class="close-modal">&times;</span>
+                
+                <!-- Employee Form -->
+                <form id="employeeForm">
+                    <input type="hidden" id="employeeId">
+                    <div class="form-group">
+                        <label for="firstName">First Name</label>
+                        <input type="text" id="firstName" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="lastName">Last Name</label>
+                        <input type="text" id="lastName" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <input type="email" id="email" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="phone">Phone</label>
+                        <input type="tel" id="phone">
+                    </div>
+                    <div class="form-group">
+                        <label for="nickname">Nickname</label>
+                        <input type="text" id="nickname">
+                    </div>
+                    <div class="form-group">
+                        <label for="employeeID">Employee ID</label>
+                        <input type="text" id="employeeID">
+                    </div>
+                    <div class="form-group">
+                        <label for="emergencyContactName">Emergency Contact Name</label>
+                        <input type="text" id="emergencyContactName">
+                    </div>
+                    <div class="form-group">
+                        <label for="emergencyContactPhone">Emergency Contact Phone</label>
+                        <input type="tel" id="emergencyContactPhone">
+                    </div>
+                    <div class="form-group">
+                        <label for="active">Active</label>
+                        <select id="active">
+                            <option value="true">Yes</option>
+                            <option value="false">No</option>
+                        </select>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" id="saveEmployee">Save Employee</button>
+                        <button type="button" id="cancelEdit">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Employees Table -->
+        <table id="employeesTable">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Employee ID</th>
+                    <th>Active</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="employeesTableBody">
+                <!-- Employees will be dynamically populated here -->
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Initialize Firebase -->
+    <script>
+    // Your web app's Firebase configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyDBKCotY1F943DKfVQqKOGPPkAkQe2Zgog",
+      authDomain: "beach-trivia-website.firebaseapp.com",
+      projectId: "beach-trivia-website",
+      storageBucket: "beach-trivia-website.firebasestorage.app",
+      messagingSenderId: "459479368322",
+      appId: "1:459479368322:web:7bd3d080d3b9e77610aa9b",
+      measurementId: "G-24MQRKKDNY"
+    };
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    
+    // Auth state listener to show content after verification
+    firebase.auth().onAuthStateChanged(user => {
+        if (user) {
+            // Hide loading overlay and show content when authenticated
+            document.getElementById('auth-loading').style.display = 'none';
+            document.querySelector('.container').style.display = 'block';
+        }
+    });
+    </script>
+
+    <script type="module" src="script.js"></script>
+    
+    <style>
+    /* Additional styles for auth overlay */
+    .auth-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.8);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+        color: white;
+    }
+    
+    .spinner {
+        border: 4px solid rgba(255, 255, 255, 0.3);
+        border-radius: 50%;
+        border-top: 4px solid #3699ff;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+        margin-bottom: 15px;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    </style>
+</body>
+</html>
