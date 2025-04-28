@@ -34,25 +34,60 @@ document.addEventListener('DOMContentLoaded', () => {
     const adminToggle = document.getElementById('admin-toggle');
     const userTypeInput = document.getElementById('userType');
 
-    // Check if user is already logged in
+    // Check if user is already logged in - FIXED to respect toggle selection
     auth.onAuthStateChanged(user => {
         if (user) {
             // Check if we're on the login page
-            if (window.location.pathname.includes('login.html')) {
-                // Get user role from session storage
-                const userRole = sessionStorage.getItem('userRole');
-                if (userRole) {
-                    redirectToDashboard(userRole);
-                } else {
-                    // Fetch role from database if not in session storage
-                    fetchUserRoleAndRedirect(user.email);
+            if (window.location.pathname.includes('login.html') || window.location.pathname === '/') {
+                // Instead of immediately redirecting, check if there's an active login attempt
+                const isActiveLogin = sessionStorage.getItem('activeLogin');
+                
+                if (!isActiveLogin) {
+                    // If no active login, clear previous role data to ensure fresh login flow
+                    sessionStorage.removeItem('userRole');
+                    
+                    // Don't auto-redirect users with multiple roles
+                    // This gives them the chance to choose which role to log in as
+                    db.collection('employees')
+                        .where('email', '==', user.email)
+                        .get()
+                        .then((querySnapshot) => {
+                            if (!querySnapshot.empty) {
+                                const userData = querySnapshot.docs[0].data();
+                                
+                                if (userData.roles && userData.roles.length > 1) {
+                                    // User has multiple roles, don't auto-redirect
+                                    console.log('User has multiple roles, showing toggle options');
+                                    showMessage('success', 'Please select which role to use for login');
+                                    
+                                    // Store basic user info without setting active role
+                                    sessionStorage.setItem('userRoles', JSON.stringify(userData.roles));
+                                    sessionStorage.setItem('userEmail', user.email);
+                                    sessionStorage.setItem('userId', querySnapshot.docs[0].id);
+                                    
+                                    // Pre-fill email field
+                                    if (emailInput) emailInput.value = user.email;
+                                    
+                                    // Signal that we've checked this user
+                                    sessionStorage.setItem('checkedUser', 'true');
+                                } else if (userData.roles && userData.roles.length === 1) {
+                                    // User has only one role, use it
+                                    const role = userData.roles[0];
+                                    sessionStorage.setItem('userRole', role);
+                                    redirectToDashboard(role);
+                                }
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error fetching user roles:', error);
+                        });
                 }
             }
         }
     });
     
     // Fetch user role from Firestore and redirect
-    function fetchUserRoleAndRedirect(email) {
+    function fetchUserRoleAndRedirect(email, specificRole = null) {
         db.collection('employees')
             .where('email', '==', email)
             .get()
@@ -74,14 +109,31 @@ document.addEventListener('DOMContentLoaded', () => {
                         // Store admin status
                         sessionStorage.setItem('isAdmin', hasAdminRole);
                         
-                        // Use first role as default
-                        const role = userData.roles[0];
+                        // If a specific role was requested, use that
+                        let role;
+                        if (specificRole) {
+                            // Use the specified role if the user has it
+                            if (userData.roles.some(r => r.toLowerCase() === specificRole.toLowerCase())) {
+                                role = specificRole;
+                            } else {
+                                // If user doesn't have the requested role, use the first one
+                                role = userData.roles[0];
+                            }
+                        } else {
+                            // Otherwise use first role as default
+                            role = userData.roles[0];
+                        }
+                        
                         sessionStorage.setItem('userRole', role);
                         
                         // Redirect based on role
                         redirectToDashboard(role);
                     }
                 }
+            })
+            .catch(error => {
+                console.error('Error fetching user role:', error);
+                showMessage('error', 'Error accessing user data. Please try again.');
             });
     }
 
@@ -102,25 +154,34 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Password visibility toggle
     const togglePasswordButton = document.getElementById('togglePassword');
-    const togglePasswordIcon = togglePasswordButton.querySelector('i');
+    
+    if (togglePasswordButton) {
+        togglePasswordButton.addEventListener('click', () => {
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                togglePasswordButton.querySelector('i').classList.remove('fa-eye');
+                togglePasswordButton.querySelector('i').classList.add('fa-eye-slash');
+            } else {
+                passwordInput.type = 'password';
+                togglePasswordButton.querySelector('i').classList.remove('fa-eye-slash');
+                togglePasswordButton.querySelector('i').classList.add('fa-eye');
+            }
+        });
+    }
 
-    // Toggle password visibility
-    togglePasswordButton.addEventListener('click', () => {
-        if (passwordInput.type === 'password') {
-            passwordInput.type = 'text';
-            togglePasswordIcon.classList.remove('fa-eye');
-            togglePasswordIcon.classList.add('fa-eye-slash');
-        } else {
-            passwordInput.type = 'password';
-            togglePasswordIcon.classList.remove('fa-eye-slash');
-            togglePasswordIcon.classList.add('fa-eye');
-        }
-    });
+
 
     // Show message to user
     function showMessage(type, message) {
         messageContainer.innerHTML = `<div class="message ${type}">${message}</div>`;
-        messageContainer.classList.add('active');
+        messageContainer.style.display = 'block';
+        
+        // Automatically hide success messages after 5 seconds
+        if (type === 'success') {
+            setTimeout(() => {
+                messageContainer.style.display = 'none';
+            }, 5000);
+        }
     }
 
     // Reset login button state
@@ -154,10 +215,10 @@ document.addEventListener('DOMContentLoaded', () => {
     loginForm.addEventListener('submit', (e) => {
         e.preventDefault();
 
-        // ADDED: Clear any existing role data before logging in
+        // Clear any existing role data before logging in
+        // But preserve the user ID and user roles if available
         sessionStorage.removeItem('userRole');
         sessionStorage.removeItem('isAdmin');
-        sessionStorage.removeItem('userRoles');
 
         const email = emailInput.value.trim();
         const password = passwordInput.value;
@@ -169,9 +230,25 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        // Set active login flag
+        sessionStorage.setItem('activeLogin', 'true');
+
         // Show loading state
         loginButton.innerHTML = '<span>Processing...</span><i class="fas fa-spinner fa-spin"></i>';
         loginButton.disabled = true;
+
+        // Check if we already have the user info (for already logged-in users)
+        const checkedUser = sessionStorage.getItem('checkedUser');
+        const storedRoles = sessionStorage.getItem('userRoles');
+        
+        if (checkedUser && storedRoles) {
+            const roles = JSON.parse(storedRoles);
+            const hasAdminRole = roles.some(role => role.toLowerCase() === 'admin');
+            const hasEmployeeRoles = roles.some(role => role.toLowerCase() !== 'admin');
+            
+            handleUserRoleSelection(email, roles, hasAdminRole, hasEmployeeRoles, userType);
+            return;
+        }
 
         // Sign in with Firebase Authentication
         auth.signInWithEmailAndPassword(email, password)
@@ -208,58 +285,26 @@ document.addEventListener('DOMContentLoaded', () => {
                               console.log('Has employee roles:', hasEmployeeRoles);
                               console.log('Selected login type:', userType);
                               
-                              // Store admin status for reference in other pages
-                              sessionStorage.setItem('isAdmin', hasAdminRole);
-                              
-                              // IMPORTANT FIX: Direct user based on toggle selection, not just role availability
-                              if (userType === 'admin' && hasAdminRole) {
-                                  // When admin toggle is selected, always go to admin dashboard
-                                  console.log('Redirecting to admin dashboard');
-                                  sessionStorage.setItem('userRole', 'admin');
-                                  redirectToDashboard('admin');
-                              } else if (userType === 'employee' && hasEmployeeRoles) {
-                                  // When employee toggle is selected and user has non-admin roles
-                                  // Find the first non-admin role (like "host" for Joshua)
-                                  const employeeRoles = userData.roles.filter(role => 
-                                      role.toLowerCase() !== 'admin');
-                                  
-                                  console.log('Available employee roles:', employeeRoles);
-                                  
-                                  if (employeeRoles.length > 0) {
-                                      const employeeRole = employeeRoles[0];
-                                      console.log('Selected employee role:', employeeRole);
-                                      
-                                      // Store the selected employee role
-                                      sessionStorage.setItem('userRole', employeeRole);
-                                      
-                                      // Redirect to the appropriate dashboard based on this role
-                                      redirectToDashboard(employeeRole);
-                                  } else {
-                                      // This case should not happen with our logic, but as a fallback
-                                      showMessage('error', 'No employee roles found for this account');
-                                      resetLoginButton();
-                                  }
-                              } else {
-                                  showMessage('error', `You don't have ${userType} privileges. Please use the correct login type.`);
-                                  auth.signOut();
-                                  resetLoginButton();
-                                  sessionStorage.clear();
-                              }
+                              // Handle the role selection
+                              handleUserRoleSelection(email, userData.roles, hasAdminRole, hasEmployeeRoles, userType);
                           } else {
                               console.error('No roles assigned to user');
                               showMessage('error', 'No roles assigned to user');
                               resetLoginButton();
+                              sessionStorage.removeItem('activeLogin');
                           }
                       } else {
                           console.error('No user document found with this email');
                           showMessage('error', 'User account not found in system');
                           resetLoginButton();
+                          sessionStorage.removeItem('activeLogin');
                       }
                   })
                   .catch((error) => {
                       console.error('Firestore error:', error);
                       showMessage('error', 'Error accessing user data');
                       resetLoginButton();
+                      sessionStorage.removeItem('activeLogin');
                   });
             })
             .catch((error) => {
@@ -289,8 +334,66 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 
                 resetLoginButton();
+                sessionStorage.removeItem('activeLogin');
             });
     });
+
+    // Handle user role selection and redirect
+    function handleUserRoleSelection(email, roles, hasAdminRole, hasEmployeeRoles, userType) {
+        // Store admin status for reference in other pages
+        sessionStorage.setItem('isAdmin', hasAdminRole);
+        
+        // Direct user based on toggle selection and available roles
+        if (userType === 'admin' && hasAdminRole) {
+            // When admin toggle is selected, always go to admin dashboard
+            console.log('Redirecting to admin dashboard');
+            sessionStorage.setItem('userRole', 'admin');
+            
+            // Show success message before redirect
+            showMessage('success', 'Login successful. Redirecting to admin dashboard...');
+            
+            // Short delay for message to be visible
+            setTimeout(() => {
+                sessionStorage.removeItem('activeLogin');
+                redirectToDashboard('admin');
+            }, 1000);
+        } else if (userType === 'employee' && hasEmployeeRoles) {
+            // When employee toggle is selected and user has non-admin roles
+            // Find the first non-admin role
+            const employeeRoles = roles.filter(role => 
+                role.toLowerCase() !== 'admin');
+            
+            console.log('Available employee roles:', employeeRoles);
+            
+            if (employeeRoles.length > 0) {
+                const employeeRole = employeeRoles[0];
+                console.log('Selected employee role:', employeeRole);
+                
+                // Store the selected employee role
+                sessionStorage.setItem('userRole', employeeRole);
+                
+                // Show success message before redirect
+                showMessage('success', `Login successful. Redirecting to ${employeeRole} dashboard...`);
+                
+                // Short delay for message to be visible
+                setTimeout(() => {
+                    sessionStorage.removeItem('activeLogin');
+                    // Redirect to the appropriate dashboard based on this role
+                    redirectToDashboard(employeeRole);
+                }, 1000);
+            } else {
+                // This case should not happen with our logic, but as a fallback
+                showMessage('error', 'No employee roles found for this account');
+                resetLoginButton();
+                sessionStorage.removeItem('activeLogin');
+            }
+        } else {
+            showMessage('error', `You don't have ${userType} privileges. Please use the correct login type.`);
+            auth.signOut();
+            resetLoginButton();
+            sessionStorage.clear();
+        }
+    }
 
     // Remember me functionality
     rememberMeCheckbox.addEventListener('change', () => {
@@ -315,9 +418,14 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         const email = emailInput.value.trim();
         if (!email) {
-            showMessage('error', 'Please enter your email address');
+            showMessage('error', 'Please enter your email address first');
+            emailInput.focus();
             return;
         }
+        
+        // Show loading state in message
+        showMessage('success', 'Sending password reset email...');
+        
         // Send password reset email using Firebase Authentication
         auth.sendPasswordResetEmail(email)
             .then(() => {
@@ -325,16 +433,26 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .catch((error) => {
                 console.error('Error sending password reset email:', error);
-                showMessage('error', 'Failed to send password reset email. Please try again.');
+                
+                // Specific error handling for password reset
+                switch(error.code) {
+                    case 'auth/user-not-found':
+                        showMessage('error', 'No account found with this email address');
+                        break;
+                    case 'auth/invalid-email':
+                        showMessage('error', 'Invalid email format');
+                        break;
+                    default:
+                        showMessage('error', 'Failed to send password reset email. Please try again.');
+                }
             });
     });
     
     // Logout functionality - can be called from any page
-    // UPDATED: Enhanced logout function to properly clear all caches
     window.logoutUser = function() {
         // First clear all session storage
         sessionStorage.clear();
-        // Remove Firebase auth persistence data - use correct API key
+        // Remove Firebase auth persistence data
         localStorage.removeItem(`firebase:authUser:${firebaseConfig.apiKey}:[DEFAULT]`);
         
         // Then sign out from Firebase
@@ -416,6 +534,5 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize timeout
     resetSessionTimeout();
 
-    // Optional: Console log for debugging
     console.log('Login page JavaScript initialized');
 });

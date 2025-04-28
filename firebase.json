@@ -4,9 +4,7 @@
     "ignore": [
       "firebase.json",
       "**/.*",
-      "**/node_modules/**",
-      "**/*.php",
-      "server/**"
+      "**/node_modules/**"
     ],
     "rewrites": [
       {
@@ -20,13 +18,6 @@
       {
         "source": "/dashboard/**",
         "destination": "/beachTriviaPages/dashboards/host-dashboard.html"
-      }
-    ],
-    "redirects": [
-      {
-        "source": "/**",
-        "destination": "https://mybeachtrivia.com/**",
-        "type": 301
       }
     ],
     "headers": [

@@ -35,7 +35,7 @@
                         <label for="username">Email</label>
                         <div class="input-with-icon">
                             <i class="fas fa-user"></i>
-                            <input type="email" id="username" name="username" required>
+                            <input type="email" id="username" name="username" placeholder="Enter your email" required>
                         </div>
                     </div>
                     
@@ -43,13 +43,7 @@
                         <label for="password">Password</label>
                         <div class="input-with-icon">
                             <i class="fas fa-lock"></i>
-                            <input type="password" id="password" name="password" required>
-                            <div id="passwordStrength" class="password-strength">
-                                <div class="strength-bar">
-                                    <div id="strengthBarInner" class="bar-inner"></div>
-                                </div>
-                                <div id="strengthText" class="strength-text"></div>
-                            </div>
+                            <input type="password" id="password" name="password" placeholder="Enter your password" required>
                             <span id="togglePassword" class="toggle-password">
                                 <i class="fas fa-eye"></i>
                             </span>
@@ -61,18 +55,18 @@
                             <input type="checkbox" id="rememberMe" name="rememberMe">
                             <span>Remember me</span>
                         </label>
-                        <a href="#" id="forgotPassword" class="link forgot-password">Forgot password?</a>
+                        <a href="#" id="forgotPassword" class="forgot-password">Forgot password?</a>
                     </div>
                     
                     <div class="form-group">
-                        <button type="submit" id="loginButton" class="btn-login">
+                        <button type="submit" id="loginButton">
                             <span>Login</span><i class="fas fa-arrow-right"></i>
                         </button>
                     </div>
                 </form>
 
                 <div class="form-footer">
-                    <a href="#" class="link">Sign up for an account</a>
+                    <p>Don't have an account? <a href="#" class="signup-link">Sign up</a></p>
                 </div>
             </div>
         </div>
