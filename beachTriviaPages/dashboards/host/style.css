@@ -1,3 +1,4 @@
+/* Custom CSS for Host Dashboard */
 body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
     margin: 0;
@@ -29,6 +30,7 @@ header {
 .user-profile {
     display: flex;
     align-items: center;
+    gap: 15px;
 }
 
 .profile-pic {
@@ -264,4 +266,54 @@ footer {
     box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
 
-/* The ::after element is intentionally removed to eliminate the "Don't be late!" text */
+/* Logout button styling */
+#logout-btn {
+    background-color: #ef4444;
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 600;
+    font-size: 14px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+#logout-btn:hover {
+    background-color: #dc2626;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+#logout-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* Responsive adjustments for mobile */
+@media (max-width: 768px) {
+    header {
+        flex-direction: column;
+        gap: 15px;
+        padding: 15px;
+    }
+    
+    .user-profile {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    #logout-btn {
+        padding: 6px 12px;
+        font-size: 12px;
+    }
+    
+    .quick-stats {
+        flex-direction: column;
+    }
+    
+    .stat-card {
+        width: 100%;
+    }
+}

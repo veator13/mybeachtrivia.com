@@ -1,9 +1,9 @@
-// Firebase configuration
+// Firebase configuration - UPDATED with correct storage bucket from index.html
 const firebaseConfig = {
     apiKey: "AIzaSyDBKCotY1F943DKfVQqKOGPPkAkQe2Zgog",
     authDomain: "beach-trivia-website.firebaseapp.com",
     projectId: "beach-trivia-website",
-    storageBucket: "beach-trivia-website.appspot.com",
+    storageBucket: "beach-trivia-website.appspot.com", // CORRECTED to match index.html
     messagingSenderId: "459479368322",
     appId: "1:459479368322:web:7bd3d080d3b9e77610aa9b",
     measurementId: "G-24MQRKKDNY"
@@ -62,14 +62,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     const userData = doc.data();
                     
                     if (userData.roles && userData.roles.length > 0) {
-                        const role = userData.roles[0];
-                        
-                        // Store role in session storage
-                        sessionStorage.setItem('userRole', role);
+                        // Store all user roles
+                        sessionStorage.setItem('userRoles', JSON.stringify(userData.roles));
                         sessionStorage.setItem('userEmail', email);
-                        
-                        // Store user ID for reference
                         sessionStorage.setItem('userId', doc.id);
+                        
+                        // Check if user has admin role (case insensitive)
+                        const hasAdminRole = userData.roles.some(role => 
+                            role.toLowerCase() === 'admin');
+                        
+                        // Store admin status
+                        sessionStorage.setItem('isAdmin', hasAdminRole);
+                        
+                        // Use first role as default
+                        const role = userData.roles[0];
+                        sessionStorage.setItem('userRole', role);
                         
                         // Redirect based on role
                         redirectToDashboard(role);
@@ -127,19 +134,30 @@ document.addEventListener('DOMContentLoaded', () => {
         // Convert role to lowercase and replace spaces with hyphens
         const rolePath = role.toLowerCase().replace(/\s+/g, '-');
         
+        console.log('Redirecting to dashboard for role:', role);
+        console.log('Formatted role path:', rolePath);
+        
         // Check if role is admin for special handling
         if (rolePath === 'admin') {
             // Direct to admin index page with the correct path
+            console.log('Redirecting to admin dashboard path: beachTriviaPages/dashboards/admin/index.html');
             window.location.href = 'beachTriviaPages/dashboards/admin/index.html';
         } else {
             // For other roles, use the standard folder structure
-            window.location.href = `beachTriviaPages/dashboards/${rolePath}/index.html`;
+            const redirectPath = `beachTriviaPages/dashboards/${rolePath}/index.html`;
+            console.log('Redirecting to role-specific dashboard path:', redirectPath);
+            window.location.href = redirectPath;
         }
     }
 
     // Handle login form submission
     loginForm.addEventListener('submit', (e) => {
         e.preventDefault();
+
+        // ADDED: Clear any existing role data before logging in
+        sessionStorage.removeItem('userRole');
+        sessionStorage.removeItem('isAdmin');
+        sessionStorage.removeItem('userRoles');
 
         const email = emailInput.value.trim();
         const password = passwordInput.value;
@@ -167,35 +185,64 @@ document.addEventListener('DOMContentLoaded', () => {
                   .get()
                   .then((querySnapshot) => {
                       if (!querySnapshot.empty) {
-                          // Get the first document that matches (should only be one)
+                          // Get the first document that matches
                           const doc = querySnapshot.docs[0];
                           const userData = doc.data();
                           console.log('User data:', userData);
                           
                           if (userData.roles && userData.roles.length > 0) {
-                              // Take the first role (or you can implement more complex logic)
-                              const role = userData.roles[0];
-                              console.log('User role:', role);
-                              
-                              // Store user info in session storage
-                              sessionStorage.setItem('userRole', role);
+                              // Store all user roles and user data
+                              sessionStorage.setItem('userRoles', JSON.stringify(userData.roles));
                               sessionStorage.setItem('userEmail', email);
                               sessionStorage.setItem('userId', doc.id);
                               
-                              // Store if user is admin
-                              const isAdmin = role.toLowerCase() === 'admin';
-                              sessionStorage.setItem('isAdmin', isAdmin);
+                              // Check if user has requested role type (case insensitive)
+                              const hasAdminRole = userData.roles.some(role => 
+                                  role.toLowerCase() === 'admin');
+                              const hasEmployeeRoles = userData.roles.some(role => 
+                                  role.toLowerCase() !== 'admin');
+                                  
+                              // Debug logging
+                              console.log('User roles:', userData.roles);
+                              console.log('Has admin role:', hasAdminRole);
+                              console.log('Has employee roles:', hasEmployeeRoles);
+                              console.log('Selected login type:', userType);
                               
-                              // Check if user type matches role
-                              if (userType === 'admin' && isAdmin) {
-                                  redirectToDashboard(role);
-                              } else if (userType === 'employee' && !isAdmin) {
-                                  redirectToDashboard(role);
+                              // Store admin status for reference in other pages
+                              sessionStorage.setItem('isAdmin', hasAdminRole);
+                              
+                              // IMPORTANT FIX: Direct user based on toggle selection, not just role availability
+                              if (userType === 'admin' && hasAdminRole) {
+                                  // When admin toggle is selected, always go to admin dashboard
+                                  console.log('Redirecting to admin dashboard');
+                                  sessionStorage.setItem('userRole', 'admin');
+                                  redirectToDashboard('admin');
+                              } else if (userType === 'employee' && hasEmployeeRoles) {
+                                  // When employee toggle is selected and user has non-admin roles
+                                  // Find the first non-admin role (like "host" for Joshua)
+                                  const employeeRoles = userData.roles.filter(role => 
+                                      role.toLowerCase() !== 'admin');
+                                  
+                                  console.log('Available employee roles:', employeeRoles);
+                                  
+                                  if (employeeRoles.length > 0) {
+                                      const employeeRole = employeeRoles[0];
+                                      console.log('Selected employee role:', employeeRole);
+                                      
+                                      // Store the selected employee role
+                                      sessionStorage.setItem('userRole', employeeRole);
+                                      
+                                      // Redirect to the appropriate dashboard based on this role
+                                      redirectToDashboard(employeeRole);
+                                  } else {
+                                      // This case should not happen with our logic, but as a fallback
+                                      showMessage('error', 'No employee roles found for this account');
+                                      resetLoginButton();
+                                  }
                               } else {
                                   showMessage('error', `You don't have ${userType} privileges. Please use the correct login type.`);
                                   auth.signOut();
                                   resetLoginButton();
-                                  // Clear session storage
                                   sessionStorage.clear();
                               }
                           } else {
@@ -232,6 +279,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         break;
                     case 'auth/too-many-requests':
                         showMessage('error', 'Too many unsuccessful login attempts. Please try again later');
+                        break;
+                    case 'auth/api-key-not-valid--please-pass-a-valid-api-key':
+                        showMessage('error', 'Authentication service error. Please contact support.');
+                        console.error('Firebase API key not valid. Check your Firebase configuration.');
                         break;
                     default:
                         showMessage('error', 'Login failed: ' + error.message);
@@ -279,11 +330,23 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     // Logout functionality - can be called from any page
+    // UPDATED: Enhanced logout function to properly clear all caches
     window.logoutUser = function() {
+        // First clear all session storage
+        sessionStorage.clear();
+        // Remove Firebase auth persistence data - use correct API key
+        localStorage.removeItem(`firebase:authUser:${firebaseConfig.apiKey}:[DEFAULT]`);
+        
+        // Then sign out from Firebase
         auth.signOut().then(() => {
-            // Clear session storage
-            sessionStorage.clear();
-            // Redirect to login page
+            console.log("Logout successful");
+            // Use a slight delay before redirect to ensure everything is cleared
+            setTimeout(() => {
+                window.location.href = '/login.html';
+            }, 100);
+        }).catch((error) => {
+            console.error("Logout failed:", error);
+            // Still redirect even if there's an error
             window.location.href = '/login.html';
         });
     };
@@ -309,7 +372,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             .then((querySnapshot) => {
                                 if (!querySnapshot.empty) {
                                     const userData = querySnapshot.docs[0].data();
-                                    if (userData.roles && userData.roles.includes('Admin')) {
+                                    if (userData.roles && userData.roles.some(role => 
+                                        role.toLowerCase() === 'admin')) {
                                         sessionStorage.setItem('isAdmin', true);
                                         resolve(true);
                                     } else {

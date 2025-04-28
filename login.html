@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <link rel="stylesheet" href="login.css">
     
-    <!-- Firebase SDK -->
+    <!-- Firebase SDK - Using compat version for consistency with login.js -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
@@ -84,6 +84,7 @@
         </div>
     </div>
 
+    <!-- Load login.js after HTML is ready -->
     <script src="login.js"></script>
 </body>
 </html>

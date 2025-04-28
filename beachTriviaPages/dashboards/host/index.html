@@ -11,8 +11,9 @@
         <header>
             <h1>Employee Dashboard</h1>
             <div class="user-profile">
-                <img src="data:image/gif;base64,R0lGODlhMgAyAIAAAAAAAP///yH5BAEAAAEALAAAAAAyADIAAAL8jI+py+0Po5y02ouz3rz7D4biSJbmiabqyrbuC8fyTNf2jef6zvf+DwwKh8Si8YhMKpfMpvMJjUqn1Kr1is1qt9yu9wsGi8fksvl8Tq/b7/i8fs/v+/+/+Ns/+AcYKDhIWGh4iJiouMjY6PgIGSk5SVlpeYmZqbnJ2en5CRoqOkpaanqKmqq6ytrq+gobb3+Pn6+/z9/v/4+fr7/PvwIGW0sZ+DUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf+gEaCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAwocSLCgwYMIEypcyLChw4cQI0qcSLGixYsYM2rcyLGjx48gQ4ocSbKkyZMoU6pcybKly5cwY8qcSbOmzZs4c+rcybOnz59AgwodSrSo0aNIkypdyrSp06dQo0qdSrWq1atYs2rdyrWr169gw4odS7as2bNo06pdy7at27dw48qdS7eu3bt48+rdy7ev37+AAwseTLiw4cOIEytezLix48eQI0ueTLmy5cuYM2vez7mz58+gQ4seTbq06dOoU6tezbq169ewY8ueTbu27du4c+vezbu379/AgwsfTry48ePIkytfzry58+fQo0ufTr269evYs2vfzr279+/gw4sfT768+fPo06tfz769+/fw48ufT7++/fv48+vfz7+///8ABijggAQWaOCBCCao4IIMNujggxBGKOGEFFZo4YUYZqjhhhx26OGHIIYo4ogjkkaJhRx66OKLMMYo44w01mjjjTjmaOONOOao44489ujjj0AGKeSQRBZp5JFIJqnkkkw26eSTUEYp5ZRUVmnllVhmqeWWXHbp5ZdghpmmmmGGKWaYZJZp5plopqnmmmy26eabcMYp55x01mnnnXjmqeeefPbp55+ABirooIQWauihiCaq6KKMNuroo5BG+iilj0b6aKVwjTXWWG3FNddgZJVl1llvzTXXXXvtNRhihx122F6D7bXYYo8tdthkkx222WSTfbbZZ6ONNtpqr8022263DTfccMsNN9xwww033HDDDTfecMMNN9xwww033HDDDTfccMMNN9xwww033HDDDTfccMMNN9xwww033HDDDTfccMMNN9xwww033HDDDTfccMMNN9xwww033A==" alt="User Profile" class="profile-pic">
+                <img src="data:image/gif;base64,R0lGODlhMgAyAIAAAAAAAP///yH5BAEAAAEALAAAAAAyADIAAAL8jI+py+0Po5y02ouz3rz7D4biSJbmiabqyrbuC8fyTNf2jef6zvf+DwwKh8Si8YhMKpfMpvMJjUqn1Kr1is1qt9yu9wsGi8fksvl8Tq/b7/i8fs/v+/+/+Ns/+AcYKDhIWGh4iJiouMjY6PgIGSk5SVlpeYmZqbnJ2en5CRoqOkpaanqKmqq6ytrq+gobb3+Pn6+/z9/v/4+fr7/PvwIGW0sZ+DUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf+gEaCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAwocSLCgwYMIEypcyLChw4cQI0qcSLGixYsYM2rcyLGjx48gQ4ocSbKkyZMoU6pcybKly5cwY8qcSbOmzZs4c+rcybOnz59AgwodSrSo0aNIkypdyrSp06dQo0qdSrWq1atYs2rdyrWr169gw4odS7as2bNo06pdy7at27dw48qdS7eu3bt48+rdy7ev37+AAwseTLiw4cOIEytezLix48eQI0ueTLmy5cuYM2vez7mz58+gQ4seTbq06dOoU6tezbq169ewY8ueTbu27du4c+vezbu379/AgwsfTry48ePIkytfzry58+fQo0ufTr269evYs2vfzr279+/gw4sfT768+fPo06tfz769+/fw48ufT7++/fv48+vfz7+///8ABijggAQWaOCBCCao4IIMNujggxBGKOGEFFZo4YUYZqjhhhx26OGHIIYo4ogjkkaJhRx66OKLMMYo44w01mjjjTjmaOONOOao44489ujjj0AGKeSQRBZp5JFIJqnkkkw26eSTUEYp5ZRUVmnllVhmqeWWXHbp5ZdghpmmmmGGKWaYZJZp5plopqnmmmy26eabcMYp55x01mnnnXjmqeeefPbp55+ABirooIQWauihiCaq6KKMNuroo5BG+iilj0b6aKVwjTXWWG3FNddgZJVl1llvzTXXXXvtNRhihx122F6D7bXYYo8tdthkkx222WSTfbbZZ6ONNtpqr8022263DTfccMsNN9xwww033HDDDTfccMMNN9xwww033HDDDTfccMMNN9xwww033HDDDTfccMMNN9xwww033HDDDTfccMMNN9xwww033HDDDTfccMMNN9xwww033A==" alt="User Profile" class="profile-pic">
                 <span class="username">John Doe</span>
+                <button id="logout-btn" onclick="logoutUser()">Logout</button>
             </div>
         </header>
 
@@ -55,18 +56,46 @@
         </footer>
     </div>
     <script src="script.js"></script>
-        <script>
-            // Add direct fix for "Don't be late!" text
-            document.addEventListener('DOMContentLoaded', function() {
-                setTimeout(function() {
-                    // Target any elements or text containing "Don't be late!"
-                    document.querySelectorAll('*').forEach(function(element) {
-                        if (element.textContent === "Don't be late!") {
-                            element.style.display = 'none';
-                        }
+    <script>
+        // Add direct fix for "Don't be late!" text
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(function() {
+                // Target any elements or text containing "Don't be late!"
+                document.querySelectorAll('*').forEach(function(element) {
+                    if (element.textContent === "Don't be late!") {
+                        element.style.display = 'none';
+                    }
+                });
+            }, 200);
+        });
+        
+        // Logout function - connects to the Firebase auth system
+        function logoutUser() {
+            // Check if global logout function exists from login.js
+            if (window.logoutUser) {
+                window.logoutUser();
+            } else {
+                // Fallback if the global function is not available
+                console.log('Logging out user...');
+                
+                // Try to use Firebase if available
+                if (typeof firebase !== 'undefined' && firebase.auth) {
+                    firebase.auth().signOut().then(() => {
+                        // Clear session storage
+                        sessionStorage.clear();
+                        // Redirect to login page
+                        window.location.href = '/login.html';
+                    }).catch(error => {
+                        console.error('Error signing out:', error);
                     });
-                }, 200);
-            });
-        </script>
-    </body>
+                } else {
+                    // Last resort - just clear storage and redirect
+                    sessionStorage.clear();
+                    localStorage.removeItem('rememberedEmail');
+                    window.location.href = '/login.html';
+                }
+            }
+        }
+    </script>
+</body>
 </html>

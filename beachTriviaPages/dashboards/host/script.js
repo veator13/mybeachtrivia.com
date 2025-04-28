@@ -142,19 +142,60 @@ function addTask() {
     }
 }
 
-// Event Listeners
-document.getElementById('add-task-btn').addEventListener('click', addTask);
+// Logout user function - safe implementation to avoid recursion
+function handleLogout() {
+    console.log('Initiating logout process...');
+    
+    // Try to use Firebase if available
+    if (typeof firebase !== 'undefined' && firebase.auth) {
+        console.log('Firebase auth detected, using signOut()');
+        firebase.auth().signOut().then(() => {
+            // Clear session storage
+            sessionStorage.clear();
+            // Redirect to login page
+            window.location.href = '/login.html';
+        }).catch(error => {
+            console.error('Error signing out:', error);
+            // Fallback - just clear storage and redirect
+            sessionStorage.clear();
+            localStorage.removeItem('rememberedEmail');
+            window.location.href = '/login.html';
+        });
+    } else {
+        console.log('Firebase auth not detected, using manual logout');
+        // Last resort - just clear storage and redirect
+        sessionStorage.clear();
+        localStorage.removeItem('rememberedEmail');
+        window.location.href = '/login.html';
+    }
+}
 
-// Initialize Dashboard
-function initDashboard() {
+// Event Listeners
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize Dashboard
     updatePayPeriodDisplay();
     renderUpcomingShows();
+    
+    // Add event listener for task button
+    const addTaskBtn = document.getElementById('add-task-btn');
+    if (addTaskBtn) {
+        addTaskBtn.addEventListener('click', addTask);
+    }
+    
+    // Add event listener for logout button
+    const logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            handleLogout();
+        });
+    }
     
     // Add a direct fix to remove any "Don't be late!" text
     setTimeout(() => {
         removeLateText();
     }, 100);
-}
+});
 
 // Function to directly remove any "Don't be late!" text from today's card
 function removeLateText() {
@@ -181,6 +222,3 @@ function removeLateText() {
         });
     });
 }
-
-// Ensure DOM is fully loaded before initializing
-document.addEventListener('DOMContentLoaded', initDashboard);
