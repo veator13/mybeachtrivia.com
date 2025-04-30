@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Host Music Bingo</title>
+    <link rel="stylesheet" href="host-music-bingo.css">
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <!-- QR Code Generator Library -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+</head>
+<body>
+    <div class="dashboard">
+        <header>
+            <h1>Music Bingo Host Dashboard</h1>
+            <div class="user-profile">
+                <span class="username" id="host-name">Loading...</span>
+                <button id="back-btn" onclick="window.location.href='../index.html'">Back to Dashboard</button>
+            </div>
+        </header>
+
+        <main>
+            <section class="game-setup">
+                <h2>Create New Game</h2>
+                <div class="setup-form">
+                    <div class="form-group">
+                        <label for="playlist-select">Select Playlist:</label>
+                        <select id="playlist-select" class="dropdown">
+                            <option value="" disabled selected>Loading playlists...</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="game-name">Game Name (Optional):</label>
+                        <input type="text" id="game-name" placeholder="My Music Bingo Game">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="player-limit">Player Limit (Optional):</label>
+                        <input type="number" id="player-limit" min="1" max="100" placeholder="No limit">
+                    </div>
+                    
+                    <button id="create-game-btn" class="primary-btn">Start New Game</button>
+                </div>
+            </section>
+
+            <section class="active-game hidden" id="game-section">
+                <div class="game-header">
+                    <h2>Active Game: <span id="current-game-name">Game Name</span></h2>
+                    <div class="game-stats">
+                        <div class="stat">
+                            <span class="stat-label">Players:</span>
+                            <span class="stat-value" id="player-count">0</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-label">Playlist:</span>
+                            <span class="stat-value" id="current-playlist">Playlist Name</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-label">Game ID:</span>
+                            <span class="stat-value" id="game-id">ABC123</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="game-content">
+                    <div class="qr-section">
+                        <h3>Player Join QR Code</h3>
+                        <div id="qrcode"></div>
+                        <p class="join-instructions">Scan to join this game</p>
+                        <p class="join-url" id="join-url">Loading URL...</p>
+                        <button id="copy-url-btn" class="secondary-btn">Copy Join Link</button>
+                    </div>
+                    
+                    <div class="game-controls">
+                        <h3>Game Controls</h3>
+                        <div class="controls-grid">
+                            <div class="control-card">
+                                <h4>Current Song</h4>
+                                <p id="current-song">Not started</p>
+                                <div class="buttons-group">
+                                    <button id="play-song-btn" class="control-btn">Play</button>
+                                    <button id="next-song-btn" class="control-btn">Next Song</button>
+                                </div>
+                            </div>
+                            
+                            <div class="control-card">
+                                <h4>Game Management</h4>
+                                <div class="buttons-group">
+                                    <button id="pause-game-btn" class="control-btn">Pause Game</button>
+                                    <button id="resume-game-btn" class="control-btn">Resume Game</button>
+                                    <button id="end-game-btn" class="control-btn danger">End Game</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <section class="game-history">
+                <h2>Recent Games</h2>
+                <div class="history-list" id="game-history-list">
+                    <!-- Games will be populated here -->
+                    <p class="empty-state">No recent games found</p>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>Music Bingo Host Dashboard | &copy; 2025</p>
+        </footer>
+    </div>
+    
+    <!-- Firebase initialization (reference to your existing file) -->
+    <script src="../firebase-init.js"></script>
+    
+    <!-- Main host dashboard script -->
+    <script src="host-music-bingo.js"></script>
+</body>
+</html>

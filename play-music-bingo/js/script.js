@@ -1,0 +1,532 @@
+// Firebase configuration
+// This should match your firebase-init.js configuration
+const firebaseConfig = {
+    apiKey: "AIzaSyDBKCotY1F943DKfVQqKOGPPkAkQe2Zgog",
+    authDomain: "beach-trivia-website.firebaseapp.com",
+    projectId: "beach-trivia-website",
+    storageBucket: "beach-trivia-website.firebasestorage.app",
+    messagingSenderId: "459479368322",
+    appId: "1:459479368322:web:7bd3d080d3b9e77610aa9b",
+    measurementId: "G-24MQRKKDNY"
+};
+
+// Initialize Firebase (if not already initialized)
+if (typeof firebase === 'undefined') {
+    // Load Firebase scripts dynamically if not already loaded
+    const loadFirebase = async () => {
+        try {
+            // Create and load Firebase App script
+            const appScript = document.createElement('script');
+            appScript.src = 'https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js';
+            document.head.appendChild(appScript);
+            
+            await new Promise(resolve => appScript.onload = resolve);
+            
+            // Load Firebase Firestore
+            const firestoreScript = document.createElement('script');
+            firestoreScript.src = 'https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js';
+            document.head.appendChild(firestoreScript);
+            
+            await new Promise(resolve => firestoreScript.onload = resolve);
+            
+            // Initialize Firebase
+            firebase.initializeApp(firebaseConfig);
+            
+            console.log('Firebase loaded successfully');
+            initializeGame();
+        } catch (error) {
+            console.error('Error loading Firebase:', error);
+            // Fall back to sample data if Firebase fails to load
+            initializeGameWithSampleData();
+        }
+    };
+    
+    loadFirebase();
+} else {
+    // Firebase already loaded, initialize the game
+    initializeGame();
+}
+
+// Global game variables
+let gameData = null;
+let playlistData = null;
+let currentSongIndex = -1;
+
+// Utility function to get URL parameters
+function getUrlParameter(name) {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get(name);
+}
+
+// The main game initialization function
+async function initializeGame() {
+    try {
+        // Get game ID from URL
+        const gameId = getUrlParameter('gameId');
+        
+        if (!gameId) {
+            console.log('No game ID provided, using sample data');
+            initializeGameWithSampleData();
+            return;
+        }
+        
+        console.log('Initializing game with ID:', gameId);
+        
+        // Get Firebase Firestore instance
+        const db = firebase.firestore();
+        
+        // Get game data
+        const gameDoc = await db.collection('games').doc(gameId).get();
+        
+        if (!gameDoc.exists) {
+            console.error('Game not found:', gameId);
+            alert('Game not found. Please check your link and try again.');
+            initializeGameWithSampleData();
+            return;
+        }
+        
+        // Get game data
+        gameData = {
+            id: gameDoc.id,
+            ...gameDoc.data()
+        };
+        
+        console.log('Game data loaded:', gameData);
+        
+        // Update game title
+        updateGameTitle(gameData.name || 'Music Bingo');
+        
+        // Get playlist data
+        const playlistDoc = await db.collection('music_bingo').doc(gameData.playlistId).get();
+        
+        if (!playlistDoc.exists) {
+            console.error('Playlist not found:', gameData.playlistId);
+            alert('Playlist not found. Please check with the game host.');
+            initializeGameWithSampleData();
+            return;
+        }
+        
+        // Get playlist data
+        playlistData = {
+            id: playlistDoc.id,
+            ...playlistDoc.data()
+        };
+        
+        console.log('Playlist data loaded:', playlistData);
+        
+        // Extract songs and artists from playlist data
+        const extractedSongs = [];
+        const extractedArtists = [];
+        
+        // Loop through potential song and artist fields (assuming they're named song1, artist1, etc.)
+        for (let i = 1; i <= 25; i++) {
+            const songKey = `song${i}`;
+            const artistKey = `artist${i}`;
+            
+            if (playlistData[songKey] && playlistData[artistKey]) {
+                extractedSongs.push(playlistData[songKey]);
+                extractedArtists.push(playlistData[artistKey]);
+            }
+        }
+        
+        // Update current song index from game data
+        currentSongIndex = gameData.currentSongIndex || -1;
+        
+        // Initialize boards with actual data
+        initializeBoards(extractedSongs, extractedArtists);
+        
+        // Set up real-time updates for this game
+        setupGameUpdates(gameId);
+        
+        // Join this game as a player
+        joinGame(gameId);
+        
+    } catch (error) {
+        console.error('Error initializing game:', error);
+        alert('Error loading game data. Using sample data instead.');
+        initializeGameWithSampleData();
+    }
+}
+
+// Initialize with sample data if no game ID or Firebase fails
+function initializeGameWithSampleData() {
+    // Sample song and artist list
+    const sampleSongs = [
+        "Oh, Pretty Woman", 
+        "California Dreamin'", 
+        "I'm a Believer", 
+        "Mr. Tambourine Man", 
+        "Good Vibration", 
+        "Happy Together", 
+        "Mrs. Robinson", 
+        "House Of The Rising Sun", 
+        "Somebody to Love",
+        "Brown Eyed Girl", 
+        "I Got You Babe", 
+        "The Locomotion",
+        "Do Wah Diddy", 
+        "Sugar, Sugar", 
+        "Blue Moon"
+    ];
+
+    const sampleArtists = [
+        "Roy Orbison", 
+        "The Mamas & The Papas", 
+        "The Monkees", 
+        "The Byrds", 
+        "The Beach Boys", 
+        "The Turtles", 
+        "Simon & Garfunkel", 
+        "The Animals", 
+        "Jefferson Airplane",
+        "Van Morrison", 
+        "Sonny & Cher", 
+        "Little Eva",
+        "Manfred Mann", 
+        "The Archies", 
+        "The Marcels"
+    ];
+    
+    // Initialize boards with sample data
+    initializeBoards(sampleSongs, sampleArtists);
+}
+
+// Update the game title
+function updateGameTitle(title) {
+    const titleElement = document.querySelector('.game-title');
+    if (titleElement) {
+        titleElement.textContent = title;
+    }
+}
+
+// Set up real-time updates for the game
+function setupGameUpdates(gameId) {
+    try {
+        // Get Firebase Firestore instance
+        const db = firebase.firestore();
+        
+        // Listen for updates to the game document
+        const unsubscribe = db.collection('games').doc(gameId)
+            .onSnapshot((doc) => {
+                if (doc.exists) {
+                    const updatedGame = {
+                        id: doc.id,
+                        ...doc.data()
+                    };
+                    
+                    // Update game data
+                    gameData = updatedGame;
+                    
+                    // Check if the current song has changed
+                    if (updatedGame.currentSongIndex !== currentSongIndex) {
+                        currentSongIndex = updatedGame.currentSongIndex;
+                        
+                        // If there's a current song playing, show it to the player
+                        if (currentSongIndex >= 0) {
+                            showCurrentSong(currentSongIndex);
+                        }
+                    }
+                    
+                    // Check if game has ended
+                    if (updatedGame.status === 'ended') {
+                        alert('This game has ended. Thank you for playing!');
+                        unsubscribe(); // Stop listening for updates
+                    }
+                }
+            }, (error) => {
+                console.error('Error listening for game updates:', error);
+            });
+            
+    } catch (error) {
+        console.error('Error setting up game updates:', error);
+    }
+}
+
+// Show the current song being played
+function showCurrentSong(songIndex) {
+    if (!playlistData) return;
+    
+    // Get song and artist based on index
+    const songKey = `song${songIndex + 1}`;
+    const artistKey = `artist${songIndex + 1}`;
+    
+    if (playlistData[songKey] && playlistData[artistKey]) {
+        // Create or update a notification element
+        let notification = document.querySelector('.song-notification');
+        
+        if (!notification) {
+            notification = document.createElement('div');
+            notification.className = 'song-notification';
+            document.body.appendChild(notification);
+            
+            // Add styles if not already in CSS
+            const style = document.createElement('style');
+            style.textContent = `
+                .song-notification {
+                    position: fixed;
+                    top: 20px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    background: linear-gradient(135deg, #8338EC, #5E60CE);
+                    color: white;
+                    padding: 15px 20px;
+                    border-radius: 10px;
+                    box-shadow: 0 4px 15px rgba(131, 56, 236, 0.4);
+                    z-index: 1000;
+                    text-align: center;
+                    animation: fadeInOut 5s forwards;
+                    pointer-events: none;
+                }
+                
+                @keyframes fadeInOut {
+                    0% { opacity: 0; transform: translate(-50%, -20px); }
+                    10% { opacity: 1; transform: translate(-50%, 0); }
+                    80% { opacity: 1; }
+                    100% { opacity: 0; }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+        
+        // Update notification content
+        notification.innerHTML = `
+            <strong>Now Playing:</strong><br>
+            ${playlistData[songKey]} - ${playlistData[artistKey]}
+        `;
+        
+        // Reset animation
+        notification.style.animation = 'none';
+        notification.offsetHeight; // Trigger reflow
+        notification.style.animation = 'fadeInOut 5s forwards';
+    }
+}
+
+// Join the game as a player (increment player count)
+async function joinGame(gameId) {
+    try {
+        const db = firebase.firestore();
+        
+        // Increment player count using a transaction to avoid race conditions
+        const gameRef = db.collection('games').doc(gameId);
+        
+        await db.runTransaction(async (transaction) => {
+            const gameDoc = await transaction.get(gameRef);
+            
+            if (!gameDoc.exists) return;
+            
+            const currentCount = gameDoc.data().playerCount || 0;
+            
+            transaction.update(gameRef, {
+                playerCount: currentCount + 1,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        });
+        
+        console.log('Joined game as player');
+        
+    } catch (error) {
+        console.error('Error joining game:', error);
+    }
+}
+
+// Create a bingo board with the provided songs and artists
+function createBingoBoard(boardElement, songs, artists) {
+    // Clear any existing cells
+    boardElement.innerHTML = '';
+
+    // Combine and shuffle song and artist lists
+    const combinedList = [...songs, ...artists];
+    const shuffledList = combinedList.sort(() => 0.5 - Math.random());
+
+    for (let i = 0; i < 25; i++) {
+        const cell = document.createElement('div');
+        cell.classList.add('bingo-cell');
+
+        // Center cell is the logo
+        if (i === 12) {
+            cell.classList.add('center-cell');
+            cell.addEventListener('click', handleLogoCellClick);
+        } else {
+            cell.textContent = shuffledList[i] || '';
+            cell.addEventListener('click', () => {
+                cell.classList.toggle('matched');
+            });
+        }
+
+        boardElement.appendChild(cell);
+    }
+}
+
+function handleLogoCellClick() {
+    // This is a free space
+    alert('Free space! This counts as marked for bingo.');
+}
+
+// Initialize boards with provided song and artist data
+function initializeBoards(songs, artists) {
+    const board1 = document.querySelector('.board-1');
+    const board2 = document.querySelector('.board-2');
+    createBingoBoard(board1, songs, artists);
+    createBingoBoard(board2, songs, artists);
+}
+
+// Swipe functionality
+let touchStartX = 0;
+let touchEndX = 0;
+const boardsWrapper = document.querySelector('.boards-wrapper');
+const boardDots = document.querySelectorAll('.board-dot');
+const boardBtns = document.querySelectorAll('.board-btn');
+
+document.addEventListener('touchstart', e => {
+    touchStartX = e.changedTouches[0].screenX;
+});
+
+document.addEventListener('touchend', e => {
+    touchEndX = e.changedTouches[0].screenX;
+    handleSwipe();
+});
+
+function handleSwipe() {
+    const minSwipeDistance = 50;
+    if (touchEndX < touchStartX - minSwipeDistance) {
+        // Swipe left to second board
+        switchToBoard(2);
+    } else if (touchEndX > touchStartX + minSwipeDistance) {
+        // Swipe right to first board
+        switchToBoard(1);
+    }
+}
+
+// Switch to specified board
+function switchToBoard(boardNum) {
+    if (boardNum === 1) {
+        boardsWrapper.style.transform = 'translateX(0)';
+        boardDots[1].classList.remove('active');
+        boardDots[0].classList.add('active');
+        boardBtns[1].classList.remove('active');
+        boardBtns[0].classList.add('active');
+    } else {
+        boardsWrapper.style.transform = 'translateX(-50%)';
+        boardDots[0].classList.remove('active');
+        boardDots[1].classList.add('active');
+        boardBtns[0].classList.remove('active');
+        boardBtns[1].classList.add('active');
+    }
+}
+
+// Swipe hint clicks
+document.querySelector('.swipe-hint.left').addEventListener('click', () => {
+    switchToBoard(1);
+});
+
+document.querySelector('.swipe-hint.right').addEventListener('click', () => {
+    switchToBoard(2);
+});
+
+// Board selector buttons
+boardBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+        const boardNum = parseInt(btn.getAttribute('data-board'));
+        switchToBoard(boardNum);
+    });
+});
+
+// New game button - regenerate boards with same data
+document.getElementById('new-game-btn').addEventListener('click', () => {
+    if (playlistData) {
+        // Extract songs and artists from playlist data
+        const extractedSongs = [];
+        const extractedArtists = [];
+        
+        // Loop through potential song and artist fields
+        for (let i = 1; i <= 25; i++) {
+            const songKey = `song${i}`;
+            const artistKey = `artist${i}`;
+            
+            if (playlistData[songKey] && playlistData[artistKey]) {
+                extractedSongs.push(playlistData[songKey]);
+                extractedArtists.push(playlistData[artistKey]);
+            }
+        }
+        
+        initializeBoards(extractedSongs, extractedArtists);
+    } else {
+        // Fall back to sample data
+        initializeGameWithSampleData();
+    }
+});
+
+// Check Bingo functionality
+document.getElementById('check-bingo-btn').addEventListener('click', () => {
+    const activeBoard = boardsWrapper.style.transform === 'translateX(-50%)' ? 
+        document.querySelector('.board-2') : document.querySelector('.board-1');
+    
+    if (checkForBingo(activeBoard)) {
+        document.querySelector('.bingo-message').style.display = 'block';
+    } else {
+        alert('No bingo yet. Keep playing!');
+    }
+});
+
+// Close bingo message
+document.getElementById('close-bingo-message').addEventListener('click', () => {
+    document.querySelector('.bingo-message').style.display = 'none';
+});
+
+// Check if there's a bingo
+function checkForBingo(board) {
+    const cells = board.querySelectorAll('.bingo-cell');
+    const centerIndex = 12;
+    
+    // Convert NodeList to array for easier manipulation
+    const cellsArray = Array.from(cells);
+    
+    // Check rows
+    for (let i = 0; i < 5; i++) {
+        const row = cellsArray.slice(i * 5, i * 5 + 5);
+        if (row.every(cell => cell.classList.contains('matched') || cell.classList.contains('center-cell'))) {
+            return true;
+        }
+    }
+    
+    // Check columns
+    for (let i = 0; i < 5; i++) {
+        const column = [
+            cellsArray[i],
+            cellsArray[i + 5],
+            cellsArray[i + 10],
+            cellsArray[i + 15],
+            cellsArray[i + 20]
+        ];
+        if (column.every(cell => cell.classList.contains('matched') || cell.classList.contains('center-cell'))) {
+            return true;
+        }
+    }
+    
+    // Check diagonals
+    const diagonal1 = [
+        cellsArray[0],
+        cellsArray[6],
+        cellsArray[12],
+        cellsArray[18],
+        cellsArray[24]
+    ];
+    
+    const diagonal2 = [
+        cellsArray[4],
+        cellsArray[8],
+        cellsArray[12],
+        cellsArray[16],
+        cellsArray[20]
+    ];
+    
+    if (diagonal1.every(cell => cell.classList.contains('matched') || cell.classList.contains('center-cell'))) {
+        return true;
+    }
+    
+    if (diagonal2.every(cell => cell.classList.contains('matched') || cell.classList.contains('center-cell'))) {
+        return true;
+    }
+    
+    return false;
+}
