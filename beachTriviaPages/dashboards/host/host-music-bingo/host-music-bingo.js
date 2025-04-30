@@ -323,7 +323,7 @@ function generateQRCode(gameId) {
     
     // Create the join URL - point to the public-facing folder
     const baseUrl = window.location.origin;
-    const joinUrl = `${baseUrl}/music-bingo/index.html?gameId=${gameId}`;
+    const joinUrl = `${baseUrl}/play-music-bingo/index.html?gameId=${gameId}`;
     
     // Update URL display
     document.getElementById('join-url').textContent = joinUrl;
