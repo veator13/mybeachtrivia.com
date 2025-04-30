@@ -1,3 +1,86 @@
+// Function to show loading animation for a specific element
+function showLoadingAnimation(element) {
+    if (!element) return;
+    
+    // Store original content to restore later if needed
+    element.dataset.originalContent = element.innerHTML;
+    
+    // Create and add the loading spinner
+    element.innerHTML = `
+        <div class="loading-spinner">
+            <div class="spinner"></div>
+        </div>
+    `;
+    
+    // Add required CSS if not already present
+    if (!document.getElementById('loading-spinner-styles')) {
+        const style = document.createElement('style');
+        style.id = 'loading-spinner-styles';
+        style.textContent = `
+            .loading-spinner {
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                height: 100%;
+            }
+            
+            .spinner {
+                border: 3px solid rgba(255, 255, 255, 0.3);
+                border-radius: 50%;
+                border-top: 3px solid #60a5fa;
+                width: 24px;
+                height: 24px;
+                animation: spin 1s linear infinite;
+            }
+            
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+}
+
+// Function to hide loading animation and show actual content
+function hideLoadingAnimation(element, content) {
+    if (!element) return;
+    
+    // If content is provided, use it; otherwise restore original if available
+    if (content !== undefined) {
+        element.innerHTML = content;
+    } else if (element.dataset.originalContent) {
+        element.innerHTML = element.dataset.originalContent;
+    }
+}
+
+// Show loading animations for all stat cards immediately when script loads
+document.addEventListener('DOMContentLoaded', function() {
+    // Show loading for pay period
+    const payPeriodElement = document.querySelector('.stat-card:nth-child(1) .stat-value');
+    if (payPeriodElement) {
+        showLoadingAnimation(payPeriodElement);
+    }
+    
+    // Show loading for shows worked
+    const showsWorkedElement = document.querySelector('.stat-card:nth-child(2) .stat-value');
+    if (showsWorkedElement) {
+        showLoadingAnimation(showsWorkedElement);
+    }
+    
+    // Show loading for hours worked
+    const hoursWorkedElement = document.querySelector('.stat-card:nth-child(3) .stat-value');
+    if (hoursWorkedElement) {
+        showLoadingAnimation(hoursWorkedElement);
+    }
+    
+    // Show loading for upcoming shows
+    const showsList = document.querySelector('.shows-list');
+    if (showsList) {
+        showLoadingAnimation(showsList);
+    }
+});
+
 // Authentication state listener - runs when page loads
 firebase.auth().onAuthStateChanged(user => {
     if (user) {
@@ -29,12 +112,12 @@ async function initializeDashboard(user) {
         // Show a message to the user
         const showsList = document.querySelector('.shows-list');
         if (showsList) {
-            showsList.innerHTML = `
+            hideLoadingAnimation(showsList, `
                 <div style="color: #94a3b8; text-align: center; padding: 40px; width: 100%; background-color: #334155; border-radius: 12px;">
                     <h3 style="margin-bottom: 15px; color: #60a5fa;">Account Setup Incomplete</h3>
                     <p style="color: #94a3b8;">Your account may not be properly configured. Please contact an administrator.</p>
                 </div>
-            `;
+            `);
         }
         setDefaultWorkStats();
         return;
@@ -49,6 +132,16 @@ async function initializeDashboard(user) {
     // Start loading shows - will use fallback data if Firebase fails
     renderUpcomingShows(employeeId).catch(error => {
         console.error('Error rendering upcoming shows:', error);
+        // Hide loading animation for shows list with error message
+        const showsList = document.querySelector('.shows-list');
+        if (showsList) {
+            hideLoadingAnimation(showsList, `
+                <div style="color: #94a3b8; text-align: center; padding: 40px; width: 100%; background-color: #334155; border-radius: 12px;">
+                    <h3 style="margin-bottom: 15px; color: #60a5fa;">Could Not Load Shows</h3>
+                    <p style="color: #94a3b8;">There was a problem loading your upcoming shows. Please try again later.</p>
+                </div>
+            `);
+        }
     });
     
     // Set up event listeners
@@ -124,31 +217,31 @@ function removeLateText() {
     });
 }
 
-// Pay Period Calculation
+// Pay Period Calculation - Updated for dynamic biweekly periods
 function getCurrentPayPeriod() {
     const today = new Date();
     
-    const payPeriods = [
-        { start: new Date(2024, 2, 14), end: new Date(2024, 2, 27) },
-        { start: new Date(2024, 2, 28), end: new Date(2024, 3, 10) },
-        { start: new Date(2024, 3, 11), end: new Date(2024, 3, 24) },
-        { start: new Date(2024, 3, 25), end: new Date(2024, 4, 8) },
-        { start: new Date(2024, 4, 9), end: new Date(2024, 4, 22) },
-        { start: new Date(2024, 4, 23), end: new Date(2024, 5, 6) }
-    ];
-
-    const currentPeriod = payPeriods.find(period => 
-        today >= period.start && today <= period.end
-    );
-
-    if (currentPeriod) {
-        return {
-            start: currentPeriod.start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-            end: currentPeriod.end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-        };
-    }
-
-    return { start: 'Apr 23', end: 'May 6' }; // Default to current pay period
+    // Reference pay period (April 24, 2025 - May 7, 2025)
+    const referenceStart = new Date(2025, 3, 24); // April 24, 2025 - Month is 0-indexed
+    
+    // Calculate how many days since the reference start date
+    const millisecondsPerDay = 24 * 60 * 60 * 1000;
+    const daysSinceReference = Math.floor((today - referenceStart) / millisecondsPerDay);
+    
+    // Calculate how many 14-day periods have passed (can be negative if before reference date)
+    const periodsPassed = Math.floor(daysSinceReference / 14);
+    
+    // Calculate current period start and end dates
+    const currentStart = new Date(referenceStart);
+    currentStart.setDate(currentStart.getDate() + (periodsPassed * 14));
+    
+    const currentEnd = new Date(currentStart);
+    currentEnd.setDate(currentEnd.getDate() + 13); // 14 days including start day
+    
+    return {
+        start: currentStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        end: currentEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    };
 }
 
 // Update pay period display
@@ -156,7 +249,8 @@ function updatePayPeriodDisplay() {
     const payPeriod = getCurrentPayPeriod();
     const currentPayPeriodElement = document.querySelector('.stat-card:nth-child(1) .stat-value');
     if (currentPayPeriodElement) {
-        currentPayPeriodElement.textContent = `${payPeriod.start} - ${payPeriod.end}`;
+        // Hide the loading animation and display the pay period
+        hideLoadingAnimation(currentPayPeriodElement, `${payPeriod.start} - ${payPeriod.end}`);
     }
 }
 
@@ -351,7 +445,9 @@ function processShiftsSnapshot(snapshot, isUserShift, today) {
                 location: data.location || '',
                 date: shiftDate,  // Store the date with noon time
                 localDate: shiftLocalDate,  // Store a normalized date for comparison
-                isUserShift: isUserShift
+                isUserShift: isUserShift,
+                // Add a field to explicitly track if this shift has been worked
+                worked: shiftLocalDate <= localToday
             });
         }
     });
@@ -367,11 +463,11 @@ function setDefaultWorkStats() {
     const showsWorkedElement = document.querySelector('.stat-card:nth-child(2) .stat-value');
     
     if (hoursWorkedElement) {
-        hoursWorkedElement.textContent = '0/40 hrs';
+        hideLoadingAnimation(hoursWorkedElement, '0/40 hrs');
     }
     
     if (showsWorkedElement) {
-        showsWorkedElement.textContent = '0';
+        hideLoadingAnimation(showsWorkedElement, '0');
     }
 }
 
@@ -387,14 +483,35 @@ async function updateWorkStats(employeeId) {
         
         // Get current pay period
         const payPeriod = getCurrentPayPeriod();
+        console.log('Current pay period:', payPeriod);
         
-        // Convert to Date objects for comparison
-        const startDate = new Date(payPeriod.start + ", 2024");
-        const endDate = new Date(payPeriod.end + ", 2024");
+        // Get today's date set to end of day for comparison
+        const today = new Date();
+        today.setHours(23, 59, 59, 999);
         
-        // Set time to beginning and end of day
-        startDate.setHours(0, 0, 0, 0);
-        endDate.setHours(23, 59, 59, 999);
+        // Get yesterday's date for comparing what's already worked
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        yesterday.setHours(23, 59, 59, 999);
+        
+        // Create a proper date object for the start of the pay period
+        // Parse the month and day from the formatted string (e.g., "Apr 24")
+        const startParts = payPeriod.start.split(' ');
+        const startMonth = getMonthNumber(startParts[0]);
+        const startDay = parseInt(startParts[1]);
+        
+        // CRITICAL FIX: Use consistent date creation for start date
+        const startDate = new Date(2025, startMonth, startDay, 0, 0, 0, 0);
+        
+        // Create a proper date object for the end of the pay period
+        const endParts = payPeriod.end.split(' ');
+        const endMonth = getMonthNumber(endParts[0]);
+        const endDay = parseInt(endParts[1]);
+        const endDate = new Date(2025, endMonth, endDay, 23, 59, 59, 999);
+        
+        console.log('Pay period date range:', startDate.toISOString(), 'to', endDate.toISOString());
+        console.log('Today:', today.toISOString());
+        console.log('Yesterday:', yesterday.toISOString(), '(for worked calculations)');
         
         // Query shifts for this employee
         const shiftsQuery = db.collection('shifts')
@@ -405,82 +522,148 @@ async function updateWorkStats(employeeId) {
         // Calculate statistics
         let showsWorked = 0;
         let hoursWorked = 0;
+        let shiftsFound = 0;
         
         shiftsSnapshot.forEach(doc => {
+            shiftsFound++;
             const data = doc.data();
             
-            // Check if the shift is in the current pay period
+            // Extract the shift date
             let shiftDate;
+            let shiftDateString = "";
+            
             if (data.date && typeof data.date.toDate === 'function') {
+                // Handle Firestore timestamp
                 shiftDate = data.date.toDate();
+                shiftDateString = "Timestamp";
             } else if (typeof data.date === 'string') {
-                shiftDate = new Date(data.date);
+                // Handle string date format (e.g. "2025-04-24")
+                shiftDateString = data.date;
+                
+                // Parse the date components explicitly to avoid timezone issues
+                const dateParts = data.date.split('-');
+                if (dateParts.length === 3) {
+                    const year = parseInt(dateParts[0]);
+                    const month = parseInt(dateParts[1]) - 1; // JavaScript months are 0-indexed
+                    const day = parseInt(dateParts[2]);
+                    
+                    // Create date with specific time to avoid boundary issues
+                    shiftDate = new Date(year, month, day, 12, 0, 0);
+                } else {
+                    // Fallback if the format is unexpected
+                    shiftDate = new Date(data.date);
+                }
             } else if (data.date) {
+                // Fallback for any other format
                 shiftDate = new Date(data.date);
+                shiftDateString = "Other format";
             } else {
+                console.log('Shift has no date, skipping');
                 return; // Skip if no date
             }
             
-            // Create a normalized date for comparison
-            const shiftDateNormalized = new Date(shiftDate);
-            shiftDateNormalized.setHours(0, 0, 0, 0);
+            // Create a normalized date for consistent comparison
+            // CRITICAL FIX: Create a date at noon to avoid timezone boundary issues
+            const shiftYear = shiftDate.getFullYear();
+            const shiftMonth = shiftDate.getMonth();
+            const shiftDay = shiftDate.getDate();
+            const shiftDateNormalized = new Date(shiftYear, shiftMonth, shiftDay, 12, 0, 0);
             
-            // Create normalized dates for start and end of pay period
-            const startDateNormalized = new Date(startDate);
-            startDateNormalized.setHours(0, 0, 0, 0);
+            // Debug output
+            console.log(`Checking shift date: ${shiftDateString} → ${shiftDateNormalized.toISOString()}`);
+            console.log(`Start date: ${startDate.toISOString()}`);
+            console.log(`End date: ${endDate.toISOString()}`);
+            console.log(`Month comparison: ${shiftMonth} vs start ${startMonth}`);
+            console.log(`Day comparison: ${shiftDay} vs start ${startDay}`);
             
-            const endDateNormalized = new Date(endDate);
-            endDateNormalized.setHours(0, 0, 0, 0);
+            // Special case for April 24th (start of pay period)
+            const isApril24 = shiftMonth === 3 && shiftDay === 24; // April is month 3 (0-indexed)
+            if (isApril24) {
+                console.log('*** FOUND APRIL 24 SHIFT ***');
+            }
             
-            // Skip shifts outside the pay period
-            if (shiftDateNormalized < startDateNormalized || shiftDateNormalized > endDateNormalized) {
+            // Comprehensive date comparison for debugging
+            console.log(`Date checks: ${shiftDateNormalized < startDate ? 'BEFORE start' : 'ON/AFTER start'}, ${shiftDateNormalized > endDate ? 'AFTER end' : 'ON/BEFORE end'}`);
+            
+            // CRITICAL FIX: Special case for the pay period start date (April 24)
+            // Always include it in the pay period if it matches exactly
+            const isWithinPayPeriod = isApril24 || 
+                (shiftDateNormalized >= startDate && shiftDateNormalized <= endDate);
+            
+            console.log('In pay period?', isWithinPayPeriod);
+            
+            // CRITICAL FIX: Consider a shift "worked" if it happened YESTERDAY or earlier
+            // This ensures shifts from today aren't counted yet
+            const isAlreadyWorked = shiftDateNormalized <= yesterday;
+            console.log('Already worked?', isAlreadyWorked);
+            
+            // Check if shift is within the pay period
+            if (!isWithinPayPeriod) {
+                console.log('Shift outside pay period, skipping');
                 return;
             }
             
-            showsWorked++;
-            
-            // Calculate hours if startTime and endTime are available
-            if (data.startTime && data.endTime) {
-                // Simple calculation (assuming format like "7:00 PM")
-                try {
-                    const start = parseTimeString(data.startTime);
-                    const end = parseTimeString(data.endTime);
-                    
-                    // Calculate hours
-                    let hours = (end - start) / (1000 * 60 * 60);
-                    
-                    // Handle overnight shifts
-                    if (hours < 0) {
-                        hours += 24;
+            // Check if shift has already been worked
+            if (isAlreadyWorked) {
+                console.log('Counting shift as worked!');
+                showsWorked++;
+                
+                // Calculate hours if startTime and endTime are available
+                if (data.startTime && data.endTime) {
+                    // Simple calculation (assuming format like "7:00 PM")
+                    try {
+                        const start = parseTimeString(data.startTime);
+                        const end = parseTimeString(data.endTime);
+                        
+                        // Calculate hours
+                        let hours = (end - start) / (1000 * 60 * 60);
+                        
+                        // Handle overnight shifts
+                        if (hours < 0) {
+                            hours += 24;
+                        }
+                        
+                        hoursWorked += hours;
+                    } catch (e) {
+                        // Default to 2 hours if can't calculate
+                        hoursWorked += 2;
                     }
-                    
-                    hoursWorked += hours;
-                } catch (e) {
-                    // Default to 2 hours if can't calculate
+                } else {
+                    // Default to 2 hours if times not available
                     hoursWorked += 2;
                 }
             } else {
-                // Default to 2 hours if times not available
-                hoursWorked += 2;
+                console.log('Shift not yet worked, not counting');
             }
         });
+        
+        console.log(`Final count - Total shifts found: ${shiftsFound}, Shows worked: ${showsWorked}, Hours worked: ${hoursWorked}`);
         
         // Update UI
         const hoursWorkedElement = document.querySelector('.stat-card:nth-child(3) .stat-value');
         const showsWorkedElement = document.querySelector('.stat-card:nth-child(2) .stat-value');
         
         if (hoursWorkedElement) {
-            hoursWorkedElement.textContent = `${Math.round(hoursWorked)}/40 hrs`;
+            hideLoadingAnimation(hoursWorkedElement, `${Math.round(hoursWorked)}/40 hrs`);
         }
         
         if (showsWorkedElement) {
-            showsWorkedElement.textContent = showsWorked.toString();
+            hideLoadingAnimation(showsWorkedElement, showsWorked.toString());
         }
         
     } catch (error) {
         console.error('Error updating work stats:', error);
         setDefaultWorkStats();
     }
+}
+
+// Helper function to convert month abbreviation to month number (0-indexed)
+function getMonthNumber(monthAbbr) {
+    const months = {
+        'jan': 0, 'feb': 1, 'mar': 2, 'apr': 3, 'may': 4, 'jun': 5,
+        'jul': 6, 'aug': 7, 'sep': 8, 'oct': 9, 'nov': 10, 'dec': 11
+    };
+    return months[monthAbbr.toLowerCase()];
 }
 
 // Helper function to parse time strings like "7:00 PM"
@@ -566,7 +749,7 @@ async function renderUpcomingShows(employeeId) {
         return;
     }
     
-    showsList.innerHTML = '<div style="color: white; text-align: center; padding: 20px;">Loading shifts...</div>';
+    // Loading indicator is already shown at page load through DOMContentLoaded event
     
     // Try to fetch shifts from Firestore
     let upcomingShifts = await fetchUpcomingShifts(employeeId);
@@ -574,15 +757,16 @@ async function renderUpcomingShows(employeeId) {
     // If Firebase failed or returned no shifts, show "No Shifts Scheduled"
     if (!upcomingShifts || upcomingShifts.length === 0) {
         console.log('No shifts found');
-        showsList.innerHTML = `
+        hideLoadingAnimation(showsList, `
             <div style="color: #94a3b8; text-align: center; padding: 40px; width: 100%; background-color: #334155; border-radius: 12px;">
                 <h3 style="margin-bottom: 15px; color: #60a5fa;">No Shifts Scheduled</h3>
                 <p style="color: #94a3b8;">Check back later for upcoming shows</p>
             </div>
-        `;
+        `);
         return;
     }
     
+    // Clear the loading animation
     showsList.innerHTML = '';
     
     // Get today's date set to noon in local timezone for stable comparison
