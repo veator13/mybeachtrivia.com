@@ -5,6 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Employee Dashboard</title>
     <link rel="stylesheet" href="style.css">
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-analytics.js"></script>
+    <!-- Firebase initialization -->
+    <script src="firebase-init.js"></script>
 </head>
 <body>
     <div class="dashboard">
@@ -55,21 +62,9 @@
             <button id="add-task-btn">Add New Task</button>
         </footer>
     </div>
-    <script src="script.js"></script>
+    
+    <!-- Logout function - connects to the Firebase auth system -->
     <script>
-        // Add direct fix for "Don't be late!" text
-        document.addEventListener('DOMContentLoaded', function() {
-            setTimeout(function() {
-                // Target any elements or text containing "Don't be late!"
-                document.querySelectorAll('*').forEach(function(element) {
-                    if (element.textContent === "Don't be late!") {
-                        element.style.display = 'none';
-                    }
-                });
-            }, 200);
-        });
-        
-        // Logout function - connects to the Firebase auth system
         function logoutUser() {
             // Check if global logout function exists from login.js
             if (window.logoutUser) {
@@ -97,5 +92,22 @@
             }
         }
     </script>
+    
+    <!-- Direct fix for "Don't be late!" text -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(function() {
+                // Target any elements or text containing "Don't be late!"
+                document.querySelectorAll('*').forEach(function(element) {
+                    if (element.textContent === "Don't be late!") {
+                        element.style.display = 'none';
+                    }
+                });
+            }, 200);
+        });
+    </script>
+    
+    <!-- Main dashboard script - Using dashboard.js instead of script.js -->
+    <script src="dashboard.js"></script>
 </body>
 </html>
