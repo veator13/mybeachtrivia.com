@@ -321,9 +321,8 @@ function generateQRCode(gameId) {
     // Clear previous QR code
     qrcodeElement.innerHTML = '';
     
-    // Create the join URL - point to the public-facing folder
-    const baseUrl = window.location.origin;
-    const joinUrl = `${baseUrl}/play-music-bingo/index.html?gameId=${gameId}`;
+    // Create the join URL - hardcoded to the public-facing folder
+    const joinUrl = 'https://mybeachtrivia.com/play-music-bingo/index.html?gameId=' + gameId;
     
     // Update URL display
     document.getElementById('join-url').textContent = joinUrl;
