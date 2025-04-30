@@ -1,4 +1,4 @@
-// Firebase Configuration
+// Firebase configuration
 const firebaseConfig = {
     apiKey: "AIzaSyDBKCotY1F943DKfVQqKOGPPkAkQe2Zgog",
     authDomain: "beach-trivia-website.firebaseapp.com",
@@ -7,12 +7,11 @@ const firebaseConfig = {
     messagingSenderId: "459479368322",
     appId: "1:459479368322:web:7bd3d080d3b9e77610aa9b",
     measurementId: "G-24MQRKKDNY"
-};
+  };
   
-// Initialize Firebase
-firebase.initializeApp(firebaseConfig);
+  // Initialize Firebase
+  firebase.initializeApp(firebaseConfig);
   
-// Initialize Analytics if available
-if (firebase.analytics) {
-    firebase.analytics();
-}
+  // Debug log to confirm initialization
+  console.log("Firebase initialized:", firebase.apps.length > 0);
+  console.log("Firebase config:", firebase.apps[0]?.options);
