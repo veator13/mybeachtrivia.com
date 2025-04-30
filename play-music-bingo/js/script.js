@@ -15,12 +15,15 @@ if (typeof firebase === 'undefined') {
     // Load Firebase scripts dynamically if not already loaded
     const loadFirebase = async () => {
         try {
+            console.log('Attempting to load Firebase scripts dynamically...');
+            
             // Create and load Firebase App script
             const appScript = document.createElement('script');
             appScript.src = 'https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js';
             document.head.appendChild(appScript);
             
             await new Promise(resolve => appScript.onload = resolve);
+            console.log('Firebase App script loaded successfully');
             
             // Load Firebase Firestore
             const firestoreScript = document.createElement('script');
@@ -28,11 +31,12 @@ if (typeof firebase === 'undefined') {
             document.head.appendChild(firestoreScript);
             
             await new Promise(resolve => firestoreScript.onload = resolve);
+            console.log('Firebase Firestore script loaded successfully');
             
             // Initialize Firebase
             firebase.initializeApp(firebaseConfig);
+            console.log('Firebase initialized successfully');
             
-            console.log('Firebase loaded successfully');
             initializeGame();
         } catch (error) {
             console.error('Error loading Firebase:', error);
@@ -43,6 +47,7 @@ if (typeof firebase === 'undefined') {
     
     loadFirebase();
 } else {
+    console.log('Firebase already loaded, initializing game...');
     // Firebase already loaded, initialize the game
     initializeGame();
 }
@@ -55,12 +60,16 @@ let currentSongIndex = -1;
 // Utility function to get URL parameters
 function getUrlParameter(name) {
     const urlParams = new URLSearchParams(window.location.search);
-    return urlParams.get(name);
+    const value = urlParams.get(name);
+    console.log(`Getting URL parameter '${name}': ${value}`);
+    return value;
 }
 
 // The main game initialization function
 async function initializeGame() {
     try {
+        console.log('Starting game initialization...');
+        
         // Get game ID from URL
         const gameId = getUrlParameter('gameId');
         
@@ -74,6 +83,7 @@ async function initializeGame() {
         
         // Get Firebase Firestore instance
         const db = firebase.firestore();
+        console.log('Firebase Firestore instance obtained');
         
         // Get game data
         const gameDoc = await db.collection('games').doc(gameId).get();
@@ -129,8 +139,11 @@ async function initializeGame() {
             }
         }
         
+        console.log(`Extracted ${extractedSongs.length} songs and ${extractedArtists.length} artists`);
+        
         // Update current song index from game data
         currentSongIndex = gameData.currentSongIndex || -1;
+        console.log('Current song index:', currentSongIndex);
         
         // Initialize boards with actual data
         initializeBoards(extractedSongs, extractedArtists);
@@ -150,6 +163,8 @@ async function initializeGame() {
 
 // Initialize with sample data if no game ID or Firebase fails
 function initializeGameWithSampleData() {
+    console.log('Initializing with sample data...');
+    
     // Sample song and artist list
     const sampleSongs = [
         "Oh, Pretty Woman", 
@@ -193,6 +208,7 @@ function initializeGameWithSampleData() {
 
 // Update the game title
 function updateGameTitle(title) {
+    console.log('Updating game title to:', title);
     const titleElement = document.querySelector('.game-title');
     if (titleElement) {
         titleElement.textContent = title;
@@ -202,6 +218,7 @@ function updateGameTitle(title) {
 // Set up real-time updates for the game
 function setupGameUpdates(gameId) {
     try {
+        console.log('Setting up real-time updates for game:', gameId);
         // Get Firebase Firestore instance
         const db = firebase.firestore();
         
@@ -209,6 +226,8 @@ function setupGameUpdates(gameId) {
         const unsubscribe = db.collection('games').doc(gameId)
             .onSnapshot((doc) => {
                 if (doc.exists) {
+                    console.log('Received game update:', doc.data());
+                    
                     const updatedGame = {
                         id: doc.id,
                         ...doc.data()
@@ -219,6 +238,7 @@ function setupGameUpdates(gameId) {
                     
                     // Check if the current song has changed
                     if (updatedGame.currentSongIndex !== currentSongIndex) {
+                        console.log(`Current song index changed from ${currentSongIndex} to ${updatedGame.currentSongIndex}`);
                         currentSongIndex = updatedGame.currentSongIndex;
                         
                         // If there's a current song playing, show it to the player
@@ -229,9 +249,12 @@ function setupGameUpdates(gameId) {
                     
                     // Check if game has ended
                     if (updatedGame.status === 'ended') {
+                        console.log('Game has ended');
                         alert('This game has ended. Thank you for playing!');
                         unsubscribe(); // Stop listening for updates
                     }
+                } else {
+                    console.error('Game document no longer exists');
                 }
             }, (error) => {
                 console.error('Error listening for game updates:', error);
@@ -244,17 +267,27 @@ function setupGameUpdates(gameId) {
 
 // Show the current song being played
 function showCurrentSong(songIndex) {
-    if (!playlistData) return;
+    console.log('showCurrentSong called with index:', songIndex);
+    
+    if (!playlistData) {
+        console.error('playlistData is not available!');
+        return;
+    }
     
     // Get song and artist based on index
     const songKey = `song${songIndex + 1}`;
     const artistKey = `artist${songIndex + 1}`;
     
+    console.log(`Looking for song with keys: ${songKey}, ${artistKey}`);
+    
     if (playlistData[songKey] && playlistData[artistKey]) {
+        console.log(`Found song: ${playlistData[songKey]} - ${playlistData[artistKey]}`);
+        
         // Create or update a notification element
         let notification = document.querySelector('.song-notification');
         
         if (!notification) {
+            console.log('Creating notification element...');
             notification = document.createElement('div');
             notification.className = 'song-notification';
             document.body.appendChild(notification);
@@ -294,16 +327,21 @@ function showCurrentSong(songIndex) {
             ${playlistData[songKey]} - ${playlistData[artistKey]}
         `;
         
+        console.log('Notification updated and displayed');
+        
         // Reset animation
         notification.style.animation = 'none';
         notification.offsetHeight; // Trigger reflow
         notification.style.animation = 'fadeInOut 5s forwards';
+    } else {
+        console.error(`Song not found for index ${songIndex}. Available keys in playlistData:`, Object.keys(playlistData));
     }
 }
 
 // Join the game as a player (increment player count)
 async function joinGame(gameId) {
     try {
+        console.log('Joining game:', gameId);
         const db = firebase.firestore();
         
         // Increment player count using a transaction to avoid race conditions
@@ -312,9 +350,13 @@ async function joinGame(gameId) {
         await db.runTransaction(async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
             
-            if (!gameDoc.exists) return;
+            if (!gameDoc.exists) {
+                console.error('Game document does not exist');
+                return;
+            }
             
             const currentCount = gameDoc.data().playerCount || 0;
+            console.log(`Current player count: ${currentCount}, incrementing...`);
             
             transaction.update(gameRef, {
                 playerCount: currentCount + 1,
@@ -322,7 +364,7 @@ async function joinGame(gameId) {
             });
         });
         
-        console.log('Joined game as player');
+        console.log('Successfully joined game as player');
         
     } catch (error) {
         console.error('Error joining game:', error);
@@ -331,6 +373,8 @@ async function joinGame(gameId) {
 
 // Create a bingo board with the provided songs and artists
 function createBingoBoard(boardElement, songs, artists) {
+    console.log('Creating bingo board...');
+    
     // Clear any existing cells
     boardElement.innerHTML = '';
 
@@ -355,15 +399,19 @@ function createBingoBoard(boardElement, songs, artists) {
 
         boardElement.appendChild(cell);
     }
+    
+    console.log('Bingo board created successfully');
 }
 
 function handleLogoCellClick() {
+    console.log('Logo cell clicked - free space');
     // This is a free space
     alert('Free space! This counts as marked for bingo.');
 }
 
 // Initialize boards with provided song and artist data
 function initializeBoards(songs, artists) {
+    console.log('Initializing boards with', songs.length, 'songs and', artists.length, 'artists');
     const board1 = document.querySelector('.board-1');
     const board2 = document.querySelector('.board-2');
     createBingoBoard(board1, songs, artists);
@@ -390,15 +438,18 @@ function handleSwipe() {
     const minSwipeDistance = 50;
     if (touchEndX < touchStartX - minSwipeDistance) {
         // Swipe left to second board
+        console.log('Swiped left to board 2');
         switchToBoard(2);
     } else if (touchEndX > touchStartX + minSwipeDistance) {
         // Swipe right to first board
+        console.log('Swiped right to board 1');
         switchToBoard(1);
     }
 }
 
 // Switch to specified board
 function switchToBoard(boardNum) {
+    console.log('Switching to board', boardNum);
     if (boardNum === 1) {
         boardsWrapper.style.transform = 'translateX(0)';
         boardDots[1].classList.remove('active');
@@ -433,6 +484,8 @@ boardBtns.forEach(btn => {
 
 // New game button - regenerate boards with same data
 document.getElementById('new-game-btn').addEventListener('click', () => {
+    console.log('New game button clicked');
+    
     if (playlistData) {
         // Extract songs and artists from playlist data
         const extractedSongs = [];
@@ -449,8 +502,10 @@ document.getElementById('new-game-btn').addEventListener('click', () => {
             }
         }
         
+        console.log(`Regenerating boards with ${extractedSongs.length} songs and ${extractedArtists.length} artists`);
         initializeBoards(extractedSongs, extractedArtists);
     } else {
+        console.log('No playlist data available, falling back to sample data');
         // Fall back to sample data
         initializeGameWithSampleData();
     }
@@ -458,18 +513,22 @@ document.getElementById('new-game-btn').addEventListener('click', () => {
 
 // Check Bingo functionality
 document.getElementById('check-bingo-btn').addEventListener('click', () => {
+    console.log('Checking for Bingo...');
     const activeBoard = boardsWrapper.style.transform === 'translateX(-50%)' ? 
         document.querySelector('.board-2') : document.querySelector('.board-1');
     
     if (checkForBingo(activeBoard)) {
+        console.log('BINGO found!');
         document.querySelector('.bingo-message').style.display = 'block';
     } else {
+        console.log('No Bingo yet');
         alert('No bingo yet. Keep playing!');
     }
 });
 
 // Close bingo message
 document.getElementById('close-bingo-message').addEventListener('click', () => {
+    console.log('Closing bingo message');
     document.querySelector('.bingo-message').style.display = 'none';
 });
 
@@ -485,6 +544,7 @@ function checkForBingo(board) {
     for (let i = 0; i < 5; i++) {
         const row = cellsArray.slice(i * 5, i * 5 + 5);
         if (row.every(cell => cell.classList.contains('matched') || cell.classList.contains('center-cell'))) {
+            console.log(`Found bingo in row ${i}`);
             return true;
         }
     }
@@ -499,6 +559,7 @@ function checkForBingo(board) {
             cellsArray[i + 20]
         ];
         if (column.every(cell => cell.classList.contains('matched') || cell.classList.contains('center-cell'))) {
+            console.log(`Found bingo in column ${i}`);
             return true;
         }
     }
@@ -521,10 +582,12 @@ function checkForBingo(board) {
     ];
     
     if (diagonal1.every(cell => cell.classList.contains('matched') || cell.classList.contains('center-cell'))) {
+        console.log('Found bingo in diagonal 1');
         return true;
     }
     
     if (diagonal2.every(cell => cell.classList.contains('matched') || cell.classList.contains('center-cell'))) {
+        console.log('Found bingo in diagonal 2');
         return true;
     }
     
