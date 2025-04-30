@@ -1,4 +1,4 @@
-// Firebase configuration
+// Firebase configuration  
 const firebaseConfig = {
     apiKey: "AIzaSyDBKCotY1F943DKfVQqKOGPPkAkQe2Zgog",
     authDomain: "beach-trivia-website.firebaseapp.com",
