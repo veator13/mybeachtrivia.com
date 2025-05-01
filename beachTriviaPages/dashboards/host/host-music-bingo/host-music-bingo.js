@@ -268,6 +268,23 @@ async function createNewGame() {
         
         console.log('Game created with ID:', gameDoc.id);
         
+        // Also save to Realtime Database for real-time sync
+        const database = firebase.database();
+        const rtGameData = {
+            hostId: currentUser.uid,
+            playlistId: playlistId,
+            name: gameName,
+            status: 'active',
+            playerCount: 0,
+            currentSongIndex: -1,
+            createdAt: firebase.database.ServerValue.TIMESTAMP,
+            updatedAt: firebase.database.ServerValue.TIMESTAMP
+        };
+        
+        // Save to Realtime Database
+        await database.ref('games/' + gameDoc.id).set(rtGameData);
+        console.log('Game also saved to Realtime Database');
+        
         // Set current game
         currentGame = {
             id: gameDoc.id,
@@ -477,6 +494,13 @@ async function playCurrentSong() {
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         
+        // Also update in Realtime Database
+        const database = firebase.database();
+        await database.ref('games/' + currentGame.id).update({
+            currentSongIndex: songIndex,
+            updatedAt: firebase.database.ServerValue.TIMESTAMP
+        });
+        
         // Update local state
         currentGame.currentSongIndex = songIndex;
         
@@ -530,6 +554,13 @@ async function playNextSong() {
         await db.collection('games').doc(currentGame.id).update({
             currentSongIndex: nextIndex,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        
+        // Also update in Realtime Database
+        const database = firebase.database();
+        await database.ref('games/' + currentGame.id).update({
+            currentSongIndex: nextIndex,
+            updatedAt: firebase.database.ServerValue.TIMESTAMP
         });
         
         // Update local state
@@ -590,6 +621,13 @@ async function pauseGame() {
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         
+        // Also update in Realtime Database
+        const database = firebase.database();
+        await database.ref('games/' + currentGame.id).update({
+            status: 'paused',
+            updatedAt: firebase.database.ServerValue.TIMESTAMP
+        });
+        
         // Update local state
         currentGame.status = 'paused';
         
@@ -612,6 +650,13 @@ async function resumeGame() {
         await db.collection('games').doc(currentGame.id).update({
             status: 'active',
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        
+        // Also update in Realtime Database
+        const database = firebase.database();
+        await database.ref('games/' + currentGame.id).update({
+            status: 'active',
+            updatedAt: firebase.database.ServerValue.TIMESTAMP
         });
         
         // Update local state
@@ -645,6 +690,13 @@ async function endGame() {
         await db.collection('games').doc(currentGame.id).update({
             status: 'ended',
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        
+        // Also update in Realtime Database
+        const database = firebase.database();
+        await database.ref('games/' + currentGame.id).update({
+            status: 'ended',
+            updatedAt: firebase.database.ServerValue.TIMESTAMP
         });
         
         // Clear the current game
