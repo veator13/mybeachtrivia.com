@@ -1,63 +1,12 @@
-// Firebase configuration
-// This should match your firebase-init.js configuration
-const firebaseConfig = {
-    apiKey: "AIzaSyDBKCotY1F943DKfVQqKOGPPkAkQe2Zgog",
-    authDomain: "beach-trivia-website.firebaseapp.com",
-    databaseURL: "https://beach-trivia-website-default-rtdb.firebaseio.com", // Added databaseURL
-    projectId: "beach-trivia-website",
-    storageBucket: "beach-trivia-website.firebasestorage.app",
-    messagingSenderId: "459479368322",
-    appId: "1:459479368322:web:7bd3d080d3b9e77610aa9b",
-    measurementId: "G-24MQRKKDNY"
-};
-
-// Initialize Firebase (if not already initialized)
-if (typeof firebase === 'undefined') {
-    // Load Firebase scripts dynamically if not already loaded
-    const loadFirebase = async () => {
-        try {
-            console.log('Attempting to load Firebase scripts dynamically...');
-            
-            // Create and load Firebase App script
-            const appScript = document.createElement('script');
-            appScript.src = 'https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js';
-            document.head.appendChild(appScript);
-            
-            await new Promise(resolve => appScript.onload = resolve);
-            console.log('Firebase App script loaded successfully');
-            
-            // Load Firebase Firestore
-            const firestoreScript = document.createElement('script');
-            firestoreScript.src = 'https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js';
-            document.head.appendChild(firestoreScript);
-            
-            await new Promise(resolve => firestoreScript.onload = resolve);
-            console.log('Firebase Firestore script loaded successfully');
-            
-            // Load Firebase Database - Added this section
-            const databaseScript = document.createElement('script');
-            databaseScript.src = 'https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js';
-            document.head.appendChild(databaseScript);
-            
-            await new Promise(resolve => databaseScript.onload = resolve);
-            console.log('Firebase Database script loaded successfully');
-            
-            // Initialize Firebase
-            firebase.initializeApp(firebaseConfig);
-            console.log('Firebase initialized successfully');
-            console.log('Firebase database available:', typeof firebase.database === 'function');
-            
-            initializeGame();
-        } catch (error) {
-            console.error('Error loading Firebase:', error);
-            // Fall back to sample data if Firebase fails to load
-            initializeGameWithSampleData();
-        }
-    };
-    
-    loadFirebase();
+// Check if Firebase is already initialized from firebase-init.js
+if (typeof firebase === 'undefined' || !firebase.apps.length) {
+    console.error('Firebase not initialized. Please check firebase-init.js is loading correctly.');
+    // Fall back to sample data if Firebase isn't available
+    setTimeout(() => {
+        initializeGameWithSampleData();
+    }, 100);
 } else {
-    console.log('Firebase already loaded, initializing game...');
+    console.log('Firebase already initialized, initializing game...');
     // Firebase already loaded, initialize the game
     initializeGame();
 }
