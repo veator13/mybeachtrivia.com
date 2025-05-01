@@ -3,6 +3,7 @@
 const firebaseConfig = {
     apiKey: "AIzaSyDBKCotY1F943DKfVQqKOGPPkAkQe2Zgog",
     authDomain: "beach-trivia-website.firebaseapp.com",
+    databaseURL: "https://beach-trivia-website-default-rtdb.firebaseio.com", // Added databaseURL
     projectId: "beach-trivia-website",
     storageBucket: "beach-trivia-website.firebasestorage.app",
     messagingSenderId: "459479368322",
@@ -33,9 +34,18 @@ if (typeof firebase === 'undefined') {
             await new Promise(resolve => firestoreScript.onload = resolve);
             console.log('Firebase Firestore script loaded successfully');
             
+            // Load Firebase Database - Added this section
+            const databaseScript = document.createElement('script');
+            databaseScript.src = 'https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js';
+            document.head.appendChild(databaseScript);
+            
+            await new Promise(resolve => databaseScript.onload = resolve);
+            console.log('Firebase Database script loaded successfully');
+            
             // Initialize Firebase
             firebase.initializeApp(firebaseConfig);
             console.log('Firebase initialized successfully');
+            console.log('Firebase database available:', typeof firebase.database === 'function');
             
             initializeGame();
         } catch (error) {
@@ -215,50 +225,92 @@ function updateGameTitle(title) {
     }
 }
 
-// Set up real-time updates for the game
+// Set up real-time updates for the game - Updated to use both Firestore and Realtime Database
 function setupGameUpdates(gameId) {
     try {
         console.log('Setting up real-time updates for game:', gameId);
-        // Get Firebase Firestore instance
-        const db = firebase.firestore();
         
-        // Listen for updates to the game document
-        const unsubscribe = db.collection('games').doc(gameId)
+        // Set up Firestore updates
+        const db = firebase.firestore();
+        const unsubscribeFirestore = db.collection('games').doc(gameId)
             .onSnapshot((doc) => {
                 if (doc.exists) {
-                    console.log('Received game update:', doc.data());
-                    
-                    const updatedGame = {
-                        id: doc.id,
-                        ...doc.data()
-                    };
-                    
-                    // Update game data
-                    gameData = updatedGame;
-                    
-                    // Check if the current song has changed
-                    if (updatedGame.currentSongIndex !== currentSongIndex) {
-                        console.log(`Current song index changed from ${currentSongIndex} to ${updatedGame.currentSongIndex}`);
-                        currentSongIndex = updatedGame.currentSongIndex;
-                        
-                        // If there's a current song playing, show it to the player
-                        if (currentSongIndex >= 0) {
-                            showCurrentSong(currentSongIndex);
-                        }
-                    }
-                    
-                    // Check if game has ended
-                    if (updatedGame.status === 'ended') {
-                        console.log('Game has ended');
-                        alert('This game has ended. Thank you for playing!');
-                        unsubscribe(); // Stop listening for updates
-                    }
+                    console.log('Received Firestore game update:', doc.data());
+                    // Update game data from Firestore
+                    handleGameUpdate(doc.id, doc.data());
                 } else {
-                    console.error('Game document no longer exists');
+                    console.error('Game document no longer exists in Firestore');
                 }
             }, (error) => {
-                console.error('Error listening for game updates:', error);
+                console.error('Error listening for Firestore game updates:', error);
             });
+            
+        // Set up Realtime Database updates
+        try {
+            const database = firebase.database();
+            console.log('Firebase database reference created:', typeof database);
+            
+            const gameRef = database.ref('games/' + gameId);
+            console.log('Realtime Database reference created for path:', 'games/' + gameId);
+            
+            gameRef.on('value', (snapshot) => {
+                console.log('Realtime Database snapshot received:', snapshot.exists());
+                if (snapshot.exists()) {
+                    console.log('Received Realtime Database game update:', snapshot.val());
+                    // Update game data from Realtime Database
+                    handleGameUpdate(gameId, snapshot.val());
+                } else {
+                    console.log('No data available in Realtime Database for game:', gameId);
+                }
+            }, (error) => {
+                console.error('Error listening for Realtime Database updates:', error);
+            });
+        } catch (dbError) {
+            console.error('Error setting up Realtime Database listener:', dbError);
+            console.log('Continuing with only Firestore updates');
+        }
+        
+        // Helper function to process updates from either source
+        function handleGameUpdate(id, data) {
+            const updatedGame = {
+                id: id,
+                ...data
+            };
+            
+            // Update game data
+            gameData = updatedGame;
+            
+            // Check if the current song has changed
+            if (updatedGame.currentSongIndex !== currentSongIndex) {
+                console.log(`Current song index changed from ${currentSongIndex} to ${updatedGame.currentSongIndex}`);
+                currentSongIndex = updatedGame.currentSongIndex;
+                
+                // If there's a current song playing, show it to the player
+                if (currentSongIndex >= 0) {
+                    showCurrentSong(currentSongIndex);
+                }
+            }
+            
+            // Check if game has ended
+            if (updatedGame.status === 'ended') {
+                console.log('Game has ended');
+                alert('This game has ended. Thank you for playing!');
+                
+                // Stop listening for updates from Firestore
+                if (unsubscribeFirestore) {
+                    unsubscribeFirestore();
+                }
+                
+                // Stop listening for updates from Realtime Database
+                try {
+                    if (firebase.database && gameRef) {
+                        gameRef.off();
+                    }
+                } catch (error) {
+                    console.error('Error when stopping Realtime Database listener:', error);
+                }
+            }
+        }
             
     } catch (error) {
         console.error('Error setting up game updates:', error);
@@ -363,6 +415,31 @@ async function joinGame(gameId) {
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
             });
         });
+        
+        // Also update player count in Realtime Database
+        try {
+            const database = firebase.database();
+            if (database) {
+                const rtdbRef = database.ref('games/' + gameId);
+                // Get current value first
+                const snapshot = await rtdbRef.once('value');
+                if (snapshot.exists()) {
+                    const currentData = snapshot.val();
+                    const currentCount = currentData.playerCount || 0;
+                    
+                    await rtdbRef.update({
+                        playerCount: currentCount + 1,
+                        updatedAt: firebase.database.ServerValue.TIMESTAMP
+                    });
+                    console.log('Updated player count in Realtime Database');
+                } else {
+                    console.log('No data found in Realtime Database to update player count');
+                }
+            }
+        } catch (rtdbError) {
+            console.error('Error updating player count in Realtime Database:', rtdbError);
+            console.log('Continuing with only Firestore update');
+        }
         
         console.log('Successfully joined game as player');
         
