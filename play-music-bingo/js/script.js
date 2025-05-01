@@ -16,6 +16,104 @@ let gameData = null;
 let playlistData = null;
 let currentSongIndex = -1;
 
+// Board persistence functions
+// Save the current board state to localStorage
+function saveBoardState() {
+    // Get both boards
+    const board1 = document.querySelector('.board-1');
+    const board2 = document.querySelector('.board-2');
+    
+    // Get the cell contents and marked status for each board
+    const board1State = getBoardState(board1);
+    const board2State = getBoardState(board2);
+    
+    // Get the game ID to use as part of the storage key
+    const gameId = getUrlParameter('gameId') || 'default';
+    
+    // Save to localStorage
+    localStorage.setItem(`musicBingo_${gameId}_board1`, JSON.stringify(board1State));
+    localStorage.setItem(`musicBingo_${gameId}_board2`, JSON.stringify(board2State));
+    
+    console.log('Board state saved to localStorage');
+}
+
+// Get the state of a single board
+function getBoardState(boardElement) {
+    const cells = boardElement.querySelectorAll('.bingo-cell');
+    const state = [];
+    
+    cells.forEach(cell => {
+        state.push({
+            content: cell.textContent,
+            isMatched: cell.classList.contains('matched'),
+            isCenter: cell.classList.contains('center-cell')
+        });
+    });
+    
+    return state;
+}
+
+// Load board state from localStorage
+function loadBoardState() {
+    const gameId = getUrlParameter('gameId') || 'default';
+    
+    // Try to get saved states
+    const board1StateStr = localStorage.getItem(`musicBingo_${gameId}_board1`);
+    const board2StateStr = localStorage.getItem(`musicBingo_${gameId}_board2`);
+    
+    if (board1StateStr && board2StateStr) {
+        console.log('Found saved board state, restoring...');
+        
+        const board1State = JSON.parse(board1StateStr);
+        const board2State = JSON.parse(board2StateStr);
+        
+        // Restore the boards
+        restoreBoard(document.querySelector('.board-1'), board1State);
+        restoreBoard(document.querySelector('.board-2'), board2State);
+        
+        return true;
+    }
+    
+    console.log('No saved board state found');
+    return false;
+}
+
+// Restore a single board's state
+function restoreBoard(boardElement, state) {
+    // Clear any existing cells
+    boardElement.innerHTML = '';
+    
+    // Recreate cells from saved state
+    state.forEach((cellState) => {
+        const cell = document.createElement('div');
+        cell.classList.add('bingo-cell');
+        
+        // Restore content
+        if (!cellState.isCenter) {
+            cell.textContent = cellState.content;
+        }
+        
+        // Restore matched status
+        if (cellState.isMatched) {
+            cell.classList.add('matched');
+        }
+        
+        // Set center cell class if needed
+        if (cellState.isCenter) {
+            cell.classList.add('center-cell');
+            cell.addEventListener('click', handleLogoCellClick);
+        } else {
+            // Add click handler for regular cells
+            cell.addEventListener('click', () => {
+                cell.classList.toggle('matched');
+                saveBoardState(); // Save state after toggling
+            });
+        }
+        
+        boardElement.appendChild(cell);
+    });
+}
+
 // Utility function to get URL parameters
 function getUrlParameter(name) {
     const urlParams = new URLSearchParams(window.location.search);
@@ -420,6 +518,7 @@ function createBingoBoard(boardElement, songs, artists) {
             cell.textContent = shuffledList[i] || '';
             cell.addEventListener('click', () => {
                 cell.classList.toggle('matched');
+                saveBoardState(); // Save state after toggling
             });
         }
 
@@ -427,6 +526,9 @@ function createBingoBoard(boardElement, songs, artists) {
     }
     
     console.log('Bingo board created successfully');
+    
+    // Save the initial board state
+    saveBoardState();
 }
 
 function handleLogoCellClick() {
@@ -438,10 +540,15 @@ function handleLogoCellClick() {
 // Initialize boards with provided song and artist data
 function initializeBoards(songs, artists) {
     console.log('Initializing boards with', songs.length, 'songs and', artists.length, 'artists');
-    const board1 = document.querySelector('.board-1');
-    const board2 = document.querySelector('.board-2');
-    createBingoBoard(board1, songs, artists);
-    createBingoBoard(board2, songs, artists);
+    
+    // Check if we have saved boards for this game
+    if (!loadBoardState()) {
+        // No saved state, create new boards
+        const board1 = document.querySelector('.board-1');
+        const board2 = document.querySelector('.board-2');
+        createBingoBoard(board1, songs, artists);
+        createBingoBoard(board2, songs, artists);
+    }
 }
 
 // Swipe functionality
@@ -512,6 +619,12 @@ boardBtns.forEach(btn => {
 document.getElementById('new-game-btn').addEventListener('click', () => {
     console.log('New game button clicked');
     
+    // Clear saved board state for this game
+    const gameId = getUrlParameter('gameId') || 'default';
+    localStorage.removeItem(`musicBingo_${gameId}_board1`);
+    localStorage.removeItem(`musicBingo_${gameId}_board2`);
+    console.log('Cleared saved board state');
+    
     if (playlistData) {
         // Extract songs and artists from playlist data
         const extractedSongs = [];
@@ -529,7 +642,12 @@ document.getElementById('new-game-btn').addEventListener('click', () => {
         }
         
         console.log(`Regenerating boards with ${extractedSongs.length} songs and ${extractedArtists.length} artists`);
-        initializeBoards(extractedSongs, extractedArtists);
+        
+        // Create new boards (this will also save the new state)
+        const board1 = document.querySelector('.board-1');
+        const board2 = document.querySelector('.board-2');
+        createBingoBoard(board1, extractedSongs, extractedArtists);
+        createBingoBoard(board2, extractedSongs, extractedArtists);
     } else {
         console.log('No playlist data available, falling back to sample data');
         // Fall back to sample data
