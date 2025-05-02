@@ -73,10 +73,14 @@ const PlaylistManager = (() => {
         
         const songCell = newRow.insertCell(0);
         const artistCell = newRow.insertCell(1);
-        const actionCell = newRow.insertCell(2);
+        const albumCell = newRow.insertCell(2);
+        const trackUriCell = newRow.insertCell(3);
+        const actionCell = newRow.insertCell(4);
         
         songCell.innerHTML = `<input type="text" class="song-name" data-song-index="${rowCount}" placeholder="Enter Song Name">`;
         artistCell.innerHTML = `<input type="text" class="artist-name" data-artist-index="${rowCount}" placeholder="Enter Artist Name">`;
+        albumCell.innerHTML = `<input type="text" class="album-name" data-album-index="${rowCount}" placeholder="Enter Album Name">`;
+        trackUriCell.innerHTML = `<input type="text" class="track-uri" data-uri-index="${rowCount}" placeholder="Enter Track URI">`;
         actionCell.classList.add('remove-row-cell');
         actionCell.innerHTML = `<button class="remove-row-btn">Remove</button>`;
         
@@ -123,15 +127,32 @@ const PlaylistManager = (() => {
         songRows.forEach((row, index) => {
             const songInput = row.querySelector('.song-name');
             const artistInput = row.querySelector('.artist-name');
+            const albumInput = row.querySelector('.album-name');
+            const trackUriInput = row.querySelector('.track-uri');
             
             const songName = songInput ? songInput.value.trim() : '';
             const artistName = artistInput ? artistInput.value.trim() : '';
+            const albumName = albumInput ? albumInput.value.trim() : '';
+            const trackUri = trackUriInput ? trackUriInput.value.trim() : '';
             
             if (songName && artistName) {
                 const songKey = `song${index + 1}`;
                 const artistKey = `artist${index + 1}`;
+                const albumKey = `album${index + 1}`;
+                const uriKey = `uri${index + 1}`;
+                
                 playlistData[songKey] = songName;
                 playlistData[artistKey] = artistName;
+                
+                // Only add album and URI if they exist
+                if (albumName) {
+                    playlistData[albumKey] = albumName;
+                }
+                
+                if (trackUri) {
+                    playlistData[uriKey] = trackUri;
+                }
+                
                 maxSongIndex = index + 1;
             }
         });
@@ -161,9 +182,10 @@ const PlaylistManager = (() => {
                         if (document.id === currentPlaylistId) {
                             const existingData = document.data();
                             
-                            // Find all song/artist fields in the existing document
+                            // Find all song/artist/album/uri fields in the existing document
                             Object.keys(existingData).forEach(key => {
-                                if ((key.startsWith('song') || key.startsWith('artist')) && 
+                                if ((key.startsWith('song') || key.startsWith('artist') || 
+                                     key.startsWith('album') || key.startsWith('uri')) && 
                                     !completePlaylistData[key]) {
                                     // Mark fields for deletion by setting to null
                                     fieldsToDelete[key] = null;
@@ -263,41 +285,49 @@ const PlaylistManager = (() => {
                     // Clear existing rows
                     songTableBody.innerHTML = '';
                     
-                    // Collect all song/artist pairs
-                    const songArtistPairs = [];
+                    // Collect all song/artist/album/uri entries
+                    const songEntries = [];
                     
-                    // Find all song keys and their matching artist keys
+                    // Find all song keys and their matching fields
                     Object.keys(playlist).forEach(key => {
                         if (key.startsWith('song') && playlist[key]) {
                             const index = key.substring(4); // Extract the number after "song"
                             const artistKey = `artist${index}`;
+                            const albumKey = `album${index}`;
+                            const uriKey = `uri${index}`;
                             
                             if (playlist[artistKey]) {
-                                songArtistPairs.push({
+                                songEntries.push({
                                     index: parseInt(index),
                                     song: playlist[key],
-                                    artist: playlist[artistKey]
+                                    artist: playlist[artistKey],
+                                    album: playlist[albumKey] || '',
+                                    uri: playlist[uriKey] || ''
                                 });
                             }
                         }
                     });
                     
                     // Sort by index
-                    songArtistPairs.sort((a, b) => a.index - b.index);
+                    songEntries.sort((a, b) => a.index - b.index);
                     
-                    // Add rows for each song/artist pair
-                    songArtistPairs.forEach(pair => {
+                    // Add rows for each song entry
+                    songEntries.forEach(entry => {
                         const newRow = addRow();
                         
                         const songInput = newRow.querySelector('.song-name');
                         const artistInput = newRow.querySelector('.artist-name');
+                        const albumInput = newRow.querySelector('.album-name');
+                        const trackUriInput = newRow.querySelector('.track-uri');
                         
-                        if (songInput) songInput.value = pair.song;
-                        if (artistInput) artistInput.value = pair.artist;
+                        if (songInput) songInput.value = entry.song;
+                        if (artistInput) artistInput.value = entry.artist;
+                        if (albumInput) albumInput.value = entry.album;
+                        if (trackUriInput) trackUriInput.value = entry.uri;
                     });
                     
                     // If no rows were added (empty playlist), add the default 5 rows
-                    if (songArtistPairs.length === 0) {
+                    if (songEntries.length === 0) {
                         initializeTable();
                     }
                 }
@@ -369,9 +399,11 @@ const PlaylistManager = (() => {
                     return;
                 }
                 
-                // Find the column indices for track name and artist name
+                // Find the column indices for track name, artist name, album name, and track URI
                 let trackNameIndex = -1;
                 let artistNameIndex = -1;
+                let albumNameIndex = -1;
+                let trackUriIndex = -1;
                 
                 // Check header row to find the relevant columns
                 for (let i = 0; i < rows[0].length; i++) {
@@ -380,6 +412,10 @@ const PlaylistManager = (() => {
                         trackNameIndex = i;
                     } else if (header === 'artist name(s)') {
                         artistNameIndex = i;
+                    } else if (header === 'album name') {
+                        albumNameIndex = i;
+                    } else if (header === 'track uri') {
+                        trackUriIndex = i;
                     }
                 }
                 
@@ -400,11 +436,15 @@ const PlaylistManager = (() => {
                     
                     const trackName = rows[i][trackNameIndex].trim();
                     const artistName = rows[i][artistNameIndex].trim();
+                    const albumName = albumNameIndex >= 0 && rows[i].length > albumNameIndex ? rows[i][albumNameIndex].trim() : '';
+                    const trackUri = trackUriIndex >= 0 && rows[i].length > trackUriIndex ? rows[i][trackUriIndex].trim() : '';
                     
                     if (trackName && artistName) {
                         csvImportData.push({
                             song: trackName,
-                            artist: artistName
+                            artist: artistName,
+                            album: albumName,
+                            uri: trackUri
                         });
                     }
                 }
@@ -506,9 +546,13 @@ const PlaylistManager = (() => {
             
             const songInput = newRow.querySelector('.song-name');
             const artistInput = newRow.querySelector('.artist-name');
+            const albumInput = newRow.querySelector('.album-name');
+            const trackUriInput = newRow.querySelector('.track-uri');
             
             if (songInput) songInput.value = entry.song;
             if (artistInput) artistInput.value = entry.artist;
+            if (albumInput) albumInput.value = entry.album || '';
+            if (trackUriInput) trackUriInput.value = entry.uri || '';
         });
         
         alert(`Successfully imported ${entries.length} songs from CSV`);
@@ -543,14 +587,20 @@ const PlaylistManager = (() => {
         songRows.forEach((row, index) => {
             const songInput = row.querySelector('.song-name');
             const artistInput = row.querySelector('.artist-name');
+            const albumInput = row.querySelector('.album-name');
+            const trackUriInput = row.querySelector('.track-uri');
             
             const songName = songInput ? songInput.value.trim() : '';
             const artistName = artistInput ? artistInput.value.trim() : '';
+            const albumName = albumInput ? albumInput.value.trim() : '';
+            const trackUri = trackUriInput ? trackUriInput.value.trim() : '';
             
             if (songName && artistName) {
                 songArtistPairs.push({
                     song: songName,
-                    artist: artistName
+                    artist: artistName,
+                    album: albumName,
+                    uri: trackUri
                 });
             }
         });

@@ -437,61 +437,48 @@ function showCurrentSong(songIndex) {
     }
 }
 
-// Join the game as a player (increment player count)
+// Join the game as a player using unique ID tracking
 async function joinGame(gameId) {
     try {
         console.log('Joining game:', gameId);
-        const db = firebase.firestore();
         
-        // Increment player count using a transaction to avoid race conditions
-        const gameRef = db.collection('games').doc(gameId);
+        // Get existing playerId or create new one
+        let playerId = localStorage.getItem(`bingo_player_${gameId}`);
+        const isNewPlayer = !playerId;
         
-        await db.runTransaction(async (transaction) => {
-            const gameDoc = await transaction.get(gameRef);
-            
-            if (!gameDoc.exists) {
-                console.error('Game document does not exist');
-                return;
-            }
-            
-            const currentCount = gameDoc.data().playerCount || 0;
-            console.log(`Current player count: ${currentCount}, incrementing...`);
-            
-            transaction.update(gameRef, {
-                playerCount: currentCount + 1,
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
-        });
-        
-        // Also update player count in Realtime Database
-        try {
-            const database = firebase.database();
-            if (database) {
-                const rtdbRef = database.ref('games/' + gameId);
-                // Get current value first
-                const snapshot = await rtdbRef.once('value');
-                if (snapshot.exists()) {
-                    const currentData = snapshot.val();
-                    const currentCount = currentData.playerCount || 0;
-                    
-                    await rtdbRef.update({
-                        playerCount: currentCount + 1,
-                        updatedAt: firebase.database.ServerValue.TIMESTAMP
-                    });
-                    console.log('Updated player count in Realtime Database');
-                } else {
-                    console.log('No data found in Realtime Database to update player count');
-                }
-            }
-        } catch (rtdbError) {
-            console.error('Error updating player count in Realtime Database:', rtdbError);
-            console.log('Continuing with only Firestore update');
+        if (!playerId) {
+            playerId = 'player_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            localStorage.setItem(`bingo_player_${gameId}`, playerId);
         }
         
-        console.log('Successfully joined game as player');
+        // Add player to database with timestamp
+        const database = firebase.database();
+        await database.ref(`games/${gameId}/players/${playerId}`).set({
+            joinedAt: firebase.database.ServerValue.TIMESTAMP,
+            lastActive: firebase.database.ServerValue.TIMESTAMP
+        });
+        
+        console.log(`${isNewPlayer ? 'New player' : 'Returning player'} joined with ID: ${playerId}`);
+        
+        // Set up heartbeat to update lastActive periodically
+        setInterval(() => updatePlayerActivity(gameId, playerId), 30000);
         
     } catch (error) {
         console.error('Error joining game:', error);
+    }
+}
+
+// Update player's lastActive timestamp periodically
+function updatePlayerActivity(gameId, playerId) {
+    try {
+        if (!playerId) return;
+        
+        const database = firebase.database();
+        database.ref(`games/${gameId}/players/${playerId}/lastActive`)
+            .set(firebase.database.ServerValue.TIMESTAMP);
+            
+    } catch (error) {
+        console.error('Error updating player activity:', error);
     }
 }
 

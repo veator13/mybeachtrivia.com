@@ -27,7 +27,7 @@ const TextValidator = (() => {
         return text && text.length > characterLimit;
     };
 
-    // Validate an array of song/artist pairs
+    // Validate an array of song/artist/album/uri entries
     const validateEntries = (entries) => {
         pendingEntries = entries.slice(); // Create a copy
         
@@ -37,16 +37,23 @@ const TextValidator = (() => {
         entries.forEach((entry, index) => {
             const songTooLong = exceedsLimit(entry.song);
             const artistTooLong = exceedsLimit(entry.artist);
+            const albumTooLong = exceedsLimit(entry.album);
+            // Track URI validation is optional, usually they're pretty long
+            // const uriTooLong = exceedsLimit(entry.uri);
             
-            if (songTooLong || artistTooLong) {
+            if (songTooLong || artistTooLong || albumTooLong) {
                 longEntries.push({
                     index: index,
                     song: entry.song,
                     songTooLong: songTooLong,
                     artist: entry.artist,
                     artistTooLong: artistTooLong,
+                    album: entry.album,
+                    albumTooLong: albumTooLong,
+                    uri: entry.uri,
                     songOverride: false,
-                    artistOverride: false
+                    artistOverride: false,
+                    albumOverride: false
                 });
             }
         });
@@ -79,6 +86,11 @@ const TextValidator = (() => {
             // Add a row for artist if it's too long
             if (entry.artistTooLong) {
                 addValidationRow('Artist', entry.artist, entry.index, 'artist');
+            }
+            
+            // Add a row for album if it's too long
+            if (entry.albumTooLong) {
+                addValidationRow('Album', entry.album, entry.index, 'album');
             }
         });
         
@@ -173,6 +185,8 @@ const TextValidator = (() => {
                     pendingEntries[entryIndex].songOverride = this.classList.contains('active');
                 } else if (field === 'artist') {
                     pendingEntries[entryIndex].artistOverride = this.classList.contains('active');
+                } else if (field === 'album') {
+                    pendingEntries[entryIndex].albumOverride = this.classList.contains('active');
                 }
             }
             

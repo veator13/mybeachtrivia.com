@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spotify Authentication</title>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #0a1122;
+            color: #e2e8f0;
+            line-height: 1.6;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            text-align: center;
+        }
+        
+        .container {
+            background-color: #1e293b;
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+            max-width: 500px;
+        }
+        
+        h1 {
+            margin-top: 0;
+            color: #f1f5f9;
+        }
+        
+        .loading {
+            margin: 20px 0;
+        }
+        
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 4px solid #3b82f6;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .success, .error {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        
+        .success {
+            background-color: rgba(34, 197, 94, 0.2);
+            border: 1px solid #22c55e;
+        }
+        
+        .error {
+            background-color: rgba(239, 68, 68, 0.2);
+            border: 1px solid #ef4444;
+        }
+        
+        button {
+            background-color: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            margin-top: 20px;
+            transition: all 0.3s ease;
+        }
+        
+        button:hover {
+            background-color: #2563eb;
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Spotify Authentication</h1>
+        
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Processing authentication...</p>
+        </div>
+        
+        <div id="success" class="success" style="display: none;">
+            <p>Successfully connected to Spotify!</p>
+            <p>You can now play music directly from the Music Bingo dashboard.</p>
+        </div>
+        
+        <div id="error" class="error" style="display: none;">
+            <p>Error connecting to Spotify.</p>
+            <p id="error-message"></p>
+        </div>
+        
+        <button id="continue-btn" style="display: none;">Return to Dashboard</button>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Parse URL hash fragment
+            const hashParams = {};
+            let e, r = /([^&;=]+)=?([^&;]*)/g,
+                q = window.location.hash.substring(1);
+                
+            while (e = r.exec(q)) {
+                hashParams[e[1]] = decodeURIComponent(e[2]);
+            }
+            
+            // Log the authentication process (for debugging)
+            console.log('Spotify authentication callback initiated');
+            
+            // Check if we have an access token
+            if (hashParams.access_token) {
+                // Check state to prevent CSRF
+                const storedState = localStorage.getItem('spotify_auth_state');
+                
+                if (storedState && storedState === hashParams.state) {
+                    console.log('State verification successful');
+                    
+                    // Success - store the token
+                    localStorage.setItem('spotify_token', hashParams.access_token);
+                    
+                    // Calculate token expiry time
+                    const expiresIn = parseInt(hashParams.expires_in) || 3600;
+                    const expiryTime = new Date().getTime() + (expiresIn * 1000);
+                    localStorage.setItem('spotify_token_expiry', expiryTime);
+                    
+                    // Show success message
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('success').style.display = 'block';
+                    document.getElementById('continue-btn').style.display = 'block';
+                    
+                    console.log('Token successfully stored, expires in ' + expiresIn + ' seconds');
+                } else {
+                    // State mismatch - possible CSRF attack
+                    console.error('State verification failed. Expected: ' + storedState + ', Received: ' + hashParams.state);
+                    showError('State verification failed. Please try again.');
+                }
+            } else if (hashParams.error) {
+                // Authentication error
+                console.error('Spotify authentication error: ' + hashParams.error);
+                showError(`Spotify authentication error: ${hashParams.error}`);
+            } else {
+                // No token or error in URL
+                console.error('No authentication data found in URL');
+                showError('No authentication data found. Please try again.');
+            }
+            
+            // Add event listener to return button
+            document.getElementById('continue-btn').addEventListener('click', function() {
+                // Use relative path since we're in the same directory
+                let dashboardUrl = 'host-music-bingo.html';
+                console.log('Redirecting to dashboard: ' + dashboardUrl);
+                
+                // Redirect back to the host dashboard
+                window.location.href = dashboardUrl;
+            });
+        });
+        
+        // Show error message
+        function showError(message) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('error').style.display = 'block';
+            document.getElementById('error-message').textContent = message;
+            document.getElementById('continue-btn').style.display = 'block';
+        }
+    </script>
+</body>
+</html>
