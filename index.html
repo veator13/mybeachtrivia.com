@@ -7,13 +7,13 @@
     <title>Beach Trivia</title>
     <link rel="stylesheet" href="style.css">
     
-    <!-- Firebase SDK (Modular v9) -->
-    <script type="module">
-        // Import the functions you need from the SDKs you need
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
-        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
-
+    <!-- Firebase SDK - Using Compat version to match login.js -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+    
+    <!-- Firebase Initialization Script -->
+    <script>
         // Your web app's Firebase configuration
         const firebaseConfig = {
             apiKey: "AIzaSyDBKCotY1F943DKfVQqKOGPPkAkQe2Zgog",
@@ -25,13 +25,16 @@
             appId: "1:459479368322:web:7bd3d080d3b9e77610aa9b"
         };
 
-        // Initialize Firebase
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
+        // Clear any previous auth state that might be using the old domain
+        localStorage.removeItem(`firebase:authUser:${firebaseConfig.apiKey}:[DEFAULT]`);
+
+        // Initialize Firebase using the compat version to match login.js
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
 
         // Authentication State Observer
-        onAuthStateChanged(auth, async (user) => {
+        auth.onAuthStateChanged(async (user) => {
             const loginButton = document.getElementById('loginButton');
             
             if (user) {
@@ -45,23 +48,27 @@
                     e.preventDefault();
                     
                     // Get user role from Firestore
-                    const userDocRef = doc(db, 'employees', user.uid);
-                    const userDocSnap = await getDoc(userDocRef);
-                    
-                    if (userDocSnap.exists()) {
-                        const userData = userDocSnap.data();
-                        // Check if roles is an array and get the first role
-                        if (userData.roles && userData.roles.length > 0) {
-                            const role = userData.roles[0];
-                            // Convert role to lowercase and replace spaces with hyphens for filename
-                            const dashboardFile = role.toLowerCase().replace(/\s+/g, '-') + '.html';
-                            window.location.href = `beachTriviaPages/dashboards/${dashboardFile}`;
+                    try {
+                        const userDocRef = db.collection('employees').doc(user.uid);
+                        const userDocSnap = await userDocRef.get();
+                        
+                        if (userDocSnap.exists) {
+                            const userData = userDocSnap.data();
+                            // Check if roles is an array and get the first role
+                            if (userData.roles && userData.roles.length > 0) {
+                                const role = userData.roles[0];
+                                // Convert role to lowercase and replace spaces with hyphens for filename
+                                const dashboardFile = role.toLowerCase().replace(/\s+/g, '-') + '.html';
+                                window.location.href = `beachTriviaPages/dashboards/${dashboardFile}`;
+                            } else {
+                                // Fallback if no roles array or it's empty
+                                window.location.href = 'beachTriviaPages/dashboards/host-dashboard.html';
+                            }
                         } else {
-                            // Fallback if no roles array or it's empty
-                            window.location.href = 'beachTriviaPages/dashboards/host-dashboard.html';
+                            console.error('User document not found in Firestore');
                         }
-                    } else {
-                        console.error('User document not found in Firestore');
+                    } catch (error) {
+                        console.error('Error fetching user data:', error);
                     }
                 });
             } else {
