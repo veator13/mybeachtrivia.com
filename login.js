@@ -1,7 +1,7 @@
 // Firebase configuration - UPDATED with correct storage bucket from index.html
 const firebaseConfig = {
     apiKey: "AIzaSyDBKCotY1F943DKfVQqKOGPPkAkQe2Zgog",
-    authDomain: "beach-trivia-website.firebaseapp.com",
+    authDomain: "mybeachtrivia.com",
     projectId: "beach-trivia-website",
     storageBucket: "beach-trivia-website.appspot.com", // CORRECTED to match index.html
     messagingSenderId: "459479368322",
