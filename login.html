@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Beach Trivia</title>
+    <!-- Preload Firebase SDK scripts -->
+    <link rel="preload" href="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js" as="script">
+    <link rel="preload" href="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js" as="script">
+    <link rel="preload" href="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js" as="script">
+    
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <link rel="stylesheet" href="login.css">
     
@@ -78,7 +83,43 @@
         </div>
     </div>
 
-    <!-- Load login.js after HTML is ready -->
-    <script src="login.js"></script>
+    <!-- Load login.js after HTML is ready with absolute path -->
+    <script src="/login.js"></script>
+    
+    <!-- Fallback script loader to ensure Firebase is available -->
+    <script>
+    window.addEventListener('load', function() {
+      console.log("Window loaded, checking Firebase availability");
+      if (typeof firebase === 'undefined') {
+        console.error("Firebase is NOT available after window load");
+        // Try to load Firebase scripts again
+        const script1 = document.createElement('script');
+        script1.src = "https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js";
+        document.body.appendChild(script1);
+        
+        script1.onload = function() {
+          console.log("Firebase app loaded dynamically");
+          const script2 = document.createElement('script');
+          script2.src = "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js";
+          document.body.appendChild(script2);
+          
+          script2.onload = function() {
+            console.log("Firebase auth loaded dynamically");
+            const script3 = document.createElement('script');
+            script3.src = "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js";
+            document.body.appendChild(script3);
+            
+            script3.onload = function() {
+              console.log("Firebase firestore loaded dynamically");
+              // Reload login.js
+              const appScript = document.createElement('script');
+              appScript.src = "/login.js";
+              document.body.appendChild(appScript);
+            };
+          };
+        };
+      }
+    });
+    </script>
 </body>
 </html>
