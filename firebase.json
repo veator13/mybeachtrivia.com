@@ -1,0 +1,10 @@
+{
+  "hosting": {
+    "public": "ls -la | grep index.html",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ]
+  }
+}
