@@ -17,7 +17,8 @@
         // Your web app's Firebase configuration
         const firebaseConfig = {
             apiKey: "AIzaSyDBKCotY1F943DKfVQqKOGPPkAkQe2Zgog",
-            authDomain: "beach-trivia-website.firebaseapp.com",
+            // Changed authDomain to use your custom domain for consistent authentication
+            authDomain: "mybeachtrivia.com",
             projectId: "beach-trivia-website",
             storageBucket: "beach-trivia-website.appspot.com",
             messagingSenderId: "459479368322",
@@ -34,9 +35,15 @@
             const loginButton = document.getElementById('loginButton');
             
             if (user) {
-                // User is signed in - update button and redirect if clicked
+                // User is signed in - update button text
                 loginButton.innerHTML = 'MY DASHBOARD';
-                loginButton.onclick = async () => {
+                
+                // For logged-in users, we still need the JavaScript navigation
+                // because we're redirecting to different dashboards based on role
+                loginButton.addEventListener('click', async (e) => {
+                    // Prevent the default link behavior for logged-in users
+                    e.preventDefault();
+                    
                     // Get user role from Firestore
                     const userDocRef = doc(db, 'employees', user.uid);
                     const userDocSnap = await getDoc(userDocRef);
@@ -56,13 +63,12 @@
                     } else {
                         console.error('User document not found in Firestore');
                     }
-                };
+                });
             } else {
-                // No user is signed in - link to login page
+                // No user is signed in - ensure button text is set
                 loginButton.innerHTML = 'STAFF LOGIN';
-                loginButton.onclick = () => {
-                    window.location.href = 'login.html';
-                };
+                // We're now using a direct HTML link, so we don't need the onclick handler
+                // The href attribute will handle the navigation
             }
         });
     </script>
@@ -75,7 +81,8 @@
             </a>
         </div>
         
-        <div class="login-button" id="loginButton">STAFF LOGIN</div>
+        <!-- Changed div to anchor tag with direct href for more reliable navigation -->
+        <a href="login.html" class="login-button" id="loginButton">STAFF LOGIN</a>
         
         <div class="navigation-menu">
             <a href="beachTriviaPages/1-GetStarted/index.html" class="menu-button">GET STARTED</a>
