@@ -118,6 +118,22 @@
         document.addEventListener('DOMContentLoaded', function() {
             console.log('Callback page loaded');
             
+            // Debug function to log key information
+            function debugUrlInfo() {
+                console.group('📍 SPOTIFY CALLBACK DEBUG INFO');
+                console.log('URL:', window.location.href);
+                console.log('Origin:', window.location.origin);
+                console.log('Pathname:', window.location.pathname);
+                console.groupEnd();
+                return {
+                    url: window.location.href,
+                    origin: window.location.origin
+                };
+            }
+            
+            // Log debug info
+            const debug = debugUrlInfo();
+            
             // Parse URL hash fragment
             const hashParams = {};
             let e, r = /([^&;=]+)=?([^&;]*)/g,
@@ -127,9 +143,8 @@
                 hashParams[e[1]] = decodeURIComponent(e[2]);
             }
             
-            // Log the auth process details (for debugging)
-            console.log('Spotify authentication callback initiated');
-            console.log('Hash params:', hashParams);
+            // Log all hash parameters for debugging
+            console.log('Hash parameters:', hashParams);
             
             // Check if we have an access token
             if (hashParams.access_token) {
@@ -152,15 +167,7 @@
                         try {
                             console.log('Attempting to send auth data to parent window');
                             
-                            // Try to send to multiple possible origins
-                            const possibleOrigins = [
-                                window.location.origin,
-                                'https://mybeachtrivia.com',
-                                'http://mybeachtrivia.com',
-                                'http://127.0.0.1:8080'
-                            ];
-                            
-                            // First try with the wildcard origin
+                            // Send with wildcard origin for maximum compatibility
                             window.opener.postMessage({
                                 type: 'SPOTIFY_AUTH_SUCCESS',
                                 access_token: hashParams.access_token,
@@ -208,7 +215,7 @@
                 }
             } else if (hashParams.error) {
                 // Authentication error
-                console.error('Spotify authentication error: ' + hashParams.error);
+                console.error('Spotify authentication error:', hashParams.error);
                 showError(`Spotify authentication error: ${hashParams.error}`);
             } else {
                 // No token or error in URL
@@ -246,10 +253,10 @@
         
         // Redirect to the dashboard
         function redirectToDashboard() {
-            // Use a direct path to the dashboard instead of trying to calculate it
-            let dashboardUrl = window.location.origin + '/beachTriviaPages/dashboards/host/host-music-bingo/host-music-bingo.html';
+            // Use the exact URL from your debugging output
+            let dashboardUrl = 'https://mybeachtrivia.com/beachTriviaPages/dashboards/host/host-music-bingo/host-music-bingo.html';
             
-            console.log('Redirecting to dashboard: ' + dashboardUrl);
+            console.log('Redirecting to dashboard:', dashboardUrl);
             
             // For fallback, also store the intended redirect in localStorage
             localStorage.setItem('redirected_from_spotify', 'true');

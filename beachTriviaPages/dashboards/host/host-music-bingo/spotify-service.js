@@ -130,23 +130,27 @@ export function authenticateWithSpotify() {
   
   // Determine if we're in development or production
   const REDIRECT_URI = SPOTIFY.REDIRECT_URI.CURRENT;
+  
+  // Double-check and log the redirect URI for debugging
   console.log('Using redirect URI:', REDIRECT_URI);
   
+  // Generate and store state parameter for CSRF protection
   const STATE = generateRandomString(16);
-  
-  // Store state for CSRF protection
   localStorage.setItem('spotify_auth_state', STATE);
   
   // Required permissions to control playback
   const SCOPES = SPOTIFY.SCOPES;
   
-  // Build the Spotify auth URL
+  // Build the Spotify auth URL with careful parameter construction
+  // Make sure response_type is exactly "token" with no spaces or encoding issues
   const authUrl = 'https://accounts.spotify.com/authorize' +
-    '?client_id=' + CLIENT_ID +
+    '?client_id=' + encodeURIComponent(CLIENT_ID) +
     '&response_type=token' +
     '&redirect_uri=' + encodeURIComponent(REDIRECT_URI) +
-    '&state=' + STATE +
+    '&state=' + encodeURIComponent(STATE) +
     '&scope=' + encodeURIComponent(SCOPES.join(' '));
+  
+  console.log('Auth URL:', authUrl);
   
   // Calculate center position for the popup
   const width = UI.POPUP_WIDTH || 450;
@@ -187,7 +191,7 @@ export function authenticateWithSpotify() {
  */
 function receiveSpotifyAuthMessage(event) {
   console.log('Received message from popup:', event.origin);
-  console.log('Message data type:', event.data?.type);
+  console.log('Message data:', event.data);
   
   // Process authentication data
   if (event.data && event.data.type === 'SPOTIFY_AUTH_SUCCESS') {
