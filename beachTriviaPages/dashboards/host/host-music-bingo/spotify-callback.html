@@ -246,15 +246,8 @@
         
         // Redirect to the dashboard
         function redirectToDashboard() {
-            // Try to determine the correct path to the dashboard
-            let origin = window.location.origin;
-            let path = window.location.pathname;
-            
-            // Extract the base path (remove the callback.html part)
-            let basePath = path.substring(0, path.lastIndexOf('/') + 1);
-            
-            // Construct the dashboard URL
-            let dashboardUrl = `${origin}${basePath}beachTriviaPages/dashboards/host/host-music-bingo/host-music-bingo.html`;
+            // Use a direct path to the dashboard instead of trying to calculate it
+            let dashboardUrl = window.location.origin + '/beachTriviaPages/dashboards/host/host-music-bingo/host-music-bingo.html';
             
             console.log('Redirecting to dashboard: ' + dashboardUrl);
             
