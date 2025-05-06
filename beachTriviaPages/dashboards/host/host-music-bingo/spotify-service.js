@@ -6,6 +6,7 @@
 import { SPOTIFY, UI } from './config.js';
 import { updateGame } from './firebase-service.js';
 import { formatTime } from './helpers.js';
+import { showToast } from './ui-handler.js';
 
 // Spotify state variables
 let spotifyPlayer = null;
@@ -19,6 +20,15 @@ let spotifyAuthWindow = null;
  * Initialize Spotify integration
  */
 export function initializeSpotify() {
+  console.log('Initializing Spotify integration');
+  
+  // Check if token exists in localStorage (it might have been set by the callback page)
+  const token = localStorage.getItem('spotify_token');
+  if (token) {
+    console.log('Found Spotify token in localStorage');
+    spotifyToken = token;
+  }
+  
   // Add Spotify SDK script if not already loaded
   if (!document.getElementById('spotify-sdk-script')) {
     const spotifyScript = document.createElement('script');
@@ -29,22 +39,27 @@ export function initializeSpotify() {
   
   // Load the Spotify Web Playback SDK
   window.onSpotifyWebPlaybackSDKReady = () => {
+    console.log('Spotify Web Playback SDK ready');
+    
     // Check if we have a stored token
     spotifyToken = localStorage.getItem('spotify_token');
     
     if (!spotifyToken) {
       // Show authentication button if no token
+      console.log('No Spotify token found, showing auth button');
       showSpotifyAuthButton();
     } else {
       // Check if the token is expired
       const expiryTime = localStorage.getItem('spotify_token_expiry');
       if (expiryTime && new Date().getTime() > parseInt(expiryTime)) {
         // Token is expired, show auth button
+        console.log('Spotify token expired, showing auth button');
         localStorage.removeItem('spotify_token');
         localStorage.removeItem('spotify_token_expiry');
         showSpotifyAuthButton();
       } else {
         // Create player if we have a valid token
+        console.log('Using existing Spotify token to create player');
         createSpotifyPlayer(spotifyToken);
       }
     }
@@ -52,6 +67,21 @@ export function initializeSpotify() {
   
   // Add event listener for message from popup window
   window.addEventListener('message', receiveSpotifyAuthMessage, false);
+  
+  // Check if we've been redirected from the callback page
+  if (localStorage.getItem('redirected_from_spotify') === 'true') {
+    console.log('Detected redirect from Spotify callback');
+    localStorage.removeItem('redirected_from_spotify');
+    
+    // If we have a token, create the player
+    if (spotifyToken) {
+      console.log('Creating Spotify player after redirect');
+      // Wait for SDK to be ready
+      if (typeof Spotify !== 'undefined') {
+        createSpotifyPlayer(spotifyToken);
+      }
+    }
+  }
   
   // Add Spotify styles
   addSpotifyStyles();
@@ -63,6 +93,8 @@ export function initializeSpotify() {
 function showSpotifyAuthButton() {
   // Check if the button already exists
   if (document.getElementById('spotify-auth-btn')) return;
+  
+  console.log('Adding Spotify auth button to the UI');
   
   const spotifySection = document.createElement('div');
   spotifySection.className = 'spotify-auth';
@@ -91,6 +123,8 @@ function showSpotifyAuthButton() {
  * Authenticate with Spotify using a popup window
  */
 export function authenticateWithSpotify() {
+  console.log('Starting Spotify authentication flow');
+  
   // Use the client ID from config
   const CLIENT_ID = SPOTIFY.CLIENT_ID;
   
@@ -115,27 +149,35 @@ export function authenticateWithSpotify() {
     '&scope=' + encodeURIComponent(SCOPES.join(' '));
   
   // Calculate center position for the popup
-  const width = 450;
-  const height = 730;
+  const width = UI.POPUP_WIDTH || 450;
+  const height = UI.POPUP_HEIGHT || 730;
   const left = (window.innerWidth / 2) - (width / 2);
   const top = (window.innerHeight / 2) - (height / 2);
   
   // Open a popup instead of redirecting
-  if (spotifyAuthWindow && !spotifyAuthWindow.closed) {
-    spotifyAuthWindow.focus();
-  } else {
-    spotifyAuthWindow = window.open(
-      authUrl,
-      'Spotify Authentication',
-      `width=${width},height=${height},left=${left},top=${top}`
-    );
-  }
-  
-  // Add a fallback for popup blockers
-  if (!spotifyAuthWindow || spotifyAuthWindow.closed || typeof spotifyAuthWindow.closed === 'undefined') {
-    alert('Popup blocked! Please allow popups for this site to connect to Spotify.');
-    // Fallback to redirect if popups are blocked
-    window.location.href = authUrl;
+  try {
+    console.log('Opening Spotify auth popup');
+    
+    if (spotifyAuthWindow && !spotifyAuthWindow.closed) {
+      spotifyAuthWindow.focus();
+    } else {
+      spotifyAuthWindow = window.open(
+        authUrl,
+        'Spotify Authentication',
+        `width=${width},height=${height},left=${left},top=${top}`
+      );
+    }
+    
+    // Add a fallback for popup blockers
+    if (!spotifyAuthWindow || spotifyAuthWindow.closed || typeof spotifyAuthWindow.closed === 'undefined') {
+      console.warn('Popup blocked! Falling back to redirect');
+      alert('Popup blocked! Please allow popups for this site to connect to Spotify.');
+      // Fallback to redirect if popups are blocked
+      window.location.href = authUrl;
+    }
+  } catch (error) {
+    console.error('Error opening Spotify auth popup:', error);
+    alert('Failed to open Spotify authentication popup');
   }
 }
 
@@ -144,22 +186,12 @@ export function authenticateWithSpotify() {
  * @param {MessageEvent} event - Message event from popup window
  */
 function receiveSpotifyAuthMessage(event) {
-  // Only accept messages from our popup (adjust origin check based on your setup)
-  // You may need to be more permissive with the origin check in development
-  const allowedOrigins = [
-    location.origin,
-    'https://mybeachtrivia.com',
-    'http://127.0.0.1:8080'
-  ];
-  
-  if (!allowedOrigins.includes(event.origin)) {
-    console.log('Ignoring message from unauthorized origin:', event.origin);
-    return;
-  }
+  console.log('Received message from popup:', event.origin);
+  console.log('Message data type:', event.data?.type);
   
   // Process authentication data
-  if (event.data.type === 'SPOTIFY_AUTH_SUCCESS') {
-    console.log('Received Spotify authentication data from popup');
+  if (event.data && event.data.type === 'SPOTIFY_AUTH_SUCCESS') {
+    console.log('Received Spotify authentication success message');
     
     const { access_token, expires_in } = event.data;
     
@@ -182,7 +214,7 @@ function receiveSpotifyAuthMessage(event) {
         spotifyAuthWindow.close();
       }
     }
-  } else if (event.data.type === 'SPOTIFY_AUTH_ERROR') {
+  } else if (event.data && event.data.type === 'SPOTIFY_AUTH_ERROR') {
     console.error('Spotify authentication error:', event.data.error);
     alert('Failed to authenticate with Spotify: ' + event.data.error);
   }
@@ -208,57 +240,82 @@ function generateRandomString(length) {
  * @param {string} token - Spotify access token
  */
 export function createSpotifyPlayer(token) {
-  // Create player instance
-  spotifyPlayer = new Spotify.Player({
-    name: 'Music Bingo Host Player',
-    getOAuthToken: cb => { cb(token); }
-  });
+  if (!token) {
+    console.error('No token provided to createSpotifyPlayer');
+    return;
+  }
   
-  // Add event listeners
-  spotifyPlayer.addListener('ready', ({ device_id }) => {
-    console.log('Spotify player ready with device ID:', device_id);
-    localStorage.setItem('spotify_device_id', device_id);
+  console.log('Creating Spotify player with token');
+  
+  // Make sure Spotify SDK is loaded
+  if (typeof Spotify === 'undefined') {
+    console.warn('Spotify SDK not yet loaded, waiting...');
+    setTimeout(() => createSpotifyPlayer(token), 1000);
+    return;
+  }
+  
+  try {
+    // Create player instance
+    spotifyPlayer = new Spotify.Player({
+      name: 'Music Bingo Host Player',
+      getOAuthToken: cb => { cb(token); }
+    });
     
-    // Show player interface
-    createPlayerInterface();
+    // Add event listeners
+    spotifyPlayer.addListener('ready', ({ device_id }) => {
+      console.log('Spotify player ready with device ID:', device_id);
+      localStorage.setItem('spotify_device_id', device_id);
+      
+      // Show player interface
+      createPlayerInterface();
+      
+      // If a game is already active, load the playlist
+      const currentGame = window.currentGame;
+      if (currentGame && currentGame.playlistId) {
+        loadSpotifyPlaylist(currentGame.playlistId);
+      }
+    });
     
-    // If a game is already active, load the playlist
-    const currentGame = window.currentGame;
-    if (currentGame && currentGame.playlistId) {
-      loadSpotifyPlaylist(currentGame.playlistId);
-    }
-  });
-  
-  spotifyPlayer.addListener('not_ready', ({ device_id }) => {
-    console.log('Device ID has gone offline', device_id);
-  });
-  
-  spotifyPlayer.addListener('player_state_changed', state => {
-    if (state) {
-      // Update UI with current track information
-      updatePlayerUI(state);
-    }
-  });
-  
-  // Error handling
-  spotifyPlayer.addListener('initialization_error', ({ message }) => {
-    console.error('Failed to initialize Spotify player:', message);
-    showSpotifyAuthButton();
-  });
-  
-  spotifyPlayer.addListener('authentication_error', ({ message }) => {
-    console.error('Failed to authenticate with Spotify:', message);
-    localStorage.removeItem('spotify_token');
-    showSpotifyAuthButton();
-  });
-  
-  spotifyPlayer.addListener('account_error', ({ message }) => {
-    console.error('Failed to validate Spotify account:', message);
-    alert('Premium Spotify account required for playback.');
-  });
-  
-  // Connect to Spotify
-  spotifyPlayer.connect();
+    spotifyPlayer.addListener('not_ready', ({ device_id }) => {
+      console.log('Device ID has gone offline', device_id);
+    });
+    
+    spotifyPlayer.addListener('player_state_changed', state => {
+      if (state) {
+        // Update UI with current track information
+        updatePlayerUI(state);
+      }
+    });
+    
+    // Error handling
+    spotifyPlayer.addListener('initialization_error', ({ message }) => {
+      console.error('Failed to initialize Spotify player:', message);
+      showSpotifyAuthButton();
+    });
+    
+    spotifyPlayer.addListener('authentication_error', ({ message }) => {
+      console.error('Failed to authenticate with Spotify:', message);
+      localStorage.removeItem('spotify_token');
+      showSpotifyAuthButton();
+    });
+    
+    spotifyPlayer.addListener('account_error', ({ message }) => {
+      console.error('Failed to validate Spotify account:', message);
+      alert('Premium Spotify account required for playback.');
+    });
+    
+    // Connect to Spotify
+    console.log('Connecting to Spotify...');
+    spotifyPlayer.connect().then(success => {
+      if (success) {
+        console.log('Successfully connected to Spotify!');
+      } else {
+        console.log('Failed to connect to Spotify');
+      }
+    });
+  } catch (error) {
+    console.error('Error creating Spotify player:', error);
+  }
 }
 
 /**
@@ -266,7 +323,12 @@ export function createSpotifyPlayer(token) {
  */
 function createPlayerInterface() {
   // Check if the player already exists
-  if (document.querySelector('.spotify-player')) return;
+  if (document.querySelector('.spotify-player')) {
+    console.log('Spotify player interface already exists');
+    return;
+  }
+  
+  console.log('Creating Spotify player interface');
   
   const playerSection = document.createElement('div');
   playerSection.className = 'spotify-player';
