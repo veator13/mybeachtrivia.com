@@ -96,6 +96,34 @@ export function initializeSpotify() {
   
   // Add Spotify styles
   addSpotifyStyles();
+  
+  // Pre-generate PKCE values for faster authentication
+  localStorage.removeItem('spotify_pkce_ready'); // Clear any old state
+  generatePKCEValues();
+}
+
+/**
+ * Pre-generate PKCE values to speed up authentication
+ */
+async function generatePKCEValues() {
+  console.time('pkce_generation');
+  // Generate code verifier
+  const CODE_VERIFIER = generateRandomString(64);
+  localStorage.setItem('spotify_code_verifier', CODE_VERIFIER);
+  
+  // Generate state parameter for CSRF protection
+  const STATE = generateRandomString(16);
+  localStorage.setItem('spotify_auth_state', STATE);
+  
+  // Pre-generate code challenge
+  try {
+    const CODE_CHALLENGE = await generateCodeChallenge(CODE_VERIFIER);
+    localStorage.setItem('spotify_code_challenge', CODE_CHALLENGE);
+    localStorage.setItem('spotify_pkce_ready', 'true');
+    console.timeEnd('pkce_generation');
+  } catch (error) {
+    console.error('Error pre-generating PKCE values:', error);
+  }
 }
 
 /**
@@ -169,6 +197,15 @@ async function generateCodeChallenge(codeVerifier) {
  * Authenticate with Spotify using Authorization Code with PKCE flow
  */
 export async function authenticateWithSpotify() {
+  console.time('spotify_auth_flow');
+  
+  // Show loading indicator on button
+  const authButton = document.getElementById('spotify-auth-btn');
+  if (authButton) {
+    authButton.innerHTML = '<span>Connecting...</span>';
+    authButton.disabled = true;
+  }
+  
   console.log('Starting Spotify authentication flow with PKCE');
   
   // Use the client ID from config
@@ -180,30 +217,62 @@ export async function authenticateWithSpotify() {
   // Double-check and log the redirect URI for debugging
   console.log('Using redirect URI:', REDIRECT_URI);
   
-  // Generate and store state parameter for CSRF protection
-  const STATE = generateRandomString(16);
-  localStorage.setItem('spotify_auth_state', STATE);
-  
-  // Generate code verifier (between 43-128 chars)
-  const CODE_VERIFIER = generateRandomString(64);
-  localStorage.setItem('spotify_code_verifier', CODE_VERIFIER);
-  
-  // Generate code challenge
-  const CODE_CHALLENGE = await generateCodeChallenge(CODE_VERIFIER);
-  
-  // Required permissions to control playback
-  const SCOPES = SPOTIFY.SCOPES;
-  
-  // Build the Spotify auth URL for Authorization Code flow with PKCE
-  const authUrl = 'https://accounts.spotify.com/authorize' +
-    '?client_id=' + encodeURIComponent(CLIENT_ID) +
-    '&response_type=code' + // Changed from 'token' to 'code'
-    '&redirect_uri=' + encodeURIComponent(REDIRECT_URI) +
-    '&state=' + encodeURIComponent(STATE) +
-    '&scope=' + encodeURIComponent(SCOPES.join(' ')) +
-    '&code_challenge_method=S256' +
-    '&code_challenge=' + encodeURIComponent(CODE_CHALLENGE);
-  
+  // Check if we have pre-generated PKCE values
+  if (localStorage.getItem('spotify_pkce_ready') === 'true') {
+    console.log('Using pre-generated PKCE values for faster authentication');
+    const STATE = localStorage.getItem('spotify_auth_state');
+    const CODE_CHALLENGE = localStorage.getItem('spotify_code_challenge');
+    
+    // Build the auth URL with pre-generated values
+    const authUrl = 'https://accounts.spotify.com/authorize' +
+      '?client_id=' + encodeURIComponent(CLIENT_ID) +
+      '&response_type=code' +
+      '&redirect_uri=' + encodeURIComponent(REDIRECT_URI) +
+      '&state=' + encodeURIComponent(STATE) +
+      '&scope=' + encodeURIComponent(SPOTIFY.SCOPES.join(' ')) +
+      '&code_challenge_method=S256' +
+      '&code_challenge=' + encodeURIComponent(CODE_CHALLENGE);
+    
+    openAuthWindow(authUrl);
+  } else {
+    // Fallback to generating values on demand if pre-generation failed
+    console.log('Using on-demand PKCE generation (slower)');
+    
+    // Generate and store state parameter for CSRF protection
+    const STATE = generateRandomString(16);
+    localStorage.setItem('spotify_auth_state', STATE);
+    
+    // Generate code verifier (between 43-128 chars)
+    const CODE_VERIFIER = generateRandomString(64);
+    localStorage.setItem('spotify_code_verifier', CODE_VERIFIER);
+    
+    console.time('code_challenge_generation');
+    // Generate code challenge
+    const CODE_CHALLENGE = await generateCodeChallenge(CODE_VERIFIER);
+    console.timeEnd('code_challenge_generation');
+    
+    // Required permissions to control playback
+    const SCOPES = SPOTIFY.SCOPES;
+    
+    // Build the Spotify auth URL for Authorization Code flow with PKCE
+    const authUrl = 'https://accounts.spotify.com/authorize' +
+      '?client_id=' + encodeURIComponent(CLIENT_ID) +
+      '&response_type=code' + // Changed from 'token' to 'code'
+      '&redirect_uri=' + encodeURIComponent(REDIRECT_URI) +
+      '&state=' + encodeURIComponent(STATE) +
+      '&scope=' + encodeURIComponent(SCOPES.join(' ')) +
+      '&code_challenge_method=S256' +
+      '&code_challenge=' + encodeURIComponent(CODE_CHALLENGE);
+    
+    openAuthWindow(authUrl);
+  }
+}
+
+/**
+ * Open authentication window
+ * @param {string} authUrl - URL for authentication
+ */
+function openAuthWindow(authUrl) {
   console.log('Auth URL:', authUrl);
   
   // Calculate center position for the popup
@@ -212,6 +281,7 @@ export async function authenticateWithSpotify() {
   const left = (window.innerWidth / 2) - (width / 2);
   const top = (window.innerHeight / 2) - (height / 2);
   
+  console.time('popup_open');
   // Open a popup instead of redirecting
   try {
     console.log('Opening Spotify auth popup');
@@ -225,6 +295,7 @@ export async function authenticateWithSpotify() {
         `width=${width},height=${height},left=${left},top=${top}`
       );
     }
+    console.timeEnd('popup_open');
     
     // Add a fallback for popup blockers
     if (!spotifyAuthWindow || spotifyAuthWindow.closed || typeof spotifyAuthWindow.closed === 'undefined') {
@@ -236,6 +307,13 @@ export async function authenticateWithSpotify() {
   } catch (error) {
     console.error('Error opening Spotify auth popup:', error);
     alert('Failed to open Spotify authentication popup');
+    
+    // Reset button state
+    const authButton = document.getElementById('spotify-auth-btn');
+    if (authButton) {
+      authButton.innerHTML = 'Connect Spotify';
+      authButton.disabled = false;
+    }
   }
 }
 
@@ -245,6 +323,7 @@ export async function authenticateWithSpotify() {
  * @returns {Promise<Object>} Token response with access_token and refresh_token
  */
 async function exchangeCodeForToken(code) {
+  console.time('token_exchange');
   try {
     // Get code verifier from localStorage
     const codeVerifier = localStorage.getItem('spotify_code_verifier');
@@ -277,9 +356,12 @@ async function exchangeCodeForToken(code) {
       throw new Error(`Token exchange failed: ${errorData.error} - ${errorData.error_description}`);
     }
     
-    return await response.json();
+    const result = await response.json();
+    console.timeEnd('token_exchange');
+    return result;
   } catch (error) {
     console.error('Error exchanging code for token:', error);
+    console.timeEnd('token_exchange');
     throw error;
   }
 }
@@ -388,19 +470,46 @@ function receiveSpotifyAuthMessage(event) {
           // Create Spotify player
           createSpotifyPlayer(tokenData.access_token);
           
+          // Reset button state with success indication
+          const authButton = document.getElementById('spotify-auth-btn');
+          if (authButton) {
+            authButton.innerHTML = 'Connected';
+            authButton.disabled = true;
+          }
+          
           // Close the popup if it's still open
           if (spotifyAuthWindow && !spotifyAuthWindow.closed) {
             spotifyAuthWindow.close();
           }
+          
+          console.timeEnd('spotify_auth_flow');
         })
         .catch(error => {
           console.error('Error exchanging code for token:', error);
+          
+          // Reset button state
+          const authButton = document.getElementById('spotify-auth-btn');
+          if (authButton) {
+            authButton.innerHTML = 'Connect Spotify';
+            authButton.disabled = false;
+          }
+          
           alert('Failed to complete Spotify authentication: ' + error.message);
+          console.timeEnd('spotify_auth_flow');
         });
     }
   } else if (event.data && event.data.type === 'SPOTIFY_AUTH_ERROR') {
     console.error('Spotify authentication error:', event.data.error);
+    
+    // Reset button state
+    const authButton = document.getElementById('spotify-auth-btn');
+    if (authButton) {
+      authButton.innerHTML = 'Connect Spotify';
+      authButton.disabled = false;
+    }
+    
     alert('Failed to authenticate with Spotify: ' + event.data.error);
+    console.timeEnd('spotify_auth_flow');
   }
 }
 
