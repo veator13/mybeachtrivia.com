@@ -18,14 +18,14 @@ export const SPOTIFY = {
     get CURRENT() {
       // Check if we're on localhost or 127.0.0.1
       if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-        return 'http://127.0.0.1:8080'; // Exact URI registered in Spotify dashboard
+        return 'http://127.0.0.1:8080/spotify-callback.html'; // Exact URI registered in Spotify dashboard
       } else {
         // We're in production
         return 'https://mybeachtrivia.com/spotify-callback.html';
       }
     },
     PROD: 'https://mybeachtrivia.com/spotify-callback.html',
-    DEV: 'http://127.0.0.1:8080'
+    DEV: 'http://127.0.0.1:8080/spotify-callback.html'
   },
   // Permissions needed for Spotify Web Playback
   SCOPES: [
@@ -54,7 +54,9 @@ export const GAME_SETTINGS = {
 export const UI = {
   TOAST_DURATION: 2000, // Duration to show toast messages (ms)
   ANIMATION_DURATION: 300, // Duration for UI animations (ms)
-  DEFAULT_VOLUME: 0.5 // Default Spotify player volume (0-1)
+  DEFAULT_VOLUME: 0.5, // Default Spotify player volume (0-1)
+  POPUP_WIDTH: 450, // Width for Spotify auth popup
+  POPUP_HEIGHT: 730 // Height for Spotify auth popup
 };
 
 // Application environment detection

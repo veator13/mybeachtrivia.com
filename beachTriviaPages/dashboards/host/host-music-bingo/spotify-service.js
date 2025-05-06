@@ -13,6 +13,7 @@ let spotifyToken = null;
 let currentTrackUri = null;
 let playlistSongUris = [];
 let currentSongIndex = -1;
+let spotifyAuthWindow = null;
 
 /**
  * Initialize Spotify integration
@@ -49,6 +50,9 @@ export function initializeSpotify() {
     }
   };
   
+  // Add event listener for message from popup window
+  window.addEventListener('message', receiveSpotifyAuthMessage, false);
+  
   // Add Spotify styles
   addSpotifyStyles();
 }
@@ -84,7 +88,7 @@ function showSpotifyAuthButton() {
 }
 
 /**
- * Authenticate with Spotify
+ * Authenticate with Spotify using a popup window
  */
 export function authenticateWithSpotify() {
   // Use the client ID from config
@@ -102,13 +106,86 @@ export function authenticateWithSpotify() {
   // Required permissions to control playback
   const SCOPES = SPOTIFY.SCOPES;
   
-  // Redirect to Spotify auth page
-  window.location.href = 'https://accounts.spotify.com/authorize' +
+  // Build the Spotify auth URL
+  const authUrl = 'https://accounts.spotify.com/authorize' +
     '?client_id=' + CLIENT_ID +
     '&response_type=token' +
     '&redirect_uri=' + encodeURIComponent(REDIRECT_URI) +
     '&state=' + STATE +
     '&scope=' + encodeURIComponent(SCOPES.join(' '));
+  
+  // Calculate center position for the popup
+  const width = 450;
+  const height = 730;
+  const left = (window.innerWidth / 2) - (width / 2);
+  const top = (window.innerHeight / 2) - (height / 2);
+  
+  // Open a popup instead of redirecting
+  if (spotifyAuthWindow && !spotifyAuthWindow.closed) {
+    spotifyAuthWindow.focus();
+  } else {
+    spotifyAuthWindow = window.open(
+      authUrl,
+      'Spotify Authentication',
+      `width=${width},height=${height},left=${left},top=${top}`
+    );
+  }
+  
+  // Add a fallback for popup blockers
+  if (!spotifyAuthWindow || spotifyAuthWindow.closed || typeof spotifyAuthWindow.closed === 'undefined') {
+    alert('Popup blocked! Please allow popups for this site to connect to Spotify.');
+    // Fallback to redirect if popups are blocked
+    window.location.href = authUrl;
+  }
+}
+
+/**
+ * Receive and process authentication message from popup
+ * @param {MessageEvent} event - Message event from popup window
+ */
+function receiveSpotifyAuthMessage(event) {
+  // Only accept messages from our popup (adjust origin check based on your setup)
+  // You may need to be more permissive with the origin check in development
+  const allowedOrigins = [
+    location.origin,
+    'https://mybeachtrivia.com',
+    'http://127.0.0.1:8080'
+  ];
+  
+  if (!allowedOrigins.includes(event.origin)) {
+    console.log('Ignoring message from unauthorized origin:', event.origin);
+    return;
+  }
+  
+  // Process authentication data
+  if (event.data.type === 'SPOTIFY_AUTH_SUCCESS') {
+    console.log('Received Spotify authentication data from popup');
+    
+    const { access_token, expires_in } = event.data;
+    
+    if (access_token) {
+      // Store the token
+      localStorage.setItem('spotify_token', access_token);
+      
+      // Calculate token expiry time
+      const expiryTime = new Date().getTime() + (expires_in * 1000);
+      localStorage.setItem('spotify_token_expiry', expiryTime);
+      
+      // Update token variable
+      spotifyToken = access_token;
+      
+      // Create Spotify player
+      createSpotifyPlayer(access_token);
+      
+      // Close the popup if it's still open
+      if (spotifyAuthWindow && !spotifyAuthWindow.closed) {
+        spotifyAuthWindow.close();
+      }
+    }
+  } else if (event.data.type === 'SPOTIFY_AUTH_ERROR') {
+    console.error('Spotify authentication error:', event.data.error);
+    alert('Failed to authenticate with Spotify: ' + event.data.error);
+  }
 }
 
 /**

@@ -83,6 +83,12 @@
             background-color: #2563eb;
             transform: translateY(-2px);
         }
+
+        .countdown {
+            font-size: 14px;
+            color: #94a3b8;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
@@ -97,6 +103,7 @@
         <div id="success" class="success" style="display: none;">
             <p>Successfully connected to Spotify!</p>
             <p>You can now play music directly from the Music Bingo dashboard.</p>
+            <p class="countdown">This window will close automatically in <span id="countdown">5</span> seconds...</p>
         </div>
         
         <div id="error" class="error" style="display: none;">
@@ -104,7 +111,7 @@
             <p id="error-message"></p>
         </div>
         
-        <button id="continue-btn" style="display: none;">Return to Dashboard</button>
+        <button id="close-btn" style="display: none;">Close Window</button>
     </div>
     
     <script>
@@ -129,43 +136,103 @@
                 if (storedState && storedState === hashParams.state) {
                     console.log('State verification successful');
                     
-                    // Success - store the token
-                    localStorage.setItem('spotify_token', hashParams.access_token);
-                    
-                    // Calculate token expiry time
-                    const expiresIn = parseInt(hashParams.expires_in) || 3600;
-                    const expiryTime = new Date().getTime() + (expiresIn * 1000);
-                    localStorage.setItem('spotify_token_expiry', expiryTime);
+                    // Success - send token to parent window
+                    if (window.opener) {
+                        try {
+                            console.log('Sending authentication data to parent window');
+                            window.opener.postMessage({
+                                type: 'SPOTIFY_AUTH_SUCCESS',
+                                access_token: hashParams.access_token,
+                                expires_in: parseInt(hashParams.expires_in) || 3600
+                            }, '*');  // Using * as targetOrigin for broader compatibility
+                                      // In production, you may want to restrict this to your domain
+                        } catch (error) {
+                            console.error('Error sending message to opener:', error);
+                            showError('Error communicating with the main window. Please close this window and try again.');
+                        }
+                    } else {
+                        console.log('No opener window found, storing token locally');
+                        // Fallback: store the token (for cases where popup was blocked and we redirected)
+                        localStorage.setItem('spotify_token', hashParams.access_token);
+                        
+                        // Calculate token expiry time
+                        const expiresIn = parseInt(hashParams.expires_in) || 3600;
+                        const expiryTime = new Date().getTime() + (expiresIn * 1000);
+                        localStorage.setItem('spotify_token_expiry', expiryTime);
+                    }
                     
                     // Show success message
                     document.getElementById('loading').style.display = 'none';
                     document.getElementById('success').style.display = 'block';
-                    document.getElementById('continue-btn').style.display = 'block';
+                    document.getElementById('close-btn').style.display = 'block';
                     
-                    console.log('Token successfully stored, expires in ' + expiresIn + ' seconds');
+                    // Set up auto-close countdown
+                    let countdown = 5;
+                    const countdownElement = document.getElementById('countdown');
+                    
+                    const countdownInterval = setInterval(() => {
+                        countdown--;
+                        countdownElement.textContent = countdown;
+                        
+                        if (countdown <= 0) {
+                            clearInterval(countdownInterval);
+                            if (window.opener) {
+                                window.close();
+                            } else {
+                                // Redirect if we can't close
+                                redirectToDashboard();
+                            }
+                        }
+                    }, 1000);
+                    
+                    console.log('Token successfully processed, window will close shortly');
                 } else {
                     // State mismatch - possible CSRF attack
                     console.error('State verification failed. Expected: ' + storedState + ', Received: ' + hashParams.state);
                     showError('State verification failed. Please try again.');
+                    
+                    // Send error to parent window
+                    if (window.opener) {
+                        window.opener.postMessage({
+                            type: 'SPOTIFY_AUTH_ERROR',
+                            error: 'State verification failed'
+                        }, '*');
+                    }
                 }
             } else if (hashParams.error) {
                 // Authentication error
                 console.error('Spotify authentication error: ' + hashParams.error);
                 showError(`Spotify authentication error: ${hashParams.error}`);
+                
+                // Send error to parent window
+                if (window.opener) {
+                    window.opener.postMessage({
+                        type: 'SPOTIFY_AUTH_ERROR',
+                        error: hashParams.error
+                    }, '*');
+                }
             } else {
                 // No token or error in URL
                 console.error('No authentication data found in URL');
                 showError('No authentication data found. Please try again.');
+                
+                // Send error to parent window
+                if (window.opener) {
+                    window.opener.postMessage({
+                        type: 'SPOTIFY_AUTH_ERROR',
+                        error: 'No authentication data found'
+                    }, '*');
+                }
             }
             
-            // Add event listener to return button
-            document.getElementById('continue-btn').addEventListener('click', function() {
-                // Since files are in the same directory, use a simple filename
-                let dashboardUrl = 'host-music-bingo.html';
-                console.log('Redirecting to dashboard: ' + dashboardUrl);
-                
-                // Redirect back to the host dashboard
-                window.location.href = dashboardUrl;
+            // Add event listener to close button
+            document.getElementById('close-btn').addEventListener('click', function() {
+                if (window.opener) {
+                    window.close();
+                } else {
+                    // Fallback to redirect if we can't close the window
+                    redirectToDashboard();
+                }
             });
         });
         
@@ -174,7 +241,26 @@
             document.getElementById('loading').style.display = 'none';
             document.getElementById('error').style.display = 'block';
             document.getElementById('error-message').textContent = message;
-            document.getElementById('continue-btn').style.display = 'block';
+            document.getElementById('close-btn').style.display = 'block';
+            
+            // Close automatically after 10 seconds on error
+            setTimeout(() => {
+                if (window.opener) {
+                    window.close();
+                } else {
+                    redirectToDashboard();
+                }
+            }, 10000);
+        }
+        
+        // Redirect to the dashboard
+        function redirectToDashboard() {
+            // Since files are in the same directory, use a simple filename
+            let dashboardUrl = 'host-music-bingo.html';
+            console.log('Redirecting to dashboard: ' + dashboardUrl);
+            
+            // Redirect back to the host dashboard
+            window.location.href = dashboardUrl;
         }
     </script>
 </body>
