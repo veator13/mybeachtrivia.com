@@ -13,6 +13,8 @@ export const FIREBASE_PATHS = {
 // Spotify configuration
 export const SPOTIFY = {
   CLIENT_ID: 'da61dc149839439299554f1dc4455f1b',
+  // Authorization method - using Authorization Code with PKCE flow (more secure, supports refresh tokens)
+  AUTH_METHOD: 'PKCE',
   REDIRECT_URI: {
     // Determine if we're in development or production
     get CURRENT() {
@@ -28,13 +30,20 @@ export const SPOTIFY = {
     DEV: 'http://127.0.0.1:8080/spotify-callback.html'
   },
   // Permissions needed for Spotify Web Playback
+  // For PKCE flow, 'offline_access' is implicitly granted when refresh tokens are requested
   SCOPES: [
     'streaming',
     'user-read-email',
     'user-read-private',
     'user-modify-playback-state',
     'user-read-playback-state'
-  ]
+  ],
+  // PKCE configuration
+  PKCE: {
+    CODE_VERIFIER_LENGTH: 64,
+    CODE_CHALLENGE_METHOD: 'S256',
+    TOKEN_ENDPOINT: 'https://accounts.spotify.com/api/token'
+  }
 };
 
 // Game settings

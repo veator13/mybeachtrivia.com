@@ -15,6 +15,7 @@ let currentTrackUri = null;
 let playlistSongUris = [];
 let currentSongIndex = -1;
 let spotifyAuthWindow = null;
+let refreshToken = null; // New: Store refresh token
 
 /**
  * Initialize Spotify integration
@@ -27,6 +28,9 @@ export function initializeSpotify() {
   if (token) {
     console.log('Found Spotify token in localStorage');
     spotifyToken = token;
+    
+    // Also retrieve refresh token if available
+    refreshToken = localStorage.getItem('spotify_refresh_token');
   }
   
   // Add Spotify SDK script if not already loaded
@@ -52,11 +56,18 @@ export function initializeSpotify() {
       // Check if the token is expired
       const expiryTime = localStorage.getItem('spotify_token_expiry');
       if (expiryTime && new Date().getTime() > parseInt(expiryTime)) {
-        // Token is expired, show auth button
-        console.log('Spotify token expired, showing auth button');
-        localStorage.removeItem('spotify_token');
-        localStorage.removeItem('spotify_token_expiry');
-        showSpotifyAuthButton();
+        // Token is expired, try to refresh it if we have a refresh token
+        console.log('Spotify token expired');
+        
+        if (localStorage.getItem('spotify_refresh_token')) {
+          console.log('Attempting to refresh token');
+          refreshAccessToken();
+        } else {
+          console.log('No refresh token, showing auth button');
+          localStorage.removeItem('spotify_token');
+          localStorage.removeItem('spotify_token_expiry');
+          showSpotifyAuthButton();
+        }
       } else {
         // Create player if we have a valid token
         console.log('Using existing Spotify token to create player');
@@ -120,10 +131,45 @@ function showSpotifyAuthButton() {
 }
 
 /**
- * Authenticate with Spotify using a popup window
+ * Generate a random string for code verifier
+ * @param {number} length - Length of the string to generate
+ * @returns {string} Random string
  */
-export function authenticateWithSpotify() {
-  console.log('Starting Spotify authentication flow');
+function generateRandomString(length) {
+  let text = '';
+  const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+  
+  for (let i = 0; i < length; i++) {
+    text += possible.charAt(Math.floor(Math.random() * possible.length));
+  }
+  return text;
+}
+
+/**
+ * Generate code challenge from verifier using SHA-256
+ * @param {string} codeVerifier - The code verifier
+ * @returns {Promise<string>} Code challenge
+ */
+async function generateCodeChallenge(codeVerifier) {
+  // Convert code verifier to Uint8Array
+  const encoder = new TextEncoder();
+  const data = encoder.encode(codeVerifier);
+  
+  // Hash with SHA-256
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  
+  // Convert digest to base64 URL encoded string
+  return btoa(String.fromCharCode(...new Uint8Array(digest)))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+}
+
+/**
+ * Authenticate with Spotify using Authorization Code with PKCE flow
+ */
+export async function authenticateWithSpotify() {
+  console.log('Starting Spotify authentication flow with PKCE');
   
   // Use the client ID from config
   const CLIENT_ID = SPOTIFY.CLIENT_ID;
@@ -138,17 +184,25 @@ export function authenticateWithSpotify() {
   const STATE = generateRandomString(16);
   localStorage.setItem('spotify_auth_state', STATE);
   
+  // Generate code verifier (between 43-128 chars)
+  const CODE_VERIFIER = generateRandomString(64);
+  localStorage.setItem('spotify_code_verifier', CODE_VERIFIER);
+  
+  // Generate code challenge
+  const CODE_CHALLENGE = await generateCodeChallenge(CODE_VERIFIER);
+  
   // Required permissions to control playback
   const SCOPES = SPOTIFY.SCOPES;
   
-  // Build the Spotify auth URL with careful parameter construction
-  // Make sure response_type is exactly "token" with no spaces or encoding issues
+  // Build the Spotify auth URL for Authorization Code flow with PKCE
   const authUrl = 'https://accounts.spotify.com/authorize' +
     '?client_id=' + encodeURIComponent(CLIENT_ID) +
-    '&response_type=token' +
+    '&response_type=code' + // Changed from 'token' to 'code'
     '&redirect_uri=' + encodeURIComponent(REDIRECT_URI) +
     '&state=' + encodeURIComponent(STATE) +
-    '&scope=' + encodeURIComponent(SCOPES.join(' '));
+    '&scope=' + encodeURIComponent(SCOPES.join(' ')) +
+    '&code_challenge_method=S256' +
+    '&code_challenge=' + encodeURIComponent(CODE_CHALLENGE);
   
   console.log('Auth URL:', authUrl);
   
@@ -186,6 +240,118 @@ export function authenticateWithSpotify() {
 }
 
 /**
+ * Exchange authorization code for access token
+ * @param {string} code - Authorization code from Spotify
+ * @returns {Promise<Object>} Token response with access_token and refresh_token
+ */
+async function exchangeCodeForToken(code) {
+  try {
+    // Get code verifier from localStorage
+    const codeVerifier = localStorage.getItem('spotify_code_verifier');
+    if (!codeVerifier) {
+      throw new Error('Code verifier not found in localStorage');
+    }
+    
+    // Get redirect URI
+    const redirectUri = SPOTIFY.REDIRECT_URI.CURRENT;
+    
+    // Set up parameters for token request
+    const params = new URLSearchParams();
+    params.append('client_id', SPOTIFY.CLIENT_ID);
+    params.append('grant_type', 'authorization_code');
+    params.append('code', code);
+    params.append('redirect_uri', redirectUri);
+    params.append('code_verifier', codeVerifier);
+    
+    // Make token request to Spotify API
+    const response = await fetch('https://accounts.spotify.com/api/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: params
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`Token exchange failed: ${errorData.error} - ${errorData.error_description}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error exchanging code for token:', error);
+    throw error;
+  }
+}
+
+/**
+ * Refresh the access token using refresh token
+ * @returns {Promise<boolean>} Success status
+ */
+async function refreshAccessToken() {
+  try {
+    // Get refresh token from localStorage
+    const refreshToken = localStorage.getItem('spotify_refresh_token');
+    if (!refreshToken) {
+      console.error('No refresh token available');
+      return false;
+    }
+    
+    // Set up parameters for token refresh request
+    const params = new URLSearchParams();
+    params.append('client_id', SPOTIFY.CLIENT_ID);
+    params.append('grant_type', 'refresh_token');
+    params.append('refresh_token', refreshToken);
+    
+    // Make token request to Spotify API
+    const response = await fetch('https://accounts.spotify.com/api/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: params
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`Token refresh failed: ${errorData.error} - ${errorData.error_description}`);
+    }
+    
+    const tokenData = await response.json();
+    
+    // Store the new access token
+    localStorage.setItem('spotify_token', tokenData.access_token);
+    spotifyToken = tokenData.access_token;
+    
+    // Calculate token expiry time
+    const expiryTime = new Date().getTime() + (tokenData.expires_in * 1000);
+    localStorage.setItem('spotify_token_expiry', expiryTime);
+    
+    // Store new refresh token if provided
+    if (tokenData.refresh_token) {
+      localStorage.setItem('spotify_refresh_token', tokenData.refresh_token);
+    }
+    
+    console.log('Successfully refreshed access token');
+    
+    // Create Spotify player with new token
+    createSpotifyPlayer(tokenData.access_token);
+    
+    return true;
+  } catch (error) {
+    console.error('Error refreshing access token:', error);
+    
+    // Clear token data and show auth button
+    localStorage.removeItem('spotify_token');
+    localStorage.removeItem('spotify_token_expiry');
+    localStorage.removeItem('spotify_refresh_token');
+    showSpotifyAuthButton();
+    
+    return false;
+  }
+}
+
+/**
  * Receive and process authentication message from popup
  * @param {MessageEvent} event - Message event from popup window
  */
@@ -197,46 +363,45 @@ function receiveSpotifyAuthMessage(event) {
   if (event.data && event.data.type === 'SPOTIFY_AUTH_SUCCESS') {
     console.log('Received Spotify authentication success message');
     
-    const { access_token, expires_in } = event.data;
+    const { code, state } = event.data;
     
-    if (access_token) {
-      // Store the token
-      localStorage.setItem('spotify_token', access_token);
-      
-      // Calculate token expiry time
-      const expiryTime = new Date().getTime() + (expires_in * 1000);
-      localStorage.setItem('spotify_token_expiry', expiryTime);
-      
-      // Update token variable
-      spotifyToken = access_token;
-      
-      // Create Spotify player
-      createSpotifyPlayer(access_token);
-      
-      // Close the popup if it's still open
-      if (spotifyAuthWindow && !spotifyAuthWindow.closed) {
-        spotifyAuthWindow.close();
-      }
+    if (code) {
+      // Exchange code for token
+      exchangeCodeForToken(code)
+        .then(tokenData => {
+          // Store tokens
+          localStorage.setItem('spotify_token', tokenData.access_token);
+          
+          // Store refresh token
+          if (tokenData.refresh_token) {
+            localStorage.setItem('spotify_refresh_token', tokenData.refresh_token);
+            refreshToken = tokenData.refresh_token;
+          }
+          
+          // Calculate token expiry time
+          const expiryTime = new Date().getTime() + (tokenData.expires_in * 1000);
+          localStorage.setItem('spotify_token_expiry', expiryTime);
+          
+          // Update token variable
+          spotifyToken = tokenData.access_token;
+          
+          // Create Spotify player
+          createSpotifyPlayer(tokenData.access_token);
+          
+          // Close the popup if it's still open
+          if (spotifyAuthWindow && !spotifyAuthWindow.closed) {
+            spotifyAuthWindow.close();
+          }
+        })
+        .catch(error => {
+          console.error('Error exchanging code for token:', error);
+          alert('Failed to complete Spotify authentication: ' + error.message);
+        });
     }
   } else if (event.data && event.data.type === 'SPOTIFY_AUTH_ERROR') {
     console.error('Spotify authentication error:', event.data.error);
     alert('Failed to authenticate with Spotify: ' + event.data.error);
   }
-}
-
-/**
- * Generate random string for state parameter
- * @param {number} length - Length of the string to generate
- * @returns {string} Random string
- */
-function generateRandomString(length) {
-  let text = '';
-  const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  
-  for (let i = 0; i < length; i++) {
-    text += possible.charAt(Math.floor(Math.random() * possible.length));
-  }
-  return text;
 }
 
 /**

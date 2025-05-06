@@ -124,6 +124,7 @@
                 console.log('URL:', window.location.href);
                 console.log('Origin:', window.location.origin);
                 console.log('Pathname:', window.location.pathname);
+                console.log('Search params:', window.location.search);
                 console.groupEnd();
                 return {
                     url: window.location.href,
@@ -134,35 +135,28 @@
             // Log debug info
             const debug = debugUrlInfo();
             
-            // Parse URL hash fragment
-            const hashParams = {};
-            let e, r = /([^&;=]+)=?([^&;]*)/g,
-                q = window.location.hash.substring(1);
-                
-            while (e = r.exec(q)) {
-                hashParams[e[1]] = decodeURIComponent(e[2]);
-            }
+            // Parse URL query parameters - changed from hash to search params for Authorization Code flow
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code');
+            const state = urlParams.get('state');
+            const error = urlParams.get('error');
             
-            // Log all hash parameters for debugging
-            console.log('Hash parameters:', hashParams);
+            // Log parameters for debugging
+            console.log('Auth Code:', code ? 'Present (not shown for security)' : 'Not present');
+            console.log('State:', state);
+            console.log('Error:', error);
             
-            // Check if we have an access token
-            if (hashParams.access_token) {
+            // Check if we have an authorization code
+            if (code) {
                 // Check state to prevent CSRF
                 const storedState = localStorage.getItem('spotify_auth_state');
                 console.log('Stored state:', storedState);
-                console.log('Received state:', hashParams.state);
+                console.log('Received state:', state);
                 
-                if (storedState && storedState === hashParams.state) {
+                if (storedState && storedState === state) {
                     console.log('State verification successful');
                     
-                    // Success - store token locally first as a backup
-                    localStorage.setItem('spotify_token', hashParams.access_token);
-                    const expiresIn = parseInt(hashParams.expires_in) || 3600;
-                    const expiryTime = new Date().getTime() + (expiresIn * 1000);
-                    localStorage.setItem('spotify_token_expiry', expiryTime);
-                    
-                    // Try to send token to parent window
+                    // Try to send code to parent window
                     if (window.opener) {
                         try {
                             console.log('Attempting to send auth data to parent window');
@@ -170,8 +164,8 @@
                             // Send with wildcard origin for maximum compatibility
                             window.opener.postMessage({
                                 type: 'SPOTIFY_AUTH_SUCCESS',
-                                access_token: hashParams.access_token,
-                                expires_in: expiresIn
+                                code: code,
+                                state: state
                             }, '*');
                             
                             console.log('Message sent with wildcard origin');
@@ -205,20 +199,24 @@
                         }
                     } else {
                         console.log('No opener window found, redirecting to dashboard');
+                        // Store the authorization code temporarily
+                        sessionStorage.setItem('spotify_auth_code', code);
+                        sessionStorage.setItem('spotify_auth_state', state);
+                        
                         // Redirect to dashboard
                         redirectToDashboard();
                     }
                 } else {
                     // State mismatch - possible CSRF attack
-                    console.error('State verification failed. Expected: ' + storedState + ', Received: ' + hashParams.state);
+                    console.error('State verification failed. Expected: ' + storedState + ', Received: ' + state);
                     showError('State verification failed. Please try again.');
                 }
-            } else if (hashParams.error) {
+            } else if (error) {
                 // Authentication error
-                console.error('Spotify authentication error:', hashParams.error);
-                showError(`Spotify authentication error: ${hashParams.error}`);
+                console.error('Spotify authentication error:', error);
+                showError(`Spotify authentication error: ${error}`);
             } else {
-                // No token or error in URL
+                // No code or error in URL
                 console.error('No authentication data found in URL');
                 showError('No authentication data found. Please try again.');
             }
