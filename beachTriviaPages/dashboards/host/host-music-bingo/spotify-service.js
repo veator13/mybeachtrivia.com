@@ -1,7 +1,7 @@
 /**
  * Spotify Service
  * Handles all Spotify integration for the Music Bingo application
- * Updated to use Firebase Cloud Functions for authentication
+ * Updated to use Cloudflare Worker for authentication
  */
 
 import { SPOTIFY, UI } from './config.js';
@@ -33,14 +33,14 @@ export function initializeSpotify() {
     // Check if the token is expired
     const expiryTime = localStorage.getItem('spotify_token_expiry');
     if (expiryTime && new Date().getTime() > parseInt(expiryTime)) {
-      // Token is expired, try to refresh it if we have a token ID
+      // Token is expired, try to refresh it if we have a refresh token
       console.log('Spotify token expired');
       
-      if (localStorage.getItem('spotify_token_id')) {
+      if (localStorage.getItem('spotify_refresh_token')) {
         console.log('Attempting to refresh token');
         refreshAccessToken();
       } else {
-        console.log('No token ID, showing auth button');
+        console.log('No refresh token, showing auth button');
         localStorage.removeItem('spotify_token');
         localStorage.removeItem('spotify_token_expiry');
         showSpotifyAuthButton();
@@ -78,14 +78,14 @@ export function initializeSpotify() {
       // Check if the token is expired
       const expiryTime = localStorage.getItem('spotify_token_expiry');
       if (expiryTime && new Date().getTime() > parseInt(expiryTime)) {
-        // Token is expired, try to refresh it if we have a token ID
+        // Token is expired, try to refresh it if we have a refresh token
         console.log('Spotify token expired');
         
-        if (localStorage.getItem('spotify_token_id')) {
+        if (localStorage.getItem('spotify_refresh_token')) {
           console.log('Attempting to refresh token');
           refreshAccessToken();
         } else {
-          console.log('No token ID, showing auth button');
+          console.log('No refresh token, showing auth button');
           localStorage.removeItem('spotify_token');
           localStorage.removeItem('spotify_token_expiry');
           showSpotifyAuthButton();
@@ -179,7 +179,7 @@ function showSpotifyAuthButton() {
 }
 
 /**
- * Authenticate with Spotify using Firebase Cloud Functions
+ * Authenticate with Spotify using Cloudflare Worker
  */
 export function authenticateWithSpotify() {
   console.time('spotify_auth_flow');
@@ -191,7 +191,7 @@ export function authenticateWithSpotify() {
     authButton.disabled = true;
   }
   
-  console.log('Starting Spotify authentication flow via Firebase Cloud Functions');
+  console.log('Starting Spotify authentication flow via Cloudflare Worker');
   
   // Calculate center position for the popup
   const width = UI.POPUP_WIDTH || 450;
@@ -199,7 +199,7 @@ export function authenticateWithSpotify() {
   const left = (window.innerWidth / 2) - (width / 2);
   const top = (window.innerHeight / 2) - (height / 2);
   
-  // Use the Firebase Function URL for authentication
+  // Use the Cloudflare Worker URL for authentication
   const authUrl = '/spotifyLogin';
   
   // Open popup window for authentication
@@ -237,29 +237,29 @@ export function authenticateWithSpotify() {
 }
 
 /**
- * Refresh the access token using Firebase Functions
+ * Refresh the access token using Cloudflare Worker
  * @returns {Promise<boolean>} Success status
  */
 async function refreshAccessToken() {
   try {
-    // Get token ID from localStorage
-    const tokenId = localStorage.getItem('spotify_token_id');
+    // Get refresh token from localStorage
+    const refreshToken = localStorage.getItem('spotify_refresh_token');
     
-    if (!tokenId) {
-      console.error('No token ID available for refresh');
+    if (!refreshToken) {
+      console.error('No refresh token available for refresh');
       showSpotifyAuthButton();
       return false;
     }
     
     console.log('Refreshing access token...');
     
-    // Request new access token from Firebase Function
+    // Request new access token from Cloudflare Worker
     const response = await fetch('/refreshToken', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ token_id: tokenId })
+      body: JSON.stringify({ refresh_token: refreshToken })
     });
     
     if (!response.ok) {
@@ -299,7 +299,7 @@ async function refreshAccessToken() {
     // Clear token data and show auth button
     localStorage.removeItem('spotify_token');
     localStorage.removeItem('spotify_token_expiry');
-    localStorage.removeItem('spotify_token_id');
+    localStorage.removeItem('spotify_refresh_token');
     
     // Show authentication button
     showSpotifyAuthButton();
@@ -762,22 +762,10 @@ export async function disconnectSpotify() {
       spotifyPlayer = null;
     }
     
-    // Revoke token via Firebase Function
-    const tokenId = localStorage.getItem('spotify_token_id');
-    if (tokenId) {
-      await fetch('/revokeToken', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ token_id: tokenId })
-      });
-    }
-    
     // Clear all Spotify data from localStorage
     localStorage.removeItem('spotify_token');
     localStorage.removeItem('spotify_token_expiry');
-    localStorage.removeItem('spotify_token_id');
+    localStorage.removeItem('spotify_refresh_token');
     localStorage.removeItem('spotify_device_id');
     
     // Reset variables
