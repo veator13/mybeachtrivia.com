@@ -10,11 +10,38 @@ export const FIREBASE_PATHS = {
   PLAYERS: 'players'
 };
 
+// Firebase Functions configuration
+export const FIREBASE_FUNCTIONS = {
+  // Determine if we're using emulators or production endpoints
+  get BASE_URL() {
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      return 'http://localhost:5001/beach-trivia-website/us-central1/spotify';
+    } else {
+      return '';  // Empty for production as we use relative URLs
+    }
+  },
+  // Spotify authentication endpoints
+  SPOTIFY: {
+    get LOGIN() {
+      return ENV.IS_DEVELOPMENT ? `${FIREBASE_FUNCTIONS.BASE_URL}/spotifyLogin` : '/spotifyLogin';
+    },
+    get CALLBACK() {
+      return ENV.IS_DEVELOPMENT ? `${FIREBASE_FUNCTIONS.BASE_URL}/spotifyCallback` : '/spotifyCallback';
+    },
+    get REFRESH_TOKEN() {
+      return ENV.IS_DEVELOPMENT ? `${FIREBASE_FUNCTIONS.BASE_URL}/refreshToken` : '/refreshToken';
+    },
+    get REVOKE_TOKEN() {
+      return ENV.IS_DEVELOPMENT ? `${FIREBASE_FUNCTIONS.BASE_URL}/revokeToken` : '/revokeToken';
+    }
+  }
+};
+
 // Spotify configuration
 export const SPOTIFY = {
   CLIENT_ID: 'da61dc149839439299554f1dc4455f1b',
-  // Authorization method - using Authorization Code with PKCE flow (more secure, supports refresh tokens)
-  AUTH_METHOD: 'PKCE',
+  // Authorization method - Updated to use Firebase Functions
+  AUTH_METHOD: 'FIREBASE_FUNCTIONS',
   REDIRECT_URI: {
     // Determine if we're in development or production
     get CURRENT() {
@@ -38,7 +65,7 @@ export const SPOTIFY = {
     'user-modify-playback-state',
     'user-read-playback-state'
   ],
-  // PKCE configuration
+  // PKCE configuration (keeping for backward compatibility)
   PKCE: {
     CODE_VERIFIER_LENGTH: 64,
     CODE_CHALLENGE_METHOD: 'S256',

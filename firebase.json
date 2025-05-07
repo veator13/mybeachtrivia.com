@@ -4,9 +4,26 @@
     "ignore": [
       "firebase.json",
       "**/.*",
-      "**/node_modules/**"
+      "**/node_modules/**",
+      "functions/**"
     ],
     "rewrites": [
+      {
+        "source": "/spotifyLogin",
+        "function": "spotify"
+      },
+      {
+        "source": "/spotifyCallback",
+        "function": "spotify"
+      },
+      {
+        "source": "/refreshToken",
+        "function": "spotify"
+      },
+      {
+        "source": "/revokeToken",
+        "function": "spotify"
+      },
       {
         "source": "**",
         "destination": "/index.html"
@@ -24,12 +41,22 @@
       }
     ]
   },
+  "functions": {
+    "source": "functions",
+    "runtime": "nodejs16"
+  },
   "emulators": {
     "auth": {
       "port": 9099
     },
+    "functions": {
+      "port": 5001
+    },
     "firestore": {
       "port": 8080
+    },
+    "database": {
+      "port": 9000
     },
     "hosting": {
       "port": 5050
@@ -42,5 +69,8 @@
   "firestore": {
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
+  },
+  "database": {
+    "rules": "database.rules.json"
   }
 }
