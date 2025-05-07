@@ -89,6 +89,14 @@
             color: #94a3b8;
             margin-top: 10px;
         }
+        
+        #communication-status {
+            padding: 10px; 
+            margin-top: 10px; 
+            font-weight: bold;
+            background-color: rgba(0,0,0,0.2);
+            border-radius: 5px;
+        }
     </style>
 </head>
 <body>
@@ -112,10 +120,86 @@
         </div>
         
         <button id="close-btn" style="display: none;">Close Window</button>
+        
+        <div id="communication-status">
+            Establishing communication...
+        </div>
     </div>
     
     <script>
+        // Debugging script for Spotify auth popup
+        (function() {
+            console.group('===== SPOTIFY AUTH DEBUGGING (POPUP) =====');
+            
+            // Log the current URL and parameters
+            const url = new URL(window.location.href);
+            const params = {};
+            url.searchParams.forEach((value, key) => {
+                // Don't log sensitive values
+                if (key === 'access_token' || key === 'refresh_token' || key === 'code') {
+                params[key] = 'EXISTS (hidden for security)';
+                } else {
+                params[key] = value;
+                }
+            });
+            
+            console.log('Current URL:', url.origin + url.pathname);
+            console.log('URL Parameters:', params);
+            
+            // Test localStorage in popup
+            try {
+                const testKey = 'spotify_debug_test';
+                localStorage.setItem(testKey, 'test-value');
+                const testResult = localStorage.getItem(testKey);
+                localStorage.removeItem(testKey);
+                
+                console.log('localStorage test:', testResult === 'test-value' ? 'SUCCESS' : 'FAILED');
+                
+                // Log current token state
+                console.log('Current tokens in localStorage:', {
+                spotify_token: localStorage.getItem('spotify_token') ? 'exists' : 'missing',
+                spotify_refresh_token: localStorage.getItem('spotify_refresh_token') ? 'exists' : 'missing'
+                });
+            } catch (e) {
+                console.error('localStorage test failed with error:', e);
+            }
+            
+            // Check window.opener
+            console.log('Window opener exists:', window.opener ? 'YES' : 'NO');
+            
+            // Add a manual test function
+            window.testParentCommunication = function() {
+                if (window.opener) {
+                    try {
+                        console.log('Attempting to send test message to parent...');
+                        window.opener.postMessage({
+                            type: 'DEBUG_TEST',
+                            time: new Date().toISOString()
+                        }, '*');
+                        document.getElementById('communication-status').textContent = 'Test message sent!';
+                        document.getElementById('communication-status').style.color = 'green';
+                        return true;
+                    } catch (e) {
+                        console.error('Failed to communicate with parent:', e);
+                        document.getElementById('communication-status').textContent = 'Error: ' + e.message;
+                        document.getElementById('communication-status').style.color = 'red';
+                        return false;
+                    }
+                } else {
+                    console.warn('No parent window found to communicate with');
+                    document.getElementById('communication-status').textContent = 'No parent window found';
+                    document.getElementById('communication-status').style.color = 'orange';
+                    return false;
+                }
+            };
+            
+            console.log('Spotify auth debugging initialized for popup window');
+            console.log('Use testParentCommunication() to manually test parent window communication');
+            console.groupEnd();
+        })();
+
         document.addEventListener('DOMContentLoaded', function() {
+            console.group('===== SPOTIFY AUTH MAIN HANDLER =====');
             console.log('Callback page loaded');
             
             // Debug function to log key information
@@ -138,12 +222,12 @@
             // Parse URL query parameters
             const urlParams = new URLSearchParams(window.location.search);
             
-            // Support both original code+state flow and the new Firebase function token flow
+            // Support both original code+state flow and the new Cloudflare Worker token flow
             const code = urlParams.get('code');
             const state = urlParams.get('state');
             const error = urlParams.get('error');
             
-            // New params from Firebase Function
+            // New params from Cloudflare Worker
             const success = urlParams.get('success') === 'true';
             const accessToken = urlParams.get('access_token');
             const expiresIn = urlParams.get('expires_in');
@@ -157,24 +241,11 @@
             console.log('Success:', success);
             console.log('Access Token:', accessToken ? 'Present (not shown for security)' : 'Not present');
             console.log('Expires In:', expiresIn);
-            console.log('Token ID:', tokenId ? 'Present (not shown for security)' : 'Not present');
             console.log('Refresh Token:', refreshToken ? 'Present (not shown for security)' : 'Not present');
             
-            // Check if window opener exists and log it
-            console.log('Window opener exists:', window.opener ? true : false);
-            
-            // Test localStorage
-            try {
-                localStorage.setItem('test', 'test');
-                console.log('localStorage test:', localStorage.getItem('test'));
-                localStorage.removeItem('test');
-            } catch (e) {
-                console.error('localStorage not available:', e);
-            }
-            
-            // First check for Firebase Function direct token response
+            // First check for Cloudflare Worker direct token response
             if (success && accessToken) {
-                console.log('Received direct token from Firebase function');
+                console.log('Received direct token from Cloudflare Worker');
                 
                 // Store the tokens in localStorage
                 localStorage.setItem('spotify_token', accessToken);
@@ -182,11 +253,6 @@
                 // Store the refresh token if available
                 if (refreshToken) {
                     localStorage.setItem('spotify_refresh_token', refreshToken);
-                }
-                
-                // Store the token ID (for refresh)
-                if (tokenId) {
-                    localStorage.setItem('spotify_token_id', tokenId);
                 }
                 
                 // Calculate and store token expiry time
@@ -200,10 +266,10 @@
                 document.getElementById('success').style.display = 'block';
                 document.getElementById('close-btn').style.display = 'block';
                 
-                // Try to communicate with parent window
+                // Try to communicate with parent window - CRITICAL FIX
                 if (window.opener) {
                     try {
-                        console.log('Attempting to post message to opener...');
+                        console.log('Attempting to post message to opener with tokens...');
                         
                         // First send a test message to check communication
                         window.opener.postMessage({
@@ -212,22 +278,33 @@
                         }, '*');
                         console.log('Test message posted');
                         
-                        // Then send the actual auth success message
+                        // Then send the actual auth success message WITH THE TOKENS
                         window.opener.postMessage({
                             type: 'SPOTIFY_AUTH_SUCCESS',
-                            success: true
+                            success: true,
+                            tokens: {
+                                access_token: accessToken,
+                                refresh_token: refreshToken,
+                                expires_in: expiresIn
+                            }
                         }, '*');
-                        console.log('Auth success message posted');
+                        console.log('Auth success message with tokens posted');
+                        document.getElementById('communication-status').textContent = 'Tokens sent to main window';
+                        document.getElementById('communication-status').style.color = 'green';
                     } catch (err) {
                         console.error('Error sending message to opener:', err);
                         document.getElementById('error-message').textContent = 'Error communicating with main window: ' + err.message;
                         document.getElementById('loading').style.display = 'none';
                         document.getElementById('error').style.display = 'block';
+                        document.getElementById('communication-status').textContent = 'Communication error: ' + err.message;
+                        document.getElementById('communication-status').style.color = 'red';
                     }
                 } else {
                     console.log('No opener window found, storing tokens locally');
                     // Store a flag to indicate redirect from Spotify
                     localStorage.setItem('redirected_from_spotify', 'true');
+                    document.getElementById('communication-status').textContent = 'No parent window found. Storing tokens locally.';
+                    document.getElementById('communication-status').style.color = 'orange';
                 }
                 
                 // Set up auto-close countdown
@@ -256,6 +333,8 @@
                             }, '*');
                             
                             console.log('Message sent with wildcard origin');
+                            document.getElementById('communication-status').textContent = 'Auth code sent to main window';
+                            document.getElementById('communication-status').style.color = 'green';
                             
                             // Show success message
                             document.getElementById('loading').style.display = 'none';
@@ -267,12 +346,16 @@
                         } catch (error) {
                             console.error('Error sending message to opener:', error);
                             showError('Error communicating with the main window. Please close this window and try again.');
+                            document.getElementById('communication-status').textContent = 'Communication error: ' + error.message;
+                            document.getElementById('communication-status').style.color = 'red';
                         }
                     } else {
                         console.log('No opener window found, redirecting to dashboard');
                         // Store the authorization code temporarily
                         sessionStorage.setItem('spotify_auth_code', code);
                         sessionStorage.setItem('spotify_auth_state', state);
+                        document.getElementById('communication-status').textContent = 'No parent window. Redirecting to dashboard...';
+                        document.getElementById('communication-status').style.color = 'orange';
                         
                         // Redirect to dashboard
                         redirectToDashboard();
@@ -281,15 +364,21 @@
                     // State mismatch - possible CSRF attack
                     console.error('State verification failed. Expected: ' + storedState + ', Received: ' + state);
                     showError('State verification failed. Please try again.');
+                    document.getElementById('communication-status').textContent = 'State verification failed';
+                    document.getElementById('communication-status').style.color = 'red';
                 }
             } else if (error) {
                 // Authentication error
                 console.error('Spotify authentication error:', error);
                 showError(`Spotify authentication error: ${error}`);
+                document.getElementById('communication-status').textContent = 'Authentication error: ' + error;
+                document.getElementById('communication-status').style.color = 'red';
             } else {
                 // No code, token, or error in URL
                 console.error('No authentication data found in URL');
                 showError('No authentication data found. Please try again.');
+                document.getElementById('communication-status').textContent = 'No authentication data in URL';
+                document.getElementById('communication-status').style.color = 'red';
             }
             
             // Add event listener to close button
@@ -301,6 +390,8 @@
                     redirectToDashboard();
                 }
             });
+            
+            console.groupEnd();
         });
         
         // Start the countdown for auto-close

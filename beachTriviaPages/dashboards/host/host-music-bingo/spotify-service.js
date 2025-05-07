@@ -23,7 +23,16 @@ let authWindowCheckInterval = null; // New: For checking popup window status
  * Initialize Spotify integration
  */
 export function initializeSpotify() {
+  console.group('===== SPOTIFY AUTH DEBUGGING (MAIN WINDOW) =====');
   console.log('Initializing Spotify integration');
+  
+  // Debug localStorage
+  console.log('LocalStorage tokens:', {
+    spotify_token: localStorage.getItem('spotify_token') ? 'exists' : 'missing',
+    spotify_refresh_token: localStorage.getItem('spotify_refresh_token') ? 'exists' : 'missing',
+    spotify_token_expiry: localStorage.getItem('spotify_token_expiry'),
+    redirected_from_spotify: localStorage.getItem('redirected_from_spotify')
+  });
   
   // Check if token exists in localStorage (it might have been set by the callback page)
   const token = localStorage.getItem('spotify_token');
@@ -119,6 +128,9 @@ export function initializeSpotify() {
   
   // Add Spotify styles
   addSpotifyStyles();
+  
+  console.log('Spotify auth debugging initialized for main window');
+  console.groupEnd();
 }
 
 /**
@@ -224,6 +236,8 @@ export function authenticateWithSpotify() {
       );
     }
     
+    console.log('Popup window created:', spotifyAuthWindow ? 'Success' : 'Failed');
+    
     // Add a fallback for popup blockers
     if (!spotifyAuthWindow || spotifyAuthWindow.closed || typeof spotifyAuthWindow.closed === 'undefined') {
       console.warn('Popup blocked! Falling back to redirect');
@@ -233,7 +247,7 @@ export function authenticateWithSpotify() {
       return;
     }
     
-    // Set up an interval to check if the popup is closed without completing auth
+    // Monitor popup status
     authWindowCheckInterval = setInterval(() => {
       if (spotifyAuthWindow && spotifyAuthWindow.closed) {
         console.log('Auth window closed by user');
@@ -246,6 +260,12 @@ export function authenticateWithSpotify() {
             authButton.innerHTML = 'Connect Spotify';
             authButton.disabled = false;
           }
+        }
+      } else {
+        try {
+          console.log('Popup window still open');
+        } catch (e) {
+          console.log('Cannot access popup location due to security restrictions');
         }
       }
     }, 1000);
@@ -340,8 +360,10 @@ async function refreshAccessToken() {
  * @param {MessageEvent} event - Message event from popup window
  */
 function receiveSpotifyAuthMessage(event) {
-  console.log('Received message from popup:', event.origin);
-  console.log('Message data:', event.data);
+  console.group('===== RECEIVED MESSAGE FROM POPUP =====');
+  console.log('Origin:', event.origin);
+  console.log('Message type:', event.data && event.data.type);
+  console.log('Full data:', event.data);
   
   // Handle test messages to verify communication
   if (event.data && event.data.type === 'DEBUG_TEST') {
@@ -349,7 +371,47 @@ function receiveSpotifyAuthMessage(event) {
     return;
   }
   
-  // Process authentication data
+  // Special test message handler
+  if (event.data && event.data.type === 'SPOTIFY_AUTH_SUCCESS_TEST') {
+    console.log('✓ Test token message received!');
+    console.log('Tokens in test message:', event.data.tokens);
+    
+    // Verify we can access all necessary properties
+    const verified = 
+      event.data.tokens && 
+      event.data.tokens.access_token && 
+      event.data.tokens.refresh_token && 
+      event.data.tokens.expires_in;
+    
+    console.log('All token properties accessible:', verified ? 'YES' : 'NO');
+    
+    // Try to store in localStorage as a test
+    try {
+      localStorage.setItem('test_token', event.data.tokens.access_token);
+      const retrieved = localStorage.getItem('test_token');
+      console.log('localStorage test:', retrieved === event.data.tokens.access_token ? 'SUCCESS' : 'FAILED');
+      localStorage.removeItem('test_token');
+    } catch (e) {
+      console.error('localStorage test failed:', e);
+    }
+    
+    // Try to acknowledge back to the popup
+    if (spotifyAuthWindow && !spotifyAuthWindow.closed) {
+      try {
+        spotifyAuthWindow.acknowledgeTokens('Tokens received successfully');
+        console.log('✓ Acknowledgment sent to popup window');
+      } catch (e) {
+        console.error('Failed to send acknowledgment:', e);
+      }
+    } else {
+      console.warn('Cannot send acknowledgment - popup window not available');
+    }
+    
+    console.groupEnd();
+    return;
+  }
+  
+  // Process authentication data with tokens
   if (event.data && event.data.type === 'SPOTIFY_AUTH_SUCCESS') {
     console.log('Received Spotify authentication success message');
     
@@ -359,27 +421,44 @@ function receiveSpotifyAuthMessage(event) {
       authWindowCheckInterval = null;
     }
     
-    // Check if token exists in localStorage (should have been set by the callback page)
-    const token = localStorage.getItem('spotify_token');
-    if (!token) {
-      console.warn('No token found in localStorage despite success message');
-      
-      // This might happen if there's an issue with localStorage in the popup
-      // We could request the token directly from the popup, but for now just alert the user
-      alert('Authentication successful, but token storage failed. Please try again.');
-      
-      // Reset button state
-      const authButton = document.getElementById('spotify-auth-btn');
-      if (authButton) {
-        authButton.innerHTML = 'Connect Spotify';
-        authButton.disabled = false;
+    // IMPORTANT: Store tokens from the message directly if available
+    if (event.data.tokens) {
+      console.log('Tokens received directly in message - storing locally');
+      localStorage.setItem('spotify_token', event.data.tokens.access_token);
+      if (event.data.tokens.refresh_token) {
+        localStorage.setItem('spotify_refresh_token', event.data.tokens.refresh_token);
+      }
+      if (event.data.tokens.expires_in) {
+        const expiryTime = new Date().getTime() + (parseInt(event.data.tokens.expires_in) * 1000);
+        localStorage.setItem('spotify_token_expiry', expiryTime);
       }
       
-      return;
+      // Update token variable
+      spotifyToken = event.data.tokens.access_token;
+    } else {
+      // Check if token exists in localStorage (should have been set by the callback page)
+      const token = localStorage.getItem('spotify_token');
+      if (!token) {
+        console.warn('No token found in localStorage despite success message');
+        
+        // This might happen if there's an issue with localStorage in the popup
+        // We could request the token directly from the popup, but for now just alert the user
+        alert('Authentication successful, but token storage failed. Please try again.');
+        
+        // Reset button state
+        const authButton = document.getElementById('spotify-auth-btn');
+        if (authButton) {
+          authButton.innerHTML = 'Connect Spotify';
+          authButton.disabled = false;
+        }
+        
+        console.groupEnd();
+        return;
+      }
+      
+      // Update token variable
+      spotifyToken = token;
     }
-    
-    // Update token variable
-    spotifyToken = token;
     
     // Create Spotify player with the token
     createSpotifyPlayer(spotifyToken);
@@ -395,6 +474,7 @@ function receiveSpotifyAuthMessage(event) {
     if (spotifyAuthWindow && !spotifyAuthWindow.closed) {
       try {
         spotifyAuthWindow.close();
+        console.log('Popup window closed successfully');
       } catch (error) {
         console.error('Error closing popup:', error);
         // Non-critical error, can continue
@@ -421,6 +501,8 @@ function receiveSpotifyAuthMessage(event) {
     alert('Failed to authenticate with Spotify: ' + event.data.error);
     console.timeEnd('spotify_auth_flow');
   }
+  
+  console.groupEnd();
 }
 
 /**
