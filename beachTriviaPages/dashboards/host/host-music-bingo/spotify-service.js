@@ -17,6 +17,7 @@ let playlistSongUris = [];
 let currentSongIndex = -1;
 let spotifyAuthWindow = null;
 let tokenRefreshTimer = null; // New: Timer for token refresh
+let authWindowCheckInterval = null; // New: For checking popup window status
 
 /**
  * Initialize Spotify integration
@@ -206,6 +207,13 @@ export function authenticateWithSpotify() {
   try {
     console.log('Opening Spotify auth popup');
     
+    // Clear any existing auth window check interval
+    if (authWindowCheckInterval) {
+      clearInterval(authWindowCheckInterval);
+      authWindowCheckInterval = null;
+    }
+    
+    // If a window is already open, focus it or open a new one
     if (spotifyAuthWindow && !spotifyAuthWindow.closed) {
       spotifyAuthWindow.focus();
     } else {
@@ -222,7 +230,26 @@ export function authenticateWithSpotify() {
       alert('Popup blocked! Please allow popups for this site to connect to Spotify.');
       // Fallback to redirect
       window.location.href = authUrl;
+      return;
     }
+    
+    // Set up an interval to check if the popup is closed without completing auth
+    authWindowCheckInterval = setInterval(() => {
+      if (spotifyAuthWindow && spotifyAuthWindow.closed) {
+        console.log('Auth window closed by user');
+        clearInterval(authWindowCheckInterval);
+        authWindowCheckInterval = null;
+        
+        // Reset button if no token was received
+        if (!localStorage.getItem('spotify_token')) {
+          if (authButton) {
+            authButton.innerHTML = 'Connect Spotify';
+            authButton.disabled = false;
+          }
+        }
+      }
+    }, 1000);
+    
   } catch (error) {
     console.error('Error opening Spotify auth popup:', error);
     
@@ -316,19 +343,46 @@ function receiveSpotifyAuthMessage(event) {
   console.log('Received message from popup:', event.origin);
   console.log('Message data:', event.data);
   
+  // Handle test messages to verify communication
+  if (event.data && event.data.type === 'DEBUG_TEST') {
+    console.log('Received test message from popup:', event.data.time);
+    return;
+  }
+  
   // Process authentication data
   if (event.data && event.data.type === 'SPOTIFY_AUTH_SUCCESS') {
     console.log('Received Spotify authentication success message');
     
-    // Token is already stored in localStorage by the callback page
+    // Clear the auth window check interval if it exists
+    if (authWindowCheckInterval) {
+      clearInterval(authWindowCheckInterval);
+      authWindowCheckInterval = null;
+    }
+    
+    // Check if token exists in localStorage (should have been set by the callback page)
+    const token = localStorage.getItem('spotify_token');
+    if (!token) {
+      console.warn('No token found in localStorage despite success message');
+      
+      // This might happen if there's an issue with localStorage in the popup
+      // We could request the token directly from the popup, but for now just alert the user
+      alert('Authentication successful, but token storage failed. Please try again.');
+      
+      // Reset button state
+      const authButton = document.getElementById('spotify-auth-btn');
+      if (authButton) {
+        authButton.innerHTML = 'Connect Spotify';
+        authButton.disabled = false;
+      }
+      
+      return;
+    }
     
     // Update token variable
-    spotifyToken = localStorage.getItem('spotify_token');
+    spotifyToken = token;
     
     // Create Spotify player with the token
-    if (spotifyToken) {
-      createSpotifyPlayer(spotifyToken);
-    }
+    createSpotifyPlayer(spotifyToken);
     
     // Reset button state with success indication
     const authButton = document.getElementById('spotify-auth-btn');
@@ -339,12 +393,23 @@ function receiveSpotifyAuthMessage(event) {
     
     // Close the popup if it's still open
     if (spotifyAuthWindow && !spotifyAuthWindow.closed) {
-      spotifyAuthWindow.close();
+      try {
+        spotifyAuthWindow.close();
+      } catch (error) {
+        console.error('Error closing popup:', error);
+        // Non-critical error, can continue
+      }
     }
     
     console.timeEnd('spotify_auth_flow');
   } else if (event.data && event.data.type === 'SPOTIFY_AUTH_ERROR') {
     console.error('Spotify authentication error:', event.data.error);
+    
+    // Clear the auth window check interval if it exists
+    if (authWindowCheckInterval) {
+      clearInterval(authWindowCheckInterval);
+      authWindowCheckInterval = null;
+    }
     
     // Reset button state
     const authButton = document.getElementById('spotify-auth-btn');
@@ -778,6 +843,12 @@ export async function disconnectSpotify() {
     if (tokenRefreshTimer) {
       clearTimeout(tokenRefreshTimer);
       tokenRefreshTimer = null;
+    }
+    
+    // Clear auth window check interval
+    if (authWindowCheckInterval) {
+      clearInterval(authWindowCheckInterval);
+      authWindowCheckInterval = null;
     }
     
     // Show the auth button again
