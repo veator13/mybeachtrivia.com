@@ -99,6 +99,29 @@
             background-color: rgba(0,0,0,0.2);
             border-radius: 5px;
         }
+
+        #retry-btn {
+            margin-left: 10px;
+            padding: 8px 16px;
+            background-color: #475569;
+        }
+
+        #retry-btn:hover {
+            background-color: #334155;
+        }
+
+        #debug-info {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: rgba(0,0,0,0.2);
+            border-radius: 5px;
+            font-size: 12px;
+            color: #94a3b8;
+            text-align: left;
+            max-height: 100px;
+            overflow-y: auto;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -125,10 +148,64 @@
         
         <div id="communication-status">
             Establishing communication...
+            <button id="retry-btn" style="display: none;">Retry</button>
         </div>
+
+        <div id="debug-info"></div>
     </div>
     
     <script>
+        // Helper functions for token storage - added for redundancy
+        function saveTokenToStorages(key, value) {
+            try {
+                localStorage.setItem(key, value);
+            } catch (e) {
+                console.warn('Error saving to localStorage:', e);
+            }
+            
+            try {
+                sessionStorage.setItem(key, value);
+            } catch (e) {
+                console.warn('Error saving to sessionStorage:', e);
+            }
+
+            // Log successful storage
+            debugLog(`Token stored in both storages: ${key}`);
+        }
+
+        // Helper to get token from either storage
+        function getTokenFromStorages(key) {
+            // Try localStorage first
+            let value = null;
+            try {
+                value = localStorage.getItem(key);
+                if (value) return value;
+            } catch (e) {
+                console.warn('Error reading from localStorage:', e);
+            }
+            
+            // Try sessionStorage as fallback
+            try {
+                value = sessionStorage.getItem(key);
+                return value;
+            } catch (e) {
+                console.warn('Error reading from sessionStorage:', e);
+            }
+            
+            return null;
+        }
+
+        // Debug logging helper
+        function debugLog(message) {
+            const debugInfo = document.getElementById('debug-info');
+            if (debugInfo) {
+                const time = new Date().toLocaleTimeString();
+                debugInfo.innerHTML += `<div>[${time}] ${message}</div>`;
+                debugInfo.scrollTop = debugInfo.scrollHeight;
+            }
+            console.log(message);
+        }
+
         // Debugging script for Spotify auth popup
         (function() {
             console.group('===== SPOTIFY AUTH DEBUGGING (POPUP) =====');
@@ -147,8 +224,9 @@
             
             console.log('Current URL:', url.origin + url.pathname);
             console.log('URL Parameters:', params);
+            debugLog(`URL: ${url.origin + url.pathname}`);
             
-            // Test localStorage in popup
+            // Test both localStorage and sessionStorage in popup
             try {
                 const testKey = 'spotify_debug_test';
                 localStorage.setItem(testKey, 'test-value');
@@ -156,24 +234,63 @@
                 localStorage.removeItem(testKey);
                 
                 console.log('localStorage test:', testResult === 'test-value' ? 'SUCCESS' : 'FAILED');
+                debugLog(`localStorage test: ${testResult === 'test-value' ? 'SUCCESS' : 'FAILED'}`);
+                
+                // Test sessionStorage
+                sessionStorage.setItem(testKey, 'test-value');
+                const sessionTestResult = sessionStorage.getItem(testKey);
+                sessionStorage.removeItem(testKey);
+                
+                console.log('sessionStorage test:', sessionTestResult === 'test-value' ? 'SUCCESS' : 'FAILED');
+                debugLog(`sessionStorage test: ${sessionTestResult === 'test-value' ? 'SUCCESS' : 'FAILED'}`);
                 
                 // Log current token state
-                console.log('Current tokens in localStorage:', {
-                spotify_token: localStorage.getItem('spotify_token') ? 'exists' : 'missing',
-                spotify_refresh_token: localStorage.getItem('spotify_refresh_token') ? 'exists' : 'missing'
+                console.log('Current tokens in storage:', {
+                    localStorage: {
+                        spotify_token: localStorage.getItem('spotify_token') ? 'exists' : 'missing',
+                        spotify_refresh_token: localStorage.getItem('spotify_refresh_token') ? 'exists' : 'missing'
+                    },
+                    sessionStorage: {
+                        spotify_token: sessionStorage.getItem('spotify_token') ? 'exists' : 'missing',
+                        spotify_refresh_token: sessionStorage.getItem('spotify_refresh_token') ? 'exists' : 'missing'
+                    }
                 });
             } catch (e) {
-                console.error('localStorage test failed with error:', e);
+                console.error('Storage test failed with error:', e);
+                debugLog(`Storage test error: ${e.message}`);
             }
             
             // Check window.opener
             console.log('Window opener exists:', window.opener ? 'YES' : 'NO');
+            debugLog(`Window opener exists: ${window.opener ? 'YES' : 'NO'}`);
+            
+            // Add event listener for messages from parent window
+            window.addEventListener('message', function(event) {
+                console.log('Message received from parent:', event.data);
+                debugLog(`Message from parent: ${event.data.type || 'Unknown'}`);
+                
+                // Respond to ping messages
+                if (event.data && event.data.type === 'PING_FROM_PARENT') {
+                    console.log('Received ping from parent, sending pong');
+                    try {
+                        event.source.postMessage({
+                            type: 'PONG_TO_PARENT',
+                            time: new Date().toISOString()
+                        }, '*');
+                        debugLog('Pong sent back to parent');
+                    } catch (e) {
+                        console.error('Error sending pong:', e);
+                        debugLog(`Error sending pong: ${e.message}`);
+                    }
+                }
+            });
             
             // Add a manual test function
             window.testParentCommunication = function() {
                 if (window.opener) {
                     try {
                         console.log('Attempting to send test message to parent...');
+                        debugLog('Sending test message to parent');
                         window.opener.postMessage({
                             type: 'DEBUG_TEST',
                             time: new Date().toISOString()
@@ -183,16 +300,30 @@
                         return true;
                     } catch (e) {
                         console.error('Failed to communicate with parent:', e);
+                        debugLog(`Communication error: ${e.message}`);
                         document.getElementById('communication-status').textContent = 'Error: ' + e.message;
                         document.getElementById('communication-status').style.color = 'red';
                         return false;
                     }
                 } else {
                     console.warn('No parent window found to communicate with');
+                    debugLog('No parent window found');
                     document.getElementById('communication-status').textContent = 'No parent window found';
                     document.getElementById('communication-status').style.color = 'orange';
                     return false;
                 }
+            };
+            
+            // Function to handle token acknowledgment from parent
+            window.acknowledgeTokens = function(message) {
+                console.log('Token acknowledgment received from parent:', message);
+                debugLog(`Token acknowledgment: ${message}`);
+                
+                document.getElementById('communication-status').textContent = 'Parent received tokens: ' + message;
+                document.getElementById('communication-status').style.color = 'green';
+                
+                // Show the debug info when acknowledgment is received
+                document.getElementById('debug-info').style.display = 'block';
             };
             
             console.log('Spotify auth debugging initialized for popup window');
@@ -200,9 +331,19 @@
             console.groupEnd();
         })();
 
+        // Show debug info on error for troubleshooting
+        function toggleDebugInfo() {
+            const debugInfo = document.getElementById('debug-info');
+            if (debugInfo.style.display === 'none') {
+                debugInfo.style.display = 'block';
+            } else {
+                debugInfo.style.display = 'none';
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
             console.group('===== SPOTIFY AUTH MAIN HANDLER =====');
-            console.log('Callback page loaded');
+            debugLog('Callback page loaded');
             
             // Debug function to log key information
             function debugUrlInfo() {
@@ -245,102 +386,49 @@
             console.log('Expires In:', expiresIn);
             console.log('Refresh Token:', refreshToken ? 'Present (not shown for security)' : 'Not present');
             
+            // Add retry button functionality
+            document.getElementById('retry-btn').addEventListener('click', function() {
+                sendTokensToParent();
+            });
+            
             // First check for Cloudflare Worker direct token response
             if (success && accessToken) {
                 console.log('Received direct token from Cloudflare Worker');
+                debugLog('Received tokens from Worker');
                 
-                // Store the tokens in localStorage
-                localStorage.setItem('spotify_token', accessToken);
+                // Store the tokens in both localStorage and sessionStorage for redundancy
+                saveTokenToStorages('spotify_token', accessToken);
                 
                 // Store the refresh token if available
                 if (refreshToken) {
-                    localStorage.setItem('spotify_refresh_token', refreshToken);
+                    saveTokenToStorages('spotify_refresh_token', refreshToken);
                 }
                 
                 // Calculate and store token expiry time
                 if (expiresIn) {
                     const expiryTime = new Date().getTime() + (parseInt(expiresIn) * 1000);
-                    localStorage.setItem('spotify_token_expiry', expiryTime);
+                    saveTokenToStorages('spotify_token_expiry', expiryTime.toString());
                 }
 
                 // Set the flag indicating we've been redirected from Spotify
-                localStorage.setItem('redirected_from_spotify', 'true');
-                localStorage.setItem('spotify_auth_timestamp', Date.now().toString());
+                saveTokenToStorages('redirected_from_spotify', 'true');
+                saveTokenToStorages('spotify_auth_timestamp', Date.now().toString());
                 
                 // Show success message
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('success').style.display = 'block';
                 document.getElementById('close-btn').style.display = 'block';
                 
-                // Try to communicate with parent window - ENHANCED COMMUNICATION
-                if (window.opener) {
-                    try {
-                        console.log('Attempting multiple messages to opener with tokens...');
-                        document.getElementById('communication-status').textContent = 'Sending tokens to main window...';
-                        
-                        // First send a test message to check communication
-                        window.opener.postMessage({
-                            type: 'DEBUG_TEST',
-                            time: new Date().toISOString()
-                        }, '*');
-                        console.log('Test message posted');
-                        
-                        // Then send the actual auth success message WITH THE TOKENS
-                        // Multiple attempts with slight delays between them
-                        for (let i = 0; i < 3; i++) {
-                            setTimeout(() => {
-                                try {
-                                    window.opener.postMessage({
-                                        type: 'SPOTIFY_AUTH_SUCCESS',
-                                        success: true,
-                                        tokens: {
-                                            access_token: accessToken,
-                                            refresh_token: refreshToken,
-                                            expires_in: expiresIn
-                                        }
-                                    }, '*');
-                                    console.log(`Auth success message attempt ${i+1} sent`);
-                                } catch (e) {
-                                    console.error(`Error in message attempt ${i+1}:`, e);
-                                }
-                            }, i * 100); // Stagger attempts 100ms apart
-                        }
-                        
-                        document.getElementById('communication-status').textContent = 'Tokens sent to main window';
-                        document.getElementById('communication-status').style.color = 'green';
-                        
-                        // Set up auto-close countdown with a longer delay to ensure messages go through
-                        startCountdown(8); // Increased to 8 seconds
-                    } catch (err) {
-                        console.error('Error sending message to opener:', err);
-                        document.getElementById('error-message').textContent = 'Error communicating with main window. Using fallback...';
-                        document.getElementById('loading').style.display = 'none';
-                        document.getElementById('error').style.display = 'block';
-                        document.getElementById('communication-status').textContent = 'Using localStorage fallback';
-                        document.getElementById('communication-status').style.color = 'orange';
-                        
-                        // Fallback to redirect with parameter
-                        setTimeout(() => {
-                            redirectToDashboard(true);
-                        }, 2000);
-                    }
-                } else {
-                    console.log('No opener window found, storing tokens locally and redirecting');
-                    document.getElementById('communication-status').textContent = 'No parent window found. Redirecting...';
-                    document.getElementById('communication-status').style.color = 'orange';
-                    
-                    // Redirect to dashboard with parameter
-                    setTimeout(() => {
-                        redirectToDashboard(true);
-                    }, 2000);
-                }
+                // Try to communicate with parent window
+                sendTokensToParent();
             }
             // Handle traditional authorization code flow
             else if (code) {
                 // Check state to prevent CSRF
-                const storedState = localStorage.getItem('spotify_auth_state');
+                const storedState = getTokenFromStorages('spotify_auth_state');
                 console.log('Stored state:', storedState);
                 console.log('Received state:', state);
+                debugLog(`State check: ${storedState === state ? 'Match' : 'Mismatch'}`);
                 
                 if (storedState && storedState === state) {
                     console.log('State verification successful');
@@ -349,6 +437,7 @@
                     if (window.opener) {
                         try {
                             console.log('Attempting to send auth data to parent window');
+                            debugLog('Sending auth code to parent');
                             
                             // Send with wildcard origin for maximum compatibility
                             window.opener.postMessage({
@@ -370,24 +459,32 @@
                             startCountdown(5);
                         } catch (error) {
                             console.error('Error sending message to opener:', error);
+                            debugLog(`Error sending auth code: ${error.message}`);
                             showError('Error communicating with the main window. Please close this window and try again.');
                             document.getElementById('communication-status').textContent = 'Communication error: ' + error.message;
                             document.getElementById('communication-status').style.color = 'red';
+                            document.getElementById('retry-btn').style.display = 'inline-block';
                             
                             // Store authorization code for fallback
-                            sessionStorage.setItem('spotify_auth_code', code);
-                            sessionStorage.setItem('spotify_auth_state', state);
+                            saveTokenToStorages('spotify_auth_code', code);
+                            saveTokenToStorages('spotify_auth_state', state);
                             
-                            // Redirect after short delay
+                            // Show debug info on error
+                            document.getElementById('debug-info').style.display = 'block';
+                            
+                            // Redirect after short delay if no retry
                             setTimeout(() => {
-                                redirectToDashboard(true);
-                            }, 2000);
+                                if (document.getElementById('retry-btn').style.display !== 'none') {
+                                    redirectToDashboard(true);
+                                }
+                            }, 6000);
                         }
                     } else {
                         console.log('No opener window found, redirecting to dashboard');
+                        debugLog('No parent window - using redirect');
                         // Store the authorization code temporarily
-                        sessionStorage.setItem('spotify_auth_code', code);
-                        sessionStorage.setItem('spotify_auth_state', state);
+                        saveTokenToStorages('spotify_auth_code', code);
+                        saveTokenToStorages('spotify_auth_state', state);
                         document.getElementById('communication-status').textContent = 'No parent window. Redirecting to dashboard...';
                         document.getElementById('communication-status').style.color = 'orange';
                         
@@ -397,22 +494,34 @@
                 } else {
                     // State mismatch - possible CSRF attack
                     console.error('State verification failed. Expected: ' + storedState + ', Received: ' + state);
+                    debugLog('State verification failed - security issue');
                     showError('State verification failed. Please try again.');
                     document.getElementById('communication-status').textContent = 'State verification failed';
                     document.getElementById('communication-status').style.color = 'red';
+                    
+                    // Show debug info for troubleshooting
+                    document.getElementById('debug-info').style.display = 'block';
                 }
             } else if (error) {
                 // Authentication error
                 console.error('Spotify authentication error:', error);
+                debugLog(`Auth error: ${error}`);
                 showError(`Spotify authentication error: ${error}`);
                 document.getElementById('communication-status').textContent = 'Authentication error: ' + error;
                 document.getElementById('communication-status').style.color = 'red';
+                
+                // Show debug info for errors
+                document.getElementById('debug-info').style.display = 'block';
             } else {
                 // No code, token, or error in URL
                 console.error('No authentication data found in URL');
+                debugLog('No auth data in URL');
                 showError('No authentication data found. Please try again.');
                 document.getElementById('communication-status').textContent = 'No authentication data in URL';
                 document.getElementById('communication-status').style.color = 'red';
+                
+                // Show debug info for troubleshooting
+                document.getElementById('debug-info').style.display = 'block';
             }
             
             // Add event listener to close button
@@ -427,6 +536,122 @@
             
             console.groupEnd();
         });
+
+        // Function to send tokens to parent window with multiple attempts
+        function sendTokensToParent() {
+            // Get tokens from storage
+            const accessToken = getTokenFromStorages('spotify_token');
+            const refreshToken = getTokenFromStorages('spotify_refresh_token');
+            const expiryTime = getTokenFromStorages('spotify_token_expiry');
+            
+            // Calculate expires_in from expiry time
+            let expiresIn = '3600'; // Default 1 hour
+            if (expiryTime) {
+                const now = new Date().getTime();
+                expiresIn = Math.floor((parseInt(expiryTime) - now) / 1000).toString();
+            }
+            
+            if (!accessToken) {
+                debugLog('No access token available to send');
+                document.getElementById('communication-status').textContent = 'No token to send';
+                document.getElementById('communication-status').style.color = 'red';
+                document.getElementById('retry-btn').style.display = 'inline-block';
+                return false;
+            }
+            
+            if (window.opener) {
+                try {
+                    debugLog('Attempting multiple messages to parent');
+                    document.getElementById('communication-status').textContent = 'Sending tokens to main window...';
+                    document.getElementById('retry-btn').style.display = 'none';
+                    
+                    // First send a test message to check communication
+                    window.opener.postMessage({
+                        type: 'DEBUG_TEST',
+                        time: new Date().toISOString()
+                    }, '*');
+                    debugLog('Test message posted');
+                    
+                    // Then send test token message to verify token objects work
+                    setTimeout(() => {
+                        try {
+                            window.opener.postMessage({
+                                type: 'SPOTIFY_AUTH_SUCCESS_TEST',
+                                tokens: {
+                                    access_token: accessToken,
+                                    refresh_token: refreshToken,
+                                    expires_in: expiresIn
+                                }
+                            }, '*');
+                            debugLog('Test token message sent');
+                        } catch (e) {
+                            debugLog(`Test token error: ${e.message}`);
+                        }
+                    }, 200);
+                    
+                    // Then send the actual auth success message WITH THE TOKENS
+                    // Multiple attempts with slight delays between them
+                    const MAX_ATTEMPTS = 5; // Increased number of attempts
+                    
+                    for (let i = 0; i < MAX_ATTEMPTS; i++) {
+                        setTimeout(() => {
+                            try {
+                                window.opener.postMessage({
+                                    type: 'SPOTIFY_AUTH_SUCCESS',
+                                    success: true,
+                                    tokens: {
+                                        access_token: accessToken,
+                                        refresh_token: refreshToken,
+                                        expires_in: expiresIn
+                                    }
+                                }, '*');
+                                debugLog(`Auth success message attempt ${i+1} sent`);
+                            } catch (e) {
+                                debugLog(`Error in message attempt ${i+1}: ${e.message}`);
+                            }
+                        }, i * 200); // Stagger attempts 200ms apart for better reliability
+                    }
+                    
+                    document.getElementById('communication-status').textContent = 'Tokens sent to main window';
+                    document.getElementById('communication-status').style.color = 'green';
+                    
+                    // Set up auto-close countdown with a longer delay to ensure messages go through
+                    startCountdown(8); // Increased to 8 seconds
+                    return true;
+                } catch (err) {
+                    console.error('Error sending message to opener:', err);
+                    debugLog(`Parent communication error: ${err.message}`);
+                    document.getElementById('error-message').textContent = 'Error communicating with main window. Using fallback...';
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('error').style.display = 'block';
+                    document.getElementById('communication-status').textContent = 'Using localStorage fallback';
+                    document.getElementById('communication-status').style.color = 'orange';
+                    document.getElementById('retry-btn').style.display = 'inline-block';
+                    
+                    // Show debug info
+                    document.getElementById('debug-info').style.display = 'block';
+                    
+                    // Fallback to redirect with parameter if retry not clicked
+                    setTimeout(() => {
+                        if (document.getElementById('retry-btn').style.display !== 'none') {
+                            redirectToDashboard(true);
+                        }
+                    }, 6000);
+                    return false;
+                }
+            } else {
+                console.log('No opener window found, storing tokens locally and redirecting');
+                debugLog('No parent window - using redirect');
+                document.getElementById('communication-status').textContent = 'No parent window found. Redirecting...';
+                document.getElementById('communication-status').style.color = 'orange';
+                
+                // Redirect to dashboard with parameter
+                setTimeout(() => {
+                    redirectToDashboard(true);
+                }, 2000);
+                return false;
+            }
+        }
         
         // Start the countdown for auto-close
         function startCountdown(seconds = 5) {
@@ -457,6 +682,9 @@
             document.getElementById('error-message').textContent = message;
             document.getElementById('close-btn').style.display = 'block';
             
+            // Add a click handler to show debug info when clicking the error message
+            document.getElementById('error-message').addEventListener('click', toggleDebugInfo);
+            
             // Close automatically after 10 seconds on error
             setTimeout(() => {
                 if (window.opener) {
@@ -471,23 +699,37 @@
         function redirectToDashboard(withParam = false) {
             // Try to determine dashboard URL dynamically
             let dashboardUrl;
+            debugLog('Redirecting to dashboard');
+            
+            // Determine the right base URL
+            const baseUrl = window.location.href.includes('/beachTriviaPages/') 
+                ? window.location.href.split('/beachTriviaPages/')[0] 
+                : window.location.origin;
             
             // For local development, use a relative path
             if (window.location.hostname === 'localhost') {
                 dashboardUrl = '/beachTriviaPages/dashboards/host/host-music-bingo/host-music-bingo.html';
             } else {
                 // For production, use the full URL
-                dashboardUrl = window.location.origin + '/beachTriviaPages/dashboards/host/host-music-bingo/host-music-bingo.html';
+                dashboardUrl = baseUrl + '/beachTriviaPages/dashboards/host/host-music-bingo/host-music-bingo.html';
+            }
+            
+            // Try to extract from the referrer if available
+            const referrer = document.referrer;
+            if (referrer && referrer.includes('/host-music-bingo')) {
+                dashboardUrl = referrer;
+                debugLog('Using referrer URL: ' + referrer);
             }
             
             if (withParam) {
-                dashboardUrl += '?spotify_auth=true&timestamp=' + Date.now();
+                dashboardUrl += (dashboardUrl.includes('?') ? '&' : '?') + 'spotify_auth=true&timestamp=' + Date.now();
             }
             
             console.log('Redirecting to dashboard:', dashboardUrl);
+            debugLog('Redirect URL: ' + dashboardUrl);
             
-            // For fallback, also store the intended redirect in localStorage
-            localStorage.setItem('redirected_from_spotify', 'true');
+            // For fallback, also store the intended redirect in both storages
+            saveTokenToStorages('redirected_from_spotify', 'true');
             
             // Redirect to the host dashboard
             window.location.href = dashboardUrl;
@@ -499,13 +741,17 @@
                 console.log("=== ACTUAL CSP HEADER RECEIVED ===");
                 const cspHeader = response.headers.get('Content-Security-Policy');
                 console.log(cspHeader);
+                debugLog('CSP check completed');
                 
                 console.log("=== ALL RESPONSE HEADERS ===");
                 response.headers.forEach((value, key) => {
                     console.log(`${key}: ${value}`);
                 });
             })
-            .catch(e => console.error("Error fetching headers:", e));
+            .catch(e => {
+                console.error("Error fetching headers:", e);
+                debugLog(`Header fetch error: ${e.message}`);
+            });
     </script>
 </body>
 </html>

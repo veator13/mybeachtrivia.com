@@ -7,12 +7,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Host Music Bingo</title>
     <link rel="stylesheet" href="host-music-bingo.css">
-    <!-- Firebase SDK -->
+    <!-- Firebase SDK - Order is important for initialization -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-    <!-- Add Firebase Database script -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    
+    <!-- Backup loading for Firebase Database in case the main script fails -->
+    <script>
+        window.addEventListener('DOMContentLoaded', function() {
+            setTimeout(function() {
+                if (typeof firebase === 'undefined' || typeof firebase.database === 'undefined') {
+                    console.warn('Firebase Database not detected. Loading backup script...');
+                    const script = document.createElement('script');
+                    script.src = 'https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js';
+                    script.onload = function() {
+                        console.log('Firebase Database backup loaded successfully!');
+                    };
+                    document.head.appendChild(script);
+                }
+            }, 1000);
+        });
+    </script>
     
     <!-- QR Code Generator Library - Updated loading approach -->
     <script>
@@ -40,6 +56,115 @@
             document.head.appendChild(qrScript);
         });
     </script>
+    
+    <!-- Toast notification styles -->
+    <style>
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+        
+        .toast {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            color: white;
+            max-width: 350px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            animation: slideIn 0.3s ease, fadeOut 0.5s ease 2.5s forwards;
+        }
+        
+        .toast-success {
+            background-color: #10b981;
+        }
+        
+        .toast-error {
+            background-color: #ef4444;
+        }
+        
+        .toast-warning {
+            background-color: #f59e0b;
+        }
+        
+        .toast-info {
+            background-color: #3b82f6;
+        }
+        
+        .toast-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            margin-left: 8px;
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; display: none; }
+        }
+
+        /* Debug panel styles */
+        #debug-panel {
+            display: none;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: #00ff00;
+            font-family: monospace;
+            padding: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 9999;
+            font-size: 12px;
+        }
+        
+        #debug-panel .log-entry {
+            margin: 3px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 3px;
+        }
+        
+        #debug-panel .error {
+            color: #ff4444;
+        }
+        
+        #debug-panel .warning {
+            color: #ffbb44;
+        }
+        
+        #debug-panel .success {
+            color: #44ff44;
+        }
+
+        #debug-toggle {
+            position: fixed;
+            right: 10px;
+            bottom: 10px;
+            background: rgba(0, 0, 0, 0.5);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            font-size: 16px;
+            cursor: pointer;
+            z-index: 10000;
+            display: none;
+        }
+    </style>
 </head>
 <body>
     <div class="dashboard">
@@ -143,6 +268,13 @@
         </footer>
     </div>
     
+    <!-- Toast notification container -->
+    <div class="toast-container" id="toast-container"></div>
+    
+    <!-- Debug panel for troubleshooting -->
+    <div id="debug-panel"></div>
+    <button id="debug-toggle">🔧</button>
+    
     <!-- Add debug script to check CSP headers -->
     <script>
         // Debug script to check what CSP headers are actually being received
@@ -158,10 +290,178 @@
                 });
             })
             .catch(e => console.error("Error fetching headers:", e));
+            
+        // Debug panel functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const debugPanel = document.getElementById('debug-panel');
+            const debugToggle = document.getElementById('debug-toggle');
+            
+            // Show debug toggle in development or when pressing Shift+D
+            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                debugToggle.style.display = 'block';
+            }
+            
+            document.addEventListener('keydown', function(e) {
+                if (e.shiftKey && e.key === 'D') {
+                    debugToggle.style.display = 'block';
+                }
+            });
+            
+            debugToggle.addEventListener('click', function() {
+                if (debugPanel.style.display === 'none' || !debugPanel.style.display) {
+                    debugPanel.style.display = 'block';
+                } else {
+                    debugPanel.style.display = 'none';
+                }
+            });
+            
+            // Attach to console logs for debug panel
+            const originalConsoleLog = console.log;
+            const originalConsoleError = console.error;
+            const originalConsoleWarn = console.warn;
+            
+            function addLogToPanel(message, type = 'info') {
+                if (!debugPanel) return;
+                
+                const logEntry = document.createElement('div');
+                logEntry.className = `log-entry ${type}`;
+                
+                const timestamp = new Date().toLocaleTimeString();
+                let formattedMessage = message;
+                
+                // Handle objects and arrays
+                if (typeof message === 'object' && message !== null) {
+                    try {
+                        formattedMessage = JSON.stringify(message);
+                    } catch (e) {
+                        formattedMessage = String(message);
+                    }
+                }
+                
+                logEntry.textContent = `[${timestamp}] ${formattedMessage}`;
+                debugPanel.appendChild(logEntry);
+                debugPanel.scrollTop = debugPanel.scrollHeight;
+                
+                // Limit log entries
+                while (debugPanel.children.length > 100) {
+                    debugPanel.removeChild(debugPanel.firstChild);
+                }
+            }
+            
+            // Override console methods
+            console.log = function() {
+                addLogToPanel(arguments[0]);
+                originalConsoleLog.apply(console, arguments);
+            };
+            
+            console.error = function() {
+                addLogToPanel(arguments[0], 'error');
+                originalConsoleError.apply(console, arguments);
+            };
+            
+            console.warn = function() {
+                addLogToPanel(arguments[0], 'warning');
+                originalConsoleWarn.apply(console, arguments);
+            };
+            
+            // Add a success log method
+            console.success = function() {
+                addLogToPanel(arguments[0], 'success');
+                originalConsoleLog.apply(console, arguments);
+            };
+        });
+        
+        // Toast notification system
+        window.showToast = function(message, type = 'info', duration = 3000) {
+            const container = document.getElementById('toast-container');
+            
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            
+            const messageSpan = document.createElement('span');
+            messageSpan.textContent = message;
+            
+            const closeBtn = document.createElement('button');
+            closeBtn.className = 'toast-close';
+            closeBtn.innerHTML = '&times;';
+            closeBtn.addEventListener('click', function() {
+                container.removeChild(toast);
+            });
+            
+            toast.appendChild(messageSpan);
+            toast.appendChild(closeBtn);
+            container.appendChild(toast);
+            
+            // Auto remove after duration
+            setTimeout(function() {
+                if (container.contains(toast)) {
+                    container.removeChild(toast);
+                }
+            }, duration);
+            
+            return toast;
+        };
     </script>
     
     <!-- Firebase initialization -->
     <script src="../firebase-init.js"></script>
+    
+    <!-- Storage helper functions -->
+    <script>
+        // Helper functions for token storage - added for redundancy
+        window.saveTokenToStorages = function(key, value) {
+            try {
+                localStorage.setItem(key, value);
+                console.log(`Token saved to localStorage: ${key}`);
+            } catch (e) {
+                console.warn('Error saving to localStorage:', e);
+            }
+            
+            try {
+                sessionStorage.setItem(key, value);
+                console.log(`Token saved to sessionStorage: ${key}`);
+            } catch (e) {
+                console.warn('Error saving to sessionStorage:', e);
+            }
+        };
+
+        // Helper to get token from either storage
+        window.getTokenFromStorages = function(key) {
+            // Try localStorage first
+            let value = null;
+            try {
+                value = localStorage.getItem(key);
+                if (value) return value;
+            } catch (e) {
+                console.warn('Error reading from localStorage:', e);
+            }
+            
+            // Try sessionStorage as fallback
+            try {
+                value = sessionStorage.getItem(key);
+                return value;
+            } catch (e) {
+                console.warn('Error reading from sessionStorage:', e);
+            }
+            
+            return null;
+        };
+
+        // Helper to remove token from both storages
+        window.removeTokenFromStorages = function(key) {
+            try {
+                localStorage.removeItem(key);
+            } catch (e) {
+                console.warn('Error removing from localStorage:', e);
+            }
+            
+            try {
+                sessionStorage.removeItem(key);
+            } catch (e) {
+                console.warn('Error removing from sessionStorage:', e);
+            }
+        };
+    </script>
     
     <!-- Main host dashboard script -->
     <script type="module" src="bingo-controller.js"></script>
@@ -175,18 +475,23 @@
         const urlParams = new URLSearchParams(window.location.search);
         const spotifyAuth = urlParams.get('spotify_auth');
         const timestamp = urlParams.get('timestamp');
+        const gameId = urlParams.get('gameId');
         
         if (spotifyAuth === 'true') {
             console.log('Detected Spotify authentication redirect, timestamp:', timestamp);
             
-            // Clear URL parameters but keep the history
-            const cleanUrl = window.location.pathname;
+            // Clear URL parameters but keep the history and gameId if present
+            let cleanUrl = window.location.pathname;
+            if (gameId) {
+                cleanUrl += '?gameId=' + gameId;
+            }
             window.history.replaceState({}, document.title, cleanUrl);
             
-            // Check if we have tokens in localStorage
-            const token = localStorage.getItem('spotify_token');
+            // Check if we have tokens in either storage
+            const token = window.getTokenFromStorages('spotify_token');
             if (token) {
                 console.log('Found Spotify token, initializing player');
+                window.showToast('Spotify authentication successful!', 'success');
                 
                 // Delay initialization to ensure all modules are loaded
                 setTimeout(() => {
@@ -197,27 +502,30 @@
                             module.initializeSpotify();
                         }).catch(err => {
                             console.error('Error importing spotify-service.js:', err);
+                            window.showToast('Error loading Spotify module. Please refresh the page.', 'error');
                         });
                     } catch (err) {
                         console.error('Error initializing Spotify:', err);
+                        window.showToast('Error initializing Spotify. Please try again later.', 'error');
                     }
                 }, 1000);
             } else {
                 console.warn('No Spotify token found after auth redirect');
+                window.showToast('Spotify authentication incomplete. Try authenticating again.', 'warning');
             }
         } else {
-            // Check if we have the redirect flag but haven't initialized yet
-            const redirectFlag = localStorage.getItem('redirected_from_spotify');
+            // Check if we have the redirect flag in either storage but haven't initialized yet
+            const redirectFlag = window.getTokenFromStorages('redirected_from_spotify');
             if (redirectFlag === 'true') {
                 console.log('Detected redirected_from_spotify flag');
                 
                 // Check if we have a token
-                const token = localStorage.getItem('spotify_token');
+                const token = window.getTokenFromStorages('spotify_token');
                 if (token) {
                     console.log('Found token from previous redirect, initializing');
                     
                     // Clear the flag to prevent repeated initializations
-                    localStorage.removeItem('redirected_from_spotify');
+                    window.removeTokenFromStorages('redirected_from_spotify');
                     
                     // Delay initialization to ensure all modules are loaded
                     setTimeout(() => {
@@ -228,11 +536,19 @@
                                 module.initializeSpotify();
                             }).catch(err => {
                                 console.error('Error importing spotify-service.js:', err);
+                                window.showToast('Error loading Spotify module. Please refresh the page.', 'error');
                             });
                         } catch (err) {
                             console.error('Error initializing Spotify:', err);
+                            window.showToast('Error initializing Spotify. Please try again later.', 'error');
                         }
                     }, 1000);
+                }
+            } else {
+                // Check if we have existing tokens that might not have been initialized yet
+                const existingToken = window.getTokenFromStorages('spotify_token');
+                if (existingToken) {
+                    console.log('Found existing Spotify token, will wait for normal initialization');
                 }
             }
         }
@@ -244,28 +560,87 @@
             if (event.data && event.data.type === 'SPOTIFY_AUTH_SUCCESS' && event.data.tokens) {
                 console.log('Received direct token message from popup');
                 
-                // Store tokens
-                localStorage.setItem('spotify_token', event.data.tokens.access_token);
+                // Store tokens in both storages
+                window.saveTokenToStorages('spotify_token', event.data.tokens.access_token);
+                
                 if (event.data.tokens.refresh_token) {
-                    localStorage.setItem('spotify_refresh_token', event.data.tokens.refresh_token);
+                    window.saveTokenToStorages('spotify_refresh_token', event.data.tokens.refresh_token);
                 }
+                
                 if (event.data.tokens.expires_in) {
                     const expiryTime = new Date().getTime() + (parseInt(event.data.tokens.expires_in) * 1000);
-                    localStorage.setItem('spotify_token_expiry', expiryTime);
+                    window.saveTokenToStorages('spotify_token_expiry', expiryTime.toString());
                 }
+                
+                window.showToast('Spotify connected successfully!', 'success');
                 
                 // Try to initialize Spotify
                 setTimeout(() => {
                     try {
                         import('./spotify-service.js').then(module => {
                             module.initializeSpotify();
+                            
+                            // Try to acknowledge back to the popup
+                            if (event.source && !event.source.closed) {
+                                try {
+                                    event.source.postMessage({
+                                        type: 'TOKEN_RECEIVED_CONFIRMATION',
+                                        success: true
+                                    }, '*');
+                                    console.log('Token receipt acknowledgment sent to popup');
+                                } catch (err) {
+                                    console.warn('Could not send acknowledgment to popup:', err);
+                                }
+                            }
                         });
                     } catch (err) {
                         console.error('Error initializing Spotify after message:', err);
+                        window.showToast('Error initializing Spotify. Please try again.', 'error');
                     }
                 }, 500);
+            } else if (event.data && event.data.type === 'PING_FROM_CHILD') {
+                // Respond to ping messages to maintain communication
+                console.log('Received ping from child window, sending pong');
+                if (event.source && !event.source.closed) {
+                    try {
+                        event.source.postMessage({
+                            type: 'PONG_FROM_PARENT',
+                            time: new Date().toISOString()
+                        }, '*');
+                    } catch (err) {
+                        console.warn('Could not send pong to child:', err);
+                    }
+                }
             }
         }, false);
+        
+        // Make spotifyServiceRecovery available on window for error handling
+        window.spotifyServiceRecovery = {
+            initialize: async function() {
+                try {
+                    const module = await import('./spotify-service.js');
+                    return module.initializeSpotify();
+                } catch (err) {
+                    console.error('Spotify recovery failed:', err);
+                    return false;
+                }
+            },
+            checkTokens: async function() {
+                const token = window.getTokenFromStorages('spotify_token');
+                const refreshToken = window.getTokenFromStorages('spotify_refresh_token');
+                return {
+                    hasToken: !!token,
+                    hasRefreshToken: !!refreshToken
+                };
+            },
+            clearTokens: function() {
+                window.removeTokenFromStorages('spotify_token');
+                window.removeTokenFromStorages('spotify_refresh_token');
+                window.removeTokenFromStorages('spotify_token_expiry');
+                window.removeTokenFromStorages('spotify_device_id');
+                console.log('All Spotify tokens cleared');
+            }
+        };
     });
     </script>
 </body>

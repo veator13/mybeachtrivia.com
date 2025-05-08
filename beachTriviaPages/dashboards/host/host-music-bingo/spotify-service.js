@@ -18,6 +18,8 @@ let currentSongIndex = -1;
 let spotifyAuthWindow = null;
 let tokenRefreshTimer = null; // New: Timer for token refresh
 let authWindowCheckInterval = null; // New: For checking popup window status
+let initRetryCount = 0; // Track initialization attempts
+const MAX_INIT_RETRIES = 3; // Maximum number of retry attempts
 
 /**
  * Initialize Spotify integration
@@ -40,42 +42,68 @@ export function initializeSpotify() {
     // The tokens should already be in localStorage from the callback page
   }
   
-  // Debug localStorage
+  // Debug localStorage and sessionStorage
   console.log('LocalStorage tokens:', {
     spotify_token: localStorage.getItem('spotify_token') ? 'exists' : 'missing',
     spotify_refresh_token: localStorage.getItem('spotify_refresh_token') ? 'exists' : 'missing',
     spotify_token_expiry: localStorage.getItem('spotify_token_expiry'),
     redirected_from_spotify: localStorage.getItem('redirected_from_spotify')
   });
+
+  console.log('SessionStorage tokens:', {
+    spotify_token: sessionStorage.getItem('spotify_token') ? 'exists' : 'missing',
+    spotify_refresh_token: sessionStorage.getItem('spotify_refresh_token') ? 'exists' : 'missing',
+    spotify_token_expiry: sessionStorage.getItem('spotify_token_expiry')
+  });
   
   // Define a token check function for multiple checks
   const checkForTokens = () => {
-    // Check if token exists in localStorage (it might have been set by the callback page)
-    const token = localStorage.getItem('spotify_token');
+    // Check localStorage first
+    let token = localStorage.getItem('spotify_token');
+    let refreshToken = localStorage.getItem('spotify_refresh_token');
+    let expiryTime = localStorage.getItem('spotify_token_expiry');
     const redirectFlag = localStorage.getItem('redirected_from_spotify');
     const authTimestamp = localStorage.getItem('spotify_auth_timestamp');
     
-    console.log('Checking for tokens in localStorage:', {
+    // Try sessionStorage as fallback
+    if (!token) {
+      token = sessionStorage.getItem('spotify_token');
+      console.log('Checking sessionStorage for token:', token ? 'found' : 'not found');
+    }
+    if (!refreshToken) {
+      refreshToken = sessionStorage.getItem('spotify_refresh_token');
+    }
+    if (!expiryTime) {
+      expiryTime = sessionStorage.getItem('spotify_token_expiry');
+    }
+    
+    console.log('Checking for tokens:', {
       hasToken: !!token,
       redirectFlag,
       authTimestamp
     });
     
-    if (token && redirectFlag === 'true') {
-      // Clear the flag
-      localStorage.removeItem('redirected_from_spotify');
+    if (token) {
+      // We found a token - sync between storages for redundancy
+      saveTokenToStorages('spotify_token', token);
+      if (refreshToken) saveTokenToStorages('spotify_refresh_token', refreshToken);
+      if (expiryTime) saveTokenToStorages('spotify_token_expiry', expiryTime);
       
-      console.log('Found Spotify token in localStorage via polling');
+      // Clear the redirect flag if it exists
+      if (redirectFlag === 'true') {
+        localStorage.removeItem('redirected_from_spotify');
+      }
+      
+      console.log('Found Spotify token in storage');
       spotifyToken = token;
       
       // Check if the token is expired
-      const expiryTime = localStorage.getItem('spotify_token_expiry');
       if (expiryTime && new Date().getTime() > parseInt(expiryTime)) {
         console.log('Spotify token expired, refreshing');
         refreshAccessToken();
       } else {
         // Initialize player with valid token
-        console.log('Using token from localStorage to create player');
+        console.log('Using token from storage to create player');
         createSpotifyPlayer(token);
         
         // Set up token refresh before expiry
@@ -94,6 +122,9 @@ export function initializeSpotify() {
     // If no tokens found on first check, try again after a short delay
     // This helps in case the callback page just set the tokens
     setTimeout(checkForTokens, 1000);
+    
+    // And a final check after a longer delay
+    setTimeout(checkForTokens, 3000);
   }
   
   // Add Spotify SDK script if not already loaded
@@ -101,6 +132,22 @@ export function initializeSpotify() {
     const spotifyScript = document.createElement('script');
     spotifyScript.id = 'spotify-sdk-script';
     spotifyScript.src = 'https://sdk.scdn.co/spotify-player.js';
+    spotifyScript.async = true;
+    spotifyScript.onerror = () => {
+      console.error('Failed to load Spotify SDK script');
+      
+      // Try once more after a delay
+      setTimeout(() => {
+        if (!document.getElementById('spotify-retry-script')) {
+          const retryScript = document.createElement('script');
+          retryScript.id = 'spotify-retry-script';
+          retryScript.src = 'https://sdk.scdn.co/spotify-player.js';
+          retryScript.async = true;
+          document.head.appendChild(retryScript);
+          console.log('Retrying Spotify SDK script load');
+        }
+      }, 2000);
+    };
     document.head.appendChild(spotifyScript);
   }
   
@@ -109,7 +156,7 @@ export function initializeSpotify() {
     console.log('Spotify Web Playback SDK ready');
     
     // Check if we have a stored token
-    spotifyToken = localStorage.getItem('spotify_token');
+    spotifyToken = getTokenFromStorages('spotify_token');
     
     if (!spotifyToken) {
       // Show authentication button if no token
@@ -117,18 +164,19 @@ export function initializeSpotify() {
       showSpotifyAuthButton();
     } else {
       // Check if the token is expired
-      const expiryTime = localStorage.getItem('spotify_token_expiry');
+      const expiryTime = getTokenFromStorages('spotify_token_expiry');
       if (expiryTime && new Date().getTime() > parseInt(expiryTime)) {
         // Token is expired, try to refresh it if we have a refresh token
         console.log('Spotify token expired');
         
-        if (localStorage.getItem('spotify_refresh_token')) {
+        const refreshToken = getTokenFromStorages('spotify_refresh_token');
+        if (refreshToken) {
           console.log('Attempting to refresh token');
           refreshAccessToken();
         } else {
           console.log('No refresh token, showing auth button');
-          localStorage.removeItem('spotify_token');
-          localStorage.removeItem('spotify_token_expiry');
+          removeTokenFromStorages('spotify_token');
+          removeTokenFromStorages('spotify_token_expiry');
           showSpotifyAuthButton();
         }
       } else {
@@ -143,7 +191,8 @@ export function initializeSpotify() {
   window.addEventListener('message', receiveSpotifyAuthMessage, false);
   
   // Check if we've been redirected from the callback page
-  if (localStorage.getItem('redirected_from_spotify') === 'true') {
+  if (localStorage.getItem('redirected_from_spotify') === 'true' ||
+      sessionStorage.getItem('redirected_from_spotify') === 'true') {
     console.log('Detected redirect from Spotify callback');
     
     // Run token check again to handle this specific case
@@ -153,8 +202,99 @@ export function initializeSpotify() {
   // Add Spotify styles
   addSpotifyStyles();
   
+  // Check for Firebase availability - this is critical
+  checkFirebaseAvailability();
+  
   console.log('Spotify auth debugging initialized for main window');
   console.groupEnd();
+}
+
+/**
+ * Check if Firebase is available and initialize properly
+ */
+function checkFirebaseAvailability() {
+  if (typeof firebase === 'undefined') {
+    console.error('Firebase is not defined - this will cause issues with Spotify integration');
+    showToast('Error loading database. Please refresh the page.', 'error');
+    return;
+  }
+  
+  // Check for database availability specifically
+  if (typeof firebase.database === 'undefined') {
+    console.error('Firebase Database module is not available');
+    
+    // Check if we're in the music bingo context where database is required
+    if (window.location.href.includes('host-music-bingo')) {
+      showToast('Database module not loaded. This may affect functionality.', 'warning');
+      
+      // Try to dynamically load the database module if possible
+      const dbScript = document.createElement('script');
+      dbScript.src = 'https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js';
+      dbScript.onload = function() {
+        console.log('Firebase Database module loaded dynamically');
+        showToast('Database connection restored', 'success');
+      };
+      document.head.appendChild(dbScript);
+    }
+  }
+}
+
+/**
+ * Helper to save token to both localStorage and sessionStorage
+ */
+function saveTokenToStorages(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch (e) {
+    console.warn('Error saving to localStorage:', e);
+  }
+  
+  try {
+    sessionStorage.setItem(key, value);
+  } catch (e) {
+    console.warn('Error saving to sessionStorage:', e);
+  }
+}
+
+/**
+ * Helper to get token from either storage
+ */
+function getTokenFromStorages(key) {
+  // Try localStorage first
+  let value = null;
+  try {
+    value = localStorage.getItem(key);
+    if (value) return value;
+  } catch (e) {
+    console.warn('Error reading from localStorage:', e);
+  }
+  
+  // Try sessionStorage as fallback
+  try {
+    value = sessionStorage.getItem(key);
+    return value;
+  } catch (e) {
+    console.warn('Error reading from sessionStorage:', e);
+  }
+  
+  return null;
+}
+
+/**
+ * Helper to remove token from both storages
+ */
+function removeTokenFromStorages(key) {
+  try {
+    localStorage.removeItem(key);
+  } catch (e) {
+    console.warn('Error removing from localStorage:', e);
+  }
+  
+  try {
+    sessionStorage.removeItem(key);
+  } catch (e) {
+    console.warn('Error removing from sessionStorage:', e);
+  }
 }
 
 /**
@@ -198,6 +338,7 @@ function showSpotifyAuthButton() {
     <h3>Spotify Integration</h3>
     <p>Connect your Spotify account to play music directly from the dashboard.</p>
     <button id="spotify-auth-btn" class="primary-btn">Connect Spotify</button>
+    <div id="spotify-auth-status" style="margin-top: 10px; font-size: 12px; color: #94a3b8;"></div>
   `;
   
   // Add to the game controls section
@@ -212,6 +353,18 @@ function showSpotifyAuthButton() {
     
     // Add event listener to the auth button
     document.getElementById('spotify-auth-btn').addEventListener('click', authenticateWithSpotify);
+    
+    // Show Firebase status
+    const statusEl = document.getElementById('spotify-auth-status');
+    if (statusEl) {
+      if (typeof firebase === 'undefined') {
+        statusEl.textContent = 'Warning: Firebase not initialized';
+        statusEl.style.color = '#f59e0b';
+      } else if (typeof firebase.database === 'undefined') {
+        statusEl.textContent = 'Warning: Database module not loaded';
+        statusEl.style.color = '#f59e0b';
+      }
+    }
   }
 }
 
@@ -229,6 +382,10 @@ export function authenticateWithSpotify() {
   }
   
   console.log('Starting Spotify authentication flow via Cloudflare Worker');
+  
+  // Save a timestamp to prevent redirect loops
+  const authTimestamp = new Date().getTime();
+  saveTokenToStorages('spotify_auth_timestamp', authTimestamp.toString());
   
   // Calculate center position for the popup
   const width = UI.POPUP_WIDTH || 450;
@@ -266,6 +423,10 @@ export function authenticateWithSpotify() {
     if (!spotifyAuthWindow || spotifyAuthWindow.closed || typeof spotifyAuthWindow.closed === 'undefined') {
       console.warn('Popup blocked! Falling back to redirect');
       alert('Popup blocked! Please allow popups for this site to connect to Spotify.');
+      
+      // Store a flag for redirect
+      saveTokenToStorages('redirected_from_spotify', 'pending');
+      
       // Fallback to redirect
       window.location.href = authUrl;
       return;
@@ -279,10 +440,11 @@ export function authenticateWithSpotify() {
         authWindowCheckInterval = null;
         
         // Check if we received tokens when window closed
-        const hasToken = localStorage.getItem('spotify_token');
-        const hasRedirectFlag = localStorage.getItem('redirected_from_spotify');
+        const hasToken = getTokenFromStorages('spotify_token');
+        const hasRedirectFlag = localStorage.getItem('redirected_from_spotify') || 
+                             sessionStorage.getItem('redirected_from_spotify');
         
-        console.log('After popup closed - tokens in localStorage:', {
+        console.log('After popup closed - tokens in storage:', {
           spotify_token: hasToken ? 'exists' : 'missing',
           redirected_flag: hasRedirectFlag
         });
@@ -308,7 +470,10 @@ export function authenticateWithSpotify() {
         }
       } else {
         try {
-          console.log('Popup window still open');
+          // Try to send a ping to the popup to see if it's responsive
+          if (spotifyAuthWindow) {
+            spotifyAuthWindow.postMessage({ type: 'PING_FROM_PARENT', time: new Date().getTime() }, '*');
+          }
         } catch (e) {
           console.log('Cannot access popup location due to security restrictions');
         }
@@ -334,8 +499,8 @@ export function authenticateWithSpotify() {
  */
 async function refreshAccessToken() {
   try {
-    // Get refresh token from localStorage
-    const refreshToken = localStorage.getItem('spotify_refresh_token');
+    // Get refresh token from storage
+    const refreshToken = getTokenFromStorages('spotify_refresh_token');
     
     if (!refreshToken) {
       console.error('No refresh token available for refresh');
@@ -361,13 +526,13 @@ async function refreshAccessToken() {
     
     const tokenData = await response.json();
     
-    // Store the new access token
-    localStorage.setItem('spotify_token', tokenData.access_token);
+    // Store the new access token in both storages
+    saveTokenToStorages('spotify_token', tokenData.access_token);
     spotifyToken = tokenData.access_token;
     
     // Calculate token expiry time
     const expiryTime = new Date().getTime() + (tokenData.expires_in * 1000);
-    localStorage.setItem('spotify_token_expiry', expiryTime);
+    saveTokenToStorages('spotify_token_expiry', expiryTime.toString());
     
     // Set up the next token refresh
     setupTokenRefresh(expiryTime);
@@ -389,9 +554,15 @@ async function refreshAccessToken() {
     console.error('Error refreshing access token:', error);
     
     // Clear token data and show auth button
-    localStorage.removeItem('spotify_token');
-    localStorage.removeItem('spotify_token_expiry');
-    localStorage.removeItem('spotify_refresh_token');
+    removeTokenFromStorages('spotify_token');
+    removeTokenFromStorages('spotify_token_expiry');
+    
+    // Keep refresh token unless error indicates it's invalid
+    if (error.message && (
+        error.message.includes('invalid_grant') || 
+        error.message.includes('invalid refresh token'))) {
+      removeTokenFromStorages('spotify_refresh_token');
+    }
     
     // Show authentication button
     showSpotifyAuthButton();
@@ -413,6 +584,13 @@ function receiveSpotifyAuthMessage(event) {
   // Handle test messages to verify communication
   if (event.data && event.data.type === 'DEBUG_TEST') {
     console.log('Received test message from popup:', event.data.time);
+    return;
+  }
+  
+  // Handle ping response
+  if (event.data && event.data.type === 'PONG_TO_PARENT') {
+    console.log('Received pong from popup - communication working');
+    console.groupEnd();
     return;
   }
   
@@ -469,13 +647,17 @@ function receiveSpotifyAuthMessage(event) {
     // IMPORTANT: Store tokens from the message directly if available
     if (event.data.tokens) {
       console.log('Tokens received directly in message - storing locally');
-      localStorage.setItem('spotify_token', event.data.tokens.access_token);
+      
+      // Store tokens in both storages for redundancy
+      saveTokenToStorages('spotify_token', event.data.tokens.access_token);
+      
       if (event.data.tokens.refresh_token) {
-        localStorage.setItem('spotify_refresh_token', event.data.tokens.refresh_token);
+        saveTokenToStorages('spotify_refresh_token', event.data.tokens.refresh_token);
       }
+      
       if (event.data.tokens.expires_in) {
         const expiryTime = new Date().getTime() + (parseInt(event.data.tokens.expires_in) * 1000);
-        localStorage.setItem('spotify_token_expiry', expiryTime);
+        saveTokenToStorages('spotify_token_expiry', expiryTime.toString());
       }
       
       // Update token variable
@@ -502,10 +684,10 @@ function receiveSpotifyAuthMessage(event) {
         }
       }
     } else {
-      // Check if token exists in localStorage (should have been set by the callback page)
-      const token = localStorage.getItem('spotify_token');
+      // Check if token exists in storage (should have been set by the callback page)
+      const token = getTokenFromStorages('spotify_token');
       if (!token) {
-        console.warn('No token found in localStorage despite success message');
+        console.warn('No token found in storage despite success message');
         
         // Reset button state
         const authButton = document.getElementById('spotify-auth-btn');
@@ -566,7 +748,15 @@ export function createSpotifyPlayer(token) {
     return;
   }
   
-  console.log('Creating Spotify player with token');
+  // Track retry attempts
+  if (initRetryCount >= MAX_INIT_RETRIES) {
+    console.error(`Exceeded maximum retry attempts (${MAX_INIT_RETRIES})`);
+    showToast('Failed to initialize Spotify player after multiple attempts', 'error');
+    return;
+  }
+  
+  console.log(`Creating Spotify player with token (attempt ${initRetryCount + 1})`);
+  initRetryCount++;
   
   // Make sure Spotify SDK is loaded
   if (typeof Spotify === 'undefined') {
@@ -585,7 +775,12 @@ export function createSpotifyPlayer(token) {
     // Add event listeners
     spotifyPlayer.addListener('ready', ({ device_id }) => {
       console.log('Spotify player ready with device ID:', device_id);
-      localStorage.setItem('spotify_device_id', device_id);
+      
+      // Store device ID in both storages
+      saveTokenToStorages('spotify_device_id', device_id);
+      
+      // Reset retry counter on success
+      initRetryCount = 0;
       
       // Show player interface
       createPlayerInterface();
@@ -611,7 +806,14 @@ export function createSpotifyPlayer(token) {
     // Error handling
     spotifyPlayer.addListener('initialization_error', ({ message }) => {
       console.error('Failed to initialize Spotify player:', message);
-      showSpotifyAuthButton();
+      
+      // Only show auth button if we've exhausted retries
+      if (initRetryCount >= MAX_INIT_RETRIES) {
+        showSpotifyAuthButton();
+      } else {
+        // Retry with a delay
+        setTimeout(() => createSpotifyPlayer(token), 2000);
+      }
     });
     
     spotifyPlayer.addListener('authentication_error', ({ message }) => {
@@ -633,10 +835,32 @@ export function createSpotifyPlayer(token) {
         console.log('Successfully connected to Spotify!');
       } else {
         console.log('Failed to connect to Spotify');
+        
+        // Retry if we haven't exhausted attempts
+        if (initRetryCount < MAX_INIT_RETRIES) {
+          setTimeout(() => {
+            console.log(`Retrying Spotify connection (attempt ${initRetryCount + 1})`);
+            createSpotifyPlayer(token);
+          }, 2000);
+        }
+      }
+    }).catch(error => {
+      console.error('Error connecting to Spotify:', error);
+      
+      // Retry if we haven't exhausted attempts
+      if (initRetryCount < MAX_INIT_RETRIES) {
+        setTimeout(() => createSpotifyPlayer(token), 2000);
+      } else {
+        showToast('Failed to connect to Spotify after multiple attempts', 'error');
       }
     });
   } catch (error) {
     console.error('Error creating Spotify player:', error);
+    
+    // Retry if we haven't exhausted attempts
+    if (initRetryCount < MAX_INIT_RETRIES) {
+      setTimeout(() => createSpotifyPlayer(token), 2000);
+    }
   }
 }
 
@@ -783,7 +1007,7 @@ export async function playSongByIndex(index) {
   }
   
   // Get the device ID
-  const deviceId = localStorage.getItem('spotify_device_id');
+  const deviceId = getTokenFromStorages('spotify_device_id');
   if (!deviceId) {
     console.error('No Spotify device ID found');
     return;
@@ -798,7 +1022,7 @@ export async function playSongByIndex(index) {
   
   try {
     // Play the song using Spotify Web API
-    await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
+    const response = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
       method: 'PUT',
       body: JSON.stringify({ uris: [uri] }),
       headers: {
@@ -807,15 +1031,43 @@ export async function playSongByIndex(index) {
       }
     });
     
+    if (!response.ok) {
+      // Handle specific error cases
+      if (response.status === 401) {
+        // Token expired, try to refresh
+        console.log('Token expired during playback, refreshing');
+        await refreshAccessToken();
+        // Try playing again with the new token
+        return playSongByIndex(index);
+      } else if (response.status === 404) {
+        // Device not found
+        console.error('Device not found, trying to reconnect player');
+        // Try to reconnect player
+        if (spotifyPlayer) {
+          await spotifyPlayer.disconnect();
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          await spotifyPlayer.connect();
+          // Try again after reconnection
+          setTimeout(() => playSongByIndex(index), 2000);
+        }
+        return;
+      } else {
+        const errorText = await response.text();
+        throw new Error(`API error (${response.status}): ${errorText}`);
+      }
+    }
+    
     // Update current index
     currentSongIndex = index;
     
   } catch (error) {
     console.error('Error playing song:', error);
     
-    // Handle 401 errors (token expired)
-    if (error.status === 401) {
+    // Try to recover based on error
+    if (error.message && error.message.includes('The access token expired')) {
       refreshAccessToken();
+    } else {
+      showToast('Error playing track. Please try again.', 'error');
     }
   }
 }
@@ -905,6 +1157,7 @@ async function updateGameSongState(index) {
     
   } catch (error) {
     console.error('Error updating game song state:', error);
+    showToast('Error updating game state. Check your network connection.', 'error');
   }
 }
 
@@ -960,17 +1213,20 @@ export async function disconnectSpotify() {
       spotifyPlayer = null;
     }
     
-    // Clear all Spotify data from localStorage
-    localStorage.removeItem('spotify_token');
-    localStorage.removeItem('spotify_token_expiry');
-    localStorage.removeItem('spotify_refresh_token');
-    localStorage.removeItem('spotify_device_id');
+    // Clear all Spotify data from both storages
+    removeTokenFromStorages('spotify_token');
+    removeTokenFromStorages('spotify_token_expiry');
+    removeTokenFromStorages('spotify_refresh_token');
+    removeTokenFromStorages('spotify_device_id');
+    removeTokenFromStorages('redirected_from_spotify');
+    removeTokenFromStorages('spotify_auth_timestamp');
     
     // Reset variables
     spotifyToken = null;
     currentTrackUri = null;
     playlistSongUris = [];
     currentSongIndex = -1;
+    initRetryCount = 0;
     
     // Clear token refresh timer
     if (tokenRefreshTimer) {
