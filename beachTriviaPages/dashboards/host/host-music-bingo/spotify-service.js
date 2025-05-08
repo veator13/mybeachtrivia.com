@@ -26,6 +26,20 @@ export function initializeSpotify() {
   console.group('===== SPOTIFY AUTH DEBUGGING (MAIN WINDOW) =====');
   console.log('Initializing Spotify integration');
   
+  // Check for URL parameters indicating Spotify auth redirect  
+  const urlParams = new URLSearchParams(window.location.search);
+  const spotifyAuth = urlParams.get('spotify_auth');
+  const timestamp = urlParams.get('timestamp');
+
+  // If redirected via URL parameters, log it
+  if (spotifyAuth === 'true' && timestamp) {
+    console.log('Detected Spotify auth via URL parameters, timestamp:', timestamp);
+    // Clean up URL parameters
+    const cleanUrl = window.location.pathname;
+    window.history.replaceState({}, document.title, cleanUrl);
+    // The tokens should already be in localStorage from the callback page
+  }
+  
   // Debug localStorage
   console.log('LocalStorage tokens:', {
     spotify_token: localStorage.getItem('spotify_token') ? 'exists' : 'missing',
@@ -34,35 +48,52 @@ export function initializeSpotify() {
     redirected_from_spotify: localStorage.getItem('redirected_from_spotify')
   });
   
-  // Check if token exists in localStorage (it might have been set by the callback page)
-  const token = localStorage.getItem('spotify_token');
-  if (token) {
-    console.log('Found Spotify token in localStorage');
-    spotifyToken = token;
+  // Define a token check function for multiple checks
+  const checkForTokens = () => {
+    // Check if token exists in localStorage (it might have been set by the callback page)
+    const token = localStorage.getItem('spotify_token');
+    const redirectFlag = localStorage.getItem('redirected_from_spotify');
+    const authTimestamp = localStorage.getItem('spotify_auth_timestamp');
     
-    // Check if the token is expired
-    const expiryTime = localStorage.getItem('spotify_token_expiry');
-    if (expiryTime && new Date().getTime() > parseInt(expiryTime)) {
-      // Token is expired, try to refresh it if we have a refresh token
-      console.log('Spotify token expired');
+    console.log('Checking for tokens in localStorage:', {
+      hasToken: !!token,
+      redirectFlag,
+      authTimestamp
+    });
+    
+    if (token && redirectFlag === 'true') {
+      // Clear the flag
+      localStorage.removeItem('redirected_from_spotify');
       
-      if (localStorage.getItem('spotify_refresh_token')) {
-        console.log('Attempting to refresh token');
+      console.log('Found Spotify token in localStorage via polling');
+      spotifyToken = token;
+      
+      // Check if the token is expired
+      const expiryTime = localStorage.getItem('spotify_token_expiry');
+      if (expiryTime && new Date().getTime() > parseInt(expiryTime)) {
+        console.log('Spotify token expired, refreshing');
         refreshAccessToken();
       } else {
-        console.log('No refresh token, showing auth button');
-        localStorage.removeItem('spotify_token');
-        localStorage.removeItem('spotify_token_expiry');
-        showSpotifyAuthButton();
+        // Initialize player with valid token
+        console.log('Using token from localStorage to create player');
+        createSpotifyPlayer(token);
+        
+        // Set up token refresh before expiry
+        if (expiryTime) {
+          setupTokenRefresh(expiryTime);
+        }
       }
-    } else {
-      // Create player if we have a valid token
-      console.log('Using existing Spotify token to create player');
-      createSpotifyPlayer(spotifyToken);
       
-      // Set up token refresh before expiry
-      setupTokenRefresh(expiryTime);
+      return true;
     }
+    return false;
+  };
+  
+  // Check immediately
+  if (!checkForTokens()) {
+    // If no tokens found on first check, try again after a short delay
+    // This helps in case the callback page just set the tokens
+    setTimeout(checkForTokens, 1000);
   }
   
   // Add Spotify SDK script if not already loaded
@@ -114,16 +145,9 @@ export function initializeSpotify() {
   // Check if we've been redirected from the callback page
   if (localStorage.getItem('redirected_from_spotify') === 'true') {
     console.log('Detected redirect from Spotify callback');
-    localStorage.removeItem('redirected_from_spotify');
     
-    // If we have a token, create the player
-    if (spotifyToken) {
-      console.log('Creating Spotify player after redirect');
-      // Wait for SDK to be ready
-      if (typeof Spotify !== 'undefined') {
-        createSpotifyPlayer(spotifyToken);
-      }
-    }
+    // Run token check again to handle this specific case
+    setTimeout(checkForTokens, 500);
   }
   
   // Add Spotify styles
@@ -254,11 +278,32 @@ export function authenticateWithSpotify() {
         clearInterval(authWindowCheckInterval);
         authWindowCheckInterval = null;
         
+        // Check if we received tokens when window closed
+        const hasToken = localStorage.getItem('spotify_token');
+        const hasRedirectFlag = localStorage.getItem('redirected_from_spotify');
+        
+        console.log('After popup closed - tokens in localStorage:', {
+          spotify_token: hasToken ? 'exists' : 'missing',
+          redirected_flag: hasRedirectFlag
+        });
+        
         // Reset button if no token was received
-        if (!localStorage.getItem('spotify_token')) {
+        if (!hasToken) {
           if (authButton) {
             authButton.innerHTML = 'Connect Spotify';
             authButton.disabled = false;
+          }
+        } else {
+          // We have a token but might not have gotten the message
+          // Try to use the token
+          console.log('Token found after popup closed, initializing player');
+          spotifyToken = hasToken;
+          createSpotifyPlayer(hasToken);
+          
+          // Update button state
+          if (authButton) {
+            authButton.innerHTML = 'Connected';
+            authButton.disabled = true;
           }
         }
       } else {
@@ -435,15 +480,32 @@ function receiveSpotifyAuthMessage(event) {
       
       // Update token variable
       spotifyToken = event.data.tokens.access_token;
+      
+      // Create Spotify player with the token
+      createSpotifyPlayer(spotifyToken);
+      
+      // Reset button state with success indication
+      const authButton = document.getElementById('spotify-auth-btn');
+      if (authButton) {
+        authButton.innerHTML = 'Connected';
+        authButton.disabled = true;
+      }
+      
+      // Close the popup if it's still open
+      if (spotifyAuthWindow && !spotifyAuthWindow.closed) {
+        try {
+          spotifyAuthWindow.close();
+          console.log('Popup window closed successfully');
+        } catch (error) {
+          console.error('Error closing popup:', error);
+          // Non-critical error, can continue
+        }
+      }
     } else {
       // Check if token exists in localStorage (should have been set by the callback page)
       const token = localStorage.getItem('spotify_token');
       if (!token) {
         console.warn('No token found in localStorage despite success message');
-        
-        // This might happen if there's an issue with localStorage in the popup
-        // We could request the token directly from the popup, but for now just alert the user
-        alert('Authentication successful, but token storage failed. Please try again.');
         
         // Reset button state
         const authButton = document.getElementById('spotify-auth-btn');
@@ -458,26 +520,15 @@ function receiveSpotifyAuthMessage(event) {
       
       // Update token variable
       spotifyToken = token;
-    }
-    
-    // Create Spotify player with the token
-    createSpotifyPlayer(spotifyToken);
-    
-    // Reset button state with success indication
-    const authButton = document.getElementById('spotify-auth-btn');
-    if (authButton) {
-      authButton.innerHTML = 'Connected';
-      authButton.disabled = true;
-    }
-    
-    // Close the popup if it's still open
-    if (spotifyAuthWindow && !spotifyAuthWindow.closed) {
-      try {
-        spotifyAuthWindow.close();
-        console.log('Popup window closed successfully');
-      } catch (error) {
-        console.error('Error closing popup:', error);
-        // Non-critical error, can continue
+      
+      // Create Spotify player with the token
+      createSpotifyPlayer(spotifyToken);
+      
+      // Reset button state with success indication
+      const authButton = document.getElementById('spotify-auth-btn');
+      if (authButton) {
+        authButton.innerHTML = 'Connected';
+        authButton.disabled = true;
       }
     }
     

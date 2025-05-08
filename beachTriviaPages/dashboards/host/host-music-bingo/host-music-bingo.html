@@ -165,5 +165,108 @@
     
     <!-- Main host dashboard script -->
     <script type="module" src="bingo-controller.js"></script>
+
+    <!-- Spotify Authentication Recovery Script -->
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('Spotify recovery script loaded');
+        
+        // Check URL parameters for Spotify auth
+        const urlParams = new URLSearchParams(window.location.search);
+        const spotifyAuth = urlParams.get('spotify_auth');
+        const timestamp = urlParams.get('timestamp');
+        
+        if (spotifyAuth === 'true') {
+            console.log('Detected Spotify authentication redirect, timestamp:', timestamp);
+            
+            // Clear URL parameters but keep the history
+            const cleanUrl = window.location.pathname;
+            window.history.replaceState({}, document.title, cleanUrl);
+            
+            // Check if we have tokens in localStorage
+            const token = localStorage.getItem('spotify_token');
+            if (token) {
+                console.log('Found Spotify token, initializing player');
+                
+                // Delay initialization to ensure all modules are loaded
+                setTimeout(() => {
+                    try {
+                        // Try to manually initialize Spotify
+                        import('./spotify-service.js').then(module => {
+                            console.log('Spotify service module loaded, initializing...');
+                            module.initializeSpotify();
+                        }).catch(err => {
+                            console.error('Error importing spotify-service.js:', err);
+                        });
+                    } catch (err) {
+                        console.error('Error initializing Spotify:', err);
+                    }
+                }, 1000);
+            } else {
+                console.warn('No Spotify token found after auth redirect');
+            }
+        } else {
+            // Check if we have the redirect flag but haven't initialized yet
+            const redirectFlag = localStorage.getItem('redirected_from_spotify');
+            if (redirectFlag === 'true') {
+                console.log('Detected redirected_from_spotify flag');
+                
+                // Check if we have a token
+                const token = localStorage.getItem('spotify_token');
+                if (token) {
+                    console.log('Found token from previous redirect, initializing');
+                    
+                    // Clear the flag to prevent repeated initializations
+                    localStorage.removeItem('redirected_from_spotify');
+                    
+                    // Delay initialization to ensure all modules are loaded
+                    setTimeout(() => {
+                        try {
+                            // Try to manually initialize Spotify
+                            import('./spotify-service.js').then(module => {
+                                console.log('Spotify service module loaded, initializing...');
+                                module.initializeSpotify();
+                            }).catch(err => {
+                                console.error('Error importing spotify-service.js:', err);
+                            });
+                        } catch (err) {
+                            console.error('Error initializing Spotify:', err);
+                        }
+                    }, 1000);
+                }
+            }
+        }
+        
+        // Add message listener for direct communication
+        window.addEventListener('message', function(event) {
+            console.log('Message received in host page:', event.data?.type);
+            
+            if (event.data && event.data.type === 'SPOTIFY_AUTH_SUCCESS' && event.data.tokens) {
+                console.log('Received direct token message from popup');
+                
+                // Store tokens
+                localStorage.setItem('spotify_token', event.data.tokens.access_token);
+                if (event.data.tokens.refresh_token) {
+                    localStorage.setItem('spotify_refresh_token', event.data.tokens.refresh_token);
+                }
+                if (event.data.tokens.expires_in) {
+                    const expiryTime = new Date().getTime() + (parseInt(event.data.tokens.expires_in) * 1000);
+                    localStorage.setItem('spotify_token_expiry', expiryTime);
+                }
+                
+                // Try to initialize Spotify
+                setTimeout(() => {
+                    try {
+                        import('./spotify-service.js').then(module => {
+                            module.initializeSpotify();
+                        });
+                    } catch (err) {
+                        console.error('Error initializing Spotify after message:', err);
+                    }
+                }, 500);
+            }
+        }, false);
+    });
+    </script>
 </body>
 </html>

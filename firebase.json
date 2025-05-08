@@ -25,6 +25,10 @@
         "function": "spotify"
       },
       {
+        "source": "/spotifyCallback",
+        "destination": "/spotify-callback.html"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

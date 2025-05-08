@@ -262,16 +262,21 @@
                     const expiryTime = new Date().getTime() + (parseInt(expiresIn) * 1000);
                     localStorage.setItem('spotify_token_expiry', expiryTime);
                 }
+
+                // Set the flag indicating we've been redirected from Spotify
+                localStorage.setItem('redirected_from_spotify', 'true');
+                localStorage.setItem('spotify_auth_timestamp', Date.now().toString());
                 
                 // Show success message
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('success').style.display = 'block';
                 document.getElementById('close-btn').style.display = 'block';
                 
-                // Try to communicate with parent window - CRITICAL FIX
+                // Try to communicate with parent window - ENHANCED COMMUNICATION
                 if (window.opener) {
                     try {
-                        console.log('Attempting to post message to opener with tokens...');
+                        console.log('Attempting multiple messages to opener with tokens...');
+                        document.getElementById('communication-status').textContent = 'Sending tokens to main window...';
                         
                         // First send a test message to check communication
                         window.opener.postMessage({
@@ -281,36 +286,54 @@
                         console.log('Test message posted');
                         
                         // Then send the actual auth success message WITH THE TOKENS
-                        window.opener.postMessage({
-                            type: 'SPOTIFY_AUTH_SUCCESS',
-                            success: true,
-                            tokens: {
-                                access_token: accessToken,
-                                refresh_token: refreshToken,
-                                expires_in: expiresIn
-                            }
-                        }, '*');
-                        console.log('Auth success message with tokens posted');
+                        // Multiple attempts with slight delays between them
+                        for (let i = 0; i < 3; i++) {
+                            setTimeout(() => {
+                                try {
+                                    window.opener.postMessage({
+                                        type: 'SPOTIFY_AUTH_SUCCESS',
+                                        success: true,
+                                        tokens: {
+                                            access_token: accessToken,
+                                            refresh_token: refreshToken,
+                                            expires_in: expiresIn
+                                        }
+                                    }, '*');
+                                    console.log(`Auth success message attempt ${i+1} sent`);
+                                } catch (e) {
+                                    console.error(`Error in message attempt ${i+1}:`, e);
+                                }
+                            }, i * 100); // Stagger attempts 100ms apart
+                        }
+                        
                         document.getElementById('communication-status').textContent = 'Tokens sent to main window';
                         document.getElementById('communication-status').style.color = 'green';
+                        
+                        // Set up auto-close countdown with a longer delay to ensure messages go through
+                        startCountdown(8); // Increased to 8 seconds
                     } catch (err) {
                         console.error('Error sending message to opener:', err);
-                        document.getElementById('error-message').textContent = 'Error communicating with main window: ' + err.message;
+                        document.getElementById('error-message').textContent = 'Error communicating with main window. Using fallback...';
                         document.getElementById('loading').style.display = 'none';
                         document.getElementById('error').style.display = 'block';
-                        document.getElementById('communication-status').textContent = 'Communication error: ' + err.message;
-                        document.getElementById('communication-status').style.color = 'red';
+                        document.getElementById('communication-status').textContent = 'Using localStorage fallback';
+                        document.getElementById('communication-status').style.color = 'orange';
+                        
+                        // Fallback to redirect with parameter
+                        setTimeout(() => {
+                            redirectToDashboard(true);
+                        }, 2000);
                     }
                 } else {
-                    console.log('No opener window found, storing tokens locally');
-                    // Store a flag to indicate redirect from Spotify
-                    localStorage.setItem('redirected_from_spotify', 'true');
-                    document.getElementById('communication-status').textContent = 'No parent window found. Storing tokens locally.';
+                    console.log('No opener window found, storing tokens locally and redirecting');
+                    document.getElementById('communication-status').textContent = 'No parent window found. Redirecting...';
                     document.getElementById('communication-status').style.color = 'orange';
+                    
+                    // Redirect to dashboard with parameter
+                    setTimeout(() => {
+                        redirectToDashboard(true);
+                    }, 2000);
                 }
-                
-                // Set up auto-close countdown
-                startCountdown();
             }
             // Handle traditional authorization code flow
             else if (code) {
@@ -344,12 +367,21 @@
                             document.getElementById('close-btn').style.display = 'block';
                             
                             // Set up auto-close countdown
-                            startCountdown();
+                            startCountdown(5);
                         } catch (error) {
                             console.error('Error sending message to opener:', error);
                             showError('Error communicating with the main window. Please close this window and try again.');
                             document.getElementById('communication-status').textContent = 'Communication error: ' + error.message;
                             document.getElementById('communication-status').style.color = 'red';
+                            
+                            // Store authorization code for fallback
+                            sessionStorage.setItem('spotify_auth_code', code);
+                            sessionStorage.setItem('spotify_auth_state', state);
+                            
+                            // Redirect after short delay
+                            setTimeout(() => {
+                                redirectToDashboard(true);
+                            }, 2000);
                         }
                     } else {
                         console.log('No opener window found, redirecting to dashboard');
@@ -360,7 +392,7 @@
                         document.getElementById('communication-status').style.color = 'orange';
                         
                         // Redirect to dashboard
-                        redirectToDashboard();
+                        redirectToDashboard(true);
                     }
                 } else {
                     // State mismatch - possible CSRF attack
@@ -397,9 +429,10 @@
         });
         
         // Start the countdown for auto-close
-        function startCountdown() {
-            let countdown = 5;
+        function startCountdown(seconds = 5) {
+            let countdown = seconds;
             const countdownElement = document.getElementById('countdown');
+            countdownElement.textContent = countdown;
             
             const countdownInterval = setInterval(() => {
                 countdown--;
@@ -435,7 +468,7 @@
         }
         
         // Redirect to the dashboard
-        function redirectToDashboard() {
+        function redirectToDashboard(withParam = false) {
             // Try to determine dashboard URL dynamically
             let dashboardUrl;
             
@@ -444,7 +477,11 @@
                 dashboardUrl = '/beachTriviaPages/dashboards/host/host-music-bingo/host-music-bingo.html';
             } else {
                 // For production, use the full URL
-                dashboardUrl = 'https://mybeachtrivia.com/beachTriviaPages/dashboards/host/host-music-bingo/host-music-bingo.html';
+                dashboardUrl = window.location.origin + '/beachTriviaPages/dashboards/host/host-music-bingo/host-music-bingo.html';
+            }
+            
+            if (withParam) {
+                dashboardUrl += '?spotify_auth=true&timestamp=' + Date.now();
             }
             
             console.log('Redirecting to dashboard:', dashboardUrl);
