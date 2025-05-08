@@ -154,10 +154,10 @@ export function generateQRCode(gameId) {
   
   // Create QR code using the qrcode-generator library
   try {
-    // Make sure qrcode is defined (from the imported library)
-    if (typeof qrcode === 'undefined') {
-      console.error('QR code library not loaded');
-      qrcodeElement.innerHTML = '<p style="color: red;">QR code generation failed</p>';
+    // Make sure QR code library is available - FIXED to check for function
+    if (typeof qrcode !== 'function') {
+      console.error('QR code library not loaded or not available as a function');
+      qrcodeElement.innerHTML = '<p style="color: red;">QR code generation failed - library not available</p>';
       return;
     }
     
@@ -172,7 +172,7 @@ export function generateQRCode(gameId) {
     console.log('QR code generated for game:', gameId);
   } catch (error) {
     console.error('Error generating QR code:', error);
-    qrcodeElement.innerHTML = '<p style="color: red;">QR code generation failed</p>';
+    qrcodeElement.innerHTML = '<p style="color: red;">QR code generation failed: ' + error.message + '</p>';
   }
 }
 
