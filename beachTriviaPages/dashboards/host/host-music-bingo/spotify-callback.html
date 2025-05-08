@@ -455,6 +455,20 @@
             // Redirect to the host dashboard
             window.location.href = dashboardUrl;
         }
+
+        // Add debug script to check CSP headers
+        fetch(window.location.href)
+            .then(response => {
+                console.log("=== ACTUAL CSP HEADER RECEIVED ===");
+                const cspHeader = response.headers.get('Content-Security-Policy');
+                console.log(cspHeader);
+                
+                console.log("=== ALL RESPONSE HEADERS ===");
+                response.headers.forEach((value, key) => {
+                    console.log(`${key}: ${value}`);
+                });
+            })
+            .catch(e => console.error("Error fetching headers:", e));
     </script>
 </body>
 </html>

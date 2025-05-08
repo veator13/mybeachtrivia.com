@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <!-- Added super permissive CSP meta tag to override server settings -->
     <meta http-equiv="Content-Security-Policy" content="default-src * data: blob: 'unsafe-inline' 'unsafe-eval'; script-src * data: blob: 'unsafe-inline' 'unsafe-eval'; connect-src * data: blob: 'unsafe-inline'; img-src * data: blob:; frame-src *; style-src * data: blob: 'unsafe-inline'; font-src * data: blob:;">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://*.spotify.com https://*.scdn.co https://cdnjs.cloudflare.com https://*.googleapis.com https://*.gstatic.com https://*.firebaseio.com https://*.firebaseapp.com https://cdn.jsdelivr.net wss://*.firebaseio.com 'unsafe-inline' 'unsafe-eval'; connect-src 'self' https://*.spotify.com https://*.scdn.co https://*.firebaseio.com wss://*.firebaseio.com https://*.firebaseapp.com https://*.googleapis.com; script-src 'self' 'unsafe-inline' https://*.spotify.com https://*.scdn.co https://cdnjs.cloudflare.com https://*.googleapis.com https://*.gstatic.com; style-src 'self' 'unsafe-inline' https://*.googleapis.com https://cdnjs.cloudflare.com;">    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Host Music Bingo</title>
     <link rel="stylesheet" href="host-music-bingo.css">
     <!-- Firebase SDK -->
@@ -13,8 +13,33 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
     <!-- Add Firebase Database script -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-    <!-- QR Code Generator Library -->
-    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+    
+    <!-- QR Code Generator Library - Updated loading approach -->
+    <script>
+        // Add QR code library with a global variable definition 
+        window.addEventListener('DOMContentLoaded', function() {
+            console.log('Checking QR code library status...');
+            // Create script element
+            const qrScript = document.createElement('script');
+            qrScript.src = 'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js';
+            qrScript.onload = function() {
+                console.log('QR code library loaded successfully!');
+                // Ensure qrcode is available globally
+                if (typeof qrcode === 'function') {
+                    window.qrcode = qrcode;
+                    console.log('QR code function available globally');
+                } else {
+                    console.error('QR code loaded but function not found in expected format');
+                }
+            };
+            qrScript.onerror = function() {
+                console.error('Failed to load QR code library');
+            };
+            
+            // Append the script to the document
+            document.head.appendChild(qrScript);
+        });
+    </script>
 </head>
 <body>
     <div class="dashboard">
