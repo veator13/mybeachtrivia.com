@@ -126,8 +126,8 @@ export function updateActiveGameUI() {
     if (gameIdElement) gameIdElement.textContent = currentGame.id;
     if (playerCountElement) playerCountElement.textContent = currentGame.playerCount || 0;
     
-    // Update join URL
-    updateJoinUrl(currentGame.id);
+    // Generate QR code
+    generateQRCode(currentGame.id);
     
     // Reset song display
     const currentSongElement = document.getElementById('current-song');
@@ -136,11 +136,17 @@ export function updateActiveGameUI() {
 }
 
 /**
- * Update join URL display
+ * Generate QR code using API service (SIMPLE AND RELIABLE)
  * @param {string} gameId - ID of the game
  */
-export function updateJoinUrl(gameId) {
-  console.log('Updating join URL for game:', gameId);
+export function generateQRCode(gameId) {
+  console.log('Generating QR code using API for game:', gameId);
+  
+  const qrcodeElement = document.getElementById('qrcode');
+  if (!qrcodeElement) {
+    console.error('QR code element not found');
+    return;
+  }
   
   // Create the join URL
   const joinUrl = `https://mybeachtrivia.com/play-music-bingo/index.html?gameId=${gameId}`;
@@ -151,7 +157,19 @@ export function updateJoinUrl(gameId) {
     joinUrlElement.textContent = joinUrl;
   }
   
-  console.log('Join URL updated:', joinUrl);
+  // Generate QR code using reliable API service
+  const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(joinUrl)}`;
+  
+  // Create and style the QR code image
+  qrcodeElement.innerHTML = `
+    <img src="${qrApiUrl}" 
+         alt="QR Code to join game" 
+         style="border: 10px solid white; border-radius: 10px; width: 200px; height: 200px;"
+         onload="console.log('QR code loaded successfully')"
+         onerror="console.error('QR code failed to load')">
+  `;
+  
+  console.log('QR code generated successfully for:', joinUrl);
 }
 
 /**

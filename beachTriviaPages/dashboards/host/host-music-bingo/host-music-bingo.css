@@ -185,19 +185,33 @@ label {
     gap: 30px;
 }
 
-/* Player Join Section - UPDATED */
-.player-join-section {
+/* QR Code Section - RESTORED */
+.qr-section {
+    text-align: center;
+    padding: 20px;
     background-color: #334155;
     border-radius: 12px;
-    padding: 25px;
-    min-height: 200px;
+    min-height: 350px;
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    justify-content: space-between;
 }
 
-.join-details {
-    text-align: center;
+#qrcode {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 220px;
+    padding: 10px;
+    background-color: #f8f9fa;
+    border-radius: 12px;
+    margin: 15px 0;
+}
+
+#qrcode img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 10px;
 }
 
 .join-instructions {
@@ -209,13 +223,12 @@ label {
 .join-url {
     font-size: 14px;
     color: #60a5fa;
-    margin-bottom: 20px;
+    margin-bottom: 15px;
     word-break: break-all;
-    padding: 15px;
+    padding: 10px;
     background-color: rgba(59, 130, 246, 0.1);
     border-radius: 8px;
     border: 1px solid rgba(59, 130, 246, 0.3);
-    font-family: monospace;
 }
 
 .secondary-btn {
@@ -388,7 +401,11 @@ footer {
         flex-wrap: wrap;
     }
     
-    .player-join-section {
+    .qr-section {
         min-height: auto;
+    }
+    
+    #qrcode {
+        min-height: 180px;
     }
 }
