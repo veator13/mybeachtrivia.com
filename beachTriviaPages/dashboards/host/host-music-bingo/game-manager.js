@@ -20,7 +20,7 @@ import {
   playSongByIndex,
   isSpotifyReady 
 } from './spotify-service.js';
-import { updateCurrentSongDisplay, updateActiveGameUI, generateQRCode } from './ui-handler.js';
+import { updateCurrentSongDisplay, updateActiveGameUI, updateJoinUrl } from './ui-handler.js';
 
 // Game state
 let currentGame = null;
@@ -94,8 +94,8 @@ export async function createNewGame() {
     // Update UI for active game
     updateActiveGameUI();
     
-    // Generate QR code
-    generateQRCode(newGame.id);
+    // Update join URL display
+    updateJoinUrl(newGame.id);
     
     // Start game update interval
     startGameUpdateInterval();
@@ -330,7 +330,7 @@ export async function resumeGame(gameId = null) {
       if (game) {
         currentGame = game;
         updateActiveGameUI();
-        generateQRCode(gameId);
+        updateJoinUrl(gameId);
         startGameUpdateInterval();
       }
     } catch (error) {

@@ -13,8 +13,6 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
     <!-- Add Firebase Database script -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-    <!-- QR Code Generator Library -->
-    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
 </head>
 <body>
     <div class="dashboard">
@@ -71,15 +69,20 @@
                 </div>
                 
                 <div class="game-content">
-                    <div class="qr-section">
-                        <h3>Player Join QR Code</h3>
-                        <div id="qrcode"></div>
-                        <p class="join-instructions">Scan to join this game</p>
-                        <p class="join-url" id="join-url">Loading URL...</p>
-                        <button id="copy-url-btn" class="secondary-btn">Copy Join Link</button>
+                    <div class="player-join-section">
+                        <h3>Player Join Information</h3>
+                        <div class="join-details">
+                            <p class="join-instructions">Players can join at:</p>
+                            <p class="join-url" id="join-url">Loading URL...</p>
+                            <button id="copy-url-btn" class="secondary-btn">Copy Join Link</button>
+                        </div>
                     </div>
                     
                     <div class="game-controls">
+                        <h3>Spotify Integration</h3>
+                        <p>Connect your Spotify account to play music directly from the dashboard.</p>
+                        <button id="connect-spotify-btn" class="primary-btn">Connect Spotify</button>
+                        
                         <h3>Game Controls</h3>
                         <div class="controls-grid">
                             <div class="control-card">

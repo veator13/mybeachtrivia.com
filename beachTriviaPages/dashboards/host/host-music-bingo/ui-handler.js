@@ -126,6 +126,9 @@ export function updateActiveGameUI() {
     if (gameIdElement) gameIdElement.textContent = currentGame.id;
     if (playerCountElement) playerCountElement.textContent = currentGame.playerCount || 0;
     
+    // Update join URL
+    updateJoinUrl(currentGame.id);
+    
     // Reset song display
     const currentSongElement = document.getElementById('current-song');
     if (currentSongElement) currentSongElement.textContent = 'Not started';
@@ -133,20 +136,11 @@ export function updateActiveGameUI() {
 }
 
 /**
- * Generate QR code for game (FIXED VERSION)
+ * Update join URL display
  * @param {string} gameId - ID of the game
  */
-export function generateQRCode(gameId) {
-  console.log('QR generation starting for game:', gameId);
-  
-  const qrcodeElement = document.getElementById('qrcode');
-  if (!qrcodeElement) {
-    console.error('QR code element not found');
-    return;
-  }
-  
-  // Clear previous QR code
-  qrcodeElement.innerHTML = '';
+export function updateJoinUrl(gameId) {
+  console.log('Updating join URL for game:', gameId);
   
   // Create the join URL
   const joinUrl = `https://mybeachtrivia.com/play-music-bingo/index.html?gameId=${gameId}`;
@@ -157,68 +151,7 @@ export function generateQRCode(gameId) {
     joinUrlElement.textContent = joinUrl;
   }
   
-  // Wait a bit to ensure qrcode library is loaded
-  setTimeout(() => {
-    try {
-      // Check if qrcode library is available
-      if (typeof qrcode === 'undefined') {
-        console.error('QR code library not loaded');
-        qrcodeElement.innerHTML = '<p style="color: red;">QR code library not available</p>';
-        return;
-      }
-      
-      // Create QR code
-      const qr = qrcode(0, 'M');
-      qr.addData(joinUrl);
-      qr.make();
-      
-      // Create canvas for better control
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      const moduleCount = qr.getModuleCount();
-      const cellSize = 6; // Smaller cells for better fit
-      const margin = cellSize * 4; // Margin around QR
-      const size = moduleCount * cellSize + margin * 2;
-      
-      canvas.width = size;
-      canvas.height = size;
-      
-      // White background
-      ctx.fillStyle = '#FFFFFF';
-      ctx.fillRect(0, 0, size, size);
-      
-      // Black QR modules
-      ctx.fillStyle = '#000000';
-      for (let row = 0; row < moduleCount; row++) {
-        for (let col = 0; col < moduleCount; col++) {
-          if (qr.isDark(row, col)) {
-            ctx.fillRect(
-              col * cellSize + margin,
-              row * cellSize + margin,
-              cellSize,
-              cellSize
-            );
-          }
-        }
-      }
-      
-      // Style the canvas
-      canvas.style.width = '200px';
-      canvas.style.height = '200px';
-      canvas.style.border = '10px solid white';
-      canvas.style.borderRadius = '10px';
-      canvas.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
-      
-      // Add to container
-      qrcodeElement.appendChild(canvas);
-      
-      console.log('QR code generated successfully');
-      
-    } catch (error) {
-      console.error('Error generating QR code:', error);
-      qrcodeElement.innerHTML = '<p style="color: red;">QR code generation failed</p>';
-    }
-  }, 100); // 100ms delay to ensure library is loaded
+  console.log('Join URL updated:', joinUrl);
 }
 
 /**
