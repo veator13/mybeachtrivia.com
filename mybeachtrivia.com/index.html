@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Beach Trivia</title>
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- Firebase SDK - Using Compat version to match login.js -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+    
+    <!-- Firebase Initialization Script -->
+    <script>
+        // Your web app's Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyDBKCotY1F943DKfVQqKOGPPkAkQe2Zgog",
+            // Changed authDomain to use your custom domain for consistent authentication
+            authDomain: "mybeachtrivia.com",
+            projectId: "beach-trivia-website",
+            storageBucket: "beach-trivia-website.appspot.com",
+            messagingSenderId: "459479368322",
+            appId: "1:459479368322:web:7bd3d080d3b9e77610aa9b"
+        };
+
+        // Clear any previous auth state that might be using the old domain
+        localStorage.removeItem(`firebase:authUser:${firebaseConfig.apiKey}:[DEFAULT]`);
+
+        // Initialize Firebase using the compat version to match login.js
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // Authentication State Observer
+        auth.onAuthStateChanged(async (user) => {
+            const loginButton = document.getElementById('loginButton');
+            
+            if (user) {
+                // User is signed in - update button text
+                loginButton.innerHTML = 'MY DASHBOARD';
+                
+                // For logged-in users, we still need the JavaScript navigation
+                // because we're redirecting to different dashboards based on role
+                loginButton.addEventListener('click', async (e) => {
+                    // Prevent the default link behavior for logged-in users
+                    e.preventDefault();
+                    
+                    // Get user role from Firestore
+                    try {
+                        const userDocRef = db.collection('employees').doc(user.uid);
+                        const userDocSnap = await userDocRef.get();
+                        
+                        if (userDocSnap.exists) {
+                            const userData = userDocSnap.data();
+                            // Check if roles is an array and get the first role
+                            if (userData.roles && userData.roles.length > 0) {
+                                const role = userData.roles[0];
+                                // Convert role to lowercase and replace spaces with hyphens for filename
+                                const dashboardFile = role.toLowerCase().replace(/\s+/g, '-') + '.html';
+                                window.location.href = `beachTriviaPages/dashboards/${dashboardFile}`;
+                            } else {
+                                // Fallback if no roles array or it's empty
+                                window.location.href = 'beachTriviaPages/dashboards/host-dashboard.html';
+                            }
+                        } else {
+                            console.error('User document not found in Firestore');
+                        }
+                    } catch (error) {
+                        console.error('Error fetching user data:', error);
+                    }
+                });
+            } else {
+                // No user is signed in - ensure button text is set
+                loginButton.innerHTML = 'STAFF LOGIN';
+                // We're now using a direct HTML link, so we don't need the onclick handler
+                // The href attribute will handle the navigation
+            }
+        });
+    </script>
+</head>
+<body>
+    <nav>
+        <div class="logo-container">
+            <a href="index.html">
+                <img src="beachTriviaPages/images/BTlogo.png" alt="Beach Trivia Logo">
+            </a>
+        </div>
+        
+        <!-- Changed div to anchor tag with direct href for more reliable navigation -->
+        <a href="login.html" class="login-button" id="loginButton">LOGIN</a>
+        
+        <div class="navigation-menu">
+            <a href="beachTriviaPages/1-GetStarted/index.html" class="menu-button">GET STARTED</a>
+            <a href="beachTriviaPages/2-OurServices/index.html" class="menu-button">OUR SERVICES</a>
+            <a href="beachTriviaPages/3-Locations/index.html" class="menu-button">LOCATIONS</a>
+            <a href="beachTriviaPages/4-JoinOurTeam/index.html" class="menu-button">JOIN OUR TEAM</a>
+            <a href="beachTriviaPages/5-AboutUs/index.html" class="menu-button">ABOUT US</a>
+            <a href="beachTriviaPages/6-Tournament/index.html" class="menu-button">TOURNAMENT</a>
+        </div>
+        
+        <div class="social-links">
+            <a href="https://www.facebook.com/BeachTrivia" target="_blank" rel="noopener noreferrer">
+                <img src="beachTriviaPages/images/FBlogo.png" alt="Facebook">
+            </a>
+            <a href="mailto:mybeachtrivia@gmail.com">
+                <img src="beachTriviaPages/images/GMAILlogo2.png" alt="Email">
+            </a>
+            <a href="https://www.instagram.com/beachtrivia/" target="_blank" rel="noopener noreferrer">
+                <img src="beachTriviaPages/images/INSTAlogo2.png" alt="Instagram">
+            </a>
+        </div>
+    </nav>
+</body>
+</html>

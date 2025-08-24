@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Employee Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-analytics.js"></script>
+    <!-- Firebase initialization -->
+    <script src="firebase-init.js"></script>
+</head>
+<body>
+    <div class="dashboard">
+        <header>
+            <h1>Employee Dashboard</h1>
+            <div class="user-profile">
+                <img src="data:image/gif;base64,R0lGODlhMgAyAIAAAAAAAP///yH5BAEAAAEALAAAAAAyADIAAAL8jI+py+0Po5y02ouz3rz7D4biSJbmiabqyrbuC8fyTNf2jef6zvf+DwwKh8Si8YhMKpfMpvMJjUqn1Kr1is1qt9yu9wsGi8fksvl8Tq/b7/i8fs/v+/+/+Ns/+AcYKDhIWGh4iJiouMjY6PgIGSk5SVlpeYmZqbnJ2en5CRoqOkpaanqKmqq6ytrq+gobb3+Pn6+/z9/v/4+fr7/PvwIGW0sZ+DUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf+gEaCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAwocSLCgwYMIEypcyLChw4cQI0qcSLGixYsYM2rcyLGjx48gQ4ocSbKkyZMoU6pcybKly5cwY8qcSbOmzZs4c+rcybOnz59AgwodSrSo0aNIkypdyrSp06dQo0qdSrWq1atYs2rdyrWr169gw4odS7as2bNo06pdy7at27dw48qdS7eu3bt48+rdy7ev37+AAwseTLiw4cOIEytezLix48eQI0ueTLmy5cuYM2vez7mz58+gQ4seTbq06dOoU6tezbq169ewY8ueTbu27du4c+vezbu379/AgwsfTry48ePIkytfzry58+fQo0ufTr269evYs2vfzr279+/gw4sfT768+fPo06tfz769+/fw48ufT7++/fv48+vfz7+///8ABijggAQWaOCBCCao4IIMNujggxBGKOGEFFZo4YUYZqjhhhx26OGHIIYo4ogjkkaJhRx66OKLMMYo44w01mjjjTjmaOONOOao44489ujjj0AGKeSQRBZp5JFIJqnkkkw26eSTUEYp5ZRUVmnllVhmqeWWXHbp5ZdghpmmmmGGKWaYZJZp5plopqnmmmy26eabcMYp55x01mnnnXjmqeeefPbp55+ABirooIQWauihiCaq6KKMNuroo5BG+iilj0b6aKVwjTXWWG3FNddgZJVl1llvzTXXXXvtNRhihx122F6D7bXYYo8tdthkkw222WSTfbbZZ6ONNtpqr8022263DTfccMsNN9xwww033HDDDTfccMMNN9xwww033HDDDTfccMMNN9xwww033HDDDTfccMMNN9xwww033HDDDTfccMMNN9xwww033HDDDTfccMMNN9xwww033A==" alt="User Profile" class="profile-pic">
+                <span class="username">John Doe</span>
+                <button id="logout-btn" onclick="logoutUser()">Logout</button>
+            </div>
+        </header>
+
+        <nav class="dashboard-nav">
+            <button class="nav-btn">Home</button>
+            <button class="nav-btn">Calendar</button>
+            <button class="nav-btn" onclick="window.location.href='scoresheet/index.html'">Scoresheet</button>
+            <button class="nav-btn" onclick="window.location.href='host-music-bingo/host-music-bingo.html'">Host Music Bingo</button>
+            <button class="nav-btn">Request Materials</button>
+            <button class="nav-btn">Resources</button>
+            <button class="nav-btn">Request Time Off</button>
+            <button class="nav-btn">Notification Settings</button>
+        </nav>
+
+        <main>
+            <section class="quick-stats">
+                <div class="stat-card">
+                    <h3>Current Pay Period</h3>
+                    <p class="stat-value">3/5 Weeks</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Shows Worked</h3>
+                    <p class="stat-value">3</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Hours Worked</h3>
+                    <p class="stat-value">40/40 hrs</p>
+                </div>
+            </section>
+
+            <section class="upcoming-shows">
+                <h2>Upcoming Shows</h2>
+                <div class="shows-list">
+                    <!-- Shows will be populated here -->
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <button id="add-task-btn">Add New Task</button>
+        </footer>
+    </div>
+    
+    <!-- Logout function - connects to the Firebase auth system -->
+    <script>
+        function logoutUser() {
+            // Check if global logout function exists from login.js
+            if (window.logoutUser) {
+                window.logoutUser();
+            } else {
+                // Fallback if the global function is not available
+                console.log('Logging out user...');
+                
+                // Try to use Firebase if available
+                if (typeof firebase !== 'undefined' && firebase.auth) {
+                    firebase.auth().signOut().then(() => {
+                        // Clear session storage
+                        sessionStorage.clear();
+                        // Redirect to login page
+                        window.location.href = '/login.html';
+                    }).catch(error => {
+                        console.error('Error signing out:', error);
+                    });
+                } else {
+                    // Last resort - just clear storage and redirect
+                    sessionStorage.clear();
+                    localStorage.removeItem('rememberedEmail');
+                    window.location.href = '/login.html';
+                }
+            }
+        }
+    </script>
+    
+    <!-- Direct fix for "Don't be late!" text -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(function() {
+                // Target any elements or text containing "Don't be late!"
+                document.querySelectorAll('*').forEach(function(element) {
+                    if (element.textContent === "Don't be late!") {
+                        element.style.display = 'none';
+                    }
+                });
+            }, 200);
+        });
+    </script>
+    
+    <!-- Main dashboard script - Using dashboard.js instead of script.js -->
+    <script src="dashboard.js"></script>
+</body>
+</html>

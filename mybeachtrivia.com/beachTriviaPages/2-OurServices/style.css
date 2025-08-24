@@ -1,0 +1,417 @@
+* {
+    /* outline: solid 1px red;*/
+     color: white;
+     font-family: sans-serif;
+     text-decoration: none;
+     list-style-type: none;
+     max-width: 100%;
+ }
+ 
+ *, html, body {
+     /*border: none;*/
+     padding: 0;
+     margin: 0;
+     height: 100%;
+     width: 100%;
+     text-decoration: none;
+ }
+ 
+ body {
+    /* border: 5px green solid;*/
+     position: relative;
+     box-sizing: border-box;
+     background-image: url("../images/BGimage2.jpeg");
+     background-repeat: no-repeat;
+     background-size: cover;
+     background-attachment: fixed;
+     width: 100%;
+     max-width: 100%;
+ }
+ 
+ body::-webkit-scrollbar{
+     display: none;
+ }
+ 
+ 
+                                 /********** HEADER SECTION **********/
+ 
+ header {
+    /* border: 1px solid lightblue;*/
+     position: fixed;
+     top: 0;
+     left: 0;
+     box-sizing: border-box;
+     height: 80px;
+     width: 100%;
+     max-width: 100%;
+     display: flex;
+     align-items: center;
+     justify-content: center;
+     z-index: 1000; 
+     background-repeat: no-repeat;
+     background-size: cover;
+ }
+ 
+ nav {
+     /*border: 1px solid orange;*/
+     position: absolute;
+     background-color: rgba(0, 0, 0, 0.48);
+     box-sizing: border-box;
+     height: 100%;
+     width: 100%;
+     max-width: 100%;
+     display: flex;
+ }
+ 
+ /* Header mask styling */
+ #header-mask {
+     position: fixed;
+     top: 0;
+     left: 0;
+     height: 80px; /* Just header height */
+     width: 100%;
+     z-index: 990; /* Below header */
+     background-image: url(../images/BGimage2.jpeg);
+     background-repeat: no-repeat;
+     background-size: cover;
+     background-attachment: fixed;
+ }
+ 
+ /* JS barrier - invisible reference point for fade effect */
+ #js-barrier {
+     position: fixed;
+     top: 95px; /* 15px below header */
+     left: 0;
+     height: 1px;
+     width: 100%;
+     background: transparent;
+     z-index: -1; /* Make it invisible */
+     pointer-events: none; /* No interaction */
+ }
+ 
+ .logo-container a {
+     /*border: red solid 1px;*/
+     width: 84px;
+     display: flex;
+     justify-content: left;
+     align-items: center;
+     z-index: 2;
+ }
+ 
+ .logo-container img {
+     /*border: 1px solid pink ;*/
+     height: 65px;
+     width: 65px;
+     margin-left: 8px;
+     z-index: 2;
+ }
+ 
+ .logo-container img:hover {
+     box-shadow: 0 0 8px rgba(255, 255, 255, 0.9);
+     border-radius: 50%;
+     cursor: pointer;
+ }
+ 
+ .logo-container img:active {
+     box-shadow: none;
+ }
+ 
+ .nav-button-container {
+     /*border: blue solid 1px;*/
+     display: flex;
+ }
+  
+ .nav-button-container ul {
+     /*border: orange 1px solid;*/
+     display: flex;
+     width: calc(100vw - 288px);
+ }
+ 
+ .nav-button-container li a {
+     /*border: pink solid 1px;*/
+     min-width: 138.2px;
+     display: flex;
+     letter-spacing: 1px;
+     align-items: center;
+     justify-content: space-around;
+ }
+ 
+ .nav-button-container li a:hover {
+     background-color: rgba(255, 255, 255, 0.5);
+ }
+ 
+ .current-page{
+     background-color: rgba(255, 255, 255, 0.5);
+     text-decoration: underline;
+ }
+ 
+ .login-container {
+     /*border: 1px white solid;*/
+     width: 200px;
+     min-width: 200px;
+     display: flex;
+     align-items: center;
+     justify-content: flex-start;
+ }
+ 
+ .login-button {
+     background-color: rgb(85, 218, 255);
+     border: rgb(255, 255, 255) 2px solid;
+     border-radius: 25px;
+     width: 85%;
+     height: 50%;
+     display: flex;
+     justify-content: center;
+     align-items: center;
+     margin-right: 10px;
+ }
+ 
+ .login-button:active {
+     width: 84%;
+     height: 49%;
+     margin-left: 1px;
+ }
+ 
+ .login-button h2 {
+     font-size: 16px;
+     font-weight: 100;
+     letter-spacing: 0px;
+     display: flex;
+     justify-content: center;
+     align-items: center;
+ }
+ 
+ .login-button h2:hover {
+     font-size: 17px;
+     cursor: pointer;
+ }
+ 
+ .login-button h2:active {
+     font-size: 16px;
+ }
+ 
+                                 /********** MAIN BODY **********/
+ 
+ main {
+     display: flex;
+     margin-top: 80px;
+     padding-top: 70px; /* Space between header and content */
+     padding-bottom: 100px; /* Increased padding to ensure content is visible above footer */
+     align-items: flex-start;
+     justify-content: space-around;
+     position: relative;
+     min-height: calc(100% - 115px);
+     height: auto;
+     margin-bottom: 100px; /* Increased margin to create more space at the bottom */
+ }
+ 
+ .service {
+     position: relative;
+     top: 30px;
+     width: 25%;
+     height: auto;
+     padding: 25px;
+     margin-bottom: 20px; /* Added margin between services and bottom */
+     background-color: rgba(255, 255, 255, 0.5);  
+     backdrop-filter: blur(20px);
+     border: black;
+     border-radius: 25px;
+     text-align: center;
+     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+     overflow: hidden; /* Keep content within bounds */
+     will-change: transform, opacity; /* Hint to browser for optimization */
+     z-index: 1; 
+ }
+ 
+ /* Fade overlay for the top of containers */
+ .fade-overlay {
+     position: absolute;
+     top: 0;
+     left: 0;
+     width: 100%;
+     height: 0; /* Initial height of 0, will be set by JS */
+     z-index: 10; /* Above content */
+     pointer-events: none; /* Allow clicking through */
+     background-color: transparent;
+ }
+ 
+ .service-content {
+     position: relative;
+     z-index: 5; /* Above overlay but below its mask effect */
+ }
+
+ .service h5 {
+     color: rgb(0, 0, 0);
+     font-weight: 100;    
+     font-size: medium;
+     line-height: 1.5;
+     text-align: left;
+     padding: 0 5px;
+ }
+ 
+ #trivia img {
+     height: 3em;
+     width: auto;
+     margin-bottom: 20px;
+ }
+ 
+ .service h2 {
+     font-weight: 400;
+     color: black;
+     text-decoration: underline;
+     margin-bottom: 20px;
+ }
+ 
+ #music-bingo img{
+     height: 3em;
+     width: auto;
+     margin-bottom: 20px;
+ }
+ 
+ #feud img{
+     height: 4em;
+     width: auto;
+     margin-bottom: 12px;
+     margin-top: -10px;
+ }
+ 
+ 
+                                 /********** FOOTER **********/
+ 
+ footer {
+      /*border: red solid 1px;*/
+      position: fixed;
+      height: 35px;
+      background-color: rgba(0, 0, 0, 0.48);
+      bottom: 0px;
+      left: 0px;
+      right: 0px;
+      margin-bottom: 0px;
+      display: inline-flex;
+      z-index: 1000;
+ }
+ 
+ .social-media-container img{
+     height: 25px;
+     width: 25px;
+     padding: 1px;
+ }
+ 
+ #fb-logo{
+     height: 32px;
+     width: 32px;
+ }
+ 
+ .BeachTriviaLLC {
+     padding-left: 1vw;
+ }
+ .BeachTriviaLLC h4 {
+     display: flex;
+     justify-content: left;
+     align-items: center;
+     font-weight: 100;
+  }
+ 
+ .contact {
+     padding-right: 1vw;
+ }
+ .contact h4{
+     display: flex;
+     justify-content: right;
+     align-items: center;
+     font-weight: 100;
+ }
+ 
+ .social-media-container{
+     /* border: blue solid 1px; */
+     display: flex;
+     align-items: center;
+     justify-content: center;
+     width: 250px;
+ }
+ 
+ .social-media-container a{
+     display: flex;
+     align-items: center;
+     justify-content: center;
+ }
+ 
+ 
+                         /********** TOGGLE BUTTON **********/
+ 
+ .toggle-button {
+     position: absolute;
+     top: 25px;
+     right: 25px;
+     display: none;
+     flex-direction: column;
+     justify-content: space-between;
+     width: 45px;
+     height: 30px;
+ }
+ 
+ .toggle-button .bar {
+     height: 5px;
+     width: 100%;
+     background-color: rgb(255, 255, 255);
+     border-radius: 10px;
+ }
+ 
+ 
+ @media screen and (max-width: 1000px) {
+ 
+     .toggle-button {
+         display: flex;
+     }
+ 
+     .nav-button-container {
+         /*border: blue solid 1px;*/
+         display: none;
+     }
+ 
+     .login-button {
+         display: none;
+     }
+ 
+     main {
+          /* border: magenta 1px solid; */
+         box-sizing: border-box;
+         display: block;
+         margin-top: 80px;
+         padding-top: 20px;
+         padding-bottom: 100px; /* Increased padding for footer */
+         height: auto;
+         width: 100vw;
+         margin-bottom: 100px; /* Added margin for extra space */
+     }
+ 
+     .service {
+         width: 70%;
+         margin-top: 20px;
+         margin-left: auto;
+         margin-right: auto;
+         margin-bottom: 40px;
+     }
+ 
+     #trivia {
+         margin-top: 0px;
+     }
+ 
+     .social-media-container{
+         width: 250px;
+     }
+ 
+     .social-media-container img{
+         padding: 1px;
+     }
+ 
+ }
+ 
+ 
+ 
+ @media screen and (max-width: 450px) {
+ 
+     .footer-text{
+         opacity: 0.0; 
+     }
+ }

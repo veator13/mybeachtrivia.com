@@ -1,0 +1,50 @@
+name: Deploy to Firebase Hosting on merge
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history, no submodules)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: false
+
+      # DEBUG: What does the runner actually see?
+      - name: Print workspace + look for firebase.json
+        run: |
+          echo "PWD=$(pwd)"
+          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
+          echo "---- Top level ----"
+          ls -la
+          echo "---- search for firebase.json (3 levels) ----"
+          find . -maxdepth 3 -type f -name "firebase.json" -print \
+            -exec sh -c "echo '==== contents of {} ===='; sed -n '1,20p' '{}' " \;
+
+      - name: Save workspace tree (for download)
+        run: |
+          sudo apt-get update && sudo apt-get install -y tree || true
+          tree -a -L 3 > workspace-tree.txt || true
+
+      - name: Upload tree artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: workspace-tree
+          path: workspace-tree.txt
+        if: always()
+
+      - name: Deploy to Firebase Hosting (live)
+        uses: FirebaseExtended/action-hosting-deploy@v1
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_BEACH_TRIVIA_WEBSITE }}
+          projectId: beach-trivia-website
+          channelId: live
+          entryPoint: ./mybeachtrivia.com
+        env:
+          FIREBASE_DEBUG: "true"

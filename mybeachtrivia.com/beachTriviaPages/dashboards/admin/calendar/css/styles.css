@@ -1,0 +1,1413 @@
+/* Reset and Base Styles */
+:root {
+    --primary-color: #3699ff;
+    --secondary-color: #ff9d00;
+    --dark-bg: #121212;
+    --card-bg: #1a1a1a;
+    --card-bg-darker: #161616;
+    --input-bg: #1e2b3c;
+    --border-color: #2e4561;
+    --text-primary: #e0e0e0;
+    --text-secondary: #a0a0a0;
+    --text-muted: #555;
+    --shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    
+    /* Event Colors */
+    --classic-trivia-color: #3699ff;
+    --themed-trivia-color: #9d4edd;
+    --classic-bingo-color: #4cc9f0;
+    --music-bingo-color: #f72585;
+    --beach-feud-color: #14b8a6;
+}
+
+@media (max-height: 700px) {
+    .modal-content {
+        max-height: 95vh; /* Use more vertical space on shorter screens */
+    }
+    
+    .modal h2 {
+        padding: 15px 25px;
+    }
+    
+    .form-group {
+        margin-bottom: 12px;
+    }
+    
+    .button-group {
+        padding: 10px 25px;
+    }
+    
+    .modal-content::before {
+        height: 65px;
+    }
+    
+    .modal-content::after {
+        height: 55px;
+    }
+    
+    #shift-form {
+        padding-top: 65px;
+        padding-bottom: 55px;
+    }
+    
+    .warning-message {
+        padding-top: 65px;
+        padding-bottom: 55px;
+    }
+}
+
+/* Reduce motion option for accessibility */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        transition: none !important;
+        animation: none !important;
+    }
+    
+    .shift:hover {
+        transform: none;
+    }
+    
+    .week-copy-button:hover {
+        transform: translate(-50%, -50%);
+    }
+    
+    .week-move-button:hover {
+        transform: translate(-50%, -50%);
+    }
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Arial', sans-serif;
+    scrollbar-width: thin;
+}
+
+body {
+    background-color: var(--dark-bg);
+    color: var(--text-primary);
+    line-height: 1.6;
+    padding: 20px;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    background-color: var(--dark-bg);
+    border-radius: 10px;
+    padding: 25px;
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    padding-bottom: 20px;
+    text-align: center;
+}
+
+h1 {
+    color: var(--primary-color);
+    font-size: 32px;
+    font-weight: 600;
+    text-align: center;
+    width: 100%;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    position: relative;
+    padding-bottom: 15px;
+    margin-bottom: 30px;
+}
+
+h1::before, h1::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--primary-color), transparent);
+}
+
+h1::before {
+    top: -15px;
+}
+
+h1::after {
+    bottom: 0;
+}
+
+/* Header controls */
+.header-controls {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    justify-content: flex-end;
+    margin-top: 15px;
+}
+
+/* Controls */
+.controls {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-bottom: 25px;
+    position: relative;
+}
+
+.date-nav {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    padding: 8px 0;
+}
+
+.employee-filter,
+.event-filter,
+.location-filter,
+.view-buttons,
+.filter-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.employee-filter label,
+.event-filter label,
+.location-filter label,
+.view-buttons label,
+.filter-group label {
+    color: var(--text-secondary);
+    font-weight: 500;
+    min-width: 65px;
+}
+
+.employee-filter select,
+.event-filter select,
+.location-filter select,
+.filter-group select {
+    min-width: 150px;
+    width: auto;
+}
+
+/* View buttons styling */
+.button-group-inline {
+    display: flex;
+    gap: 5px;
+}
+
+.small-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+    min-width: 80px;
+    height: 30px;
+    white-space: nowrap;
+}
+
+.month-display {
+    font-weight: 600;
+    font-size: 24px;
+    text-align: center;
+    color: var(--primary-color);
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    margin: 0;
+}
+
+button {
+    background-color: var(--input-bg);
+    color: var(--primary-color);
+    border: 1px solid var(--border-color);
+    padding: 8px 18px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-weight: 500;
+}
+
+button:hover {
+    background-color: var(--border-color);
+    color: var(--primary-color);
+}
+
+button:focus {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+button.today {
+    background-color: var(--input-bg);
+    color: var(--primary-color);
+}
+
+button.today:hover {
+    background-color: var(--border-color);
+}
+
+#prev-month, #next-month {
+    background-color: var(--input-bg);
+    color: var(--primary-color);
+    border: 1px solid var(--border-color);
+    padding: 8px 18px;
+}
+
+#prev-month:hover, #next-month:hover {
+    background-color: var(--border-color);
+}
+
+#prev-month {
+    margin-right: 10px;
+}
+
+#next-month {
+    margin-left: 10px;
+}
+
+select {
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background-color: var(--input-bg);
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+select:focus {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+    border-color: var(--primary-color);
+}
+
+/* Calendar */
+.calendar-container {
+    position: relative;
+    margin-top: 20px;
+    width: 100%;
+}
+
+.calendar {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 3px;
+    table-layout: fixed;
+    position: relative;
+    z-index: 1;
+}
+
+.calendar th {
+    background-color: var(--input-bg);
+    color: white;
+    padding: 12px 10px;
+    text-align: center;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    font-size: 14px;
+}
+
+.calendar td {
+    border: none;
+    padding: 0;
+    min-height: 130px;
+    height: 130px;
+    vertical-align: top;
+    background-color: var(--card-bg);
+    border-radius: 4px;
+    position: relative;
+    transition: background-color 0.2s ease;
+}
+
+.calendar td.drag-over {
+    background-color: var(--border-color);
+    box-shadow: inset 0 0 0 2px var(--primary-color);
+}
+
+/* Week row drag-over highlight */
+.calendar tr.drag-over-row td:not(.week-copy-cell) {
+    background-color: var(--border-color);
+    box-shadow: inset 0 0 0 1px var(--secondary-color);
+}
+
+/* Add clear highlighting for today's cell */
+.calendar td.today-cell {
+    box-shadow: inset 0 0 0 2px var(--primary-color);
+    background-color: rgba(54, 153, 255, 0.05);
+}
+
+/* Make sure drag-over highlight is visible on top of today highlight */
+.calendar td.today-cell.drag-over {
+    background-color: var(--border-color);
+    box-shadow: inset 0 0 0 3px var(--primary-color);
+}
+
+.calendar td .date {
+    font-weight: 600;
+    margin: 0;
+    display: block;
+    color: var(--text-secondary);
+    padding: 8px;
+    border-bottom: 1px dotted #333;
+    position: relative;
+}
+
+.calendar .date.today {
+    color: var(--primary-color);
+}
+
+.calendar .other-month {
+    background-color: var(--card-bg-darker);
+}
+
+.calendar .other-month .date {
+    color: var(--text-muted);
+}
+
+/* Add buttons */
+.add-button {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 20px;
+    height: 20px;
+    background-color: var(--input-bg);
+    color: var(--primary-color);
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s ease;
+    will-change: transform;
+}
+
+.cell-copy-button {
+    position: absolute;
+    top: 8px;
+    right: 34px; /* Moved from 61px to 34px */
+    width: 20px;
+    height: 20px;
+    background-color: var(--input-bg);
+    color: var(--primary-color);
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 11px;
+    transition: all 0.2s ease;
+    will-change: transform;
+}
+
+/* Clear Day Button - UPDATED */
+.clear-day-button {
+    position: absolute;
+    top: 8px;
+    right: 61px; /* Moved from 34px to 61px (swapped with cell-copy-button) */
+    width: 20px;
+    height: 20px;
+    background-color: rgba(255, 77, 77, 0.5); /* Made more translucent (0.8 to 0.5) */
+    color: white;
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s ease;
+    will-change: transform;
+}
+
+/* Drag day button styling - NEW */
+.drag-day-button {
+    position: absolute;
+    top: 8px;
+    right: 88px; /* Position to the left of the clear-day-button */
+    width: 20px;
+    height: 20px;
+    background-color: var(--secondary-color);
+    color: white;
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: grab;
+    font-size: 14px;
+    transition: all 0.2s ease;
+    will-change: transform;
+}
+
+.drag-day-button:hover {
+    background-color: var(--secondary-color);
+    transform: scale(1.1);
+}
+
+.drag-day-button:active {
+    cursor: grabbing;
+}
+
+.clear-day-button:hover {
+    background-color: rgba(255, 77, 77, 0.7); /* Made more translucent (1.0 to 0.7) */
+    transform: scale(1.1);
+}
+
+.week-copy-button {
+    width: 20px;
+    height: 20px;
+    background-color: var(--input-bg);
+    color: var(--secondary-color);
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 11px;
+    transition: all 0.2s ease;
+    will-change: transform;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1;
+}
+
+/* NEW: Week move button styling - positioned between copy and toggle buttons */
+.week-move-button {
+    width: 20px;
+    height: 20px;
+    background-color: var(--secondary-color);
+    color: white;
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: grab;
+    font-size: 14px;
+    transition: all 0.2s ease;
+    will-change: transform;
+    position: absolute;
+    top: calc(50% + 30px);
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1;
+}
+
+.week-move-button:hover {
+    background-color: var(--secondary-color);
+    transform: translate(-50%, -50%) scale(1.1);
+}
+
+.week-move-button:active {
+    cursor: grabbing;
+}
+
+/* Week toggle button styling - positioned below the move button */
+.week-toggle-button {
+    width: 20px;
+    height: 20px;
+    background-color: var(--input-bg);
+    color: var(--secondary-color);
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 11px;
+    transition: all 0.2s ease;
+    will-change: transform;
+    position: absolute;
+    top: calc(50% + 60px); /* Moved down to make room for move button */
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1;
+}
+
+.week-toggle-button:hover {
+    background-color: var(--border-color);
+    transform: translate(-50%, -50%) scale(1.1);
+}
+
+/* Week clear button styling - positioned below the toggle button */
+.week-clear-button {
+    width: 20px;
+    height: 20px;
+    background-color: rgba(255, 77, 77, 0.5);
+    color: white;
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s ease;
+    will-change: transform;
+    position: absolute;
+    top: calc(50% + 90px); /* Moved down to make room for move button */
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1;
+}
+
+.week-clear-button:hover {
+    background-color: rgba(255, 77, 77, 0.7);
+    transform: translate(-50%, -50%) scale(1.1);
+}
+
+.add-button:hover, .cell-copy-button:hover {
+    background-color: var(--border-color);
+    transform: scale(1.1);
+}
+
+/* FIXED: Special hover for week-copy-button to maintain center positioning */
+.week-copy-button:hover {
+    background-color: var(--border-color);
+    transform: translate(-50%, -50%) scale(1.1);
+}
+
+.week-copy-header {
+    width: 30px;
+    min-width: 30px;
+    max-width: 30px;
+}
+
+.week-copy-cell {
+    width: 30px;
+    min-width: 30px;
+    max-width: 30px;
+    background-color: var(--card-bg-darker);
+    border-radius: 4px;
+    position: relative;
+    padding: 0;
+    height: 130px; /* Match the height of other cells */
+}
+
+/* Shifts */
+.shift-container {
+    padding: 8px;
+    overflow: visible;
+    height: auto;
+}
+
+.shift {
+    margin-bottom: 8px;
+    padding: 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    background-color: var(--input-bg);
+    border-left: 3px solid var(--primary-color);
+    position: relative;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    will-change: transform, box-shadow;
+}
+
+.shift:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow);
+}
+
+.shift.dragging {
+    opacity: 0.7;
+    cursor: grabbing;
+    transform: scale(0.95);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+}
+
+.shift.dragging-copy {
+    opacity: 0.7; /* Less transparent for better visibility */
+    cursor: copy;
+    transform: scale(0.95);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--border-color);
+    background-color: var(--input-bg);
+}
+
+.shift.editing {
+    border: 2px solid var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(54, 153, 255, 0.3);
+}
+
+.shift .employee {
+    font-weight: 600;
+    color: white;
+    margin-bottom: 3px;
+}
+
+.shift .time {
+    color: var(--text-secondary);
+    font-size: 11px;
+    margin-bottom: 3px;
+}
+
+.shift .location {
+    color: var(--secondary-color);
+    font-size: 11px;
+    margin-bottom: 3px;
+}
+
+.shift .event-type {
+    color: var(--primary-color);
+    font-size: 11px;
+}
+
+.shift .delete-button {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 16px;
+    height: 16px;
+    background-color: rgba(255, 255, 255, 0.2);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 12px;
+    transition: opacity 0.2s;
+    z-index: 2;
+}
+
+.shift .copy-button {
+    position: absolute;
+    top: 5px;
+    right: 47px;
+    width: 16px;
+    height: 16px;
+    background-color: rgba(255, 255, 255, 0.2);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 11px;
+    transition: opacity 0.2s;
+    z-index: 2;
+}
+
+.shift .toggle-button {
+    position: absolute;
+    top: 5px;
+    right: 26px;
+    width: 16px;
+    height: 16px;
+    background-color: rgba(255, 255, 255, 0.2);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    z-index: 2;
+}
+
+.shift:hover .delete-button,
+.shift:hover .toggle-button,
+.shift:hover .copy-button {
+    opacity: 1;
+}
+
+.triangle-down {
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 4px solid white;
+}
+
+.triangle-right {
+    width: 0; 
+    height: 0; 
+    border-top: 4px solid transparent;
+    border-bottom: 4px solid transparent;
+    border-left: 4px solid white;
+}
+
+.shift.collapsed .time,
+.shift.collapsed .location,
+.shift.collapsed .event-type {
+    display: none;
+}
+
+.shift.collapsed {
+    padding: 5px 8px;
+    transition: all 0.3s ease;
+}
+
+/* Visual indicator for multiple shifts */
+.multi-shift-badge {
+    position: absolute;
+    top: 5px;
+    left: 5px;
+    background-color: rgba(255, 77, 77, 0.9);
+    color: white;
+    font-size: 10px;
+    font-weight: bold;
+    min-width: 18px;
+    height: 18px;
+    border-radius: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.shift.collapsed .multi-shift-badge {
+    display: flex;
+}
+
+/* Shift types */
+.classic-trivia {
+    border-left-color: var(--classic-trivia-color);
+}
+
+.themed-trivia {
+    border-left-color: var(--themed-trivia-color);
+}
+
+.classic-bingo {
+    border-left-color: var(--classic-bingo-color);
+}
+
+.music-bingo {
+    border-left-color: var(--music-bingo-color);
+}
+
+.beach-feud {
+    border-left-color: var(--beach-feud-color);
+}
+
+/* Modal */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    z-index: 100;
+    justify-content: center;
+    align-items: center;
+    backdrop-filter: blur(5px);
+    overflow: hidden;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.modal-content {
+    position: relative;
+    background-color: var(--card-bg);
+    border-radius: 10px;
+    width: 90%;
+    max-width: 580px;
+    max-height: 80vh;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+    margin: auto;
+}
+
+/* Absolute header that covers the entire top of the modal */
+.modal-content::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 85px; /* Match your header height */
+    background-color: var(--card-bg);
+    z-index: 100;
+    border-bottom: 1px solid var(--border-color);
+}
+
+/* Title styling that sits on top of the ::before element */
+.modal h2 {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    margin: 0;
+    padding: 25px;
+    color: var(--primary-color);
+    font-weight: 600;
+    z-index: 101;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Scrollable form container */
+#shift-form, #new-host-form, #new-location-form {
+    padding: 85px 30px 65px 25px; /* Top padding matches header height, more padding on right */
+    overflow-y: auto;
+    max-height: 80vh;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* Absolute footer that covers the entire bottom of the modal */
+.modal-content::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 65px; /* Match your footer height */
+    background-color: var(--card-bg);
+    z-index: 100;
+    border-top: 1px solid var(--border-color);
+}
+
+.button-group {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: flex-end;
+    gap: 15px;
+    padding: 15px 25px;
+    z-index: 101;
+    box-shadow: 0 -4px 8px rgba(0, 0, 0, 0.1);
+    pointer-events: auto;
+}
+
+.button-group button {
+    cursor: pointer !important;
+    min-width: 100px;
+    z-index: 999 !important;
+    position: relative;
+    pointer-events: auto !important;
+}
+
+.spacer {
+    height: 20px; /* Smaller spacer as we're using absolute positioning */
+}
+
+/* Warning modal styling */
+.modal-content.warning {
+    position: relative;
+    background-color: var(--card-bg);
+    max-height: 80vh;
+    overflow: hidden;
+}
+
+.warning-message {
+    padding: 85px 25px 65px; /* Top and bottom padding match header and footer heights */
+    overflow-y: auto;
+    max-height: 80vh;
+    background-color: rgba(255, 157, 0, 0.05);
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.conflict-details {
+    margin-top: 15px;
+    padding: 10px;
+    background-color: rgba(30, 43, 60, 0.7);
+    border-radius: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.conflict-item {
+    padding: 8px 0;
+    border-bottom: 1px dotted var(--border-color);
+    position: relative;
+}
+
+.conflict-item:last-child {
+    border-bottom: none;
+}
+
+.conflict-time, .conflict-event, .conflict-location {
+    display: block;
+    margin-bottom: 3px;
+    font-size: 13px;
+}
+
+.conflict-time {
+    color: var(--text-secondary);
+}
+
+.conflict-event {
+    color: var(--primary-color);
+    font-weight: 500;
+}
+
+.conflict-location {
+    color: var(--secondary-color);
+}
+
+/* Clear Day Modal */
+.day-details {
+    margin-top: 15px;
+    padding: 10px;
+    background-color: rgba(30, 43, 60, 0.7);
+    border-radius: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.event-count {
+    margin-top: 10px;
+    font-weight: bold;
+    color: rgba(255, 77, 77, 0.9);
+}
+
+/* Ensure no overflow happens accidentally */
+.form-group, .time-inputs, .conditional-field {
+    max-width: 100%;
+    overflow: hidden;
+}
+
+button.proceed {
+    background-color: var(--secondary-color);
+    color: var(--card-bg);
+    border: none;
+}
+
+button.proceed:hover {
+    background-color: #ffb340;
+}
+
+button.danger-proceed {
+    background-color: rgba(255, 77, 77, 0.9);
+    color: white;
+    border: none;
+}
+
+button.danger-proceed:hover {
+    background-color: rgba(255, 77, 77, 1);
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+input, select {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background-color: var(--input-bg);
+    color: var(--text-primary);
+    transition: border-color 0.2s;
+}
+
+input:focus, select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+/* Form styling for host name input */
+#new-host-name {
+    background-color: var(--input-bg);
+    color: var(--text-primary);
+    padding: 12px 15px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    width: 100%;
+    font-size: 16px;
+    margin-top: 5px;
+    margin-bottom: 5px;
+}
+
+#new-host-name:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(54, 153, 255, 0.25);
+    outline: none;
+}
+
+#new-host-form .form-group {
+    margin-bottom: 20px;
+}
+
+#new-host-form label {
+    display: block;
+    font-size: 16px;
+    font-weight: 500;
+    margin-bottom: 10px;
+    color: var(--text-primary);
+}
+
+#new-host-form .form-hint {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-top: 8px;
+    display: block;
+}
+
+#save-new-host, #save-new-location {
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    font-weight: 500;
+    padding: 10px 20px;
+}
+
+#save-new-host:hover, #save-new-location:hover {
+    background-color: #2487ea;
+}
+
+/* Form hints */
+.form-hint {
+    display: block;
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+/* Host select with add button */
+.host-input-group {
+    margin-bottom: 4px;
+}
+
+.select-with-button {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding-right: 5px;
+}
+
+.add-host-btn {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    font-size: 24px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    flex-shrink: 0;
+    background-color: var(--primary-color);
+    color: white;
+    cursor: pointer;
+    border: none;
+    position: relative;
+}
+
+.add-host-btn:hover, .add-host-btn:focus, .add-host-btn:active {
+    background-color: #2487ea;
+    transform: scale(1.05);
+    outline: none;
+}
+
+/* Time inputs styling */
+.time-inputs {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.time-select {
+    flex: 1;
+    margin-bottom: 0;
+}
+
+/* Time dropdown styling */
+select option {
+    background-color: var(--input-bg);
+    color: var(--text-primary);
+}
+
+.cancel {
+    background-color: var(--input-bg);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+
+.cancel:hover {
+    background-color: var(--border-color);
+}
+
+button[type="submit"] {
+    background-color: var(--input-bg);
+    color: var(--primary-color);
+    border: 1px solid var(--border-color);
+}
+
+button[type="submit"]:hover {
+    background-color: var(--border-color);
+}
+
+/* Hide/Show conditional fields */
+.conditional-field {
+    display: none;
+    margin-top: 15px;
+    padding-left: 15px;
+    border-left: 3px solid var(--primary-color);
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Toggle Switch Styling - New Addition */
+.toggle-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.toggle-switch-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 5px;
+}
+
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 24px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #2e4561;
+    transition: .4s;
+    border-radius: 24px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: #e0e0e0;
+    transition: .4s;
+    border-radius: 50%;
+}
+
+input:checked + .toggle-slider {
+    background-color: #3699ff;
+}
+
+input:focus + .toggle-slider {
+    box-shadow: 0 0 1px #3699ff;
+}
+
+input:checked + .toggle-slider:before {
+    transform: translateX(26px);
+}
+
+.toggle-label {
+    color: var(--text-primary);
+    font-size: 14px;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--card-bg);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--primary-color);
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #2487ea;
+}
+
+/* Visual feedback for drag and drop */
+.drop-indicator {
+    border: 2px dashed var(--primary-color);
+    background-color: rgba(54, 153, 255, 0.1);
+}
+
+/* Month navigation drop zones */
+.month-nav-dropzone {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    width: 120px; /* Increased from 40px to 120px */
+    background-color: rgba(54, 153, 255, 0.1);
+    border: 2px dashed var(--primary-color);
+    z-index: 10;
+    display: none;
+    justify-content: center;
+    align-items: center;
+    font-size: 16px; /* Reduced from 20px to better fit text */
+    color: var(--primary-color);
+    pointer-events: none;
+    transition: opacity 0.2s;
+    padding: 0 10px; /* Added padding for text */
+    text-align: center; /* Center text */
+}
+
+.month-nav-dropzone.left {
+    left: -120px; /* Adjusted to match new width */
+    border-top-right-radius: 10px;
+    border-bottom-right-radius: 10px;
+}
+
+.month-nav-dropzone.right {
+    right: -120px; /* Adjusted to match new width */
+    border-top-left-radius: 10px;
+    border-bottom-left-radius: 10px;
+}
+
+.month-nav-dropzone.active {
+    display: flex;
+    animation: pulse 1.5s infinite alternate;
+}
+
+.month-nav-dropzone .dropzone-text {
+    text-align: center;
+    font-weight: bold;
+    line-height: 1.2;
+}
+
+@keyframes pulse {
+    0% { opacity: 0.7; }
+    100% { opacity: 1; }
+}
+
+/* Accessibility */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    h1 {
+        font-size: 24px;
+    }
+    
+    .header-controls {
+        margin-top: 0;
+        flex-direction: column;
+        width: 100%;
+    }
+    
+    .employee-filter, .filter-group {
+        width: 100%;
+    }
+    
+    .controls {
+        flex-direction: column;
+        gap: 15px;
+    }
+    
+    .date-nav {
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 10px;
+    }
+    
+    .month-display {
+        position: static;
+        transform: none;
+        width: 100%;
+        margin: 10px 0;
+    }
+    
+    .calendar td {
+        min-height: 100px;
+        height: auto;
+    }
+    
+    .week-copy-cell {
+        height: 100px; /* Match the responsive height of other cells */
+    }
+    
+    .time-inputs {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .filters {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    /* Make modal more mobile-friendly */
+    .modal-content {
+        width: 95%;
+        max-height: 85vh;
+    }
+    
+    .modal h2 {
+        font-size: 20px;
+    }
+    
+    .button-group {
+        flex-direction: column;
+    }
+    
+    .button-group button {
+        width: 100%;
+    }
+    
+    /* Media query for responsive layouts */
+    .week-clear-button {
+        top: calc(50% + 85px); /* Adjust position for smaller screens */
+    }
+    
+    .week-toggle-button {
+        top: calc(50% + 55px); /* Adjust position for smaller screens */
+    }
+    
+    .week-move-button {
+        top: calc(50% + 25px); /* Adjust position for smaller screens */
+    }
+}
