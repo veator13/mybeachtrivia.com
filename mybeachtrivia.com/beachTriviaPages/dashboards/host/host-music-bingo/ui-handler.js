@@ -3,8 +3,9 @@
  * Manages all UI updates and event handling for the Music Bingo application
  */
 
-import { UI } from './config.js';
-import { getCurrentUser } from './auth-service.js';
+// (Optional) keep if you use UI constants elsewhere
+// import { UI } from './config.js';
+// import { getCurrentUser } from './auth-service.js';
 
 /**
  * Set up all event listeners
@@ -16,8 +17,8 @@ export function setupEventListeners() {
   const createGameBtn = document.getElementById('create-game-btn');
   if (createGameBtn) {
     createGameBtn.addEventListener('click', async () => {
-      const module = await import('./game-manager.js');
-      module.createNewGame();
+      const m = await import('./game-manager.js');
+      m.createNewGame();
     });
   }
 
@@ -99,11 +100,16 @@ export function updateGameUI(gameData) {
 
   // Update text fields
   if (gameNameElement) gameNameElement.textContent = gameData.name || 'Unnamed Game';
-  if (playlistElement) playlistElement.textContent = gameData.playlistName || gameData.playlist || 'Unknown Playlist';
+  if (playlistElement) {
+    playlistElement.textContent =
+      gameData.playlistName || gameData.playlist || 'Unknown Playlist';
+  }
   if (gameIdElement) gameIdElement.textContent = gameData.id || 'N/A';
 
-  // Player count (Realtime DB players object)
-  const count = gameData.players ? Object.keys(gameData.players).length : (gameData.playerCount || 0);
+  // Player count (Realtime DB players object or precomputed count)
+  const count = gameData.players
+    ? Object.keys(gameData.players).length
+    : (gameData.playerCount || 0);
   if (playerCountElement) playerCountElement.textContent = count;
 
   // Build join URL for players
@@ -120,7 +126,7 @@ export function updateGameUI(gameData) {
         width: 200,
         height: 200,
         // eslint-disable-next-line no-undef
-        correctLevel: QRCode.CorrectLevel.M
+        correctLevel: QRCode.CorrectLevel.M,
       });
     } else {
       console.warn('QRCode library not found; skipping QR render');
@@ -130,7 +136,6 @@ export function updateGameUI(gameData) {
 
 /**
  * Update the "Current Song" display line in the host UI.
- * Minimal implementation that uses the index and any info placed on window.currentGame.
  */
 export function updateCurrentSongDisplay(index) {
   const el = document.getElementById('current-song');
@@ -138,10 +143,10 @@ export function updateCurrentSongDisplay(index) {
 
   const num = (typeof index === 'number' && index >= 0) ? index + 1 : 0;
 
-  // Try to show something nicer if the currentGame carries titles
+  // Try to show something nicer if currentGame carries titles/artists
   const cg = window.currentGame || {};
-  const titles = cg.songTitles || [];  // optional array if you add it later
-  const artists = cg.songArtists || []; // optional array if you add it later
+  const titles = cg.songTitles || [];   // optional
+  const artists = cg.songArtists || []; // optional
 
   if (titles[num - 1] || artists[num - 1]) {
     const t = titles[num - 1] || `Song ${num}`;
