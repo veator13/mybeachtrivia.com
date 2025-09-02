@@ -17,7 +17,9 @@ import {
   playSongByIndex,
   isSpotifyReady,
 } from './spotify-service.js';
-import { updateCurrentSongDisplay, updateActiveGameUI } from './ui-handler.js';
+
+// NOTE: use the actual exports that exist in ui-handler.js
+import { showActiveGameUI, updateGameUI, updateCurrentSongDisplay } from './ui-handler.js';
 
 // ----------------------
 // State
@@ -30,7 +32,6 @@ let playlistsData = [];
 // Sanity helpers
 // ----------------------
 function assertFirebaseReady() {
-  // guard for v8 global firebase init done in firebase-init.js
   if (
     typeof window === 'undefined' ||
     typeof window.firebase === 'undefined' ||
@@ -116,8 +117,8 @@ export async function createNewGame() {
 
     currentGame = newGame;
 
-    // This also triggers QR rendering via ui-handler
-    updateActiveGameUI();
+    // Reveal the game section and render details (includes QR)
+    showActiveGameUI(currentGame);
 
     startGameUpdateInterval();
     loadGameHistory();
@@ -333,7 +334,7 @@ export async function resumeGame(gameId = null) {
       const game = await getGameById(gameId);
       if (game) {
         currentGame = game;
-        updateActiveGameUI();
+        showActiveGameUI(currentGame);
         startGameUpdateInterval();
       }
     } catch (err) {
