@@ -11,7 +11,7 @@ import { getCurrentUser } from './auth-service.js';
  */
 export function setupEventListeners() {
   console.log('Setting up event listeners');
-  
+
   // Create game button
   const createGameBtn = document.getElementById('create-game-btn');
   if (createGameBtn) {
@@ -31,60 +31,57 @@ export function setupEventListeners() {
   const playBtn = document.getElementById('play-song-btn');
   if (playBtn) {
     playBtn.addEventListener('click', () => {
-      import('./game-manager.js').then(module => {
-        module.playCurrentSong();
-      });
+      import('./game-manager.js').then(m => m.playCurrentSong());
     });
   }
 
   const nextBtn = document.getElementById('next-song-btn');
   if (nextBtn) {
     nextBtn.addEventListener('click', () => {
-      import('./game-manager.js').then(module => {
-        module.playNextSong();
-      });
+      import('./game-manager.js').then(m => m.playNextSong());
     });
   }
-  
+
   const pauseBtn = document.getElementById('pause-game-btn');
   if (pauseBtn) {
     pauseBtn.addEventListener('click', () => {
-      import('./game-manager.js').then(module => {
-        module.pauseGame();
-      });
+      import('./game-manager.js').then(m => m.pauseGame());
     });
   }
-  
+
   const resumeBtn = document.getElementById('resume-game-btn');
   if (resumeBtn) {
     resumeBtn.addEventListener('click', () => {
-      import('./game-manager.js').then(module => {
-        module.resumeGame();
-      });
+      import('./game-manager.js').then(m => m.resumeGame());
     });
   }
-  
+
   const endGameBtn = document.getElementById('end-game-btn');
   if (endGameBtn) {
     endGameBtn.addEventListener('click', () => {
-      import('./game-manager.js').then(module => {
-        module.endGame();
-      });
+      import('./game-manager.js').then(m => m.endGame());
     });
   }
 }
 
 /**
- * Update the UI to show active game state
- * @param {Object} game - game object (must include id, name, playlist, players, etc.)
+ * Update the UI to show active game state (wrapper)
+ * Accepts a game object, or falls back to window.currentGame.
  */
-export function showActiveGameUI(game) {
+export function updateActiveGameUI(game) {
+  const g = game || window.currentGame || null;
   const setupSection = document.querySelector('.game-setup');
   const gameSection = document.getElementById('game-section');
+
   if (setupSection) setupSection.classList.add('hidden');
   if (gameSection) gameSection.classList.remove('hidden');
-  
-  updateGameUI(game);
+
+  if (g) updateGameUI(g);
+}
+
+/** Back-compat alias used earlier in code */
+export function showActiveGameUI(game) {
+  updateActiveGameUI(game);
 }
 
 /**
@@ -100,32 +97,59 @@ export function updateGameUI(gameData) {
   const playlistElement = document.getElementById('current-playlist');
   const gameIdElement = document.getElementById('game-id');
 
-  // Update static text fields
+  // Update text fields
   if (gameNameElement) gameNameElement.textContent = gameData.name || 'Unnamed Game';
-  if (playlistElement) playlistElement.textContent = gameData.playlist || 'Unknown Playlist';
+  if (playlistElement) playlistElement.textContent = gameData.playlistName || gameData.playlist || 'Unknown Playlist';
   if (gameIdElement) gameIdElement.textContent = gameData.id || 'N/A';
 
   // Player count (Realtime DB players object)
-  const count = gameData.players ? Object.keys(gameData.players).length : 0;
+  const count = gameData.players ? Object.keys(gameData.players).length : (gameData.playerCount || 0);
   if (playerCountElement) playerCountElement.textContent = count;
 
   // Build join URL for players
   const joinUrl = `${window.location.origin}/play-music-bingo/index.html?gameId=${gameData.id}`;
   if (joinUrlElement) joinUrlElement.textContent = joinUrl;
 
-  // === QR CODE (LOCAL) ===
-  // Updated to use local QRCode generator (qrcode.js) instead of external API image.
-  // This avoids broken QR images if the external service is blocked or offline.
+  // Render QR code with local library if available
   if (qrcodeElement) {
-    qrcodeElement.innerHTML = "";
-    new QRCode(qrcodeElement, {
-      text: joinUrl,
-      width: 200,
-      height: 200,
-      correctLevel: QRCode.CorrectLevel.M
-    });
+    qrcodeElement.innerHTML = '';
+    if (typeof window.QRCode !== 'undefined') {
+      // eslint-disable-next-line no-undef
+      new QRCode(qrcodeElement, {
+        text: joinUrl,
+        width: 200,
+        height: 200,
+        // eslint-disable-next-line no-undef
+        correctLevel: QRCode.CorrectLevel.M
+      });
+    } else {
+      console.warn('QRCode library not found; skipping QR render');
+    }
   }
-  // === END QR CODE ===
+}
+
+/**
+ * Update the "Current Song" display line in the host UI.
+ * Minimal implementation that uses the index and any info placed on window.currentGame.
+ */
+export function updateCurrentSongDisplay(index) {
+  const el = document.getElementById('current-song');
+  if (!el) return;
+
+  const num = (typeof index === 'number' && index >= 0) ? index + 1 : 0;
+
+  // Try to show something nicer if the currentGame carries titles
+  const cg = window.currentGame || {};
+  const titles = cg.songTitles || [];  // optional array if you add it later
+  const artists = cg.songArtists || []; // optional array if you add it later
+
+  if (titles[num - 1] || artists[num - 1]) {
+    const t = titles[num - 1] || `Song ${num}`;
+    const a = artists[num - 1] || '';
+    el.textContent = a ? `${t} — ${a}` : t;
+  } else {
+    el.textContent = num > 0 ? `Song ${num}` : 'Not started';
+  }
 }
 
 /**
@@ -160,8 +184,8 @@ export function hide(el) {
 export function updateUserDisplay(user) {
   const hostNameElement = document.getElementById('host-name');
   if (!hostNameElement) return;
-  
-  let displayName = (user && (user.displayName || user.email)) || 'Host';
+
+  const displayName = (user && (user.displayName || user.email)) || 'Host';
   hostNameElement.textContent = displayName;
 }
 
