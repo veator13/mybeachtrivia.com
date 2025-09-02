@@ -1,15 +1,14 @@
 // Firebase configuration  
 const firebaseConfig = {
-    apiKey: "AIzaSyDBKCotY1F943DKfVQqKOGPPkAkQe2Zgog",
-    authDomain: "beach-trivia-website.firebaseapp.com",
-    databaseURL: "https://beach-trivia-website-default-rtdb.firebaseio.com",
-    projectId: "beach-trivia-website",
-    storageBucket: "beach-trivia-website.firebasestorage.app",
-    messagingSenderId: "459479368322",
-    appId: "1:459479368322:web:7bd3d080d3b9e77610aa9b",
-    measurementId: "G-24MQRKKDNY"
+    apiKey: "AIzaSyD9yVdxmgjuiOrvns-mvn-ZybJF0sCWoMQ",
+    authDomain: "bt-music-bingo.firebaseapp.com",
+    projectId: "bt-music-bingo",
+    storageBucket: "bt-music-bingo.appspot.com",   // ✅ FIXED
+    messagingSenderId: "1014937614795",
+    appId: "1:1014937614795:web:e04ee55d7169934bef1e4e",
+    measurementId: "G-P9B40S5DBB"
 };
-  
+
 // Initialize Firebase
 if (!firebase.apps.length) {
     firebase.initializeApp(firebaseConfig);
@@ -21,7 +20,7 @@ if (!firebase.apps.length) {
 if (typeof firebase.database === 'undefined') {
     console.error('Firebase Database module not loaded. Please include the firebase-database.js script.');
 }
-  
+
 // Debug log to confirm initialization
 console.log("Firebase initialized:", firebase.apps.length > 0);
 console.log("Firebase config:", firebase.apps[0]?.options);
