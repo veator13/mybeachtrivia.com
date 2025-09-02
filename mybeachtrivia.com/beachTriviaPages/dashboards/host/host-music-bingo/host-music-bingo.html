@@ -2,26 +2,16 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <!-- CSP temporarily disabled for QR code testing -->
-  <!-- <meta http-equiv="Content-Security-Policy" content="..."> -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Host Music Bingo</title>
-
   <link rel="stylesheet" href="host-music-bingo.css" />
-
-  <!-- Firebase SDK (v8) -->
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 </head>
-
 <body>
   <div class="dashboard">
     <header>
       <h1>Music Bingo Host Dashboard</h1>
       <div class="user-profile">
-        <span class="username" id="host-name">Loading...</span>
+        <span class="username" id="host-name">Host</span>
         <button id="back-btn" onclick="window.location.href='../index.html'">Back to Dashboard</button>
       </div>
     </header>
@@ -65,7 +55,7 @@
             </div>
             <div class="stat">
               <span class="stat-label">Game ID:</span>
-              <span class="stat-value" id="game-id">ABC123</span>
+              <span class="stat-value" id="game-id">—</span>
             </div>
           </div>
         </div>
@@ -75,7 +65,7 @@
             <h3>Player Join QR Code</h3>
             <div id="qrcode"></div>
             <p class="join-instructions">Scan to join this game</p>
-            <p class="join-url" id="join-url">Loading URL...</p>
+            <p class="join-url" id="join-url">—</p>
             <button id="copy-url-btn" class="secondary-btn">Copy Join Link</button>
           </div>
 
@@ -107,24 +97,17 @@
       <section class="game-history">
         <h2>Recent Games</h2>
         <div class="history-list" id="game-history-list">
-          <!-- Games will be populated here -->
           <p class="empty-state">No recent games found</p>
         </div>
       </section>
     </main>
 
-    <footer>
-      <p>Music Bingo Host Dashboard | &copy; 2025</p>
-    </footer>
+    <footer><p>Music Bingo Host Dashboard | © 2025</p></footer>
   </div>
 
-  <!-- Firebase initialization (BT-Music-Bingo project) -->
-  <script src="/play-music-bingo/js/firebase-init.js?v=bt1"></script>
-
-  <!-- QR code generator (local library) -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-
-  <!-- Main host dashboard logic (ES Module, cache-busted) -->
-  <script type="module" src="bingo-controller.js?v=bt4"></script>
+  <!-- Local QR library (no external services) -->
+  <script src="./lib/qrcode.min.js"></script>
+  <!-- App -->
+  <script type="module" src="./app.js?v=r1"></script>
 </body>
 </html>
