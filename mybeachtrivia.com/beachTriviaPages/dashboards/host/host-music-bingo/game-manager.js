@@ -4,15 +4,12 @@
  */
 
 import { GAME_SETTINGS } from './config.js';
-import { getCurrentUser } from './auth-service.js';
 import {
   createGame,
-  updateGame,
   updateGameStatus,
   updateGameSongIndex,
   fetchGameHistory,
   getGameById,
-  listenToGameUpdates,
   getPlayerCount,
 } from './firebase-service.js';
 import {
