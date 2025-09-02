@@ -2,19 +2,44 @@ name: Deploy to Firebase Hosting on merge
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
 
 jobs:
   build_and_deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout (full history, no submodules)
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: false
 
+      # --- DEBUG: show what the runner actually has ---
+      - name: Print workspace + locate firebase.json
+        run: |
+          echo "PWD=$(pwd)"
+          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
+          echo "Top level:"
+          ls -la
+          echo
+          echo "Search for firebase.json (down 4 levels):"
+          find . -maxdepth 4 -name firebase.json -print || true
+
+      - name: Save workspace tree (for download)
+        run: |
+          sudo apt-get update >/dev/null 2>&1
+          sudo apt-get install -y tree >/dev/null 2>&1 || true
+          tree -a -L 3 > workspace-tree.txt || true
+
+      - name: Upload workspace tree artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: workspace-tree
+          path: workspace-tree.txt
+          if-no-files-found: warn
+
+      # --- Actual deploy ---
       - name: Deploy to Firebase Hosting (live)
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
@@ -22,4 +47,5 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_BEACH_TRIVIA_WEBSITE }}
           projectId: beach-trivia-website
           channelId: live
+          # IMPORTANT: start by pointing at the repo root
           entryPoint: .
