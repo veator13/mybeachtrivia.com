@@ -30,6 +30,31 @@ let gameInterval = null;
 let playlistsData = [];
 
 // ----------------------
+// Sanity helpers
+// ----------------------
+function assertFirebaseReady() {
+  // guard for v8 global firebase init done in firebase-init.js
+  if (
+    typeof window === 'undefined' ||
+    typeof window.firebase === 'undefined' ||
+    !firebase.apps ||
+    !firebase.apps.length
+  ) {
+    throw new Error(
+      'Firebase not initialized. Make sure /play-music-bingo/js/firebase-init.js is included and your config is correct.'
+    );
+  }
+}
+
+function assertPlaylistsLoaded() {
+  if (!Array.isArray(playlistsData) || playlistsData.length === 0) {
+    throw new Error(
+      'No playlists loaded. Check your Firestore collection (music_bingo) and rules/permissions.'
+    );
+  }
+}
+
+// ----------------------
 // Public API
 // ----------------------
 
@@ -45,6 +70,15 @@ export function getCurrentGame() {
 
 /** Create a new game */
 export async function createNewGame() {
+  try {
+    assertFirebaseReady();
+    assertPlaylistsLoaded();
+  } catch (e) {
+    console.error(e);
+    alert(e.message);
+    return;
+  }
+
   const playlistSelect = document.getElementById('playlist-select');
   const gameNameInput = document.getElementById('game-name');
   const playerLimitInput = document.getElementById('player-limit');
@@ -114,6 +148,8 @@ export function startGameUpdateInterval() {
     if (!currentGame) return;
 
     try {
+      assertFirebaseReady();
+
       const playerCount = await getPlayerCount(currentGame.id);
       const latestGame = await getGameById(currentGame.id);
 
@@ -145,6 +181,15 @@ export function startGameUpdateInterval() {
 
 /** Play current song (or begin at first) */
 export async function playCurrentSong() {
+  try {
+    assertFirebaseReady();
+    assertPlaylistsLoaded();
+  } catch (e) {
+    console.error(e);
+    alert(e.message);
+    return;
+  }
+
   if (!currentGame) return;
 
   try {
@@ -193,6 +238,15 @@ export async function playCurrentSong() {
 
 /** Advance to next song */
 export async function playNextSong() {
+  try {
+    assertFirebaseReady();
+    assertPlaylistsLoaded();
+  } catch (e) {
+    console.error(e);
+    alert(e.message);
+    return;
+  }
+
   if (!currentGame) return;
 
   try {
@@ -240,6 +294,14 @@ export async function playNextSong() {
 
 /** Pause the game */
 export async function pauseGame() {
+  try {
+    assertFirebaseReady();
+  } catch (e) {
+    console.error(e);
+    alert(e.message);
+    return;
+  }
+
   if (!currentGame) return;
 
   try {
@@ -261,6 +323,14 @@ export async function pauseGame() {
 
 /** Resume the game (optionally from a known id) */
 export async function resumeGame(gameId = null) {
+  try {
+    assertFirebaseReady();
+  } catch (e) {
+    console.error(e);
+    alert(e.message);
+    return;
+  }
+
   if (gameId && !currentGame) {
     try {
       const game = await getGameById(gameId);
@@ -294,6 +364,13 @@ export async function resumeGame(gameId = null) {
 
 /** End the game and reset UI */
 export async function endGame() {
+  try {
+    assertFirebaseReady();
+  } catch (e) {
+    console.error(e);
+    // If Firebase truly isn't ready here, just hide the section safely.
+  }
+
   if (!currentGame) {
     const gameSection = document.getElementById('game-section');
     if (gameSection) gameSection.classList.add('hidden');
@@ -348,6 +425,14 @@ export async function endGame() {
 /** Restart a previous game by cloning its setup */
 export async function restartGame(gameId) {
   try {
+    assertFirebaseReady();
+  } catch (e) {
+    console.error(e);
+    alert(e.message);
+    return;
+  }
+
+  try {
     const game = await getGameById(gameId);
     if (!game) {
       alert('Game not found');
@@ -379,6 +464,15 @@ export async function restartGame(gameId) {
 export async function loadGameHistory() {
   const historyList = document.getElementById('game-history-list');
   if (!historyList) return;
+
+  try {
+    assertFirebaseReady();
+  } catch (e) {
+    console.error(e);
+    historyList.innerHTML =
+      '<p class="empty-state">Firebase not initialized</p>';
+    return;
+  }
 
   try {
     historyList.innerHTML = '<p class="loading">Loading recent games...</p>';
