@@ -7,7 +7,8 @@
 import { initializeAuth } from './auth-service.js';
 import { initializeSpotify } from './spotify-service.js';
 import { setupEventListeners } from './ui-handler.js';
-import { startGameUpdateInterval } from './game-manager.js';
+// cache-bust to force browsers to fetch the latest game-manager
+import { startGameUpdateInterval } from './game-manager.js?v=bt2';
 
 // ----------------------
 // QR helper (no imports)
@@ -84,8 +85,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
         if (gameId) {
           console.log('Returning to game:', gameId);
-          // If returning to a game, resume it
-          import('./game-manager.js').then((module) => {
+          // If returning to a game, resume it (cache-busted dynamic import)
+          import('./game-manager.js?v=bt2').then((module) => {
             module.resumeGame(gameId);
           });
         }
