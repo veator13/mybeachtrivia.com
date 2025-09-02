@@ -22,4 +22,4 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_BEACH_TRIVIA_WEBSITE }}
           projectId: beach-trivia-website
           channelId: live
-          entryPoint: ./mybeachtrivia.com
+          entryPoint: .
