@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Host Music Bingo</title>
+
+  <!-- Host dashboard styles -->
   <link rel="stylesheet" href="./host-music-bingo.css?v=3" />
 </head>
 <body>
@@ -105,9 +107,15 @@
     <footer><p>Music Bingo Host Dashboard | © 2025</p></footer>
   </div>
 
-  <!-- Local QR library (no external services) -->
-  <script src="./lib/qrcode.min.js"></script>
-  <!-- App -->
+  <!-- 1) Local QR library MUST load before app.js -->
+  <script src="./lib/qrcode.min.js?v=1"></script>
+  <script>
+    if (typeof QRCode === 'undefined') {
+      console.warn('QRCode library missing — QR will fall back to showing the URL.');
+    }
+  </script>
+
+  <!-- 2) App entry (ES module) -->
   <script type="module" src="./app.js?v=r1"></script>
 </body>
 </html>
