@@ -1,72 +1,99 @@
-// data.js — simple in-memory data layer you can replace with Firebase
+// data.js — now backed by Firebase Firestore for bt-music-bingo
 
-// Mock playlists
-const playlists = [
-    {
-      id: 'pl-80s',
-      name: '80s Bangers',
-      songs: Array.from({ length: 25 }, (_, i) => ({ title: `80s Track ${i+1}`, artist: 'Various' })),
-    },
-    {
-      id: 'pl-90s',
-      name: '90s Hits',
-      songs: Array.from({ length: 25 }, (_, i) => ({ title: `90s Track ${i+1}`, artist: 'Various' })),
-    },
-  ];
-  
-  const games = new Map();
-  
-  export async function fetchPlaylists() {
-    // replace with Firestore later
-    return playlists;
-  }
-  
-  export async function createGame({ playlistId, name, playerLimit }) {
-    const pl = playlists.find(p => p.id === playlistId);
-    if (!pl) throw new Error('Playlist not found');
-  
-    const id = 'g_' + Math.random().toString(36).slice(2, 9);
-    const game = {
-      id,
-      name: name || 'Music Bingo',
-      playlistId,
-      playlistName: pl.name,
-      status: 'active',
-      playerLimit: playerLimit ?? null,
-      playerCount: 0,
-      currentSongIndex: -1,
-      createdAt: new Date().toISOString(),
-    };
-    games.set(id, game);
-    return structuredClone(game);
-  }
-  
-  export async function getGame(id) {
-    const g = games.get(id);
-    if (!g) throw new Error('Game not found');
-    return structuredClone(g);
-  }
-  
-  export async function updateGameStatus(id, status) {
-    const g = games.get(id);
-    if (!g) throw new Error('Game not found');
-    g.status = status;
-    games.set(id, g);
-    return structuredClone(g);
-  }
-  
-  export async function updateGameSongIndex(id, index) {
-    const g = games.get(id);
-    if (!g) throw new Error('Game not found');
-    const pl = playlists.find(p => p.id === g.playlistId);
-    const max = (pl?.songs?.length ?? 0) - 1;
-    g.currentSongIndex = Math.max(0, Math.min(index, max));
-    games.set(id, g);
-    return structuredClone(g);
-  }
-  
-  export async function getPlayerCount(id) {
-    const g = games.get(id);
-    if (!g) return 0;
-    return g.playerCount ?? 0; // keep 0 for now
-  }
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  getDoc,
+  getDocs,
+  setDoc,
+  updateDoc,
+  doc,
+  serverTimestamp
+} from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+
+// --- Firebase config for bt-music-bingo ---
+const firebaseConfig = {
+  apiKey: 'AIzaSyD9yVdxmgjuiOrvns-mvn-ZybJF0sCWoMQ',
+  authDomain: 'bt-music-bingo.firebaseapp.com',
+  projectId: 'bt-music-bingo',
+  storageBucket: 'bt-music-bingo.appspot.com',
+  messagingSenderId: '1014937614795',
+  appId: '1:1014937614795:web:e04ee55d7169934bef1e4e',
+  measurementId: 'G-P9B40S5DBB',
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+
+async function ensureAuth() {
+  return new Promise((resolve, reject) => {
+    onAuthStateChanged(auth, (user) => {
+      if (user) return resolve(user);
+      signInAnonymously(auth).then(({ user }) => resolve(user)).catch(reject);
+    });
+  });
+}
+
+// --- Playlist APIs ---
+export async function fetchPlaylists() {
+  const snap = await getDocs(collection(db, 'music_bingo'));
+  return snap.docs.map(d => ({ id: d.id, name: d.data().playlistTitle || d.id, ...d.data() }));
+}
+
+// --- Game APIs ---
+export async function createGame({ playlistId, name, playerLimit }) {
+  await ensureAuth();
+  // fetch playlist info
+  const plRef = doc(db, 'music_bingo', playlistId);
+  const plSnap = await getDoc(plRef);
+  if (!plSnap.exists()) throw new Error('Playlist not found');
+  const pl = plSnap.data();
+
+  const game = {
+    name: name || 'Music Bingo',
+    playlistId,
+    playlistName: pl.playlistTitle || playlistId,
+    status: 'active',
+    playerLimit: playerLimit ?? null,
+    playerCount: 0,
+    currentSongIndex: -1,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+  const docRef = await addDoc(collection(db, 'games'), game);
+  return { id: docRef.id, ...game };
+}
+
+export async function getGame(id) {
+  const ref = doc(db, 'games', id);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) throw new Error('Game not found');
+  return { id: snap.id, ...snap.data() };
+}
+
+export async function updateGameStatus(id, status) {
+  await ensureAuth();
+  const ref = doc(db, 'games', id);
+  await updateDoc(ref, { status, updatedAt: serverTimestamp() });
+  const snap = await getDoc(ref);
+  return { id: snap.id, ...snap.data() };
+}
+
+export async function updateGameSongIndex(id, index) {
+  await ensureAuth();
+  const ref = doc(db, 'games', id);
+  await updateDoc(ref, { currentSongIndex: index, updatedAt: serverTimestamp() });
+  const snap = await getDoc(ref);
+  return { id: snap.id, ...snap.data() };
+}
+
+export async function getPlayerCount(id) {
+  const ref = doc(db, 'games', id);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return 0;
+  return snap.data().playerCount ?? 0;
+}
