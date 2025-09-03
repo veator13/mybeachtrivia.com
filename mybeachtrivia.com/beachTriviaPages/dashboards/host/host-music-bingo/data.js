@@ -1,4 +1,5 @@
 // data.js — now backed by Firebase Firestore for bt-music-bingo
+console.debug('[data.js] using bt-music-bingo Firestore');
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import {
@@ -43,6 +44,9 @@ export async function fetchPlaylists() {
   const snap = await getDocs(collection(db, 'music_bingo'));
   return snap.docs.map(d => ({ id: d.id, name: d.data().playlistTitle || d.id, ...d.data() }));
 }
+
+// Back-compat alias for existing code paths
+export const getPlaylists = fetchPlaylists;
 
 // --- Game APIs ---
 export async function createGame({ playlistId, name, playerLimit }) {
