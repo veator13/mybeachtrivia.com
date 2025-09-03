@@ -42,7 +42,18 @@ async function ensureAuth() {
 // --- Playlist APIs ---
 export async function fetchPlaylists() {
   const snap = await getDocs(collection(db, 'music_bingo'));
-  return snap.docs.map(d => ({ id: d.id, name: d.data().playlistTitle || d.id, ...d.data() }));
+  const items = snap.docs.map(d => {
+    const data = d.data() || {};
+    const title = data.playlistTitle || data.title || data.name || d.id;
+    return {
+      id: d.id,
+      playlistTitle: title, // preferred by host UI
+      title,
+      name: title,
+      ...data,
+    };
+  }).sort((a, b) => (a.playlistTitle || '').localeCompare(b.playlistTitle || ''));
+  return items;
 }
 
 // Back-compat alias for existing code paths
