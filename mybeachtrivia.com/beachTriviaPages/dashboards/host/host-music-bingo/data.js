@@ -1,5 +1,5 @@
-// data.js — now backed by Firebase Firestore for bt-music-bingo
-console.debug('[data.js] using bt-music-bingo Firestore');
+// data.js — backed by Firebase Firestore for Beach-Trivia-Website
+console.debug('[data.js] using beach-trivia-website Firestore');
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import {
@@ -8,22 +8,21 @@ import {
   addDoc,
   getDoc,
   getDocs,
-  setDoc,
   updateDoc,
   doc,
   serverTimestamp
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 
-// --- Firebase config for bt-music-bingo ---
+// --- Firebase config for beach-trivia-website ---
 const firebaseConfig = {
-  apiKey: 'AIzaSyD9yVdxmgjuiOrvns-mvn-ZybJF0sCWoMQ',
-  authDomain: 'bt-music-bingo.firebaseapp.com',
-  projectId: 'bt-music-bingo',
-  storageBucket: 'bt-music-bingo.appspot.com',
-  messagingSenderId: '1014937614795',
-  appId: '1:1014937614795:web:e04ee55d7169934bef1e4e',
-  measurementId: 'G-P9B40S5DBB',
+  apiKey: "AIzaSyDBKCotY1F943DKfVQqKOGPPkAkQe2Zgog",
+  authDomain: "beach-trivia-website.firebaseapp.com",
+  projectId: "beach-trivia-website",
+  storageBucket: "beach-trivia-website.appspot.com",
+  messagingSenderId: "459479368322",
+  appId: "1:459479368322:web:7bd3d080d3b9e77610aa9b",
+  measurementId: "G-24MQRKKDNY"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -34,7 +33,9 @@ async function ensureAuth() {
   return new Promise((resolve, reject) => {
     onAuthStateChanged(auth, (user) => {
       if (user) return resolve(user);
-      signInAnonymously(auth).then(({ user }) => resolve(user)).catch(reject);
+      signInAnonymously(auth)
+        .then(({ user }) => resolve(user))
+        .catch(reject);
     });
   });
 }
@@ -47,7 +48,7 @@ export async function fetchPlaylists() {
     const title = data.playlistTitle || data.title || data.name || d.id;
     return {
       id: d.id,
-      playlistTitle: title, // preferred by host UI
+      playlistTitle: title,
       title,
       name: title,
       ...data,
@@ -62,7 +63,7 @@ export const getPlaylists = fetchPlaylists;
 // --- Game APIs ---
 export async function createGame({ playlistId, name, playerLimit }) {
   await ensureAuth();
-  // fetch playlist info
+
   const plRef = doc(db, 'music_bingo', playlistId);
   const plSnap = await getDoc(plRef);
   if (!plSnap.exists()) throw new Error('Playlist not found');
@@ -79,6 +80,7 @@ export async function createGame({ playlistId, name, playerLimit }) {
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   };
+
   const docRef = await addDoc(collection(db, 'games'), game);
   return { id: docRef.id, ...game };
 }
