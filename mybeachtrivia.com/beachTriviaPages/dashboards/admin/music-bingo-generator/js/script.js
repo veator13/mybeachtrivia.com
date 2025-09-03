@@ -15,15 +15,16 @@ import { TextValidator } from './validation.js';
 // Import the BingoBoardGenerator from pdfGenerator.js
 import { BingoBoardGenerator } from './pdfGenerator.js';
 
-// Firebase Configuration
+// Firebase Configuration (bt-music-bingo)
+// NOTE: storageBucket uses the appspot.com domain (correct for Firebase buckets)
 const firebaseConfig = {
-    apiKey: "AIzaSyDBKCotY1F943DKfVQqKOGPPkAkQe2Zgog",
-    authDomain: "beach-trivia-website.firebaseapp.com",
-    projectId: "beach-trivia-website",
-    storageBucket: "beach-trivia-website.firebasestorage.app",
-    messagingSenderId: "459479368322",
-    appId: "1:459479368322:web:7bd3d080d3b9e77610aa9b",
-    measurementId: "G-24MQRKKDNY"
+    apiKey: "AIzaSyD9yVdxmgjuiOrvns-mvn-ZybJF0sCWoMQ",
+    authDomain: "bt-music-bingo.firebaseapp.com",
+    projectId: "bt-music-bingo",
+    storageBucket: "bt-music-bingo.appspot.com",
+    messagingSenderId: "1014937614795",
+    appId: "1:1014937614795:web:e04ee55d7169934bef1e4e",
+    measurementId: "G-P9B40S5DBB"
 };
 
 // Initialize Firebase
