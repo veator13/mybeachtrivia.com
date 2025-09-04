@@ -22,10 +22,6 @@
           {
             "key": "X-Debug-CSP",
             "value": "csp-v3-2025-09-04T"
-          },
-          {
-            "key": "Content-Security-Policy",
-            "value": "default-src 'self'; base-uri 'self'; object-src 'none'; img-src 'self' data: https:; script-src 'self' 'unsafe-eval' https://www.gstatic.com https://www.googleapis.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://firebaseinstallations.googleapis.com https://firebaseremoteconfig.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; frame-ancestors 'self';"
           }
         ]
       }
