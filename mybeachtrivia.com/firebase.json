@@ -8,6 +8,15 @@
     ],
     "headers": [
       {
+        "source": "**/*.html",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-store"
+          }
+        ]
+      },
+      {
         "source": "**",
         "headers": [
           {
@@ -23,16 +32,5 @@
         "destination": "/index.html"
       }
     ]
-  },
-  "emulators": {
-    "auth": { "port": 9099 },
-    "firestore": { "port": 8080 },
-    "hosting": { "port": 5050 },
-    "ui": { "enabled": true },
-    "singleProjectMode": true
-  },
-  "firestore": {
-    "rules": "firestore.rules",
-    "indexes": "firestore.indexes.json"
   }
 }
