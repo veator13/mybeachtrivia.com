@@ -1,5 +1,6 @@
-// data.js — backed by Firebase Firestore for Beach-Trivia-Website
-console.debug('[data.js] using beach-trivia-website Firestore');
+// data.js — Music Bingo host backed by Beach-Trivia-Website Firestore
+// Auth model: require existing employee login (no anonymous).
+console.debug('[data.js] using Beach-Trivia-Website project & employee auth');
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import {
@@ -12,9 +13,14 @@ import {
   doc,
   serverTimestamp
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
-import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+import {
+  getAuth,
+  onAuthStateChanged,
+  setPersistence,
+  browserLocalPersistence
+} from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 
-// --- Firebase config for beach-trivia-website ---
+// ------- Project config: Beach-Trivia-Website -------
 const firebaseConfig = {
   apiKey: "AIzaSyDBKCotY1F943DKfVQqKOGPPkAkQe2Zgog",
   authDomain: "beach-trivia-website.firebaseapp.com",
@@ -25,22 +31,50 @@ const firebaseConfig = {
   measurementId: "G-24MQRKKDNY"
 };
 
+// Where to send employees if they aren’t logged in:
+const LOGIN_URL = '/beachTriviaPages/login.html'; // change if your login path differs
+
+// Firebase singletons
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
+await setPersistence(auth, browserLocalPersistence);
 
-async function ensureAuth() {
-  return new Promise((resolve, reject) => {
-    onAuthStateChanged(auth, (user) => {
-      if (user) return resolve(user);
-      signInAnonymously(auth)
-        .then(({ user }) => resolve(user))
-        .catch(reject);
+// --- Auth helper: wait for a signed-in employee (no anonymous) ---
+let cachedUserPromise;
+async function ensureEmployeeAuth() {
+  if (!cachedUserPromise) {
+    cachedUserPromise = new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('Not signed in (timeout). Please log in.'));
+      }, 8000);
+
+      onAuthStateChanged(auth, (user) => {
+        if (user) {
+          clearTimeout(timeout);
+          resolve(user);
+        }
+      }, (err) => {
+        clearTimeout(timeout);
+        reject(err);
+      });
     });
-  });
+  }
+  return cachedUserPromise;
 }
 
-// --- Playlist APIs ---
+// Utility you can call from UI before enabling “Start New Game”
+export async function requireEmployee() {
+  try {
+    const u = await ensureEmployeeAuth();
+    return u; // ok
+  } catch (e) {
+    // Friendly message for the UI; do NOT redirect automatically unless you want to.
+    throw new Error(`Please log in to host Music Bingo. ${e.message} (Go to ${LOGIN_URL})`);
+  }
+}
+
+// -------------------- Playlists --------------------
 export async function fetchPlaylists() {
   const snap = await getDocs(collection(db, 'music_bingo'));
   const items = snap.docs.map(d => {
@@ -57,13 +91,15 @@ export async function fetchPlaylists() {
   return items;
 }
 
-// Back-compat alias for existing code paths
+// Back-compat alias
 export const getPlaylists = fetchPlaylists;
 
-// --- Game APIs ---
+// ---------------------- Games ----------------------
 export async function createGame({ playlistId, name, playerLimit }) {
-  await ensureAuth();
+  // Require an authenticated employee
+  await requireEmployee();
 
+  // Fetch playlist info
   const plRef = doc(db, 'music_bingo', playlistId);
   const plSnap = await getDoc(plRef);
   if (!plSnap.exists()) throw new Error('Playlist not found');
@@ -93,7 +129,7 @@ export async function getGame(id) {
 }
 
 export async function updateGameStatus(id, status) {
-  await ensureAuth();
+  await requireEmployee();
   const ref = doc(db, 'games', id);
   await updateDoc(ref, { status, updatedAt: serverTimestamp() });
   const snap = await getDoc(ref);
@@ -101,7 +137,7 @@ export async function updateGameStatus(id, status) {
 }
 
 export async function updateGameSongIndex(id, index) {
-  await ensureAuth();
+  await requireEmployee();
   const ref = doc(db, 'games', id);
   await updateDoc(ref, { currentSongIndex: index, updatedAt: serverTimestamp() });
   const snap = await getDoc(ref);
