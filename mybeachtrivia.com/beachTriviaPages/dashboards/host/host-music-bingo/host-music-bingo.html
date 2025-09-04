@@ -1,147 +1,114 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Music Bingo · Host Console</title>
-  <link rel="stylesheet" href="./host-music-bingo.css?v=4" />
-</head>
-<body>
-  <div class="app-shell">
-    <!-- Top App Bar -->
-    <header class="topbar">
-      <div class="brand">
-        <div class="logo-dot" aria-hidden="true"></div>
-        <h1 class="brand-title">Music Bingo — Host</h1>
-      </div>
+// data.js — now backed by Firebase Firestore for bt-music-bingo
+console.debug('[data.js] using bt-music-bingo Firestore');
 
-      <div class="topbar-actions">
-        <span class="username" id="host-name" title="Signed in as host">Host</span>
-        <button id="back-btn" class="btn btn-ghost" onclick="window.location.href='../index.html'">Back to Dashboard</button>
-      </div>
-    </header>
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  getDoc,
+  getDocs,
+  setDoc,
+  updateDoc,
+  doc,
+  serverTimestamp
+} from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 
-    <!-- Main two-column layout -->
-    <main class="content">
-      <!-- Left column: Setup + Controls + History -->
-      <div class="column-left">
-        <!-- Create / Setup -->
-        <section class="card card--panel" aria-labelledby="setup-title">
-          <div class="card-header">
-            <h2 id="setup-title" class="card-title">Create New Game</h2>
-            <p class="card-subtitle">Choose a playlist and optional settings. You can start immediately and share the join code.</p>
-          </div>
+// --- Firebase config for bt-music-bingo ---
+const firebaseConfig = {
+  apiKey: 'AIzaSyD9yVdxmgjuiOrvns-mvn-ZybJF0sCWoMQ',
+  authDomain: 'bt-music-bingo.firebaseapp.com',
+  projectId: 'bt-music-bingo',
+  storageBucket: 'bt-music-bingo.appspot.com',
+  messagingSenderId: '1014937614795',
+  appId: '1:1014937614795:web:e04ee55d7169934bef1e4e',
+  measurementId: 'G-P9B40S5DBB',
+};
 
-          <form class="setup-form" onsubmit="return false;">
-            <div class="form-row">
-              <label for="playlist-select">Playlist</label>
-              <select id="playlist-select" class="input">
-                <option value="" disabled selected>Loading playlists...</option>
-              </select>
-            </div>
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
 
-            <div class="form-row">
-              <label for="game-name">Game Name <span class="muted">(optional)</span></label>
-              <input type="text" id="game-name" class="input" placeholder="My Music Bingo Game" />
-            </div>
+async function ensureAuth() {
+  return new Promise((resolve, reject) => {
+    onAuthStateChanged(auth, (user) => {
+      if (user) return resolve(user);
+      signInAnonymously(auth).then(({ user }) => resolve(user)).catch(reject);
+    });
+  });
+}
 
-            <div class="form-row">
-              <label for="player-limit">Player Limit <span class="muted">(optional)</span></label>
-              <input type="number" id="player-limit" class="input" min="1" max="100" placeholder="No limit" />
-            </div>
+// --- Playlist APIs ---
+export async function fetchPlaylists() {
+  const snap = await getDocs(collection(db, 'music_bingo'));
+  const items = snap.docs.map(d => {
+    const data = d.data() || {};
+    const title = data.playlistTitle || data.title || data.name || d.id;
+    return {
+      id: d.id,
+      playlistTitle: title, // preferred by host UI
+      title,
+      name: title,
+      ...data,
+    };
+  }).sort((a, b) => (a.playlistTitle || '').localeCompare(b.playlistTitle || ''));
+  return items;
+}
 
-            <div class="actions">
-              <button id="create-game-btn" class="btn btn-primary">Start New Game</button>
-            </div>
-          </form>
-        </section>
+// Back-compat alias for existing code paths
+export const getPlaylists = fetchPlaylists;
 
-        <!-- Active Game -->
-        <section class="card card--panel hidden" id="game-section" aria-labelledby="active-title">
-          <div class="card-header">
-            <h2 id="active-title" class="card-title">Active Game: <span id="current-game-name">Game Name</span></h2>
-            <div class="pill-group">
-              <span class="pill"><span class="pill-label">Players</span><span id="player-count" class="pill-value">0</span></span>
-              <span class="pill"><span class="pill-label">Playlist</span><span id="current-playlist" class="pill-value">—</span></span>
-              <span class="pill"><span class="pill-label">Game ID</span><span id="game-id" class="pill-value">—</span></span>
-            </div>
-          </div>
+// --- Game APIs ---
+export async function createGame({ playlistId, name, playerLimit }) {
+  await ensureAuth();
+  // fetch playlist info
+  const plRef = doc(db, 'music_bingo', playlistId);
+  const plSnap = await getDoc(plRef);
+  if (!plSnap.exists()) throw new Error('Playlist not found');
+  const pl = plSnap.data();
 
-          <div class="control-grid">
-            <!-- Now Playing -->
-            <div class="control-card">
-              <div class="control-head">
-                <h3 class="control-title">Now Playing</h3>
-              </div>
-              <p id="current-song" class="now-playing" aria-live="polite">Not started</p>
-              <div class="btn-row">
-                <button id="play-song-btn" class="btn btn-primary">Play</button>
-                <button id="next-song-btn" class="btn btn-primary">Next Song</button>
-              </div>
-            </div>
+  const game = {
+    name: name || 'Music Bingo',
+    playlistId,
+    playlistName: pl.playlistTitle || playlistId,
+    status: 'active',
+    playerLimit: playerLimit ?? null,
+    playerCount: 0,
+    currentSongIndex: -1,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+  const docRef = await addDoc(collection(db, 'games'), game);
+  return { id: docRef.id, ...game };
+}
 
-            <!-- Game Management -->
-            <div class="control-card">
-              <div class="control-head">
-                <h3 class="control-title">Game Management</h3>
-              </div>
-              <div class="btn-row">
-                <button id="pause-game-btn" class="btn">Pause</button>
-                <button id="resume-game-btn" class="btn">Resume</button>
-                <button id="end-game-btn" class="btn btn-danger">End Game</button>
-              </div>
-            </div>
-          </div>
-        </section>
+export async function getGame(id) {
+  const ref = doc(db, 'games', id);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) throw new Error('Game not found');
+  return { id: snap.id, ...snap.data() };
+}
 
-        <!-- History -->
-        <section class="card card--panel" aria-labelledby="history-title">
-          <div class="card-header">
-            <h2 id="history-title" class="card-title">Recent Games</h2>
-          </div>
-          <div class="history-list" id="game-history-list">
-            <p class="empty-state">No recent games found</p>
-          </div>
-        </section>
-      </div>
+export async function updateGameStatus(id, status) {
+  await ensureAuth();
+  const ref = doc(db, 'games', id);
+  await updateDoc(ref, { status, updatedAt: serverTimestamp() });
+  const snap = await getDoc(ref);
+  return { id: snap.id, ...snap.data() };
+}
 
-      <!-- Right column: Join / QR (sticky) -->
-      <aside class="column-right">
-        <section class="card card--sticky" aria-labelledby="join-title">
-          <div class="card-header">
-            <h2 id="join-title" class="card-title">Player Join</h2>
-            <p class="card-subtitle">Scan or tap the link to join your current game.</p>
-          </div>
+export async function updateGameSongIndex(id, index) {
+  await ensureAuth();
+  const ref = doc(db, 'games', id);
+  await updateDoc(ref, { currentSongIndex: index, updatedAt: serverTimestamp() });
+  const snap = await getDoc(ref);
+  return { id: snap.id, ...snap.data() };
+}
 
-          <div id="qrcode" class="qr-box" role="img" aria-label="QR code for player join link">
-            <!-- QR will be rendered here -->
-          </div>
-
-          <p class="muted">Scan to join this game</p>
-
-          <p id="join-url" class="join-url" title="Click to copy"></p>
-
-          <div class="actions">
-            <button id="copy-url-btn" class="btn btn-ghost">Copy Join Link</button>
-          </div>
-        </section>
-      </aside>
-    </main>
-
-    <footer class="footer">
-      <p>Music Bingo Host Console · © 2025</p>
-    </footer>
-  </div>
-
-  <!-- Local QR library MUST load before app.js -->
-  <script src="./lib/qrcode.min.js?v=1"></script>
-  <script>
-    if (typeof QRCode === 'undefined') {
-      console.warn('QRCode library missing — QR will fall back to showing the URL.');
-    }
-  </script>
-
-  <!-- App entry (ES module) -->
-  <script type="module" src="./app.js?v=r2"></script>
-</body>
-</html>
+export async function getPlayerCount(id) {
+  const ref = doc(db, 'games', id);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return 0;
+  return snap.data().playerCount ?? 0;
+}
