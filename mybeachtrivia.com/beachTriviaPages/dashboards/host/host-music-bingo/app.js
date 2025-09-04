@@ -8,6 +8,8 @@ import {
   getPlayerCount
 } from './data.js';
 
+import { renderJoinQRCode } from '../qr.js';
+
 // ------- Element lookups (match host-music-bingo.html) -------
 const els = {
   playlist: document.querySelector('#playlist-select'),
@@ -57,19 +59,8 @@ function ensureJoinLinkDisplay() {
 function renderQR(url) {
   if (!els.qrBox) return;
   els.qrBox.innerHTML = '';
-  // If you include a QR lib (e.g., qrcode.min.js) globally:
-  if (typeof window.QRCode !== 'undefined') {
-    // eslint-disable-next-line no-undef
-    new QRCode(els.qrBox, {
-      text: url,
-      width: 256,
-      height: 256,
-      // eslint-disable-next-line no-undef
-      correctLevel: QRCode.CorrectLevel.M
-    });
-  } else if (typeof window.renderJoinQRCode === 'function') {
-    // If you use your qr.js wrapper
-    window.renderJoinQRCode(els.qrBox, url, 180);
+  if (typeof renderJoinQRCode === 'function') {
+    renderJoinQRCode(els.qrBox, url, 180);
   } else {
     // Fallback: show the URL as text
     const a = document.createElement('a');

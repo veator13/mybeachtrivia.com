@@ -37,7 +37,6 @@
             <div class="form-row">
               <label for="playlist-select">Playlist</label>
               <select id="playlist-select" class="input">
-                <!-- app.js will populate this; placeholder keeps layout stable -->
                 <option value="" disabled selected>Loading playlists…</option>
               </select>
             </div>
@@ -58,7 +57,7 @@
           </div>
         </section>
 
-        <!-- Active Game Panel (hidden until a game starts) -->
+        <!-- Active Game Panel -->
         <section id="game-section" class="card card--panel hidden">
           <div class="card-header">
             <h2 class="card-title">Active Game</h2>
@@ -129,10 +128,7 @@
     <div class="footer">Music Bingo Host Console — © 2025</div>
   </div>
 
-  <!-- QR helper (uses whichever QR lib is present, or falls back to URL text) -->
-  <script src="../qr.js"></script>
-
-  <!-- App logic (imports ./data.js inside; CSP-safe) -->
+  <!-- App logic (imports ./data.js and ../qr.js inside; CSP-safe) -->
   <script type="module" src="app.js"></script>
 </body>
 </html>
