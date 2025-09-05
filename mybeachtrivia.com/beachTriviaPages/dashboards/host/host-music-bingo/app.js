@@ -8,8 +8,35 @@ import {
   getPlayerCount
 } from './data.js';
 
-// IMPORTANT: absolute path so Hosting doesn't rewrite it
-import { renderJoinQRCode } from './qr.js';
+// Try absolute path or check if qr.js exists
+// import { renderJoinQRCode } from './qr.js';
+
+// Fallback QR function if qr.js fails to load
+function fallbackRenderQR(target, url, size = 200) {
+  const el = typeof target === 'string' ? document.querySelector(target) : target;
+  if (!el) return;
+  
+  el.innerHTML = '';
+  const p = document.createElement('p');
+  p.style.cssText = 'word-break: break-all; font-family: monospace; font-size: 12px; padding: 10px; background: #f0f0f0; border-radius: 8px;';
+  p.textContent = url;
+  el.appendChild(p);
+}
+
+// Try to import QR module dynamically
+let renderJoinQRCode = fallbackRenderQR;
+
+// Dynamic import with error handling
+(async () => {
+  try {
+    const qrModule = await import('./qr.js');
+    renderJoinQRCode = qrModule.renderJoinQRCode || fallbackRenderQR;
+    console.log('QR module loaded successfully');
+  } catch (error) {
+    console.warn('QR module failed to load, using fallback:', error);
+    renderJoinQRCode = fallbackRenderQR;
+  }
+})();
 
 // ------- Element lookups (match host-music-bingo.html) -------
 const els = {
@@ -60,16 +87,9 @@ function ensureJoinLinkDisplay() {
 function renderQR(url) {
   if (!els.qrBox) return;
   els.qrBox.innerHTML = '';
-  if (typeof renderJoinQRCode === 'function') {
-    renderJoinQRCode(els.qrBox, url, 180);
-  } else {
-    // Fallback: show the URL as text
-    const a = document.createElement('a');
-    a.href = url;
-    a.textContent = url;
-    a.rel = 'noreferrer';
-    els.qrBox.appendChild(a);
-  }
+  
+  // Use the renderJoinQRCode function (either loaded or fallback)
+  renderJoinQRCode(els.qrBox, url, 180);
 }
 
 function wireCopyJoin() {
@@ -130,7 +150,9 @@ async function handleStartGame(e) {
   }
 
   try {
+    console.log('Creating game with playlist:', playlistId);
     const game = await createGame({ playlistId, name, playerLimit });
+    console.log('Game created:', game);
     updateGameUI(game, playlistName);
   } catch (err) {
     console.error('Error creating game:', err);
@@ -182,12 +204,17 @@ async function handleEndGame(e) {
 
 // ---------------- INIT ----------------
 async function init() {
-  // Prevent any accidental form submit refresh (causes “flash/spazz”)
+  console.log('Initializing Music Bingo Host...');
+  
+  // Prevent any accidental form submit refresh (causes "flash/spazz")
   els.forms.forEach((f) => f.addEventListener('submit', (e) => e.preventDefault()));
 
   // Populate playlists
   try {
+    console.log('Fetching playlists...');
     const playlists = await fetchPlaylists();
+    console.log('Playlists fetched:', playlists);
+    
     if (els.playlist) {
       els.playlist.innerHTML = '<option value="" disabled selected>Select a playlist...</option>';
       playlists.forEach((pl) => {
@@ -196,9 +223,19 @@ async function init() {
         opt.textContent = pl.playlistTitle || pl.name || pl.id;
         els.playlist.appendChild(opt);
       });
+      console.log('Playlist dropdown populated');
     }
   } catch (err) {
     console.error('Failed to load playlists:', err);
+    // Show more detailed error to help debug
+    if (els.playlist) {
+      els.playlist.innerHTML = '<option value="" disabled selected>Error loading playlists - check console</option>';
+    }
+    
+    // Check if it's an auth issue
+    if (err.message.includes('log in') || err.message.includes('auth')) {
+      alert('Please log in to access Music Bingo. You may need to visit the login page first.');
+    }
   }
 
   // Wire controls
@@ -210,6 +247,8 @@ async function init() {
   els.endBtn?.addEventListener('click', handleEndGame);
 
   wireCopyJoin();
+  
+  console.log('Music Bingo Host initialized');
 }
 
 init();
