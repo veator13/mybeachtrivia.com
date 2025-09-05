@@ -1,248 +1,245 @@
-// app.js — Host Music Bingo (QR enabled, CSS-class based)
+// host-music-bingo/app.js
+// Host dashboard logic: start game, show join link/QR, live player count.
+
 import {
   fetchPlaylists,
   createGame,
   getGame,
   updateGameSongIndex,
   updateGameStatus,
-  getPlayerCount
+  getPlayerCount,
+  subscribePlayerCount,
 } from './data.js';
-import { renderJoinQRCode } from './qr.js';
 
-// ------- Element lookups (match host-music-bingo.html) -------
+// ------- Element lookups (must match host-music-bingo.html) -------
 const els = {
-  // Form
+  // setup
   playlist: document.querySelector('#playlist-select'),
   gameName: document.querySelector('#game-name'),
   playerLimit: document.querySelector('#player-limit'),
   startBtn: document.querySelector('#start-game-btn'),
 
-  // Join/QR UI
-  qrBox: document.querySelector('#qr-code-container'),
-  copyJoinBtn: document.querySelector('#copy-join-link-btn'),
-  joinLinkDisplay: document.querySelector('#join-link-display'),
-
-  // Game panel
+  // live game UI
   gameSection: document.querySelector('#game-section'),
   currentGameName: document.querySelector('#current-game-name'),
-  currentPlaylist: document.querySelector('#current-playlist'),
-  gameId: document.querySelector('#game-id'),
-  currentSong: document.querySelector('#current-song'),
-  playerCount: document.querySelector('#player-count'),
+  currentPlaylistName: document.querySelector('#current-playlist-name'),
+  playerCount: document.querySelector('#player-count-pill'),
+  songIndex: document.querySelector('#song-index'),
+  nextSongBtn: document.querySelector('#next-song-btn'),
+  prevSongBtn: document.querySelector('#prev-song-btn'),
+  endGameBtn: document.querySelector('#end-game-btn'),
 
-  // Transport controls
-  playBtn: document.querySelector('#play-song-btn'),
-  nextBtn: document.querySelector('#next-song-btn'),
-  pauseBtn: document.querySelector('#pause-game-btn'),
-  resumeBtn: document.querySelector('#resume-game-btn'),
-  endBtn: document.querySelector('#end-game-btn'),
+  // join UI
+  qrBox: document.querySelector('#qr-code-container'),
+  joinLinkDisplay: document.querySelector('#join-link-display'),
+  copyJoinBtn: document.querySelector('#copy-join-link-btn'),
 
-  // Any forms on the page
-  forms: Array.from(document.querySelectorAll('form'))
+  // misc
+  toast: document.querySelector('#toast'),
 };
 
+// ------- State -------
 let activeGame = null;
+let stopPlayerCount = null;
 
-// ---------------- UI HELPERS ----------------
-function ensureJoinLinkDisplay() {
-  if (!els.joinLinkDisplay) {
-    const host = els.qrBox?.parentElement || document.body;
-    const p = document.createElement('p');
-    p.id = 'join-link-display';
-    p.className = 'join-url';
-    host.appendChild(p);
-    els.joinLinkDisplay = p;
-  }
+// ------- Utilities -------
+function toast(msg, ms = 1800) {
+  if (!els.toast) { console.log('[toast]', msg); return; }
+  els.toast.textContent = msg;
+  els.toast.classList.remove('hidden', 'opacity-0');
+  els.toast.classList.add('opacity-100');
+  setTimeout(() => {
+    els.toast.classList.add('opacity-0');
+    setTimeout(() => els.toast.classList.add('hidden'), 250);
+  }, ms);
 }
 
-// Render QR above the link (uses CSS classes; minimal inline)
-function renderJoinLink(url) {
-  if (!els.qrBox) return;
-
-  els.qrBox.innerHTML = '';
-
-  // Outer panel
-  const container = document.createElement('div');
-  container.className = 'qr-box';
-
-  // White pad behind QR
-  const qrWrap = document.createElement('div');
-  qrWrap.className = 'qr-wrap';
-
-  // Render QR (falls back silently if lib missing)
-  try {
-    renderJoinQRCode(qrWrap, url, 196);
-  } catch (e) {
-    console.warn('QR render failed; showing link only:', e);
-  }
-
-  // Clickable join link under QR
-  const link = document.createElement('a');
-  link.href = url;
-  link.textContent = url;
-  link.target = '_blank';
-  link.rel = 'noopener noreferrer';
-  link.className = 'join-url';
-
-  container.appendChild(qrWrap);
-  container.appendChild(link);
-  els.qrBox.appendChild(container);
+function setText(el, val) {
+  if (!el) return;
+  el.textContent = val ?? '';
 }
 
-function wireCopyJoin() {
-  if (!els.copyJoinBtn) return;
-  els.copyJoinBtn.addEventListener('click', async () => {
-    ensureJoinLinkDisplay();
-    try {
-      const value = (els.joinLinkDisplay?.innerText || els.joinLinkDisplay?.textContent || '').trim();
-      if (!value) {
-        alert('No join link available yet.');
-        return;
-      }
-      await navigator.clipboard.writeText(value);
-      const orig = els.copyJoinBtn.textContent;
-      els.copyJoinBtn.textContent = 'Copied!';
-      setTimeout(() => (els.copyJoinBtn.textContent = orig), 1200);
-    } catch (e) {
-      console.error('Copy failed:', e);
-      alert('Copy failed. Try manually copying the link above.');
+function makeJoinUrl(gameId) {
+  const base = `${location.origin}/play-music-bingo/index.html`;
+  const u = new URL(base);
+  u.searchParams.set('gameId', gameId);
+  return u.toString();
+}
+
+function renderJoinLink(game) {
+  const url = makeJoinUrl(game.id);
+  if (els.joinLinkDisplay) {
+    els.joinLinkDisplay.value ? (els.joinLinkDisplay.value = url) : (els.joinLinkDisplay.textContent = url);
+  }
+  // Optional QR: use global helper if present (we kept it modular)
+  if (els.qrBox) {
+    els.qrBox.innerHTML = '';
+    if (typeof window.renderJoinQRCode === 'function') {
+      try { window.renderJoinQRCode(els.qrBox, url, 180); }
+      catch (e) { console.warn('QR render failed:', e); els.qrBox.textContent = url; }
+    } else {
+      // fallback: just show the URL
+      const a = document.createElement('a');
+      a.href = url; a.target = '_blank'; a.rel = 'noopener';
+      a.textContent = url;
+      els.qrBox.appendChild(a);
     }
+  }
+}
+
+function updateControlsEnabled(enabled) {
+  [els.nextSongBtn, els.prevSongBtn, els.endGameBtn, els.copyJoinBtn].forEach((b) => {
+    if (b) b.disabled = !enabled;
   });
 }
 
-function updateGameUI(game, playlistName) {
-  activeGame = game;
-  els.gameSection?.classList.remove('hidden');
+// ------- Data boot -------
+async function loadPlaylists() {
+  try {
+    const items = await fetchPlaylists();
+    if (!els.playlist) return;
+    els.playlist.innerHTML = '';
+    const ph = document.createElement('option');
+    ph.value = '';
+    ph.textContent = 'Choose a playlist…';
+    els.playlist.appendChild(ph);
 
-  if (els.currentGameName) els.currentGameName.textContent = game.name || 'Music Bingo Game';
-  if (els.currentPlaylist) els.currentPlaylist.textContent = playlistName || game.playlistName || game.playlistId || '';
-  if (els.gameId) els.gameId.textContent = game.id || '';
-
-  if (els.currentSong) {
-    els.currentSong.textContent =
-      typeof game.currentSongIndex === 'number'
-        ? `Song ${game.currentSongIndex + 1}`
-        : 'Not started';
+    items.forEach((pl) => {
+      const opt = document.createElement('option');
+      opt.value = pl.id;
+      opt.textContent = pl.name || pl.id;
+      opt.dataset.playlistName = pl.name || '';
+      els.playlist.appendChild(opt);
+    });
+  } catch (e) {
+    console.error('Failed to load playlists:', e);
+    toast('Failed to load playlists');
   }
-
-  if (els.playerCount) els.playerCount.textContent = game.playerCount ?? 0;
-
-  const joinUrl = `${window.location.origin}/play-music-bingo/index.html?gameId=${encodeURIComponent(game.id)}`;
-
-  ensureJoinLinkDisplay();
-  els.joinLinkDisplay.textContent = joinUrl;
-  window.currentJoinLink = joinUrl;
-
-  renderJoinLink(joinUrl);
 }
 
-// ---------------- EVENT HANDLERS ----------------
+// ------- Game lifecycle -------
 async function handleStartGame(e) {
-  e?.preventDefault();
-
-  const playlistId = els.playlist?.value || '';
-  const playlistName = els.playlist?.options[els.playlist.selectedIndex]?.textContent || '';
-  const name = els.gameName?.value.trim() || 'Music Bingo Game';
-  const playerLimit = els.playerLimit?.value ? parseInt(els.playerLimit.value, 10) : null;
-
-  if (!playlistId) {
-    alert('Please select a playlist.');
+  e?.preventDefault?.();
+  if (!els.playlist || !els.playlist.value) {
+    toast('Pick a playlist first');
     return;
   }
+  const playlistId = els.playlist.value;
+  const playlistName = els.playlist.options[els.playlist.selectedIndex]?.textContent || '';
+  const name = (els.gameName && els.gameName.value.trim()) || playlistName || 'Music Bingo';
+  const limit = (els.playerLimit && Number(els.playerLimit.value)) || 100;
 
   try {
-    const game = await createGame({ playlistId, name, playerLimit });
-    updateGameUI(game, playlistName);
+    updateControlsEnabled(false);
+    const { id } = await createGame({ name, playlistId, playlistName, playerLimit: limit });
+    const game = await getGame(id);
+    updateGameUI(game);
+    toast('Game started');
   } catch (err) {
-    console.error('Error creating game:', err);
-    alert('Error creating game: ' + (err?.message || String(err)));
+    console.error('Start game failed:', err);
+    toast('Could not start game');
+  } finally {
+    updateControlsEnabled(true);
   }
 }
 
-async function handlePlaySong(e) {
-  e?.preventDefault();
-  if (!activeGame) return;
-  await updateGameSongIndex(activeGame.id, 0);
-  const game = await getGame(activeGame.id);
+function updateGameUI(game) {
   activeGame = game;
-  if (els.currentSong) els.currentSong.textContent = `Song ${game.currentSongIndex + 1}`;
+  if (els.gameSection) els.gameSection.classList.remove('hidden');
+
+  setText(els.currentGameName, game.name || 'Music Bingo');
+  setText(els.currentPlaylistName, game.playlistName || game.playlistId || '');
+  setText(els.songIndex, String(game.songIndex ?? 0));
+  if (els.playerCount) setText(els.playerCount, String(game.playerCount ?? 0));
+
+  renderJoinLink(game);
+
+  // (Re)subscribe to live player count for this game
+  if (stopPlayerCount) { stopPlayerCount(); stopPlayerCount = null; }
+  stopPlayerCount = subscribePlayerCount(game.id, (count) => {
+    if (els.playerCount) setText(els.playerCount, String(count));
+  });
+
+  updateControlsEnabled(true);
 }
 
-async function handleNextSong(e) {
-  e?.preventDefault();
+async function handleNextSong() {
   if (!activeGame) return;
-  const nextIndex = (activeGame.currentSongIndex ?? -1) + 1;
-  await updateGameSongIndex(activeGame.id, nextIndex);
-  const game = await getGame(activeGame.id);
-  activeGame = game;
-  if (els.currentSong) els.currentSong.textContent = `Song ${game.currentSongIndex + 1}`;
+  const idx = Number(activeGame.songIndex || 0) + 1;
+  try {
+    await updateGameSongIndex(activeGame.id, idx);
+    activeGame.songIndex = idx;
+    setText(els.songIndex, String(idx));
+  } catch (e) {
+    console.error('next song failed:', e);
+    toast('Failed to update song');
+  }
 }
 
-async function handlePauseGame(e) {
-  e?.preventDefault();
+async function handlePrevSong() {
   if (!activeGame) return;
-  await updateGameStatus(activeGame.id, 'paused');
-}
-
-async function handleResumeGame(e) {
-  e?.preventDefault();
-  if (!activeGame) return;
-  await updateGameStatus(activeGame.id, 'active');
+  const idx = Math.max(0, Number(activeGame.songIndex || 0) - 1);
+  try {
+    await updateGameSongIndex(activeGame.id, idx);
+    activeGame.songIndex = idx;
+    setText(els.songIndex, String(idx));
+  } catch (e) {
+    console.error('prev song failed:', e);
+    toast('Failed to update song');
+  }
 }
 
 async function handleEndGame(e) {
-  e?.preventDefault();
+  e?.preventDefault?.();
   if (!activeGame) return;
-  await updateGameStatus(activeGame.id, 'ended');
+  try {
+    await updateGameStatus(activeGame.id, 'ended');
+    toast('Game ended');
+  } catch (e2) {
+    console.error('end game failed:', e2);
+    toast('Failed to end game');
+  }
+  if (stopPlayerCount) { stopPlayerCount(); stopPlayerCount = null; }
   activeGame = null;
-  els.gameSection?.classList.add('hidden');
+  if (els.gameSection) els.gameSection.classList.add('hidden');
   if (els.qrBox) els.qrBox.innerHTML = '';
-  if (els.joinLinkDisplay) els.joinLinkDisplay.textContent = '';
 }
 
-// ---------------- INIT ----------------
-async function init() {
-  console.log('Initializing Music Bingo Host...');
-
-  // Prevent any accidental form submit refresh
-  els.forms.forEach((f) => f.addEventListener('submit', (e) => e.preventDefault()));
-
-  // Populate playlists
+// ------- Clipboard -------
+async function handleCopyJoin() {
+  if (!activeGame) return;
+  const url = makeJoinUrl(activeGame.id);
   try {
-    const playlists = await fetchPlaylists();
-
-    if (els.playlist) {
-      els.playlist.innerHTML = '<option value="" disabled selected>Select a playlist...</option>';
-      playlists.forEach((pl) => {
-        const opt = document.createElement('option');
-        opt.value = pl.id;
-        opt.textContent = pl.playlistTitle || pl.name || pl.id;
-        els.playlist.appendChild(opt);
-      });
-    }
-  } catch (err) {
-    console.error('Failed to load playlists:', err);
-    if (els.playlist) {
-      els.playlist.innerHTML =
-        '<option value="" disabled selected>Error loading playlists - check console</option>';
-    }
-
-    if (err.message?.toLowerCase().includes('log in') || err.message?.toLowerCase().includes('auth')) {
-      alert('Please log in to access Music Bingo. You may need to visit the login page first.');
+    await navigator.clipboard.writeText(url);
+    toast('Join link copied');
+  } catch (e) {
+    console.warn('Clipboard write failed:', e);
+    // Fallback: select text in display if it’s an input
+    if (els.joinLinkDisplay && 'select' in els.joinLinkDisplay) {
+      els.joinLinkDisplay.select();
+      toast('Press ⌘/Ctrl+C to copy');
     }
   }
-
-  // Wire controls
-  els.startBtn?.addEventListener('click', handleStartGame);
-  els.playBtn?.addEventListener('click', handlePlaySong);
-  els.nextBtn?.addEventListener('click', handleNextSong);
-  els.pauseBtn?.addEventListener('click', handlePauseGame);
-  els.resumeBtn?.addEventListener('click', handleResumeGame);
-  els.endBtn?.addEventListener('click', handleEndGame);
-
-  wireCopyJoin();
-
-  console.log('Music Bingo Host initialized');
 }
 
-init();
+// ------- Wire up -------
+function bindEvents() {
+  els.startBtn?.addEventListener('click', handleStartGame);
+  els.nextSongBtn?.addEventListener('click', handleNextSong);
+  els.prevSongBtn?.addEventListener('click', handlePrevSong);
+  els.endGameBtn?.addEventListener('click', handleEndGame);
+  els.copyJoinBtn?.addEventListener('click', handleCopyJoin);
+}
+
+// ------- Init -------
+async function boot() {
+  bindEvents();
+  await loadPlaylists();
+  updateControlsEnabled(false);
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', boot);
+} else {
+  boot();
+}
