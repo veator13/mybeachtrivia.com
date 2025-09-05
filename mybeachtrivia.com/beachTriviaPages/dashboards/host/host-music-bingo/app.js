@@ -9,7 +9,7 @@ import {
 } from './data.js';
 
 // IMPORTANT: absolute path so Hosting doesn't rewrite it
-import { renderJoinQRCode } from '/beachTriviaPages/dashboards/host/qr.js';
+import { renderJoinQRCode } from './qr.js';
 
 // ------- Element lookups (match host-music-bingo.html) -------
 const els = {
