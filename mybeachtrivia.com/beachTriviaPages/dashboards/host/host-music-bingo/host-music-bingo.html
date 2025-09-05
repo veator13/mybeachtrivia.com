@@ -2,43 +2,57 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Host Music Bingo</title>
+  <title>Music Bingo — Host Console</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="stylesheet" href="./style.css" />
+  <!-- Link to your actual CSS file -->
+  <link rel="stylesheet" href="./host-music-bingo.css" />
 </head>
 <body class="bg-gray-900 text-white">
-  <main class="p-4 space-y-6">
+  <main class="p-6 space-y-8 max-w-3xl mx-auto">
 
     <!-- Setup section -->
     <section id="setup-section" class="space-y-4">
-      <h1 class="text-2xl font-bold">Start a Music Bingo Game</h1>
+      <h1 class="text-2xl font-bold">Start or Resume a Game</h1>
 
-      <label class="block">
-        <span class="text-gray-300">Game Name</span>
-        <input id="game-name" type="text" class="w-full p-2 rounded bg-gray-800 text-white" placeholder="Game name…" />
-      </label>
+      <div class="grid gap-4 sm:grid-cols-2">
+        <label class="block">
+          <span class="text-gray-300">Game Name</span>
+          <input id="game-name" type="text" placeholder="e.g., Friday Night @ Sandbar"
+            class="w-full p-2 rounded bg-gray-800 text-white" />
+        </label>
 
-      <label class="block">
-        <span class="text-gray-300">Player Limit</span>
-        <input id="player-limit" type="number" value="100" class="w-full p-2 rounded bg-gray-800 text-white" />
-      </label>
+        <label class="block">
+          <span class="text-gray-300">Player Limit</span>
+          <input id="player-limit" type="number" value="100"
+            class="w-full p-2 rounded bg-gray-800 text-white" />
+        </label>
+      </div>
 
       <label class="block">
         <span class="text-gray-300">Playlist</span>
         <select id="playlist-select" class="w-full p-2 rounded bg-gray-800 text-white"></select>
       </label>
 
-      <button id="start-game-btn" class="bg-blue-600 px-4 py-2 rounded text-white">Start Game</button>
+      <button id="start-game-btn"
+        class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded text-white">
+        Start Game
+      </button>
     </section>
 
     <!-- Live game section -->
     <section id="game-section" class="space-y-4 hidden">
-      <h2 class="text-xl font-bold">Game: <span id="current-game-name"></span></h2>
+      <h2 class="text-xl font-bold">
+        Game: <span id="current-game-name"></span>
+      </h2>
       <p>Playlist: <span id="current-playlist-name"></span></p>
 
       <div class="flex items-center space-x-4">
-        <span class="bg-gray-700 px-3 py-1 rounded">Players: <span id="player-count-pill">0</span></span>
-        <span class="bg-gray-700 px-3 py-1 rounded">Song Index: <span id="song-index">0</span></span>
+        <span class="bg-gray-700 px-3 py-1 rounded">
+          Players: <span id="player-count-pill">0</span>
+        </span>
+        <span class="bg-gray-700 px-3 py-1 rounded">
+          Song Index: <span id="song-index">0</span>
+        </span>
       </div>
 
       <div class="flex items-center space-x-2">
@@ -48,39 +62,24 @@
       </div>
 
       <div class="space-y-2">
-        <h3 class="font-semibold">Join Link</h3>
-        <input id="join-link-display" type="text" readonly class="w-full p-2 rounded bg-gray-800 text-white" />
-        <button id="copy-join-link-btn" class="bg-blue-600 px-4 py-2 rounded text-white">Copy Link</button>
+        <h3 class="font-semibold">Join Link & QR</h3>
+        <input id="join-link-display" type="text" readonly
+          class="w-full p-2 rounded bg-gray-800 text-white" />
+        <button id="copy-join-link-btn"
+          class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded text-white">
+          Copy Join Link
+        </button>
         <div id="qr-code-container" class="mt-2"></div>
       </div>
     </section>
 
     <!-- Toast -->
-    <div id="toast" class="fixed bottom-4 right-4 bg-gray-800 text-white px-4 py-2 rounded opacity-0 hidden"></div>
-
+    <div id="toast"
+      class="fixed bottom-4 right-4 bg-gray-800 text-white px-4 py-2 rounded opacity-0 hidden"></div>
   </main>
 
-  <!-- Firebase Initialization (must come before data.js and app.js) -->
-  <script type="module">
-    import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-
-    // TODO: Replace with your actual config
-    const firebaseConfig = {
-      apiKey: "YOUR_API_KEY",
-      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-      projectId: "YOUR_PROJECT_ID",
-      storageBucket: "YOUR_PROJECT_ID.appspot.com",
-      messagingSenderId: "YOUR_SENDER_ID",
-      appId: "YOUR_APP_ID",
-    };
-
-    if (!getApps().length) {
-      console.log("[host-init] Initializing Firebase app");
-      initializeApp(firebaseConfig);
-    }
-  </script>
-
-  <!-- Host scripts -->
+  <!-- Load scripts in CSP-safe order -->
+  <script type="module" src="./host-init.js"></script>
   <script type="module" src="./data.js"></script>
   <script type="module" src="./app.js"></script>
 </body>
