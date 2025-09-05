@@ -1,4 +1,4 @@
-// app.js — Host Music Bingo (No QR functionality)
+// app.js — Host Music Bingo (CSP-safe, no QR module required)
 import {
   fetchPlaylists,
   createGame,
@@ -13,21 +13,30 @@ const els = {
   playlist: document.querySelector('#playlist-select'),
   gameName: document.querySelector('#game-name'),
   playerLimit: document.querySelector('#player-limit'),
+
   startBtn: document.querySelector('#start-game-btn'),
+
+  // Join/QR UI
   qrBox: document.querySelector('#qr-code-container'),
   copyJoinBtn: document.querySelector('#copy-join-link-btn'),
   joinLinkDisplay: document.querySelector('#join-link-display'),
+
+  // Optional game section bits
   gameSection: document.querySelector('#game-section'),
   currentGameName: document.querySelector('#current-game-name'),
   currentPlaylist: document.querySelector('#current-playlist'),
   gameId: document.querySelector('#game-id'),
   currentSong: document.querySelector('#current-song'),
   playerCount: document.querySelector('#player-count'),
+
+  // Transport controls
   playBtn: document.querySelector('#play-song-btn'),
   nextBtn: document.querySelector('#next-song-btn'),
   pauseBtn: document.querySelector('#pause-game-btn'),
   resumeBtn: document.querySelector('#resume-game-btn'),
   endBtn: document.querySelector('#end-game-btn'),
+
+  // Any forms on the page
   forms: Array.from(document.querySelectorAll('form'))
 };
 
@@ -45,11 +54,12 @@ function ensureJoinLinkDisplay() {
   }
 }
 
+// Simple fallback for QR — just show the link
 function renderJoinLink(url) {
   if (!els.qrBox) return;
-  
+
   els.qrBox.innerHTML = '';
-  
+
   const container = document.createElement('div');
   container.style.cssText = `
     padding: 20px;
@@ -58,7 +68,7 @@ function renderJoinLink(url) {
     border-radius: 12px;
     background: linear-gradient(180deg, #1e3a8a, #1e40af);
   `;
-  
+
   const title = document.createElement('div');
   title.style.cssText = `
     color: #dbeafe;
@@ -67,7 +77,7 @@ function renderJoinLink(url) {
     font-weight: 600;
   `;
   title.textContent = 'Join Game URL';
-  
+
   const link = document.createElement('a');
   link.href = url;
   link.textContent = url;
@@ -85,7 +95,7 @@ function renderJoinLink(url) {
     border-radius: 6px;
     margin-top: 8px;
   `;
-  
+
   const instruction = document.createElement('div');
   instruction.style.cssText = `
     color: #9ca3af;
@@ -93,7 +103,7 @@ function renderJoinLink(url) {
     margin-top: 8px;
   `;
   instruction.textContent = 'Click to open in new tab';
-  
+
   container.appendChild(title);
   container.appendChild(link);
   container.appendChild(instruction);
@@ -129,14 +139,17 @@ function updateGameUI(game, playlistName) {
   if (els.currentPlaylist) els.currentPlaylist.textContent = playlistName || game.playlistName || game.playlistId || '';
   if (els.gameId) els.gameId.textContent = game.id || '';
 
-  if (els.currentSong) els.currentSong.textContent = (typeof game.currentSongIndex === 'number')
-    ? `Song ${game.currentSongIndex + 1}`
-    : 'Not started';
+  if (els.currentSong) {
+    els.currentSong.textContent =
+      typeof game.currentSongIndex === 'number'
+        ? `Song ${game.currentSongIndex + 1}`
+        : 'Not started';
+  }
 
   if (els.playerCount) els.playerCount.textContent = game.playerCount ?? 0;
 
   const joinUrl = `${window.location.origin}/play-music-bingo/index.html?gameId=${encodeURIComponent(game.id)}`;
-  
+
   ensureJoinLinkDisplay();
   els.joinLinkDisplay.textContent = joinUrl;
   window.currentJoinLink = joinUrl;
@@ -213,14 +226,16 @@ async function handleEndGame(e) {
 // ---------------- INIT ----------------
 async function init() {
   console.log('Initializing Music Bingo Host...');
-  
+
+  // Prevent any accidental form submit refresh
   els.forms.forEach((f) => f.addEventListener('submit', (e) => e.preventDefault()));
 
+  // Populate playlists
   try {
     console.log('Fetching playlists...');
     const playlists = await fetchPlaylists();
     console.log('Playlists fetched:', playlists);
-    
+
     if (els.playlist) {
       els.playlist.innerHTML = '<option value="" disabled selected>Select a playlist...</option>';
       playlists.forEach((pl) => {
@@ -234,14 +249,16 @@ async function init() {
   } catch (err) {
     console.error('Failed to load playlists:', err);
     if (els.playlist) {
-      els.playlist.innerHTML = '<option value="" disabled selected>Error loading playlists - check console</option>';
+      els.playlist.innerHTML =
+        '<option value="" disabled selected>Error loading playlists - check console</option>';
     }
-    
+
     if (err.message.includes('log in') || err.message.includes('auth')) {
       alert('Please log in to access Music Bingo. You may need to visit the login page first.');
     }
   }
 
+  // Wire controls
   els.startBtn?.addEventListener('click', handleStartGame);
   els.playBtn?.addEventListener('click', handlePlaySong);
   els.nextBtn?.addEventListener('click', handleNextSong);
@@ -250,7 +267,7 @@ async function init() {
   els.endBtn?.addEventListener('click', handleEndGame);
 
   wireCopyJoin();
-  
+
   console.log('Music Bingo Host initialized successfully');
 }
 
