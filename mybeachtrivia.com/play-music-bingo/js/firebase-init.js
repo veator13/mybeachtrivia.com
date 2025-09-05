@@ -17,6 +17,25 @@ const firebaseConfig = {
     firebase.app(); // if already initialized
   }
   
+  // Ensure an anonymous user exists (silent, no UI shown)
+  firebase.auth().onAuthStateChanged((user) => {
+    if (!user) {
+      firebase.auth().signInAnonymously().catch((e) => {
+        console.error("Anon sign-in failed:", e);
+      });
+    }
+  });
+  
+  // Optional: make a promise other scripts can await
+  window.waitForAuth = new Promise((resolve) => {
+    const unsub = firebase.auth().onAuthStateChanged((u) => {
+      if (u) {
+        unsub();
+        resolve(u);
+      }
+    });
+  });
+  
   // Make sure Firestore & Database modules are available
   if (typeof firebase.firestore !== "function") {
     console.error("Firestore module not loaded. Did you include firebase-firestore.js?");

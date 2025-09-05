@@ -2,12 +2,13 @@
  * play-music-bingo/js/script.js
  * Player presence + heartbeat (Firestore primary; RTDB optional for legacy).
  * Requires Firebase **compat** scripts and an initialized app on this page.
- *   - firebase-app-compat.js
- *   - firebase-firestore-compat.js
- *   - (optional) firebase-database-compat.js
+ *   - firebase-app.js
+ *   - firebase-auth.js           <-- added on page (silent anon auth)
+ *   - firebase-firestore.js
+ *   - (optional) firebase-database.js
  *
  * This file:
- *  - creates a stable playerId in localStorage
+ *  - prefers anonymous Auth UID as playerId (fallback to localStorage id)
  *  - on join: upserts /games/{gameId}/players/{playerId}
  *  - heartbeats lastActive every 30s
  *  - stamps leftAt on unload
@@ -60,7 +61,11 @@
       if (!gameId) throw new Error('joinGame: missing gameId');
   
       state.gameId = gameId;
-      state.playerId = getOrCreatePlayerId();
+  
+      // ✅ Prefer anonymous Auth UID; fallback to localStorage id just in case
+      const uid = firebase.auth && firebase.auth().currentUser && firebase.auth().currentUser.uid;
+      state.playerId = uid || getOrCreatePlayerId();
+  
       state.displayName = getDisplayName();
   
       const playerRef = fs()
@@ -169,6 +174,11 @@
     // ---- Boot ----
     async function boot() {
       try {
+        ensureFirebase();
+  
+        // ✅ Wait for anonymous auth (set in js/firebase-init.js)
+        if (window.waitForAuth) { await window.waitForAuth; }
+  
         const gameId = qp('gameId') || (document.body?.dataset?.gameId || '').trim();
         if (!gameId) {
           setStatus('No game specified.');
