@@ -1,4 +1,4 @@
-// app.js — Host Music Bingo (CSP-safe, QR enabled)
+// app.js — Host Music Bingo (QR enabled, CSS-class based)
 import {
   fetchPlaylists,
   createGame,
@@ -7,14 +7,14 @@ import {
   updateGameStatus,
   getPlayerCount
 } from './data.js';
-import { renderJoinQRCode } from './qr.js'; // ← enable QR rendering
+import { renderJoinQRCode } from './qr.js';
 
 // ------- Element lookups (match host-music-bingo.html) -------
 const els = {
+  // Form
   playlist: document.querySelector('#playlist-select'),
   gameName: document.querySelector('#game-name'),
   playerLimit: document.querySelector('#player-limit'),
-
   startBtn: document.querySelector('#start-game-btn'),
 
   // Join/QR UI
@@ -22,7 +22,7 @@ const els = {
   copyJoinBtn: document.querySelector('#copy-join-link-btn'),
   joinLinkDisplay: document.querySelector('#join-link-display'),
 
-  // Optional game section bits
+  // Game panel
   gameSection: document.querySelector('#game-section'),
   currentGameName: document.querySelector('#current-game-name'),
   currentPlaylist: document.querySelector('#current-playlist'),
@@ -46,7 +46,7 @@ let activeGame = null;
 // ---------------- UI HELPERS ----------------
 function ensureJoinLinkDisplay() {
   if (!els.joinLinkDisplay) {
-    const host = document.querySelector('.player-join') || els.qrBox?.parentElement || document.body;
+    const host = els.qrBox?.parentElement || document.body;
     const p = document.createElement('p');
     p.id = 'join-link-display';
     p.className = 'join-url';
@@ -55,76 +55,37 @@ function ensureJoinLinkDisplay() {
   }
 }
 
-// Render QR above the link (falls back to link-only if QR lib missing)
+// Render QR above the link (uses CSS classes; minimal inline)
 function renderJoinLink(url) {
   if (!els.qrBox) return;
 
   els.qrBox.innerHTML = '';
 
+  // Outer panel
   const container = document.createElement('div');
-  container.style.cssText = `
-    padding: 20px;
-    text-align: center;
-    border: 2px dashed #3b82f6;
-    border-radius: 12px;
-    background: linear-gradient(180deg, #1e3a8a, #1e40af);
-  `;
+  container.className = 'qr-box';
 
-  // Title
-  const title = document.createElement('div');
-  title.style.cssText = `
-    color: #dbeafe;
-    font-size: 14px;
-    margin-bottom: 12px;
-    font-weight: 600;
-  `;
-  title.textContent = 'Scan to Join';
-
-  // QR container (white background)
+  // White pad behind QR
   const qrWrap = document.createElement('div');
-  qrWrap.style.cssText = `
-    display: inline-block;
-    padding: 10px;
-    background: #fff;
-    border-radius: 8px;
-  `;
+  qrWrap.className = 'qr-wrap';
 
-  // Try to render the QR code
+  // Render QR (falls back silently if lib missing)
   try {
     renderJoinQRCode(qrWrap, url, 196);
   } catch (e) {
     console.warn('QR render failed; showing link only:', e);
   }
 
-  // Link display (under QR)
+  // Clickable join link under QR
   const link = document.createElement('a');
   link.href = url;
   link.textContent = url;
   link.target = '_blank';
   link.rel = 'noopener noreferrer';
-  link.style.cssText = `
-    display: block;
-    word-break: break-all;
-    font-family: monospace;
-    font-size: 11px;
-    color: #93c5fd;
-    text-decoration: underline;
-    padding: 8px 0 0 0;
-    margin-top: 8px;
-  `;
+  link.className = 'join-url';
 
-  const instruction = document.createElement('div');
-  instruction.style.cssText = `
-    color: #9ca3af;
-    font-size: 12px;
-    margin-top: 6px;
-  `;
-  instruction.textContent = 'Scan the QR or click to open in a new tab';
-
-  container.appendChild(title);
   container.appendChild(qrWrap);
   container.appendChild(link);
-  container.appendChild(instruction);
   els.qrBox.appendChild(container);
 }
 
@@ -172,13 +133,12 @@ function updateGameUI(game, playlistName) {
   els.joinLinkDisplay.textContent = joinUrl;
   window.currentJoinLink = joinUrl;
 
-  // Render QR + link
   renderJoinLink(joinUrl);
 }
 
 // ---------------- EVENT HANDLERS ----------------
 async function handleStartGame(e) {
-  if (e) e.preventDefault();
+  e?.preventDefault();
 
   const playlistId = els.playlist?.value || '';
   const playlistName = els.playlist?.options[els.playlist.selectedIndex]?.textContent || '';
@@ -191,9 +151,7 @@ async function handleStartGame(e) {
   }
 
   try {
-    console.log('Creating game with playlist:', playlistId);
     const game = await createGame({ playlistId, name, playerLimit });
-    console.log('Game created:', game);
     updateGameUI(game, playlistName);
   } catch (err) {
     console.error('Error creating game:', err);
@@ -251,9 +209,7 @@ async function init() {
 
   // Populate playlists
   try {
-    console.log('Fetching playlists...');
     const playlists = await fetchPlaylists();
-    console.log('Playlists fetched:', playlists);
 
     if (els.playlist) {
       els.playlist.innerHTML = '<option value="" disabled selected>Select a playlist...</option>';
@@ -263,7 +219,6 @@ async function init() {
         opt.textContent = pl.playlistTitle || pl.name || pl.id;
         els.playlist.appendChild(opt);
       });
-      console.log('Playlist dropdown populated with', playlists.length, 'items');
     }
   } catch (err) {
     console.error('Failed to load playlists:', err);
@@ -287,7 +242,7 @@ async function init() {
 
   wireCopyJoin();
 
-  console.log('Music Bingo Host initialized successfully');
+  console.log('Music Bingo Host initialized');
 }
 
 init();

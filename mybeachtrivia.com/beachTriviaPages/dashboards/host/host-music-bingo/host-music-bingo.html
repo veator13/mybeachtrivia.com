@@ -5,31 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Music Bingo — Host Console</title>
 
-  <!-- Page styles -->
-  <link rel="stylesheet" href="host-music-bingo.css"/>
-
-  <!-- Optional: basic safe defaults if CSS fails -->
-  <style>
-    .hidden{display:none!important}
-    .app-shell{max-width:1200px;margin:0 auto;padding:16px}
-    .grid{display:grid;gap:16px}
-    .card{background:#0b1224;border:1px solid #1f2b54;border-radius:12px;padding:16px}
-    .topbar{display:flex;align-items:center;justify-content:space-between}
-    .brand{display:flex;align-items:center;gap:8px;font-weight:700}
-    .brand .logo-dot{width:10px;height:10px;border-radius:50%;background:#60a5fa;display:inline-block}
-    .content{grid-template-columns:340px 1fr}
-    label{display:block;font-size:12px;color:#9ca3af;margin-bottom:6px}
-    input, select, button{font:inherit}
-    input, select{width:100%;padding:10px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e5e7eb}
-    button{padding:10px 14px;border-radius:8px;border:1px solid #3b82f6;background:#1d4ed8;color:#fff;cursor:pointer}
-    button:disabled{opacity:.6;cursor:not-allowed}
-    .section-title{font-weight:700;color:#e5e7eb;margin-bottom:8px}
-    .muted{color:#9ca3af;font-size:12px}
-    #qr-code-container{display:flex;align-items:center;justify-content:center;min-height:220px}
-    .join-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center}
-    #join-link-display{word-break:break-all;color:#93c5fd}
-    .footer{margin-top:20px;text-align:center;color:#94a3b8;font-size:12px}
-  </style>
+  <!-- Site styles -->
+  <link rel="stylesheet" href="host-music-bingo.css" />
 </head>
 <body>
   <div class="app-shell">
@@ -48,7 +25,7 @@
       <aside class="card">
         <h2 class="section-title">Start or Resume a Game</h2>
 
-        <div style="display:grid;gap:12px">
+        <div class="setup-form">
           <div>
             <label for="playlist-select">Playlist</label>
             <select id="playlist-select">
@@ -67,65 +44,70 @@
           </div>
 
           <div>
-            <button id="start-game-btn">Start Game</button>
+            <button id="start-game-btn" type="button">Start Game</button>
           </div>
         </div>
 
-        <hr style="border:none;border-top:1px solid #1f2b54;margin:16px 0"/>
+        <hr class="divider"/>
 
-        <h3 class="section-title">Join Link & QR</h3>
-        <!-- QR sits ABOVE the link + copy button (as requested) -->
+        <h3 class="section-title">Join Link &amp; QR</h3>
         <section id="join-section" aria-live="polite">
-          <div id="qr-code-container" class="card" style="
-            padding:20px;text-align:center;border:2px dashed #3b82f6;border-radius:12px;
-            background: linear-gradient(180deg,#1e3a8a,#1e40af);
-          ">
-            <!-- Filled by app.js via qr.js -->
-          </div>
+          <div id="qr-code-container"></div>
 
-          <div class="join-actions" style="margin-top:10px">
+          <div class="join-actions">
             <button id="copy-join-link-btn" type="button">Copy Join Link</button>
             <span id="join-link-display" class="muted"></span>
           </div>
 
-          <div class="muted" style="text-align:center;margin-top:6px">
-            Players can scan the QR or use the link
-          </div>
+          <div class="muted center small">Players can scan the QR or use the link</div>
         </section>
       </aside>
 
       <!-- Right: Live game panel -->
       <section id="game-section" class="card hidden">
         <h2 class="section-title">Current Game</h2>
-        <div id="current-game-name" class="muted">Waiting for game…</div>
 
-        <div style="margin-top:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
-          <div class="card">
+        <div class="current-meta">
+          <div><span class="muted">Name:</span> <strong id="current-game-name">—</strong></div>
+          <div><span class="muted">Playlist:</span> <strong id="current-playlist">—</strong></div>
+          <div><span class="muted">Game ID:</span> <code id="game-id">—</code></div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat card">
             <div class="muted">Player Count</div>
-            <div id="player-count" style="font-size:24px;font-weight:700;color:#e5e7eb">0</div>
+            <div id="player-count" class="stat-value">0</div>
           </div>
-          <div class="card">
-            <div class="muted">Status</div>
-            <div id="game-status" style="font-size:16px;color:#e5e7eb">Idle</div>
+          <div class="stat card">
+            <div class="muted">Current Song</div>
+            <div id="current-song" class="stat-value">Not started</div>
           </div>
         </div>
 
-        <!-- Additional controls/now-playing UI can be appended by app.js -->
-        <div id="now-playing" style="margin-top:12px"></div>
+        <h3 class="section-title">Controls</h3>
+        <div class="control-grid">
+          <button id="play-song-btn" type="button">Start</button>
+          <button id="next-song-btn" type="button">Next</button>
+          <button id="pause-game-btn" type="button">Pause</button>
+          <button id="resume-game-btn" type="button">Resume</button>
+          <button id="end-game-btn" type="button" class="danger">End Game</button>
+        </div>
+
+        <div id="now-playing"></div>
       </section>
     </main>
 
     <footer class="footer">Music Bingo Host Console — © 2025</footer>
   </div>
 
-  <!-- QR library (global window.QRCode) — loaded BEFORE app.js -->
+  <!-- QR library (global window.QRCode) — keep this BEFORE app.js -->
   <script src="lib/qrcode.min.js" defer></script>
 
   <!-- App logic (imports ./data.js and ./qr.js; renders QR above the link) -->
   <script type="module" src="app.js"></script>
 
   <noscript>
-    <p style="color:#ef4444;text-align:center;margin-top:16px">
+    <p class="center" style="color:#ef4444;margin-top:16px">
       JavaScript is required to run the Music Bingo host console.
     </p>
   </noscript>

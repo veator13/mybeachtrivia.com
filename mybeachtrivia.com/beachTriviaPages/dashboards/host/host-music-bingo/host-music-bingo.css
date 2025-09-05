@@ -241,3 +241,16 @@
     .control-grid { grid-template-columns: 1fr; }
   }
   
+  /* ===========================
+     Additions for QR integration
+     =========================== */
+  
+  /* Center the QR container content */
+  #qr-code-container { display: grid; place-items: center; }
+  
+  /* White pad behind the QR image for contrast */
+  .qr-wrap { display:inline-block; padding:10px; background:#fff; border-radius:8px; }
+  
+  /* Buttons + URL row under the QR */
+  .join-actions { display:flex; align-items:center; justify-content:center; gap:8px; flex-wrap:wrap; margin-top:10px; }
+  
