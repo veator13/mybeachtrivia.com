@@ -77,12 +77,16 @@
       class="fixed bottom-4 right-4 bg-gray-800 text-white px-4 py-2 rounded opacity-0 hidden"></div>
   </main>
 
-  <!-- Load scripts in correct CSP-safe order -->
+  <!-- Load scripts in correct order -->
+  <!-- 1) Firebase config defines window.FIREBASE_CONFIG -->
   <script type="module" src="./firebase-init.js"></script>
+  <!-- 2) Initialize app using that config -->
   <script type="module" src="./host-init.js"></script>
-  <!-- If you need to force long-polling, uncomment the line below -->
-  <!-- <script type="module" src="./host-firestore-settings.js"></script> -->
+  <!-- 3) Firestore tuning: long-polling + disable fetch streams -->
+  <script type="module" src="./host-firestore-settings.js"></script>
+  <!-- 4) Data helpers (subscribePlayerCount, etc.) -->
   <script type="module" src="./data.js"></script>
+  <!-- 5) App wiring -->
   <script type="module" src="./app.js"></script>
 </body>
 </html>
