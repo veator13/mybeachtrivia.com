@@ -8,35 +8,8 @@ import {
   getPlayerCount
 } from './data.js';
 
-// Try absolute path or check if qr.js exists
+// Remove the problematic static import of qr.js
 // import { renderJoinQRCode } from './qr.js';
-
-// Fallback QR function if qr.js fails to load
-function fallbackRenderQR(target, url, size = 200) {
-  const el = typeof target === 'string' ? document.querySelector(target) : target;
-  if (!el) return;
-  
-  el.innerHTML = '';
-  const p = document.createElement('p');
-  p.style.cssText = 'word-break: break-all; font-family: monospace; font-size: 12px; padding: 10px; background: #f0f0f0; border-radius: 8px;';
-  p.textContent = url;
-  el.appendChild(p);
-}
-
-// Try to import QR module dynamically
-let renderJoinQRCode = fallbackRenderQR;
-
-// Dynamic import with error handling
-(async () => {
-  try {
-    const qrModule = await import('./qr.js');
-    renderJoinQRCode = qrModule.renderJoinQRCode || fallbackRenderQR;
-    console.log('QR module loaded successfully');
-  } catch (error) {
-    console.warn('QR module failed to load, using fallback:', error);
-    renderJoinQRCode = fallbackRenderQR;
-  }
-})();
 
 // ------- Element lookups (match host-music-bingo.html) -------
 const els = {
@@ -72,6 +45,50 @@ const els = {
 };
 
 let activeGame = null;
+let renderJoinQRCode = null;
+
+// ---------------- QR HANDLING ----------------
+// Fallback QR function
+function fallbackRenderQR(target, url, size = 200) {
+  const el = typeof target === 'string' ? document.querySelector(target) : target;
+  if (!el) return;
+  
+  el.innerHTML = '';
+  const div = document.createElement('div');
+  div.style.cssText = 'padding: 20px; text-align: center; border: 2px dashed #ccc; border-radius: 8px; background: #f9f9f9;';
+  
+  const p = document.createElement('p');
+  p.style.cssText = 'margin: 0 0 10px 0; color: #666; font-size: 14px;';
+  p.textContent = 'QR Code Library Not Available';
+  
+  const link = document.createElement('a');
+  link.href = url;
+  link.textContent = url;
+  link.style.cssText = 'word-break: break-all; font-family: monospace; font-size: 12px; color: #0066cc;';
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  
+  div.appendChild(p);
+  div.appendChild(link);
+  el.appendChild(div);
+}
+
+// Load QR module dynamically when needed
+async function loadQRModule() {
+  if (renderJoinQRCode) return renderJoinQRCode;
+  
+  try {
+    console.log('Loading QR module...');
+    const qrModule = await import('./qr.js');
+    renderJoinQRCode = qrModule.renderJoinQRCode;
+    console.log('QR module loaded successfully');
+    return renderJoinQRCode;
+  } catch (error) {
+    console.warn('QR module failed to load, using fallback:', error);
+    renderJoinQRCode = fallbackRenderQR;
+    return renderJoinQRCode;
+  }
+}
 
 // ---------------- UI HELPERS ----------------
 function ensureJoinLinkDisplay() {
@@ -84,12 +101,12 @@ function ensureJoinLinkDisplay() {
   }
 }
 
-function renderQR(url) {
+async function renderQR(url) {
   if (!els.qrBox) return;
   els.qrBox.innerHTML = '';
   
-  // Use the renderJoinQRCode function (either loaded or fallback)
-  renderJoinQRCode(els.qrBox, url, 180);
+  const qrFunction = await loadQRModule();
+  qrFunction(els.qrBox, url, 180);
 }
 
 function wireCopyJoin() {
@@ -113,7 +130,7 @@ function wireCopyJoin() {
   });
 }
 
-function updateGameUI(game, playlistName) {
+async function updateGameUI(game, playlistName) {
   activeGame = game;
   els.gameSection?.classList.remove('hidden');
 
@@ -132,7 +149,7 @@ function updateGameUI(game, playlistName) {
   els.joinLinkDisplay.textContent = joinUrl;
   window.currentJoinLink = joinUrl;
 
-  renderQR(joinUrl);
+  await renderQR(joinUrl);
 }
 
 // ---------------- EVENT HANDLERS ----------------
@@ -153,7 +170,7 @@ async function handleStartGame(e) {
     console.log('Creating game with playlist:', playlistId);
     const game = await createGame({ playlistId, name, playerLimit });
     console.log('Game created:', game);
-    updateGameUI(game, playlistName);
+    await updateGameUI(game, playlistName);
   } catch (err) {
     console.error('Error creating game:', err);
     alert('Error creating game: ' + (err?.message || String(err)));
@@ -223,7 +240,7 @@ async function init() {
         opt.textContent = pl.playlistTitle || pl.name || pl.id;
         els.playlist.appendChild(opt);
       });
-      console.log('Playlist dropdown populated');
+      console.log('Playlist dropdown populated with', playlists.length, 'items');
     }
   } catch (err) {
     console.error('Failed to load playlists:', err);
@@ -248,7 +265,7 @@ async function init() {
 
   wireCopyJoin();
   
-  console.log('Music Bingo Host initialized');
+  console.log('Music Bingo Host initialized successfully');
 }
 
 init();
