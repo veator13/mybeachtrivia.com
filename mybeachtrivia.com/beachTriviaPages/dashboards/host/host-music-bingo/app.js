@@ -8,7 +8,8 @@ import {
   getPlayerCount
 } from './data.js';
 
-import { renderJoinQRCode } from '../qr.js';
+// IMPORTANT: absolute path so Hosting doesn't rewrite it
+import { renderJoinQRCode } from '/beachTriviaPages/dashboards/host/qr.js';
 
 // ------- Element lookups (match host-music-bingo.html) -------
 const els = {
