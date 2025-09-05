@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <title>Music Bingo — Host Console</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <!-- Link to your actual CSS file -->
   <link rel="stylesheet" href="./host-music-bingo.css" />
 </head>
 <body class="bg-gray-900 text-white">
@@ -78,8 +77,11 @@
       class="fixed bottom-4 right-4 bg-gray-800 text-white px-4 py-2 rounded opacity-0 hidden"></div>
   </main>
 
-  <!-- Load scripts in CSP-safe order -->
+  <!-- Load scripts in correct CSP-safe order -->
+  <script type="module" src="./firebase-init.js"></script>
   <script type="module" src="./host-init.js"></script>
+  <!-- If you need to force long-polling, uncomment the line below -->
+  <!-- <script type="module" src="./host-firestore-settings.js"></script> -->
   <script type="module" src="./data.js"></script>
   <script type="module" src="./app.js"></script>
 </body>

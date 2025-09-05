@@ -1,9 +1,40 @@
+// firestore.rules
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Treat 'host' as someone with role host/admin in employees/{uid}
+    function isHost() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/employees/$(request.auth.uid)) &&
+        (get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.role in ['admin', 'host']);
+    }
+
+    // Games collection
+    match /games/{gameId} {
+      // Anyone signed-in can read game shell (hosts + players)
+      allow read: if isSignedIn();
+
+      // Hosts control game fields (status, songIndex, playerCount, etc.)
+      allow create, update, delete: if isHost();
+
+      // Players subcollection
+      match /players/{playerId} {
+        // Hosts and players can read players list
+        allow read: if isSignedIn();
+
+        // Player may write ONLY their own doc
+        allow create, update, delete: if isSignedIn() && request.auth.uid == playerId;
+      }
+    }
+
+    // Deny everything else by default
     match /{document=**} {
-      // Allow read/write access to all users for development
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }

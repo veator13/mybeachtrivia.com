@@ -1,60 +1,59 @@
 /**
  * play-music-bingo/js/script.js
- * Player presence + heartbeat (Firestore primary, RTDB optional).
- * Requires Firebase compat scripts already loaded on the page:
- *  - firebase-app-compat.js
- *  - firebase-firestore-compat.js
- *  - firebase-database-compat.js  (optional for RTDB)
+ * Player presence + heartbeat (Firestore primary; RTDB optional for legacy).
+ * Requires Firebase **compat** scripts and an initialized app on this page.
+ *   - firebase-app-compat.js
+ *   - firebase-firestore-compat.js
+ *   - (optional) firebase-database-compat.js
+ *
+ * This file:
+ *  - creates a stable playerId in localStorage
+ *  - on join: upserts /games/{gameId}/players/{playerId}
+ *  - heartbeats lastActive every 30s
+ *  - stamps leftAt on unload
  */
 
 (function () {
     // ---- Tunables ----
-    const HEARTBEAT_MS = 30_000;
-    const ACTIVE_WINDOW_MS = 65_000;
+    const HEARTBEAT_MS = 30_000;      // heartbeat interval
+    const ACTIVE_WINDOW_MS = 65_000;  // host considers players active if seen within this window
   
-    // ---- Small utils ----
-    const STORAGE = {
-      playerId: 'btmb:playerId',
-      displayName: 'btmb:displayName',
-    };
-  
+    // ---- Utils ----
+    const KEYS = { playerId: 'btmb:playerId', displayName: 'btmb:displayName' };
     const $ = (s) => document.querySelector(s);
     const qp = (k) => new URLSearchParams(location.search).get(k);
   
     function getOrCreatePlayerId() {
-      let id = localStorage.getItem(STORAGE.playerId);
+      let id = localStorage.getItem(KEYS.playerId);
       if (!id) {
         id = 'p_' + Math.random().toString(36).slice(2, 12) + Date.now().toString(36);
-        localStorage.setItem(STORAGE.playerId, id);
+        localStorage.setItem(KEYS.playerId, id);
       }
       return id;
     }
   
     function getDisplayName() {
       const input = $('#player-name');
-      let name = (input && input.value.trim()) || localStorage.getItem(STORAGE.displayName);
+      let name = (input && input.value.trim()) || localStorage.getItem(KEYS.displayName);
       if (!name) {
         name = 'Player ' + Math.floor(100 + Math.random() * 900);
-        localStorage.setItem(STORAGE.displayName, name);
+        localStorage.setItem(KEYS.displayName, name);
       }
       if (input && !input.value) input.value = name;
       return name;
     }
   
-    // ---- Firebase handles (compat only) ----
+    // ---- Firebase handles (compat required) ----
     function ensureFirebase() {
       if (!window.firebase) throw new Error('Firebase compat not found on page.');
-      if (!firebase.firestore) throw new Error('Firebase Firestore compat not loaded.');
+      if (!firebase.firestore) throw new Error('Firestore compat not loaded.');
     }
-    function fs() { return firebase.firestore(); }
-    function rtdb() {
-      if (!firebase.database) throw new Error('Firebase RTDB compat not loaded.');
-      return firebase.database();
-    }
+    const fs = () => firebase.firestore();
+    const rtdb = () => (firebase.database ? firebase.database() : null);
   
     // ---- Presence state ----
     let hbTimer = null;
-    let state = { gameId: null, playerId: null, displayName: null };
+    const state = { gameId: null, playerId: null, displayName: null };
   
     async function joinGame(gameId) {
       ensureFirebase();
@@ -64,30 +63,31 @@
       state.playerId = getOrCreatePlayerId();
       state.displayName = getDisplayName();
   
-      const playerDoc = fs()
+      const playerRef = fs()
         .collection('games').doc(gameId)
         .collection('players').doc(state.playerId);
   
-      console.log('[player] joining', { gameId, playerId: state.playerId });
-  
-      // Firestore: upsert presence
-      await playerDoc.set({
+      // Upsert presence in Firestore
+      await playerRef.set({
         name: state.displayName,
         joinedAt: firebase.firestore.FieldValue.serverTimestamp(),
         lastActive: firebase.firestore.FieldValue.serverTimestamp(),
         activeWindowMs: ACTIVE_WINDOW_MS,
-        userAgent: navigator.userAgent || '',
+        ua: navigator.userAgent || '',
       }, { merge: true });
   
-      // Optional RTDB mirror (best-effort)
+      // Optional RTDB mirror (best-effort; safe if RTDB not included)
       try {
-        rtdb().ref(`games/${gameId}/players/${state.playerId}`).update({
-          name: state.displayName,
-          lastActive: firebase.database.ServerValue.TIMESTAMP,
-          ua: navigator.userAgent || '',
-        });
+        const db = rtdb();
+        if (db) {
+          await db.ref(`games/${gameId}/players/${state.playerId}`).update({
+            name: state.displayName,
+            lastActive: firebase.database.ServerValue.TIMESTAMP,
+            ua: navigator.userAgent || '',
+          });
+        }
       } catch (e) {
-        console.debug('[player] RTDB mirror skipped:', e?.message || e);
+        console.debug('[presence] RTDB mirror skipped:', e?.message || e);
       }
   
       startHeartbeat();
@@ -111,9 +111,11 @@
   
       // RTDB (optional)
       try {
-        rtdb()
-          .ref(`games/${state.gameId}/players/${state.playerId}/lastActive`)
-          .set(firebase.database.ServerValue.TIMESTAMP);
+        const db = rtdb();
+        if (db) {
+          await db.ref(`games/${state.gameId}/players/${state.playerId}/lastActive`)
+            .set(firebase.database.ServerValue.TIMESTAMP);
+        }
       } catch (_) {}
   
       // Firestore (authoritative)
@@ -140,13 +142,15 @@
       } catch (_) {}
   
       try {
-        rtdb()
-          .ref(`games/${state.gameId}/players/${state.playerId}/lastActive`)
-          .set(firebase.database.ServerValue.TIMESTAMP);
+        const db = rtdb();
+        if (db) {
+          await db.ref(`games/${state.gameId}/players/${state.playerId}/lastActive`)
+            .set(firebase.database.ServerValue.TIMESTAMP);
+        }
       } catch (_) {}
     }
   
-    // ---- Tiny UI helpers ----
+    // ---- Tiny UI helpers (safe if elements missing) ----
     function setStatus(msg) {
       const el = $('#connection-status');
       if (el) el.textContent = msg;
@@ -178,30 +182,25 @@
             e.preventDefault();
             const input = $('#player-name');
             if (input && input.value.trim()) {
-              localStorage.setItem(STORAGE.displayName, input.value.trim());
+              localStorage.setItem(KEYS.displayName, input.value.trim());
             }
-            try { await joinGame(gameId); } catch (err) {
-              console.error('joinGame failed:', err);
-              setStatus('Join failed.');
-            }
+            await joinGame(gameId);
           });
         } else {
-          await joinGame(gameId);
+          await joinGame(gameId); // auto-join if no button present
         }
   
         window.addEventListener('beforeunload', markLeft);
-        window.addEventListener('pagehide', markLeft);
+        window.addEventListener('pagehide', markLeft); // iOS Safari
       } catch (err) {
         console.error('Player boot failed:', err);
         setStatus('Connection error.');
       }
     }
   
-    // Expose minimal API (optional)
+    // Optional global handles
     window.BingoPlayer = {
-      joinGame,
-      tickHeartbeat,
-      markLeft,
+      joinGame, tickHeartbeat, markLeft,
       get playerId() { return state.playerId; },
       get gameId() { return state.gameId; },
     };

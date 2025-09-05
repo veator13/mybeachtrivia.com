@@ -1,4 +1,4 @@
-// host-music-bingo/app.js
+// beachTriviaPages/dashboards/host/host-music-bingo/app.js
 // Host dashboard logic: start game, show join link/QR, live player count.
 
 import {
@@ -32,6 +32,8 @@ const els = {
   // join UI
   qrBox: document.querySelector('#qr-code-container'),
   joinLinkDisplay: document.querySelector('#join-link-display'),
+
+  // optional copy button (present in some layouts)
   copyJoinBtn: document.querySelector('#copy-join-link-btn'),
 
   // misc
@@ -53,11 +55,7 @@ function toast(msg, ms = 1800) {
     setTimeout(() => els.toast.classList.add('hidden'), 250);
   }, ms);
 }
-
-function setText(el, val) {
-  if (!el) return;
-  el.textContent = val ?? '';
-}
+function setText(el, val) { if (el) el.textContent = val ?? ''; }
 
 function makeJoinUrl(gameId) {
   const base = `${location.origin}/play-music-bingo/index.html`;
@@ -69,16 +67,16 @@ function makeJoinUrl(gameId) {
 function renderJoinLink(game) {
   const url = makeJoinUrl(game.id);
   if (els.joinLinkDisplay) {
-    els.joinLinkDisplay.value ? (els.joinLinkDisplay.value = url) : (els.joinLinkDisplay.textContent = url);
+    // Works with either <input> or <div>
+    if ('value' in els.joinLinkDisplay) els.joinLinkDisplay.value = url;
+    else els.joinLinkDisplay.textContent = url;
   }
-  // Optional QR: use global helper if present (we kept it modular)
   if (els.qrBox) {
     els.qrBox.innerHTML = '';
     if (typeof window.renderJoinQRCode === 'function') {
       try { window.renderJoinQRCode(els.qrBox, url, 180); }
       catch (e) { console.warn('QR render failed:', e); els.qrBox.textContent = url; }
     } else {
-      // fallback: just show the URL
       const a = document.createElement('a');
       a.href = url; a.target = '_blank'; a.rel = 'noopener';
       a.textContent = url;
@@ -103,7 +101,6 @@ async function loadPlaylists() {
     ph.value = '';
     ph.textContent = 'Choose a playlist…';
     els.playlist.appendChild(ph);
-
     items.forEach((pl) => {
       const opt = document.createElement('option');
       opt.value = pl.id;
@@ -120,10 +117,8 @@ async function loadPlaylists() {
 // ------- Game lifecycle -------
 async function handleStartGame(e) {
   e?.preventDefault?.();
-  if (!els.playlist || !els.playlist.value) {
-    toast('Pick a playlist first');
-    return;
-  }
+  if (!els.playlist || !els.playlist.value) { toast('Pick a playlist first'); return; }
+
   const playlistId = els.playlist.value;
   const playlistName = els.playlist.options[els.playlist.selectedIndex]?.textContent || '';
   const name = (els.gameName && els.gameName.value.trim()) || playlistName || 'Music Bingo';
@@ -135,9 +130,9 @@ async function handleStartGame(e) {
     const game = await getGame(id);
     updateGameUI(game);
     toast('Game started');
-  } catch (err) {
-    console.error('Start game failed:', err);
-    toast('Could not start game');
+  } catch (e2) {
+    console.error('start game failed:', e2);
+    toast('Failed to start game');
   } finally {
     updateControlsEnabled(true);
   }
@@ -155,12 +150,10 @@ function updateGameUI(game) {
   renderJoinLink(game);
 
   // (Re)subscribe to live player count for this game
-  if (stopPlayerCount) { stopPlayerCount(); stopPlayerCount = null; }
+  if (stopPlayerCount) { try { stopPlayerCount(); } catch (_) {} stopPlayerCount = null; }
   stopPlayerCount = subscribePlayerCount(game.id, (count) => {
     if (els.playerCount) setText(els.playerCount, String(count));
   });
-
-  updateControlsEnabled(true);
 }
 
 async function handleNextSong() {
@@ -199,7 +192,7 @@ async function handleEndGame(e) {
     console.error('end game failed:', e2);
     toast('Failed to end game');
   }
-  if (stopPlayerCount) { stopPlayerCount(); stopPlayerCount = null; }
+  if (stopPlayerCount) { try { stopPlayerCount(); } catch (_) {} stopPlayerCount = null; }
   activeGame = null;
   if (els.gameSection) els.gameSection.classList.add('hidden');
   if (els.qrBox) els.qrBox.innerHTML = '';
@@ -214,7 +207,6 @@ async function handleCopyJoin() {
     toast('Join link copied');
   } catch (e) {
     console.warn('Clipboard write failed:', e);
-    // Fallback: select text in display if it’s an input
     if (els.joinLinkDisplay && 'select' in els.joinLinkDisplay) {
       els.joinLinkDisplay.select();
       toast('Press ⌘/Ctrl+C to copy');
@@ -229,6 +221,10 @@ function bindEvents() {
   els.prevSongBtn?.addEventListener('click', handlePrevSong);
   els.endGameBtn?.addEventListener('click', handleEndGame);
   els.copyJoinBtn?.addEventListener('click', handleCopyJoin);
+  // Unsubscribe on navigation away
+  window.addEventListener('beforeunload', () => {
+    if (stopPlayerCount) { try { stopPlayerCount(); } catch (_) {} }
+  });
 }
 
 // ------- Init -------

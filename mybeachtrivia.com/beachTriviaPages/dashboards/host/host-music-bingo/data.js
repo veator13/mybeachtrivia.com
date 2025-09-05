@@ -1,4 +1,4 @@
-// host-music-bingo/data.js
+// beachTriviaPages/dashboards/host/host-music-bingo/data.js
 // Firestore data helpers for the Host dashboard, plus live player-count subscription.
 
 import { getApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
@@ -17,29 +17,29 @@ import {
   limit,
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
-// ---------- Firestore handle ----------
-const app = getApp();                 // assumes app already initialized on the page
+/** Firestore handle — assumes app already initialized via host-init.js */
+const app = getApp();
 export const db = getFirestore(app);
 
-// ---------- Playlists ----------
+/** -------------------- Playlists -------------------- */
 export async function fetchPlaylists() {
   const q = query(collection(db, 'playlists'), orderBy('name'), limit(200));
   const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
-// ---------- Games ----------
+/** -------------------- Games -------------------- */
 export async function createGame({ name, playlistId, playlistName, playerLimit = 100 }) {
   const ref = await addDoc(collection(db, 'games'), {
-    name: name || playlistName || 'Music Bingo',
-    status: 'waiting',                 // waiting | playing | ended
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
+    name: name || 'Music Bingo',
     playlistId: playlistId || null,
     playlistName: playlistName || null,
-    songIndex: 0,
     playerLimit: Number(playerLimit) || 100,
-    playerCount: 0,                    // mirrored for convenience; live count uses subcollection
+    status: 'active',
+    songIndex: 0,
+    playerCount: 0,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
   });
   return { id: ref.id };
 }
@@ -50,38 +50,48 @@ export async function getGame(gameId) {
   return { id: d.id, ...d.data() };
 }
 
-export async function updateGameSongIndex(gameId, songIndex) {
+export async function updateGameSongIndex(gameId, nextIndex) {
   await updateDoc(doc(db, 'games', gameId), {
-    songIndex: Number(songIndex) || 0,
+    songIndex: Number(nextIndex) || 0,
     updatedAt: serverTimestamp(),
   });
 }
 
 export async function updateGameStatus(gameId, status) {
   await updateDoc(doc(db, 'games', gameId), {
-    status,
+    status: status || 'ended',
     updatedAt: serverTimestamp(),
   });
 }
 
-// Simple field read (uses mirrored field on the game doc).
-export async function getPlayerCount(gameId) {
-  const d = await getDoc(doc(db, 'games', gameId));
-  return d.exists() ? (d.data().playerCount || 0) : 0;
+/** One-off count (fallback). Prefer subscribePlayerCount for live UI. */
+export async function getPlayerCount(gameId, { activeWindowMs = 65_000 } = {}) {
+  const playersCol = collection(db, 'games', gameId, 'players');
+  const snap = await getDocs(playersCol);
+  const now = Date.now();
+  let active = 0;
+  snap.forEach((d) => {
+    const data = d.data() || {};
+    const last = tsToMillis(data.lastActive) || tsToMillis(data.joinedAt) || 0;
+    if (last && now - last <= activeWindowMs) active++;
+  });
+  return active;
 }
 
-// ---------- Live player count ----------
-// Watches /games/{id}/players and calls onChange(count) with number of ACTIVE players.
-// A player is "active" if lastActive (or joinedAt) is within activeWindowMs (default 65s).
+/** -------------------- Live player count subscription --------------------
+ * Listens to /games/{id}/players/*, counts "active" players by lastActive (or joinedAt)
+ * within an activity window, and (optionally) mirrors that count back to games/{id}.playerCount
+ * on a throttled cadence so other tools/console reflect reality.
+ */
 export function subscribePlayerCount(
   gameId,
   onChange,
-  { activeWindowMs = 65_000, mirrorToGameDoc = true, mirrorMinIntervalMs = 10_000 } = {}
+  { activeWindowMs = 65_000, mirrorToGameDoc = true, mirrorMinIntervalMs = 10_000 } = {},
 ) {
   if (!gameId) throw new Error('subscribePlayerCount: missing gameId');
   const playersCol = collection(db, 'games', gameId, 'players');
 
-  let lastMirror = 0;
+  let lastMirrorAt = 0;
 
   const unsub = onSnapshot(
     playersCol,
@@ -89,28 +99,26 @@ export function subscribePlayerCount(
       const now = Date.now();
       let active = 0;
 
-      snap.forEach((ds) => {
-        const data = ds.data() || {};
-        const lastActive =
-          data.lastActive && typeof data.lastActive.toMillis === 'function'
-            ? data.lastActive.toMillis()
-            : 0;
-        const joinedAt =
-          data.joinedAt && typeof data.joinedAt.toMillis === 'function'
-            ? data.joinedAt.toMillis()
-            : 0;
+      snap.forEach((d) => {
+        const data = d.data() || {};
 
-        const last = lastActive || joinedAt;
+        // Normalize firestore.Timestamp | number | Date → millis
+        const lastActive = tsToMillis(data.lastActive);
+        const joinedAt = tsToMillis(data.joinedAt);
+        const last = lastActive || joinedAt || 0;
+
         if (last && now - last <= activeWindowMs) active++;
       });
 
-      try { onChange(active); } catch (e) { console.error('[subscribePlayerCount] onChange error:', e); }
+      try { if (typeof onChange === 'function') onChange(active); } catch (e) {
+        console.error('[subscribePlayerCount] onChange error:', e);
+      }
 
       // Throttled mirror to games/{id}.playerCount for visibility in console/other readers.
       if (mirrorToGameDoc) {
         const t = Date.now();
-        if (t - lastMirror >= mirrorMinIntervalMs) {
-          lastMirror = t;
+        if (t - lastMirrorAt >= mirrorMinIntervalMs) {
+          lastMirrorAt = t;
           updateDoc(doc(db, 'games', gameId), {
             playerCount: active,
             updatedAt: serverTimestamp(),
@@ -120,8 +128,22 @@ export function subscribePlayerCount(
     },
     (err) => {
       console.error('[subscribePlayerCount] listener error:', err);
-    }
+    },
   );
 
   return unsub;
+}
+
+/** -------------------- helpers -------------------- */
+function tsToMillis(v) {
+  if (!v) return 0;
+  try {
+    // firestore.Timestamp
+    if (typeof v.toMillis === 'function') return v.toMillis();
+    // Date
+    if (v instanceof Date) return v.getTime();
+    // number
+    if (typeof v === 'number') return v;
+  } catch (_) {}
+  return 0;
 }
