@@ -1,4 +1,4 @@
-// app.js — Host Music Bingo (CSP-safe, matches new HTML IDs)
+// app.js — Host Music Bingo (No QR functionality)
 import {
   fetchPlaylists,
   createGame,
@@ -8,105 +8,96 @@ import {
   getPlayerCount
 } from './data.js';
 
-// Remove the problematic static import of qr.js
-// import { renderJoinQRCode } from './qr.js';
-
 // ------- Element lookups (match host-music-bingo.html) -------
 const els = {
   playlist: document.querySelector('#playlist-select'),
   gameName: document.querySelector('#game-name'),
   playerLimit: document.querySelector('#player-limit'),
-
   startBtn: document.querySelector('#start-game-btn'),
-
-  // Join/QR UI
   qrBox: document.querySelector('#qr-code-container'),
   copyJoinBtn: document.querySelector('#copy-join-link-btn'),
-  // We'll create #join-link-display on the fly if it doesn't exist
   joinLinkDisplay: document.querySelector('#join-link-display'),
-
-  // Optional game section bits (present in some layouts)
   gameSection: document.querySelector('#game-section'),
   currentGameName: document.querySelector('#current-game-name'),
   currentPlaylist: document.querySelector('#current-playlist'),
   gameId: document.querySelector('#game-id'),
   currentSong: document.querySelector('#current-song'),
   playerCount: document.querySelector('#player-count'),
-
-  // Transport controls (optional)
   playBtn: document.querySelector('#play-song-btn'),
   nextBtn: document.querySelector('#next-song-btn'),
   pauseBtn: document.querySelector('#pause-game-btn'),
   resumeBtn: document.querySelector('#resume-game-btn'),
   endBtn: document.querySelector('#end-game-btn'),
-
-  // Any forms on the page (to prevent submit-refresh)
   forms: Array.from(document.querySelectorAll('form'))
 };
 
 let activeGame = null;
-let renderJoinQRCode = null;
-
-// ---------------- QR HANDLING ----------------
-// Fallback QR function
-function fallbackRenderQR(target, url, size = 200) {
-  const el = typeof target === 'string' ? document.querySelector(target) : target;
-  if (!el) return;
-  
-  el.innerHTML = '';
-  const div = document.createElement('div');
-  div.style.cssText = 'padding: 20px; text-align: center; border: 2px dashed #ccc; border-radius: 8px; background: #f9f9f9;';
-  
-  const p = document.createElement('p');
-  p.style.cssText = 'margin: 0 0 10px 0; color: #666; font-size: 14px;';
-  p.textContent = 'QR Code Library Not Available';
-  
-  const link = document.createElement('a');
-  link.href = url;
-  link.textContent = url;
-  link.style.cssText = 'word-break: break-all; font-family: monospace; font-size: 12px; color: #0066cc;';
-  link.target = '_blank';
-  link.rel = 'noopener noreferrer';
-  
-  div.appendChild(p);
-  div.appendChild(link);
-  el.appendChild(div);
-}
-
-// Load QR module dynamically when needed
-async function loadQRModule() {
-  if (renderJoinQRCode) return renderJoinQRCode;
-  
-  try {
-    console.log('Loading QR module...');
-    const qrModule = await import('./qr.js');
-    renderJoinQRCode = qrModule.renderJoinQRCode;
-    console.log('QR module loaded successfully');
-    return renderJoinQRCode;
-  } catch (error) {
-    console.warn('QR module failed to load, using fallback:', error);
-    renderJoinQRCode = fallbackRenderQR;
-    return renderJoinQRCode;
-  }
-}
 
 // ---------------- UI HELPERS ----------------
 function ensureJoinLinkDisplay() {
   if (!els.joinLinkDisplay) {
-    const host = document.querySelector('.player-join') || document.body;
+    const host = document.querySelector('.player-join') || els.qrBox?.parentElement || document.body;
     const p = document.createElement('p');
     p.id = 'join-link-display';
+    p.className = 'join-url';
     host.appendChild(p);
     els.joinLinkDisplay = p;
   }
 }
 
-async function renderQR(url) {
+function renderJoinLink(url) {
   if (!els.qrBox) return;
+  
   els.qrBox.innerHTML = '';
   
-  const qrFunction = await loadQRModule();
-  qrFunction(els.qrBox, url, 180);
+  const container = document.createElement('div');
+  container.style.cssText = `
+    padding: 20px;
+    text-align: center;
+    border: 2px dashed #3b82f6;
+    border-radius: 12px;
+    background: linear-gradient(180deg, #1e3a8a, #1e40af);
+  `;
+  
+  const title = document.createElement('div');
+  title.style.cssText = `
+    color: #dbeafe;
+    font-size: 14px;
+    margin-bottom: 12px;
+    font-weight: 600;
+  `;
+  title.textContent = 'Join Game URL';
+  
+  const link = document.createElement('a');
+  link.href = url;
+  link.textContent = url;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.style.cssText = `
+    display: block;
+    word-break: break-all;
+    font-family: monospace;
+    font-size: 11px;
+    color: #93c5fd;
+    text-decoration: none;
+    padding: 8px;
+    background: rgba(0,0,0,0.3);
+    border-radius: 6px;
+    margin-top: 8px;
+  `;
+  
+  const instruction = document.createElement('div');
+  instruction.style.cssText = `
+    color: #9ca3af;
+    font-size: 12px;
+    margin-top: 8px;
+  `;
+  instruction.textContent = 'Click to open in new tab';
+  
+  container.appendChild(title);
+  container.appendChild(link);
+  container.appendChild(instruction);
+  els.qrBox.appendChild(container);
 }
 
 function wireCopyJoin() {
@@ -125,12 +116,12 @@ function wireCopyJoin() {
       setTimeout(() => (els.copyJoinBtn.textContent = orig), 1200);
     } catch (e) {
       console.error('Copy failed:', e);
-      alert('Copy failed. See console for details.');
+      alert('Copy failed. Try manually copying the link above.');
     }
   });
 }
 
-async function updateGameUI(game, playlistName) {
+function updateGameUI(game, playlistName) {
   activeGame = game;
   els.gameSection?.classList.remove('hidden');
 
@@ -145,11 +136,12 @@ async function updateGameUI(game, playlistName) {
   if (els.playerCount) els.playerCount.textContent = game.playerCount ?? 0;
 
   const joinUrl = `${window.location.origin}/play-music-bingo/index.html?gameId=${encodeURIComponent(game.id)}`;
+  
   ensureJoinLinkDisplay();
   els.joinLinkDisplay.textContent = joinUrl;
   window.currentJoinLink = joinUrl;
 
-  await renderQR(joinUrl);
+  renderJoinLink(joinUrl);
 }
 
 // ---------------- EVENT HANDLERS ----------------
@@ -170,7 +162,7 @@ async function handleStartGame(e) {
     console.log('Creating game with playlist:', playlistId);
     const game = await createGame({ playlistId, name, playerLimit });
     console.log('Game created:', game);
-    await updateGameUI(game, playlistName);
+    updateGameUI(game, playlistName);
   } catch (err) {
     console.error('Error creating game:', err);
     alert('Error creating game: ' + (err?.message || String(err)));
@@ -214,7 +206,6 @@ async function handleEndGame(e) {
   await updateGameStatus(activeGame.id, 'ended');
   activeGame = null;
   els.gameSection?.classList.add('hidden');
-  // Optional: clear QR/join UI
   if (els.qrBox) els.qrBox.innerHTML = '';
   if (els.joinLinkDisplay) els.joinLinkDisplay.textContent = '';
 }
@@ -223,10 +214,8 @@ async function handleEndGame(e) {
 async function init() {
   console.log('Initializing Music Bingo Host...');
   
-  // Prevent any accidental form submit refresh (causes "flash/spazz")
   els.forms.forEach((f) => f.addEventListener('submit', (e) => e.preventDefault()));
 
-  // Populate playlists
   try {
     console.log('Fetching playlists...');
     const playlists = await fetchPlaylists();
@@ -244,18 +233,15 @@ async function init() {
     }
   } catch (err) {
     console.error('Failed to load playlists:', err);
-    // Show more detailed error to help debug
     if (els.playlist) {
       els.playlist.innerHTML = '<option value="" disabled selected>Error loading playlists - check console</option>';
     }
     
-    // Check if it's an auth issue
     if (err.message.includes('log in') || err.message.includes('auth')) {
       alert('Please log in to access Music Bingo. You may need to visit the login page first.');
     }
   }
 
-  // Wire controls
   els.startBtn?.addEventListener('click', handleStartGame);
   els.playBtn?.addEventListener('click', handlePlaySong);
   els.nextBtn?.addEventListener('click', handleNextSong);
