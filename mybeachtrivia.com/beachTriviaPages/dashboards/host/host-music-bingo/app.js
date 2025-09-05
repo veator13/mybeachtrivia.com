@@ -1,4 +1,4 @@
-// app.js — Host Music Bingo (CSP-safe, no QR module required)
+// app.js — Host Music Bingo (CSP-safe, QR enabled)
 import {
   fetchPlaylists,
   createGame,
@@ -7,6 +7,7 @@ import {
   updateGameStatus,
   getPlayerCount
 } from './data.js';
+import { renderJoinQRCode } from './qr.js'; // ← enable QR rendering
 
 // ------- Element lookups (match host-music-bingo.html) -------
 const els = {
@@ -54,7 +55,7 @@ function ensureJoinLinkDisplay() {
   }
 }
 
-// Simple fallback for QR — just show the link
+// Render QR above the link (falls back to link-only if QR lib missing)
 function renderJoinLink(url) {
   if (!els.qrBox) return;
 
@@ -69,6 +70,7 @@ function renderJoinLink(url) {
     background: linear-gradient(180deg, #1e3a8a, #1e40af);
   `;
 
+  // Title
   const title = document.createElement('div');
   title.style.cssText = `
     color: #dbeafe;
@@ -76,8 +78,25 @@ function renderJoinLink(url) {
     margin-bottom: 12px;
     font-weight: 600;
   `;
-  title.textContent = 'Join Game URL';
+  title.textContent = 'Scan to Join';
 
+  // QR container (white background)
+  const qrWrap = document.createElement('div');
+  qrWrap.style.cssText = `
+    display: inline-block;
+    padding: 10px;
+    background: #fff;
+    border-radius: 8px;
+  `;
+
+  // Try to render the QR code
+  try {
+    renderJoinQRCode(qrWrap, url, 196);
+  } catch (e) {
+    console.warn('QR render failed; showing link only:', e);
+  }
+
+  // Link display (under QR)
   const link = document.createElement('a');
   link.href = url;
   link.textContent = url;
@@ -89,10 +108,8 @@ function renderJoinLink(url) {
     font-family: monospace;
     font-size: 11px;
     color: #93c5fd;
-    text-decoration: none;
-    padding: 8px;
-    background: rgba(0,0,0,0.3);
-    border-radius: 6px;
+    text-decoration: underline;
+    padding: 8px 0 0 0;
     margin-top: 8px;
   `;
 
@@ -100,11 +117,12 @@ function renderJoinLink(url) {
   instruction.style.cssText = `
     color: #9ca3af;
     font-size: 12px;
-    margin-top: 8px;
+    margin-top: 6px;
   `;
-  instruction.textContent = 'Click to open in new tab';
+  instruction.textContent = 'Scan the QR or click to open in a new tab';
 
   container.appendChild(title);
+  container.appendChild(qrWrap);
   container.appendChild(link);
   container.appendChild(instruction);
   els.qrBox.appendChild(container);
@@ -154,6 +172,7 @@ function updateGameUI(game, playlistName) {
   els.joinLinkDisplay.textContent = joinUrl;
   window.currentJoinLink = joinUrl;
 
+  // Render QR + link
   renderJoinLink(joinUrl);
 }
 
@@ -253,7 +272,7 @@ async function init() {
         '<option value="" disabled selected>Error loading playlists - check console</option>';
     }
 
-    if (err.message.includes('log in') || err.message.includes('auth')) {
+    if (err.message?.toLowerCase().includes('log in') || err.message?.toLowerCase().includes('auth')) {
       alert('Please log in to access Music Bingo. You may need to visit the login page first.');
     }
   }

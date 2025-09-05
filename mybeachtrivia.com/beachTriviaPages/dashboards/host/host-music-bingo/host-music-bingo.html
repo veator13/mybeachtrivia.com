@@ -2,133 +2,132 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Music Bingo — Host Console</title>
-  <link rel="stylesheet" href="host-music-bingo.css" />
+
+  <!-- Page styles -->
+  <link rel="stylesheet" href="host-music-bingo.css"/>
+
+  <!-- Optional: basic safe defaults if CSS fails -->
+  <style>
+    .hidden{display:none!important}
+    .app-shell{max-width:1200px;margin:0 auto;padding:16px}
+    .grid{display:grid;gap:16px}
+    .card{background:#0b1224;border:1px solid #1f2b54;border-radius:12px;padding:16px}
+    .topbar{display:flex;align-items:center;justify-content:space-between}
+    .brand{display:flex;align-items:center;gap:8px;font-weight:700}
+    .brand .logo-dot{width:10px;height:10px;border-radius:50%;background:#60a5fa;display:inline-block}
+    .content{grid-template-columns:340px 1fr}
+    label{display:block;font-size:12px;color:#9ca3af;margin-bottom:6px}
+    input, select, button{font:inherit}
+    input, select{width:100%;padding:10px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e5e7eb}
+    button{padding:10px 14px;border-radius:8px;border:1px solid #3b82f6;background:#1d4ed8;color:#fff;cursor:pointer}
+    button:disabled{opacity:.6;cursor:not-allowed}
+    .section-title{font-weight:700;color:#e5e7eb;margin-bottom:8px}
+    .muted{color:#9ca3af;font-size:12px}
+    #qr-code-container{display:flex;align-items:center;justify-content:center;min-height:220px}
+    .join-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center}
+    #join-link-display{word-break:break-all;color:#93c5fd}
+    .footer{margin-top:20px;text-align:center;color:#94a3b8;font-size:12px}
+  </style>
 </head>
 <body>
   <div class="app-shell">
     <!-- Topbar -->
-    <div class="topbar card">
+    <header class="topbar card">
       <div class="brand">
         <span class="logo-dot"></span>
-        <h1 class="brand-title">Music Bingo — Host</h1>
+        <span>Music Bingo — Host</span>
       </div>
-      <div class="topbar-actions">
-        <a class="btn btn-ghost" href="../index.html">Back to Dashboard</a>
-      </div>
-    </div>
+      <div class="muted">Signed in employee required to host</div>
+    </header>
 
-    <!-- Main Content Grid -->
-    <div class="content">
-      <!-- LEFT COLUMN -->
-      <div class="column-left">
+    <!-- Main content -->
+    <main class="grid content">
+      <!-- Left: Controls -->
+      <aside class="card">
+        <h2 class="section-title">Start or Resume a Game</h2>
 
-        <!-- Create Game -->
-        <section class="card card--panel">
-          <div class="card-header">
-            <h2 class="card-title">Create New Game</h2>
-            <p class="card-subtitle">
-              Choose a playlist and optional settings. You can start immediately and share the join code.
-            </p>
+        <div style="display:grid;gap:12px">
+          <div>
+            <label for="playlist-select">Playlist</label>
+            <select id="playlist-select">
+              <!-- populated by app.js -->
+            </select>
           </div>
 
-          <div class="setup-form">
-            <div class="form-row">
-              <label for="playlist-select">Playlist</label>
-              <select id="playlist-select" class="input">
-                <option value="" disabled selected>Loading playlists…</option>
-              </select>
-            </div>
-
-            <div class="form-row">
-              <label for="game-name">Game Name (optional)</label>
-              <input id="game-name" class="input" type="text" placeholder="Game name" />
-            </div>
-
-            <div class="form-row">
-              <label for="player-limit">Player Limit (optional)</label>
-              <input id="player-limit" class="input" type="number" placeholder="No limit" />
-            </div>
-
-            <div class="actions">
-              <button id="start-game-btn" type="button" class="btn btn-primary">Start New Game</button>
-            </div>
-          </div>
-        </section>
-
-        <!-- Active Game Panel -->
-        <section id="game-section" class="card card--panel hidden">
-          <div class="card-header">
-            <h2 class="card-title">Active Game</h2>
+          <div>
+            <label for="game-name">Game Name</label>
+            <input id="game-name" type="text" placeholder="e.g., Friday Night @ Sandbar"/>
           </div>
 
-          <div class="pill-group">
-            <div class="pill"><span class="pill-label">Name</span><span class="pill-value" id="current-game-name">—</span></div>
-            <div class="pill"><span class="pill-label">Playlist</span><span class="pill-value" id="current-playlist">—</span></div>
-            <div class="pill"><span class="pill-label">Game ID</span><span class="pill-value" id="game-id">—</span></div>
-            <div class="pill"><span class="pill-label">Players</span><span class="pill-value" id="player-count">0</span></div>
+          <div>
+            <label for="player-limit">Player Limit</label>
+            <input id="player-limit" type="number" min="1" step="1" placeholder="e.g., 150"/>
           </div>
 
-          <div class="now-playing" id="current-song">Not started</div>
-
-          <div class="control-grid">
-            <div class="control-card">
-              <div class="control-head">
-                <h3 class="control-title">Playback</h3>
-              </div>
-              <div class="btn-row">
-                <button id="play-song-btn" class="btn" type="button">Play First Song</button>
-                <button id="next-song-btn" class="btn" type="button">Next Song</button>
-              </div>
-            </div>
-
-            <div class="control-card">
-              <div class="control-head">
-                <h3 class="control-title">Game State</h3>
-              </div>
-              <div class="btn-row">
-                <button id="pause-game-btn" class="btn" type="button">Pause</button>
-                <button id="resume-game-btn" class="btn" type="button">Resume</button>
-                <button id="end-game-btn" class="btn btn-danger" type="button">End Game</button>
-              </div>
-            </div>
+          <div>
+            <button id="start-game-btn">Start Game</button>
           </div>
-        </section>
+        </div>
 
-        <!-- Recent Games -->
-        <section class="card card--panel">
-          <div class="card-header">
-            <h2 class="card-title">Recent Games</h2>
-          </div>
-          <div class="history-list" id="recent-games-list">
-            <div class="empty-state">No recent games found</div>
-          </div>
-        </section>
-      </div>
+        <hr style="border:none;border-top:1px solid #1f2b54;margin:16px 0"/>
 
-      <!-- RIGHT COLUMN -->
-      <aside class="column-right">
-        <section class="card card--sticky">
-          <div class="card-header">
-            <h2 class="card-title">Player Join</h2>
-            <p class="card-subtitle">Scan or tap the link to join your current game.</p>
+        <h3 class="section-title">Join Link & QR</h3>
+        <!-- QR sits ABOVE the link + copy button (as requested) -->
+        <section id="join-section" aria-live="polite">
+          <div id="qr-code-container" class="card" style="
+            padding:20px;text-align:center;border:2px dashed #3b82f6;border-radius:12px;
+            background: linear-gradient(180deg,#1e3a8a,#1e40af);
+          ">
+            <!-- Filled by app.js via qr.js -->
           </div>
 
-          <div id="qr-code-container" class="qr-box"></div>
-          <div id="join-link-display" class="join-url"></div>
+          <div class="join-actions" style="margin-top:10px">
+            <button id="copy-join-link-btn" type="button">Copy Join Link</button>
+            <span id="join-link-display" class="muted"></span>
+          </div>
 
-          <div class="btn-row" style="margin-top:10px">
-            <button id="copy-join-link-btn" class="btn" type="button">Copy Join Link</button>
+          <div class="muted" style="text-align:center;margin-top:6px">
+            Players can scan the QR or use the link
           </div>
         </section>
       </aside>
-    </div>
 
-    <div class="footer">Music Bingo Host Console — © 2025</div>
+      <!-- Right: Live game panel -->
+      <section id="game-section" class="card hidden">
+        <h2 class="section-title">Current Game</h2>
+        <div id="current-game-name" class="muted">Waiting for game…</div>
+
+        <div style="margin-top:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
+          <div class="card">
+            <div class="muted">Player Count</div>
+            <div id="player-count" style="font-size:24px;font-weight:700;color:#e5e7eb">0</div>
+          </div>
+          <div class="card">
+            <div class="muted">Status</div>
+            <div id="game-status" style="font-size:16px;color:#e5e7eb">Idle</div>
+          </div>
+        </div>
+
+        <!-- Additional controls/now-playing UI can be appended by app.js -->
+        <div id="now-playing" style="margin-top:12px"></div>
+      </section>
+    </main>
+
+    <footer class="footer">Music Bingo Host Console — © 2025</footer>
   </div>
 
-  <!-- App logic (imports ./data.js and ../qr.js inside; CSP-safe) -->
+  <!-- QR library (global window.QRCode) — loaded BEFORE app.js -->
+  <script src="lib/qrcode.min.js" defer></script>
+
+  <!-- App logic (imports ./data.js and ./qr.js; renders QR above the link) -->
   <script type="module" src="app.js"></script>
+
+  <noscript>
+    <p style="color:#ef4444;text-align:center;margin-top:16px">
+      JavaScript is required to run the Music Bingo host console.
+    </p>
+  </noscript>
 </body>
 </html>
