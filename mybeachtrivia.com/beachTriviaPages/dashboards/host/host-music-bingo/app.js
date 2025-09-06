@@ -5,7 +5,8 @@ import {
   getGame,
   updateGameSongIndex,
   updateGameStatus,
-  getPlayerCount
+  getPlayerCount,
+  requireEmployee // ✅ ensure employee is signed in before reads/writes
 } from './data.js';
 import { renderJoinQRCode } from './qr.js';
 
@@ -151,6 +152,8 @@ async function handleStartGame(e) {
   }
 
   try {
+    // Ensure auth at action time too (in case session expires)
+    await requireEmployee();
     const game = await createGame({ playlistId, name, playerLimit });
     updateGameUI(game, playlistName);
   } catch (err) {
@@ -206,6 +209,17 @@ async function init() {
 
   // Prevent any accidental form submit refresh
   els.forms.forEach((f) => f.addEventListener('submit', (e) => e.preventDefault()));
+
+  // ----- require employee sign-in before any Firestore reads -----
+  try {
+    const me = await requireEmployee();
+    console.log('[app] signed in as:', me.email || me.uid);
+  } catch (e) {
+    console.warn('[app] not signed in → redirecting to login:', e.message);
+    const redirectTo = location.pathname + location.search + location.hash;
+    location.assign('/beachTriviaPages/login.html?redirect=' + encodeURIComponent(redirectTo));
+    return; // stop init until after login
+  }
 
   // Populate playlists
   try {
