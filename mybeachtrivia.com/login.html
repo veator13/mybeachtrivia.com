@@ -83,8 +83,8 @@
         </div>
     </div>
 
-    <!-- Load login.js after HTML is ready with absolute path -->
-    <script src="/login.js"></script>
+    <!-- Load login.js with cache-buster -->
+    <script src="/login.js?v=uidfix5"></script>
     
     <!-- Fallback script loader to ensure Firebase is available -->
     <script>
@@ -111,9 +111,9 @@
             
             script3.onload = function() {
               console.log("Firebase firestore loaded dynamically");
-              // Reload login.js
+              // Reload login.js with cache-buster
               const appScript = document.createElement('script');
-              appScript.src = "/login.js";
+              appScript.src = "/login.js?v=uidfix5";
               document.body.appendChild(appScript);
             };
           };
