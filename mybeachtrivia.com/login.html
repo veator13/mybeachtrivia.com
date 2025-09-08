@@ -85,41 +85,7 @@
 
     <!-- Load login.js with cache-buster -->
     <script src="/login.js?v=uidfix5"></script>
-    
-    <!-- Fallback script loader to ensure Firebase is available -->
-    <script>
-    window.addEventListener('load', function() {
-      console.log("Window loaded, checking Firebase availability");
-      if (typeof firebase === 'undefined') {
-        console.error("Firebase is NOT available after window load");
-        // Try to load Firebase scripts again
-        const script1 = document.createElement('script');
-        script1.src = "https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js";
-        document.body.appendChild(script1);
-        
-        script1.onload = function() {
-          console.log("Firebase app loaded dynamically");
-          const script2 = document.createElement('script');
-          script2.src = "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js";
-          document.body.appendChild(script2);
-          
-          script2.onload = function() {
-            console.log("Firebase auth loaded dynamically");
-            const script3 = document.createElement('script');
-            script3.src = "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js";
-            document.body.appendChild(script3);
-            
-            script3.onload = function() {
-              console.log("Firebase firestore loaded dynamically");
-              // Reload login.js with cache-buster
-              const appScript = document.createElement('script');
-              appScript.src = "/login.js?v=uidfix5";
-              document.body.appendChild(appScript);
-            };
-          };
-        };
-      }
-    });
-    </script>
+    <!-- Firebase fallback loader moved to external file -->
+    <script src="/firebase-fallback.js?v=1"></script>
 </body>
 </html>
