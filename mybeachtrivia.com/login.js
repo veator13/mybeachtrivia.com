@@ -27,7 +27,7 @@
   
     const setBusy = (busy) => {
       if (submitBtn) submitBtn.disabled = !!busy;
-      if (submitBtn) submitBtn.classList.toggle("opacity-60", !!busy);
+      if (submitBtn) submitBtn.classList?.toggle("opacity-60", !!busy);
     };
   
     const showError = (msg) => {
@@ -35,6 +35,9 @@
       if (errorBox) {
         errorBox.textContent = msg;
         errorBox.style.display = "block";
+        // simple attention pulse if you’re using Tailwind-like classes
+        errorBox.classList?.add("animate-pulse");
+        setTimeout(() => errorBox.classList?.remove("animate-pulse"), 400);
       } else {
         alert(msg);
       }
@@ -53,12 +56,10 @@
       const next = params.get("next");
       if (next) return next; // honor ?next=/path
   
-      // Fallbacks: try to respect roles if your site has separate dashboards.
       if (Array.isArray(roles)) {
         if (roles.includes("admin")) return "/beachTriviaPages/dashboards/admin/";
         if (roles.includes("host")) return "/beachTriviaPages/dashboards/host/";
       }
-      // Generic fallback:
       return "/index.html";
     };
   
@@ -67,10 +68,10 @@
       try {
         await auth.setPersistence(
           remember ? firebase.auth.Auth.Persistence.LOCAL
-                   : firebase.auth.Auth.Persis­tence.SESSION
+                   : firebase.auth.Auth.Persistence.SESSION
         );
       } catch (e) {
-        // If setPersistence fails (older SDKs), we just continue.
+        // If setPersistence fails (older SDKs), continue without blocking sign-in.
         console.warn("setPersistence warning:", e?.message || e);
       }
     };
@@ -117,7 +118,7 @@
         }
   
         const roles = Array.isArray(employee.roles) ? employee.roles : [];
-        const usingAdminTab = !!(adminTab && adminTab.classList.contains("active"));
+        const usingAdminTab = !!(adminTab && adminTab.classList?.contains("active"));
   
         // If the UI has separate tabs, optionally ensure role matches selected tab
         if (usingAdminTab && !roles.includes("admin")) {
@@ -131,17 +132,14 @@
       } catch (err) {
         // Common Auth/Rules errors → friendly text
         const code = err && err.code;
-        let msg =
-          err?.message ||
-          "Sign-in failed. Please try again.";
+        let msg = err?.message || "Sign-in failed. Please try again.";
   
         if (code === "auth/user-not-found" || code === "auth/wrong-password") {
           msg = "Invalid email or password.";
         } else if (code === "auth/too-many-requests") {
           msg = "Too many attempts. Try again later.";
         } else if (String(msg).includes("Missing or insufficient permissions")) {
-          msg =
-            "Signed in, but your employee permissions are not sufficient. Check your employee record and roles.";
+          msg = "Signed in, but your employee permissions are not sufficient. Check your employee record and roles.";
         }
   
         showError(msg);
