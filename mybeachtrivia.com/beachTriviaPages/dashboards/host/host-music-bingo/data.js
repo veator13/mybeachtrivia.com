@@ -87,14 +87,32 @@ async function ensureEmployeeAuth(timeoutMs = 8000) {
   return cachedUserPromise;
 }
 
-// Exposed for UI to pre-gate actions
+// Exposed for UI to pre-gate actions (now enforces employee + role checks)
 export async function requireEmployee() {
-  try {
-    const u = await ensureEmployeeAuth();
-    return u;
-  } catch (e) {
+  // Wait for a signed-in user
+  const user = await ensureEmployeeAuth().catch((e) => {
     throw new Error(`Please log in to host Music Bingo. ${e.message} (Go to ${LOGIN_URL})`);
+  });
+
+  // Verify there is an employees/{uid} doc and that this user can host
+  const snap = await getDoc(doc(db, 'employees', user.uid));
+  if (!snap.exists()) {
+    throw new Error(
+      `Signed in as ${user.email}, but no employee record found (employees/${user.uid}).`
+    );
   }
+  const emp = snap.data();
+  const roles = Array.isArray(emp.roles) ? emp.roles : [];
+  const isActive = emp.active === true;
+
+  if (!isActive) {
+    throw new Error('Your employee account is not active. Contact an admin.');
+  }
+  if (!roles.includes('host')) {
+    throw new Error(`You are not authorized to host (missing 'host' role).`);
+  }
+
+  return user;
 }
 
 export function getCurrentUser() {
