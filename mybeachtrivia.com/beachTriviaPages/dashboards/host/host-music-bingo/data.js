@@ -1,6 +1,6 @@
 // data.js — Music Bingo host (Beach-Trivia-Website project)
-// Robust init (safe if imported multiple times), employee-only auth,
-// and playlist fetch that works with either `playlists` or `music_bingo`.
+// Host-only module: requires employee auth to read ALL playlists.
+// Merges `/playlists` (new) + `/music_bingo` (legacy) with de-dupe.
 
 console.debug('[data.js] loading…');
 
@@ -36,7 +36,6 @@ const firebaseConfig = {
   measurementId: "G-24MQRKKDNY"
 };
 
-// Where to send employees if they aren't logged in (used only in error text)
 const LOGIN_URL = '/beachTriviaPages/login.html';
 
 // ---------- Singleton Firebase boot (idempotent) ----------
@@ -94,7 +93,6 @@ export async function requireEmployee() {
     const u = await ensureEmployeeAuth();
     return u;
   } catch (e) {
-    // Friendly message; caller can decide to show a link/button to LOGIN_URL
     throw new Error(`Please log in to host Music Bingo. ${e.message} (Go to ${LOGIN_URL})`);
   }
 }
@@ -105,11 +103,15 @@ export function getCurrentUser() {
 
 // ---------- Playlists ----------
 /**
- * Reads playlists from either `playlists` (new) or `music_bingo` (legacy),
+ * Reads playlists from BOTH `playlists` (new) and `music_bingo` (legacy),
  * merges + sorts by title, and normalizes fields.
+ * Requires employee auth so rules allow access to unpublished drafts.
  */
 export async function fetchPlaylists() {
   console.log('[data.js] Fetching playlists…');
+
+  // Host page should be employee-only; ensures rules allow the read.
+  await requireEmployee();
 
   const normalize = (id, data) => {
     const title =
@@ -128,50 +130,40 @@ export async function fetchPlaylists() {
     };
   };
 
+  const got = [];
+  const seen = new Set();
+
+  // Try unified `playlists`
   try {
-    // First try modern collection
-    const got = [];
-    const seen = new Set();
-
-    // Try `playlists`
-    try {
-      const snap = await getDocs(collection(db, 'playlists'));
-      snap.forEach(d => {
-        if (!seen.has(d.id)) {
-          got.push(normalize(d.id, d.data()));
-          seen.add(d.id);
-        }
-      });
-    } catch (e) {
-      console.warn('[data.js] `playlists` read warning:', e?.code || e?.message || e);
-    }
-
-    // Also try legacy `music_bingo`
-    try {
-      // keep it light if we already have a lot
-      const qb = query(collection(db, 'music_bingo'), limit(Math.max(0, 200 - got.length)));
-      const snap = await getDocs(qb);
-      snap.forEach(d => {
-        if (!seen.has(d.id)) {
-          got.push(normalize(d.id, d.data()));
-          seen.add(d.id);
-        }
-      });
-    } catch (e) {
-      console.warn('[data.js] `music_bingo` read warning:', e?.code || e?.message || e);
-    }
-
-    // Sort & return
-    got.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
-    console.log('[data.js] Playlists found:', got.length);
-    return got;
-  } catch (error) {
-    console.error('[data.js] Error fetching playlists:', error);
-    if (error.code === 'permission-denied') {
-      throw new Error('Permission denied reading playlists. Ensure you are logged in and rules allow employee read.');
-    }
-    throw new Error(`Failed to fetch playlists: ${error.message}`);
+    const snap = await getDocs(collection(db, 'playlists'));
+    snap.forEach(d => {
+      if (!seen.has(d.id)) {
+        got.push(normalize(d.id, d.data()));
+        seen.add(d.id);
+      }
+    });
+  } catch (e) {
+    console.warn('[data.js] playlists read failed (will still try legacy):', e?.code || e?.message || e);
   }
+
+  // Also read legacy `music_bingo` to surface any not-yet-migrated lists
+  try {
+    const qb = query(collection(db, 'music_bingo'), limit(Math.max(0, 200 - got.length)));
+    const snap = await getDocs(qb);
+    snap.forEach(d => {
+      if (!seen.has(d.id)) {
+        got.push(normalize(d.id, d.data()));
+        seen.add(d.id);
+      }
+    });
+  } catch (e) {
+    console.warn('[data.js] music_bingo read failed:', e?.code || e?.message || e);
+  }
+
+  // Sort & return
+  got.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+  console.log('[data.js] Playlists found:', got.length);
+  return got;
 }
 
 // Back-compat alias
