@@ -2,6 +2,7 @@
    - New signups (email or Google) create employees/{uid} with active:false, roles:[]
    - Existing users must be active:true to proceed
    - Admin tab requires 'admin' role
+   - Employee tab always routes to Host dashboard (even if user is also admin)
    - Works with Firebase v8/v9-compat
 */
 
@@ -34,16 +35,25 @@
     const switchToSignup = $("#switchToSignup");
     const hiddenUserType = $("#userType");
   
-    // keep your existing UI: toggles just set a flag & styling
+    // ----- Tab helpers -----
+    const getSelectedTab = () => {
+      // Prefer the active class if present; fall back to hidden input
+      if (adminToggle?.classList?.contains("active")) return "admin";
+      if (employeeToggle?.classList?.contains("active")) return "employee";
+      const hv = (hiddenUserType?.value || "").toLowerCase();
+      return hv === "admin" ? "admin" : "employee";
+    };
+  
+    // keep your existing UI: toggles set a flag & styling
     employeeToggle?.addEventListener("click", () => {
       employeeToggle.classList.add("active");
-      adminToggle.classList.remove("active");
-      hiddenUserType.value = "employee";
+      adminToggle?.classList.remove("active");
+      if (hiddenUserType) hiddenUserType.value = "employee";
     });
     adminToggle?.addEventListener("click", () => {
       adminToggle.classList.add("active");
-      employeeToggle.classList.remove("active");
-      hiddenUserType.value = "admin";
+      employeeToggle?.classList.remove("active");
+      if (hiddenUserType) hiddenUserType.value = "admin";
     });
   
     // ----- UI helpers -----
@@ -60,22 +70,27 @@
       msgBox.style.display = "block";
       msgBox.style.color = isError ? "#b00020" : "#0a7";
     };
-    const clearMsg = () => { if (msgBox) { msgBox.textContent = ""; msgBox.style.display = "none"; } };
+    const clearMsg = () => {
+      if (msgBox) {
+        msgBox.textContent = "";
+        msgBox.style.display = "none";
+      }
+    };
   
     // ----- Auth mode -----
     let mode = "login"; // or "signup"
     const switchTo = (m) => {
       mode = m;
       if (m === "signup") {
-        titleEl.textContent = "Create Account";
-        loginBtnTxt.textContent = "Create account";
-        nameRow.style.display = "";
-        switchToSignup.textContent = "Back to login";
+        if (titleEl) titleEl.textContent = "Create Account";
+        if (loginBtnTxt) loginBtnTxt.textContent = "Create account";
+        if (nameRow) nameRow.style.display = "";
+        if (switchToSignup) switchToSignup.textContent = "Back to login";
       } else {
-        titleEl.textContent = "Employee Login";
-        loginBtnTxt.textContent = "Login";
-        nameRow.style.display = "none";
-        switchToSignup.textContent = "Sign up";
+        if (titleEl) titleEl.textContent = "Employee Login";
+        if (loginBtnTxt) loginBtnTxt.textContent = "Login";
+        if (nameRow) nameRow.style.display = "none";
+        if (switchToSignup) switchToSignup.textContent = "Sign up";
       }
       clearMsg();
     };
@@ -129,8 +144,8 @@
     }
   
     function requireRoleForTab(roles) {
-      const usingAdminTab = adminToggle?.classList.contains("active");
-      if (usingAdminTab && !roles.includes("admin")) {
+      // Only enforce admin when Admin tab is selected
+      if (getSelectedTab() === "admin" && !roles.includes("admin")) {
         throw new Error("You must be an admin to use the Admin login.");
       }
     }
@@ -138,13 +153,13 @@
     function computeRedirect(roles) {
       const params = new URLSearchParams(location.search);
       const next = params.get("next");
-      if (next) return next;
+      if (next) return next; // always honor ?next=
   
-      if (Array.isArray(roles)) {
-        if (roles.includes("admin")) return "/beachTriviaPages/dashboards/admin/";
-        if (roles.includes("host"))  return "/beachTriviaPages/dashboards/host/";
-      }
-      return "/index.html";
+      // Respect the selected tab explicitly
+      const tabSel = getSelectedTab();
+      if (tabSel === "admin") return "/beachTriviaPages/dashboards/admin/";
+      // Employee tab: always go to host dashboard
+      return "/beachTriviaPages/dashboards/host/";
     }
   
     // ----- Auth flows -----
@@ -189,7 +204,7 @@
       requireRoleForTab(Array.isArray(employee.roles) ? employee.roles : []);
   
       const target = computeRedirect(employee.roles || []);
-      console.log("Redirecting to:", target);
+      console.log("Redirecting to:", target, " (tab:", getSelectedTab(), ")");
       location.assign(target);
     }
   
@@ -254,6 +269,5 @@
       passEl.type = type;
     });
   
-    console.log("Login page JavaScript initialized (UID-based authz).");
+    console.log("Login page JavaScript initialized (UID-based authz; tab-aware routing).");
   })();
-  
