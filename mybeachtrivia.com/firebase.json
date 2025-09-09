@@ -1,35 +1,32 @@
 {
   "hosting": {
-    "public": ".",
+    "public": "mybeachtrivia.com",
     "ignore": [
       "firebase.json",
       "**/.*",
       "**/node_modules/**"
     ],
+    "cleanUrls": true,
+    "trailingSlash": false,
+
     "headers": [
       {
         "source": "**/*.html",
         "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "no-store"
-          }
+          { "key": "Cache-Control", "value": "no-store" }
         ]
       },
       {
-        "source": "**",
+        "source": "**/*.{js,css}",
         "headers": [
-          {
-            "key": "X-Debug-CSP",
-            "value": "csp-v3-2025-09-04T"
-          }
+          { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
         ]
-      }
-    ],
-    "rewrites": [
+      },
       {
-        "source": "**",
-        "destination": "/index.html"
+        "source": "**/*.{png,jpg,jpeg,gif,svg,webp,ico}",
+        "headers": [
+          { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+        ]
       }
     ]
   }

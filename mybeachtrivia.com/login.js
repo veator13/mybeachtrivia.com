@@ -1,162 +1,259 @@
-/* login.js — email+password sign-in, then authorize via employees/{uid}
-   Works with Firebase v8 or v9-compat (window.firebase global).
-   Assumes firebase is initialized in a separate firebase-init.js
+/* login.js — Email/Password & Google auth, Firestore authZ via employees/{uid}
+   - New signups (email or Google) create employees/{uid} with active:false, roles:[]
+   - Existing users must be active:true to proceed
+   - Admin tab requires 'admin' role
+   - Works with Firebase v8/v9-compat
 */
 
 (function () {
-    // ---- Safe Firebase handles ----
     if (typeof firebase === "undefined") {
-      console.error("Firebase SDK not found on window. Did firebase-init.js load?");
+      console.error("Firebase SDK not found on window.");
       return;
     }
+  
     const auth = firebase.auth();
-    const db = firebase.firestore();
+    const db   = firebase.firestore();
   
-    // ---- DOM helpers ----
+    // ----- DOM -----
     const $ = (sel) => document.querySelector(sel);
-    const form = $("#login-form") || document.forms[0];
-    const emailEl = $("#email") || $("#login-email") || $("input[type='email']");
-    const passEl = $("#password") || $("#login-password") || $("input[type='password']");
-    const rememberEl = $("#remember") || $("#login-remember");
-    const errorBox = $("#login-error") || $("#error-box") || $("#error-message");
-    const submitBtn = $("#login-submit") || $("#login-button") || $("button[type='submit']");
+    const form        = $("#loginForm");
+    const emailEl     = $("#username");
+    const passEl      = $("#password");
+    const rememberEl  = $("#rememberMe");
+    const loginBtn    = $("#loginButton");
+    const loginBtnTxt = $("#loginButtonText");
+    const googleBtn   = $("#googleButton");
+    const forgotLink  = $("#forgotPassword");
+    const msgBox      = $("#messageContainer");
+    const titleEl     = $("#loginTitle");
+    const nameRow     = $("#nameRow");
+    const firstNameEl = $("#firstName");
+    const lastNameEl  = $("#lastName");
+    const employeeToggle = $("#employee-toggle");
+    const adminToggle    = $("#admin-toggle");
+    const switchToSignup = $("#switchToSignup");
+    const hiddenUserType = $("#userType");
   
-    // Optional: tab UI (Employee/Admin) if present
-    const employeeTab = $("#tab-employee");
-    const adminTab = $("#tab-admin");
+    // keep your existing UI: toggles just set a flag & styling
+    employeeToggle?.addEventListener("click", () => {
+      employeeToggle.classList.add("active");
+      adminToggle.classList.remove("active");
+      hiddenUserType.value = "employee";
+    });
+    adminToggle?.addEventListener("click", () => {
+      adminToggle.classList.add("active");
+      employeeToggle.classList.remove("active");
+      hiddenUserType.value = "admin";
+    });
   
+    // ----- UI helpers -----
     const setBusy = (busy) => {
-      if (submitBtn) submitBtn.disabled = !!busy;
-      if (submitBtn) submitBtn.classList?.toggle("opacity-60", !!busy);
+      if (loginBtn) {
+        loginBtn.disabled = !!busy;
+        loginBtn.classList?.toggle("opacity-60", !!busy);
+      }
     };
   
-    const showError = (msg) => {
-      console.error(msg);
-      if (errorBox) {
-        errorBox.textContent = msg;
-        errorBox.style.display = "block";
-        // simple attention pulse if you’re using Tailwind-like classes
-        errorBox.classList?.add("animate-pulse");
-        setTimeout(() => errorBox.classList?.remove("animate-pulse"), 400);
+    const showMsg = (text, isError = false) => {
+      if (!msgBox) return alert(text);
+      msgBox.textContent = text;
+      msgBox.style.display = "block";
+      msgBox.style.color = isError ? "#b00020" : "#0a7";
+    };
+    const clearMsg = () => { if (msgBox) { msgBox.textContent = ""; msgBox.style.display = "none"; } };
+  
+    // ----- Auth mode -----
+    let mode = "login"; // or "signup"
+    const switchTo = (m) => {
+      mode = m;
+      if (m === "signup") {
+        titleEl.textContent = "Create Account";
+        loginBtnTxt.textContent = "Create account";
+        nameRow.style.display = "";
+        switchToSignup.textContent = "Back to login";
       } else {
-        alert(msg);
+        titleEl.textContent = "Employee Login";
+        loginBtnTxt.textContent = "Login";
+        nameRow.style.display = "none";
+        switchToSignup.textContent = "Sign up";
       }
+      clearMsg();
     };
+    switchToSignup?.addEventListener("click", (e) => {
+      e.preventDefault();
+      switchTo(mode === "login" ? "signup" : "login");
+    });
   
-    const clearError = () => {
-      if (errorBox) {
-        errorBox.textContent = "";
-        errorBox.style.display = "none";
+    // ----- Persistence -----
+    async function applyPersistence() {
+      try {
+        await auth.setPersistence(
+          rememberEl?.checked ? firebase.auth.Auth.Persistence.LOCAL
+                              : firebase.auth.Auth.Persistence.SESSION
+        );
+      } catch (e) {
+        console.warn("setPersistence warning:", e?.message);
       }
-    };
+    }
   
-    // Pick a reasonable post-login target.
-    const computeRedirect = (roles) => {
+    // ----- Employee doc helpers -----
+    function splitName(displayName = "") {
+      const parts = displayName.trim().split(/\s+/);
+      return { firstName: parts[0] || "", lastName: parts.slice(1).join(" ") || "" };
+    }
+  
+    async function ensureEmployeeDoc(user, source = "email") {
+      const ref = db.collection("employees").doc(user.uid);
+      const snap = await ref.get();
+      if (snap.exists) return snap.data();
+  
+      // Create inactive profile on first signup
+      const { firstName, lastName } = splitName(user.displayName || "");
+      const payload = {
+        active: false,
+        email: user.email || "",
+        displayName: user.displayName || `${firstName} ${lastName}`.trim() || "",
+        firstName,
+        lastName,
+        roles: [],            // No roles by default
+        source,               // "email" or "google"
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      };
+      await ref.set(payload, { merge: true });
+      return payload;
+    }
+  
+    function requireActive(employee) {
+      if (employee.active === true) return;
+      throw new Error("Your account was created but is not yet active. Please contact an administrator to activate it.");
+    }
+  
+    function requireRoleForTab(roles) {
+      const usingAdminTab = adminToggle?.classList.contains("active");
+      if (usingAdminTab && !roles.includes("admin")) {
+        throw new Error("You must be an admin to use the Admin login.");
+      }
+    }
+  
+    function computeRedirect(roles) {
       const params = new URLSearchParams(location.search);
       const next = params.get("next");
-      if (next) return next; // honor ?next=/path
+      if (next) return next;
   
       if (Array.isArray(roles)) {
         if (roles.includes("admin")) return "/beachTriviaPages/dashboards/admin/";
-        if (roles.includes("host")) return "/beachTriviaPages/dashboards/host/";
+        if (roles.includes("host"))  return "/beachTriviaPages/dashboards/host/";
       }
       return "/index.html";
-    };
+    }
   
-    // Optional: persist choice
-    const setPersistence = async (remember) => {
-      try {
-        await auth.setPersistence(
-          remember ? firebase.auth.Auth.Persistence.LOCAL
-                   : firebase.auth.Auth.Persistence.SESSION
-        );
-      } catch (e) {
-        // If setPersistence fails (older SDKs), continue without blocking sign-in.
-        console.warn("setPersistence warning:", e?.message || e);
+    // ----- Auth flows -----
+    async function handleLogin(email, password) {
+      await applyPersistence();
+      const { user } = await auth.signInWithEmailAndPassword(email, password);
+      return user;
+    }
+  
+    async function handleSignup(email, password, firstName, lastName) {
+      await applyPersistence();
+      const { user } = await auth.createUserWithEmailAndPassword(email, password);
+      if (firstName || lastName) {
+        await user.updateProfile({ displayName: `${firstName || ""} ${lastName || ""}`.trim() });
       }
-    };
+      await ensureEmployeeDoc(user, "email");
+      return user;
+    }
   
-    // Main submit handler
-    const onSubmit = async (evt) => {
-      if (evt) evt.preventDefault();
-      clearError();
+    async function handleGoogle() {
+      await applyPersistence();
+      const provider = new firebase.auth.GoogleAuthProvider();
+      const { user, additionalUserInfo } = await auth.signInWithPopup(provider);
+      if (additionalUserInfo?.isNewUser) {
+        await ensureEmployeeDoc(user, "google");
+      }
+      return user;
+    }
+  
+    async function authorizeAndRedirect(user) {
+      if (!user) throw new Error("No user returned from auth.");
+      console.log("User authenticated:", user.uid);
+  
+      const snap = await db.collection("employees").doc(user.uid).get();
+      if (!snap.exists) {
+        throw new Error("No employee profile found for this account.");
+      }
+      const employee = snap.data() || {};
+      console.log("Employee doc:", employee);
+  
+      requireActive(employee);
+      requireRoleForTab(Array.isArray(employee.roles) ? employee.roles : []);
+  
+      const target = computeRedirect(employee.roles || []);
+      console.log("Redirecting to:", target);
+      location.assign(target);
+    }
+  
+    // ----- Form handlers -----
+    form?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      clearMsg();
       setBusy(true);
   
-      const email = (emailEl && emailEl.value || "").trim();
-      const password = passEl && passEl.value || "";
-  
-      if (!email || !password) {
+      const email = (emailEl?.value || "").trim();
+      const pw    = passEl?.value || "";
+      if (!email || !pw) {
         setBusy(false);
-        return showError("Please enter your email and password.");
+        return showMsg("Please enter your email and password.", true);
       }
   
       try {
-        // Respect "Remember me"
-        await setPersistence(!!(rememberEl && rememberEl.checked));
+        const user = mode === "signup"
+          ? await handleSignup(email, pw, firstNameEl?.value || "", lastNameEl?.value || "")
+          : await handleLogin(email, pw);
   
-        // Sign in with email/password (Auth)
-        const cred = await auth.signInWithEmailAndPassword(email, password);
-        const user = cred.user;
-        if (!user) throw new Error("Sign-in failed. No user returned.");
-  
-        console.log("User authenticated:", user.uid);
-  
-        // Authorize by reading employees/{uid} (Firestore)
-        const docRef = db.collection("employees").doc(user.uid);
-        const snap = await docRef.get();
-  
-        if (!snap.exists) {
-          throw new Error("No employee profile found for this account.");
-        }
-  
-        const employee = snap.data() || {};
-        console.log("Employee doc:", employee);
-  
-        // Enforce your rules: active + role
-        if (employee.active !== true) {
-          throw new Error("Your account is not active. Contact an administrator.");
-        }
-  
-        const roles = Array.isArray(employee.roles) ? employee.roles : [];
-        const usingAdminTab = !!(adminTab && adminTab.classList?.contains("active"));
-  
-        // If the UI has separate tabs, optionally ensure role matches selected tab
-        if (usingAdminTab && !roles.includes("admin")) {
-          throw new Error("You must be an admin to use the Admin login.");
-        }
-  
-        // Success → redirect
-        const target = computeRedirect(roles);
-        console.log("Redirecting to:", target);
-        location.assign(target);
+        await authorizeAndRedirect(user);
       } catch (err) {
-        // Common Auth/Rules errors → friendly text
-        const code = err && err.code;
+        const code = err?.code;
         let msg = err?.message || "Sign-in failed. Please try again.";
-  
-        if (code === "auth/user-not-found" || code === "auth/wrong-password") {
-          msg = "Invalid email or password.";
-        } else if (code === "auth/too-many-requests") {
-          msg = "Too many attempts. Try again later.";
-        } else if (String(msg).includes("Missing or insufficient permissions")) {
-          msg = "Signed in, but your employee permissions are not sufficient. Check your employee record and roles.";
-        }
-  
-        showError(msg);
+        if (code === "auth/user-not-found" || code === "auth/wrong-password") msg = "Invalid email or password.";
+        if (code === "auth/too-many-requests") msg = "Too many attempts. Try again later.";
+        showMsg(msg, true);
       } finally {
         setBusy(false);
       }
-    };
+    });
   
-    // Wire up form
-    if (form) {
-      form.addEventListener("submit", onSubmit);
-    } else if (submitBtn) {
-      // Fallback if there's no <form>
-      submitBtn.addEventListener("click", onSubmit);
-    }
+    googleBtn?.addEventListener("click", async () => {
+      clearMsg();
+      setBusy(true);
+      try {
+        const user = await handleGoogle();
+        await authorizeAndRedirect(user);
+      } catch (err) {
+        showMsg(err?.message || "Google sign-in failed.", true);
+      } finally {
+        setBusy(false);
+      }
+    });
   
-    // Log for visibility in Console
+    forgotLink?.addEventListener("click", async (e) => {
+      e.preventDefault();
+      const email = (emailEl?.value || "").trim();
+      if (!email) return showMsg("Enter your email first.", true);
+      try {
+        await auth.sendPasswordResetEmail(email);
+        showMsg("Password reset email sent. Check your inbox.");
+      } catch (err) {
+        showMsg(err?.message || "Could not send password reset email.", true);
+      }
+    });
+  
+    // Password visibility
+    $("#togglePassword")?.addEventListener("click", () => {
+      const type = passEl.type === "password" ? "text" : "password";
+      passEl.type = type;
+    });
+  
     console.log("Login page JavaScript initialized (UID-based authz).");
   })();
   
