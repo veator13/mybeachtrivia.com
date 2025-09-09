@@ -17,43 +17,59 @@
   
     // ----- DOM -----
     const $ = (sel) => document.querySelector(sel);
-    const form        = $("#loginForm");
-    const emailEl     = $("#username");
-    const passEl      = $("#password");
-    const rememberEl  = $("#rememberMe");
-    const loginBtn    = $("#loginButton");
-    const loginBtnTxt = $("#loginButtonText");
-    const googleBtn   = $("#googleButton");
-    const forgotLink  = $("#forgotPassword");
-    const msgBox      = $("#messageContainer");
-    const titleEl     = $("#loginTitle");
-    const nameRow     = $("#nameRow");
-    const firstNameEl = $("#firstName");
-    const lastNameEl  = $("#lastName");
+    const form           = $("#loginForm");
+    const emailEl        = $("#username");
+    const passEl         = $("#password");
+    const rememberEl     = $("#rememberMe");
+    const loginBtn       = $("#loginButton");
+    const loginBtnTxt    = $("#loginButtonText");
+    const googleBtn      = $("#googleButton");
+    const forgotLink     = $("#forgotPassword");
+    const msgBox         = $("#messageContainer");
+    const titleEl        = $("#loginTitle");
+    const nameRow        = $("#nameRow");
+    const firstNameEl    = $("#firstName");
+    const lastNameEl     = $("#lastName");
     const employeeToggle = $("#employee-toggle");
     const adminToggle    = $("#admin-toggle");
     const switchToSignup = $("#switchToSignup");
     const hiddenUserType = $("#userType");
   
     // ----- Tab helpers -----
-    const getSelectedTab = () => {
-      // Prefer the active class if present; fall back to hidden input
+    function selectedTab() {
+      // Prefer visible active state; fall back to hidden input; default "employee"
       if (adminToggle?.classList?.contains("active")) return "admin";
       if (employeeToggle?.classList?.contains("active")) return "employee";
       const hv = (hiddenUserType?.value || "").toLowerCase();
       return hv === "admin" ? "admin" : "employee";
-    };
+    }
   
-    // keep your existing UI: toggles set a flag & styling
+    function setTab(tab) {
+      const t = (tab || "").toLowerCase() === "admin" ? "admin" : "employee";
+      if (t === "admin") {
+        adminToggle?.classList.add("active");
+        employeeToggle?.classList.remove("active");
+      } else {
+        employeeToggle?.classList.add("active");
+        adminToggle?.classList.remove("active");
+      }
+      if (hiddenUserType) hiddenUserType.value = t;
+    }
+  
+    // Remember tab choice for a nicer UX (session only)
+    try {
+      const urlTab = new URLSearchParams(location.search).get("userType");
+      const prefTab = urlTab || sessionStorage.getItem("bt_login_tab");
+      if (prefTab) setTab(prefTab);
+    } catch (_e) {}
+  
     employeeToggle?.addEventListener("click", () => {
-      employeeToggle.classList.add("active");
-      adminToggle?.classList.remove("active");
-      if (hiddenUserType) hiddenUserType.value = "employee";
+      setTab("employee");
+      try { sessionStorage.setItem("bt_login_tab", "employee"); } catch (_e) {}
     });
     adminToggle?.addEventListener("click", () => {
-      adminToggle.classList.add("active");
-      employeeToggle?.classList.remove("active");
-      if (hiddenUserType) hiddenUserType.value = "admin";
+      setTab("admin");
+      try { sessionStorage.setItem("bt_login_tab", "admin"); } catch (_e) {}
     });
   
     // ----- UI helpers -----
@@ -62,19 +78,22 @@
         loginBtn.disabled = !!busy;
         loginBtn.classList?.toggle("opacity-60", !!busy);
       }
+      if (googleBtn) {
+        googleBtn.disabled = !!busy;
+        googleBtn.classList?.toggle("opacity-60", !!busy);
+      }
     };
   
     const showMsg = (text, isError = false) => {
-      if (!msgBox) return alert(text);
+      if (!msgBox) { alert(text); return; }
       msgBox.textContent = text;
       msgBox.style.display = "block";
       msgBox.style.color = isError ? "#b00020" : "#0a7";
     };
     const clearMsg = () => {
-      if (msgBox) {
-        msgBox.textContent = "";
-        msgBox.style.display = "none";
-      }
+      if (!msgBox) return;
+      msgBox.textContent = "";
+      msgBox.style.display = "none";
     };
   
     // ----- Auth mode -----
@@ -82,14 +101,14 @@
     const switchTo = (m) => {
       mode = m;
       if (m === "signup") {
-        if (titleEl) titleEl.textContent = "Create Account";
-        if (loginBtnTxt) loginBtnTxt.textContent = "Create account";
-        if (nameRow) nameRow.style.display = "";
+        if (titleEl)      titleEl.textContent = "Create Account";
+        if (loginBtnTxt)  loginBtnTxt.textContent = "Create account";
+        if (nameRow)      nameRow.style.display = "";
         if (switchToSignup) switchToSignup.textContent = "Back to login";
       } else {
-        if (titleEl) titleEl.textContent = "Employee Login";
-        if (loginBtnTxt) loginBtnTxt.textContent = "Login";
-        if (nameRow) nameRow.style.display = "none";
+        if (titleEl)      titleEl.textContent = "Employee Login";
+        if (loginBtnTxt)  loginBtnTxt.textContent = "Login";
+        if (nameRow)      nameRow.style.display = "none";
         if (switchToSignup) switchToSignup.textContent = "Sign up";
       }
       clearMsg();
@@ -103,8 +122,9 @@
     async function applyPersistence() {
       try {
         await auth.setPersistence(
-          rememberEl?.checked ? firebase.auth.Auth.Persistence.LOCAL
-                              : firebase.auth.Auth.Persistence.SESSION
+          rememberEl?.checked
+            ? firebase.auth.Auth.Persistence.LOCAL
+            : firebase.auth.Auth.Persistence.SESSION
         );
       } catch (e) {
         console.warn("setPersistence warning:", e?.message);
@@ -122,7 +142,6 @@
       const snap = await ref.get();
       if (snap.exists) return snap.data();
   
-      // Create inactive profile on first signup
       const { firstName, lastName } = splitName(user.displayName || "");
       const payload = {
         active: false,
@@ -132,7 +151,7 @@
         lastName,
         roles: [],            // No roles by default
         source,               // "email" or "google"
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       };
       await ref.set(payload, { merge: true });
       return payload;
@@ -140,12 +159,14 @@
   
     function requireActive(employee) {
       if (employee.active === true) return;
-      throw new Error("Your account was created but is not yet active. Please contact an administrator to activate it.");
+      throw new Error(
+        "Your account was created but is not yet active. Please contact an administrator to activate it."
+      );
     }
   
     function requireRoleForTab(roles) {
       // Only enforce admin when Admin tab is selected
-      if (getSelectedTab() === "admin" && !roles.includes("admin")) {
+      if (selectedTab() === "admin" && !roles.includes("admin")) {
         throw new Error("You must be an admin to use the Admin login.");
       }
     }
@@ -156,7 +177,7 @@
       if (next) return next; // always honor ?next=
   
       // Respect the selected tab explicitly
-      const tabSel = getSelectedTab();
+      const tabSel = selectedTab();
       if (tabSel === "admin") return "/beachTriviaPages/dashboards/admin/";
       // Employee tab: always go to host dashboard
       return "/beachTriviaPages/dashboards/host/";
@@ -204,7 +225,7 @@
       requireRoleForTab(Array.isArray(employee.roles) ? employee.roles : []);
   
       const target = computeRedirect(employee.roles || []);
-      console.log("Redirecting to:", target, " (tab:", getSelectedTab(), ")");
+      console.log("Redirecting to:", target, "(tab:", selectedTab(), ")");
       location.assign(target);
     }
   
@@ -218,7 +239,8 @@
       const pw    = passEl?.value || "";
       if (!email || !pw) {
         setBusy(false);
-        return showMsg("Please enter your email and password.", true);
+        showMsg("Please enter your email and password.", true);
+        return;
       }
   
       try {
@@ -254,7 +276,7 @@
     forgotLink?.addEventListener("click", async (e) => {
       e.preventDefault();
       const email = (emailEl?.value || "").trim();
-      if (!email) return showMsg("Enter your email first.", true);
+      if (!email) { showMsg("Enter your email first.", true); return; }
       try {
         await auth.sendPasswordResetEmail(email);
         showMsg("Password reset email sent. Check your inbox.");
