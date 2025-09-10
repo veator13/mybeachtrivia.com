@@ -3,7 +3,7 @@
    - Existing users must be active:true to proceed
    - Admin tab requires 'admin' role
    - Employee tab always routes to Host dashboard (even if user is also admin)
-   - Works with Firebase v8/v9-compat
+   - Works with Firebase v8/v9-compat; CSP-safe Google fallback (popup -> redirect)
 */
 
 (function () {
@@ -14,6 +14,20 @@
   
     const auth = firebase.auth();
     const db   = firebase.firestore();
+  
+    // ----- Complete Google redirect flow if we just returned from Google -----
+    auth.getRedirectResult()
+      .then(async (res) => {
+        if (res && res.user) {
+          if (res.additionalUserInfo?.isNewUser) {
+            await ensureEmployeeDoc(res.user, "google");
+          }
+          await authorizeAndRedirect(res.user);
+        }
+      })
+      .catch((e) => {
+        console.warn("Google redirect result error:", e);
+      });
   
     // ----- DOM -----
     const $ = (sel) => document.querySelector(sel);
@@ -37,7 +51,6 @@
   
     // ----- Tab helpers -----
     function selectedTab() {
-      // Prefer visible active state; fall back to hidden input; default "employee"
       if (adminToggle?.classList?.contains("active")) return "admin";
       if (employeeToggle?.classList?.contains("active")) return "employee";
       const hv = (hiddenUserType?.value || "").toLowerCase();
@@ -149,8 +162,8 @@
         displayName: user.displayName || `${firstName} ${lastName}`.trim() || "",
         firstName,
         lastName,
-        roles: [],            // No roles by default
-        source,               // "email" or "google"
+        roles: [],
+        source,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       };
       await ref.set(payload, { merge: true });
@@ -165,22 +178,18 @@
     }
   
     function requireRoleForTab(roles) {
-      // Only enforce admin when Admin tab is selected
       if (selectedTab() === "admin" && !roles.includes("admin")) {
         throw new Error("You must be an admin to use the Admin login.");
       }
     }
   
-    function computeRedirect(roles) {
+    function computeRedirect(_roles) {
       const params = new URLSearchParams(location.search);
       const next = params.get("next");
-      if (next) return next; // always honor ?next=
-  
-      // Respect the selected tab explicitly
-      const tabSel = selectedTab();
-      if (tabSel === "admin") return "/beachTriviaPages/dashboards/admin/";
-      // Employee tab: always go to host dashboard
-      return "/beachTriviaPages/dashboards/host/";
+      if (next) return next;
+      return selectedTab() === "admin"
+        ? "/beachTriviaPages/dashboards/admin/"
+        : "/beachTriviaPages/dashboards/host/";
     }
   
     // ----- Auth flows -----
@@ -200,14 +209,30 @@
       return user;
     }
   
+    // >>> UPDATED: Google popup with CSP-safe redirect fallback
     async function handleGoogle() {
       await applyPersistence();
       const provider = new firebase.auth.GoogleAuthProvider();
-      const { user, additionalUserInfo } = await auth.signInWithPopup(provider);
-      if (additionalUserInfo?.isNewUser) {
-        await ensureEmployeeDoc(user, "google");
+  
+      try {
+        const { user, additionalUserInfo } = await auth.signInWithPopup(provider);
+        if (additionalUserInfo?.isNewUser) {
+          await ensureEmployeeDoc(user, "google");
+        }
+        return user;
+      } catch (err) {
+        const popupIssues = new Set([
+          "auth/popup-blocked",
+          "auth/popup-closed-by-user",
+          "auth/cancelled-popup-request",
+          "auth/internal-error", // commonly thrown when CSP/frame-ancestors blocks popup flow
+        ]);
+        if (popupIssues.has(err?.code) || err?.message?.toLowerCase().includes("popup")) {
+          await auth.signInWithRedirect(provider); // page will redirect away; completed on return above
+          return;
+        }
+        throw err;
       }
-      return user;
     }
   
     async function authorizeAndRedirect(user) {
@@ -265,7 +290,9 @@
       setBusy(true);
       try {
         const user = await handleGoogle();
-        await authorizeAndRedirect(user);
+        if (user) { // if redirect happened, user will be null/undefined here
+          await authorizeAndRedirect(user);
+        }
       } catch (err) {
         showMsg(err?.message || "Google sign-in failed.", true);
       } finally {
@@ -291,5 +318,5 @@
       passEl.type = type;
     });
   
-    console.log("Login page JavaScript initialized (UID-based authz; tab-aware routing).");
+    console.log("Login page JavaScript initialized (UID-based authz; tab-aware routing; Google popup->redirect fallback).");
   })();
