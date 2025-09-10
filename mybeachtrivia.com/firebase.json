@@ -8,28 +8,28 @@
     ],
     "headers": [
       {
-        "source": "**/*.html",
+        "source": "/login.js",
         "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "no-store"
-          }
+          { "key": "Cache-Control", "value": "no-store" }
         ]
       },
       {
-        "source": "**",
+        "source": "/firebase-init.js",
         "headers": [
-          {
-            "key": "X-Debug-CSP",
-            "value": "csp-v3-2025-09-04T"
-          }
+          { "key": "Cache-Control", "value": "no-store" }
         ]
-      }
-    ],
-    "rewrites": [
+      },
       {
-        "source": "**",
-        "destination": "/index.html"
+        "source": "/firebase-fallback.js",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-store" }
+        ]
+      },
+      {
+        "source": "/login.html",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-store" }
+        ]
       }
     ]
   }
