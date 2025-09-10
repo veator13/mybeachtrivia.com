@@ -3,7 +3,8 @@
    - Existing users must be active:true to proceed
    - Admin tab requires 'admin' role
    - Employee tab always routes to Host dashboard (even if user is also admin)
-   - Works with Firebase v8/v9-compat; CSP-safe Google fallback (popup -> redirect)
+   - Google login uses REDIRECT flow (CSP-safe; no popup)
+   - Works with Firebase v8/v9-compat
 */
 
 (function () {
@@ -14,20 +15,6 @@
   
     const auth = firebase.auth();
     const db   = firebase.firestore();
-  
-    // ----- Complete Google redirect flow if we just returned from Google -----
-    auth.getRedirectResult()
-      .then(async (res) => {
-        if (res && res.user) {
-          if (res.additionalUserInfo?.isNewUser) {
-            await ensureEmployeeDoc(res.user, "google");
-          }
-          await authorizeAndRedirect(res.user);
-        }
-      })
-      .catch((e) => {
-        console.warn("Google redirect result error:", e);
-      });
   
     // ----- DOM -----
     const $ = (sel) => document.querySelector(sel);
@@ -56,7 +43,6 @@
       const hv = (hiddenUserType?.value || "").toLowerCase();
       return hv === "admin" ? "admin" : "employee";
     }
-  
     function setTab(tab) {
       const t = (tab || "").toLowerCase() === "admin" ? "admin" : "employee";
       if (t === "admin") {
@@ -68,14 +54,11 @@
       }
       if (hiddenUserType) hiddenUserType.value = t;
     }
-  
-    // Remember tab choice for a nicer UX (session only)
     try {
       const urlTab = new URLSearchParams(location.search).get("userType");
       const prefTab = urlTab || sessionStorage.getItem("bt_login_tab");
       if (prefTab) setTab(prefTab);
     } catch (_e) {}
-  
     employeeToggle?.addEventListener("click", () => {
       setTab("employee");
       try { sessionStorage.setItem("bt_login_tab", "employee"); } catch (_e) {}
@@ -87,16 +70,9 @@
   
     // ----- UI helpers -----
     const setBusy = (busy) => {
-      if (loginBtn) {
-        loginBtn.disabled = !!busy;
-        loginBtn.classList?.toggle("opacity-60", !!busy);
-      }
-      if (googleBtn) {
-        googleBtn.disabled = !!busy;
-        googleBtn.classList?.toggle("opacity-60", !!busy);
-      }
+      if (loginBtn)  { loginBtn.disabled  = !!busy; loginBtn.classList?.toggle("opacity-60", !!busy); }
+      if (googleBtn) { googleBtn.disabled = !!busy; googleBtn.classList?.toggle("opacity-60", !!busy); }
     };
-  
     const showMsg = (text, isError = false) => {
       if (!msgBox) { alert(text); return; }
       msgBox.textContent = text;
@@ -114,15 +90,15 @@
     const switchTo = (m) => {
       mode = m;
       if (m === "signup") {
-        if (titleEl)      titleEl.textContent = "Create Account";
-        if (loginBtnTxt)  loginBtnTxt.textContent = "Create account";
-        if (nameRow)      nameRow.style.display = "";
-        if (switchToSignup) switchToSignup.textContent = "Back to login";
+        if (titleEl)         titleEl.textContent = "Create Account";
+        if (loginBtnTxt)     loginBtnTxt.textContent = "Create account";
+        if (nameRow)         nameRow.style.display = "";
+        if (switchToSignup)  switchToSignup.textContent = "Back to login";
       } else {
-        if (titleEl)      titleEl.textContent = "Employee Login";
-        if (loginBtnTxt)  loginBtnTxt.textContent = "Login";
-        if (nameRow)      nameRow.style.display = "none";
-        if (switchToSignup) switchToSignup.textContent = "Sign up";
+        if (titleEl)         titleEl.textContent = "Employee Login";
+        if (loginBtnTxt)     loginBtnTxt.textContent = "Login";
+        if (nameRow)         nameRow.style.display = "none";
+        if (switchToSignup)  switchToSignup.textContent = "Sign up";
       }
       clearMsg();
     };
@@ -149,12 +125,10 @@
       const parts = displayName.trim().split(/\s+/);
       return { firstName: parts[0] || "", lastName: parts.slice(1).join(" ") || "" };
     }
-  
     async function ensureEmployeeDoc(user, source = "email") {
       const ref = db.collection("employees").doc(user.uid);
       const snap = await ref.get();
       if (snap.exists) return snap.data();
-  
       const { firstName, lastName } = splitName(user.displayName || "");
       const payload = {
         active: false,
@@ -172,18 +146,14 @@
   
     function requireActive(employee) {
       if (employee.active === true) return;
-      throw new Error(
-        "Your account was created but is not yet active. Please contact an administrator to activate it."
-      );
+      throw new Error("Your account was created but is not yet active. Please contact an administrator to activate it.");
     }
-  
     function requireRoleForTab(roles) {
       if (selectedTab() === "admin" && !roles.includes("admin")) {
         throw new Error("You must be an admin to use the Admin login.");
       }
     }
-  
-    function computeRedirect(_roles) {
+    function computeRedirect(roles) {
       const params = new URLSearchParams(location.search);
       const next = params.get("next");
       if (next) return next;
@@ -192,13 +162,33 @@
         : "/beachTriviaPages/dashboards/host/";
     }
   
+    // ----- Complete Google redirect (runs on load) -----
+    async function completeGoogleRedirectIfNeeded() {
+      // Prevent reprocessing on reloads
+      if (sessionStorage.getItem("bt_handled_google_redirect") === "1") return;
+  
+      try {
+        const result = await auth.getRedirectResult();
+        if (result && result.user) {
+          sessionStorage.setItem("bt_handled_google_redirect", "1");
+          if (result.additionalUserInfo?.isNewUser) {
+            await ensureEmployeeDoc(result.user, "google");
+          }
+          await authorizeAndRedirect(result.user);
+        }
+      } catch (e) {
+        // Show a friendly error but don't block normal login
+        console.warn("Google redirect completion error:", e);
+        if (e && e.message) showMsg(e.message, true);
+      }
+    }
+  
     // ----- Auth flows -----
     async function handleLogin(email, password) {
       await applyPersistence();
       const { user } = await auth.signInWithEmailAndPassword(email, password);
       return user;
     }
-  
     async function handleSignup(email, password, firstName, lastName) {
       await applyPersistence();
       const { user } = await auth.createUserWithEmailAndPassword(email, password);
@@ -209,48 +199,41 @@
       return user;
     }
   
-    // >>> UPDATED: Google popup with CSP-safe redirect fallback
+    // **Redirect flow only (CSP-safe)**
     async function handleGoogle() {
       await applyPersistence();
-      const provider = new firebase.auth.GoogleAuthProvider();
   
+      // If we *just* returned from Google and haven't processed, finish now.
       try {
-        const { user, additionalUserInfo } = await auth.signInWithPopup(provider);
-        if (additionalUserInfo?.isNewUser) {
-          await ensureEmployeeDoc(user, "google");
+        const existing = await auth.getRedirectResult();
+        if (existing && existing.user) {
+          sessionStorage.setItem("bt_handled_google_redirect", "1");
+          if (existing.additionalUserInfo?.isNewUser) {
+            await ensureEmployeeDoc(existing.user, "google");
+          }
+          return existing.user;
         }
-        return user;
-      } catch (err) {
-        const popupIssues = new Set([
-          "auth/popup-blocked",
-          "auth/popup-closed-by-user",
-          "auth/cancelled-popup-request",
-          "auth/internal-error", // commonly thrown when CSP/frame-ancestors blocks popup flow
-        ]);
-        if (popupIssues.has(err?.code) || err?.message?.toLowerCase().includes("popup")) {
-          await auth.signInWithRedirect(provider); // page will redirect away; completed on return above
-          return;
-        }
-        throw err;
+      } catch (e) {
+        // non-blocking
+        console.warn("getRedirectResult pre-check error:", e);
       }
+  
+      // Kick off the redirect sign-in
+      const provider = new firebase.auth.GoogleAuthProvider();
+      await auth.signInWithRedirect(provider);
+  
+      // Return a never-resolving promise to stop further actions on this page load.
+      return new Promise(() => {});
     }
   
     async function authorizeAndRedirect(user) {
       if (!user) throw new Error("No user returned from auth.");
-      console.log("User authenticated:", user.uid);
-  
       const snap = await db.collection("employees").doc(user.uid).get();
-      if (!snap.exists) {
-        throw new Error("No employee profile found for this account.");
-      }
+      if (!snap.exists) throw new Error("No employee profile found for this account.");
       const employee = snap.data() || {};
-      console.log("Employee doc:", employee);
-  
       requireActive(employee);
       requireRoleForTab(Array.isArray(employee.roles) ? employee.roles : []);
-  
       const target = computeRedirect(employee.roles || []);
-      console.log("Redirecting to:", target, "(tab:", selectedTab(), ")");
       location.assign(target);
     }
   
@@ -290,9 +273,8 @@
       setBusy(true);
       try {
         const user = await handleGoogle();
-        if (user) { // if redirect happened, user will be null/undefined here
-          await authorizeAndRedirect(user);
-        }
+        // If handleGoogle returns a user, it means we completed a redirect immediately.
+        if (user) await authorizeAndRedirect(user);
       } catch (err) {
         showMsg(err?.message || "Google sign-in failed.", true);
       } finally {
@@ -318,5 +300,8 @@
       passEl.type = type;
     });
   
-    console.log("Login page JavaScript initialized (UID-based authz; tab-aware routing; Google popup->redirect fallback).");
+    // Process redirect result once on load
+    document.addEventListener("DOMContentLoaded", completeGoogleRedirectIfNeeded);
+  
+    console.log("Login page JavaScript initialized (UID-based authz; tab-aware routing; Google via redirect).");
   })();
