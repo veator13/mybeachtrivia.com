@@ -8,7 +8,7 @@
   
     const firebaseConfig = {
       apiKey: "AIzaSyDBKCotY1F943DKfVQqKOGPPkAkQe2Zgog",
-      authDomain: "beach-trivia-website.web.app",  // CHANGED
+      authDomain: "mybeachtrivia.com", // ✅ CHANGED to match live site origin
       projectId: "beach-trivia-website",
       storageBucket: "beach-trivia-website.appspot.com",
       messagingSenderId: "459479368322",
@@ -24,5 +24,7 @@
       console.warn("firebase.initializeApp issue:", e?.message || e);
     }
   
-    try { firebase.analytics && firebase.analytics(); } catch (_) {}
+    try {
+      if (firebase.analytics) firebase.analytics();
+    } catch (_) {}
   })();
