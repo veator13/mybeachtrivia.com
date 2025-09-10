@@ -1,13 +1,14 @@
-// firebase-init.js (compat) — initialize BEFORE other app scripts
+// /mybeachtrivia.com/firebase-init.js
+
 (function () {
     if (typeof firebase === "undefined") {
-      console.error("Firebase SDK not loaded before firebase-init.js");
+      console.error("Firebase SDK not found on window.");
       return;
     }
   
     const firebaseConfig = {
       apiKey: "AIzaSyDBKCotY1F943DKfVQqKOGPPkAkQe2Zgog",
-      authDomain: "mybeachtrivia.com",
+      authDomain: "beach-trivia-website.web.app",  // CHANGED
       projectId: "beach-trivia-website",
       storageBucket: "beach-trivia-website.appspot.com",
       messagingSenderId: "459479368322",
@@ -16,14 +17,12 @@
     };
   
     try {
-      if (!firebase.apps || firebase.apps.length === 0) {
+      if (!firebase.apps || !firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
-        console.log("✅ Firebase initialized:", firebase.app().name, firebase.app().options);
-      } else {
-        console.log("⚡ Firebase already initialized:", firebase.app().name);
       }
-    } catch (err) {
-      console.error("🔥 Firebase init error:", err.message);
+    } catch (e) {
+      console.warn("firebase.initializeApp issue:", e?.message || e);
     }
-  })();
   
+    try { firebase.analytics && firebase.analytics(); } catch (_) {}
+  })();
