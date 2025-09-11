@@ -8,7 +8,7 @@
   
     const firebaseConfig = {
       apiKey: "AIzaSyDBKCotY1F943DKfVQqKOGPPkAkQe2Zgog",
-      authDomain: "mybeachtrivia.com", // ✅ CHANGED to match live site origin
+      authDomain: "beach-trivia-website.web.app", // ✅ use managed Firebase Hosting domain
       projectId: "beach-trivia-website",
       storageBucket: "beach-trivia-website.appspot.com",
       messagingSenderId: "459479368322",
