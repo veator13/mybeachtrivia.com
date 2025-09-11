@@ -5,10 +5,9 @@
       return;
     }
   
-    // ✅ Config must match the custom domain we are serving on
     const firebaseConfig = {
       apiKey: "AIzaSyDBKCotY1F943DKfVQqKOGPPkAkQe2Zgog",
-      authDomain: "mybeachtrivia.com", // ✅ changed to custom domain
+      authDomain: "beach-trivia-website.web.app", // <— run handler on web.app (safe for redirect)
       projectId: "beach-trivia-website",
       storageBucket: "beach-trivia-website.appspot.com",
       messagingSenderId: "459479368322",

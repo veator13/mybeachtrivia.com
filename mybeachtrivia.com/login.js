@@ -3,8 +3,9 @@
    - New signups (email or Google) create employees/{uid} with active:false, roles:[]
    - Existing users must be active:true to proceed
    - Admin tab requires 'admin' role
-   - Employee tab always routes to Host dashboard (even if user is also admin)
-   - Uses REDIRECT for Google (CSP-friendly). NO getRedirectResult() needed.
+   - Employee tab routes to Host dashboard (even if user is also admin)
+   - Google auth: hand off to https://beach-trivia-website.web.app/start-google.html
+     to initiate sign-in (CSP-friendly), then complete on this domain via auth state.
 */
 
 (function () {
@@ -179,7 +180,7 @@
       return "/beachTriviaPages/dashboards/host/";
     }
   
-    // ----- Auth flows -----
+    // ----- Auth flows (email/password & signup) -----
     async function handleLogin(email, password) {
       await applyPersistence();
       const { user } = await auth.signInWithEmailAndPassword(email, password);
@@ -196,13 +197,16 @@
       return user;
     }
   
-    async function handleGoogle() {
-      await applyPersistence();
-      const provider = new firebase.auth.GoogleAuthProvider();
-      // Use REDIRECT (CSP-safe).
-      return auth.signInWithRedirect(provider);
+    // ----- Google sign-in handoff to web.app (CSP-safe) -----
+    function startGoogleOnWebApp() {
+      // Preserve where to return
+      try { sessionStorage.setItem("bt_return_to", location.href); } catch (_) {}
+      const ret = encodeURIComponent(location.href);
+      // Open the starter hosted on your managed domain
+      location.assign(`https://beach-trivia-website.web.app/start-google.html?return=${ret}`);
     }
   
+    // ----- Authorize & route -----
     async function authorizeAndRedirect(user) {
       if (!user) return;
   
@@ -255,15 +259,10 @@
       }
     });
   
-    googleBtn?.addEventListener("click", async () => {
+    googleBtn?.addEventListener("click", () => {
       clearMsg();
       setBusy(true);
-      try {
-        await handleGoogle(); // navigates away
-      } catch (err) {
-        showMsg(err?.message || "Google sign-in failed.", true);
-        setBusy(false);
-      }
+      startGoogleOnWebApp(); // navigates away; onAuthStateChanged will finish after redirect
     });
   
     forgotLink?.addEventListener("click", async (e) => {
@@ -283,13 +282,13 @@
       passEl.type = type;
     });
   
-    // ----- Handle redirect completion via auth state (and sign out on authZ failures) -----
+    // ----- Complete login via auth state (covers Google & email flows) -----
     auth.onAuthStateChanged(async (user) => {
       if (!user) return;
       try {
         await authorizeAndRedirect(user);
       } catch (e) {
-        // If they’re inactive / not admin / insufficient perms → sign out to avoid being stuck
+        // If inactive / not admin / insufficient perms → sign out so they aren’t stuck
         if (
           e?.code === "employee/inactive" ||
           e?.code === "employee/not-admin" ||
@@ -298,8 +297,9 @@
           try { await auth.signOut(); } catch (_) {}
         }
         showMsg(e?.message || "Login error.", true);
+        setBusy(false);
       }
     });
   
-    console.log("Login page JS ready (redirect-only Google; no getRedirectResult).");
+    console.log("Login page ready (Google handoff to web.app starter).");
   })();
