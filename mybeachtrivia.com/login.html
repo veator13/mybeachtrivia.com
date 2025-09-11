@@ -5,14 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Login - Beach Trivia</title>
 
-  <!-- Preload SDKs (perf) -->
+  <!-- Preload SDKs (performance hint) -->
   <link rel="preload" href="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js" as="script">
   <link rel="preload" href="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js" as="script">
   <link rel="preload" href="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js" as="script">
 
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
-  <link rel="stylesheet" href="login.css">
-  
+  <!-- Local CSS only (no external icon CDN) -->
+  <link rel="stylesheet" href="/login.css">
+  <link rel="stylesheet" href="/icons.css">
+
   <!-- Firebase SDKs (compat) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
@@ -44,7 +45,7 @@
           <div id="nameRow" class="form-group" style="display:none;">
             <label for="firstName">Name</label>
             <div class="input-with-icon">
-              <i class="fas fa-id-card"></i>
+              <span class="icon icon--user" aria-hidden="true"></span>
               <input type="text" id="firstName" name="firstName" placeholder="First name" style="margin-right:8px;">
               <input type="text" id="lastName" name="lastName" placeholder="Last name">
             </div>
@@ -53,7 +54,7 @@
           <div class="form-group">
             <label for="username">Email</label>
             <div class="input-with-icon">
-              <i class="fas fa-user"></i>
+              <span class="icon icon--mail" aria-hidden="true"></span>
               <input type="email" id="username" name="username" placeholder="Enter your email" required>
             </div>
           </div>
@@ -61,9 +62,9 @@
           <div class="form-group">
             <label for="password">Password</label>
             <div class="input-with-icon">
-              <i class="fas fa-lock"></i>
+              <span class="icon icon--lock" aria-hidden="true"></span>
               <input type="password" id="password" name="password" placeholder="Enter your password" required>
-              <span id="togglePassword" class="toggle-password"><i class="fas fa-eye"></i></span>
+              <button type="button" id="togglePassword" class="toggle-password icon icon--eye" aria-label="Show password"></button>
             </div>
           </div>
 
@@ -77,13 +78,15 @@
 
           <div class="form-group">
             <button type="submit" id="loginButton">
-              <span id="loginButtonText">Login</span><i class="fas fa-arrow-right"></i>
+              <span id="loginButtonText">Login</span>
+              <span class="icon icon--arrow" aria-hidden="true" style="margin-left:8px;"></span>
             </button>
           </div>
 
           <div class="form-group" style="margin-top:8px;">
             <button type="button" id="googleButton" class="google-btn" style="width:100%;">
-              <i class="fab fa-google" style="margin-right:8px;"></i> Continue with Google
+              <span class="icon icon--google" aria-hidden="true"></span>
+              Continue with Google
             </button>
           </div>
         </form>
@@ -103,9 +106,9 @@
     </div>
   </div>
 
-  <!-- Page logic -->
+  <!-- Page logic (uses redirect for Google; CSP-safe) -->
   <script src="/login.js?v=uidfix6"></script>
-  <!-- CSP-safe fallback loader (only runs if SDKs fail) -->
+  <!-- Fallback loader (only runs if SDKs failed to load) -->
   <script src="/firebase-fallback.js?v=1"></script>
 </body>
 </html>

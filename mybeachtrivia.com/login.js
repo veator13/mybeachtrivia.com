@@ -43,7 +43,6 @@
       const hv = (hiddenUserType?.value || "").toLowerCase();
       return hv === "admin" ? "admin" : "employee";
     }
-  
     function setTab(tab) {
       const t = (tab || "").toLowerCase() === "admin" ? "admin" : "employee";
       if (t === "admin") {
@@ -55,20 +54,19 @@
       }
       if (hiddenUserType) hiddenUserType.value = t;
     }
-  
     try {
       const urlTab = new URLSearchParams(location.search).get("userType");
       const prefTab = urlTab || sessionStorage.getItem("bt_login_tab");
       if (prefTab) setTab(prefTab);
-    } catch (_e) {}
+    } catch (_) {}
   
     employeeToggle?.addEventListener("click", () => {
       setTab("employee");
-      try { sessionStorage.setItem("bt_login_tab", "employee"); } catch (_e) {}
+      try { sessionStorage.setItem("bt_login_tab", "employee"); } catch (_) {}
     });
     adminToggle?.addEventListener("click", () => {
       setTab("admin");
-      try { sessionStorage.setItem("bt_login_tab", "admin"); } catch (_e) {}
+      try { sessionStorage.setItem("bt_login_tab", "admin"); } catch (_) {}
     });
   
     // ----- UI helpers -----
@@ -82,7 +80,6 @@
         googleBtn.classList?.toggle("opacity-60", !!busy);
       }
     };
-  
     const showMsg = (text, isError = false) => {
       if (!msgBox) { alert(text); return; }
       msgBox.textContent = text;
@@ -158,14 +155,18 @@
   
     function requireActive(employee) {
       if (employee.active === true) return;
-      throw new Error(
+      const err = new Error(
         "Your account was created but is not yet active. Please contact an administrator to activate it."
       );
+      err.code = "employee/inactive";
+      throw err;
     }
   
     function requireRoleForTab(roles) {
       if (selectedTab() === "admin" && !roles.includes("admin")) {
-        throw new Error("You must be an admin to use the Admin login.");
+        const err = new Error("You must be an admin to use the Admin login.");
+        err.code = "employee/not-admin";
+        throw err;
       }
     }
   
@@ -173,7 +174,6 @@
       const params = new URLSearchParams(location.search);
       const next = params.get("next");
       if (next) return next;
-  
       const tabSel = selectedTab();
       if (tabSel === "admin") return "/beachTriviaPages/dashboards/admin/";
       return "/beachTriviaPages/dashboards/host/";
@@ -199,19 +199,22 @@
     async function handleGoogle() {
       await applyPersistence();
       const provider = new firebase.auth.GoogleAuthProvider();
-      // Important: use REDIRECT (CSP-safe). Do NOT call getRedirectResult() anywhere.
+      // Use REDIRECT (CSP-safe).
       return auth.signInWithRedirect(provider);
     }
   
     async function authorizeAndRedirect(user) {
       if (!user) return;
   
-      const snap = await db.collection("employees").doc(user.uid).get();
+      const ref = db.collection("employees").doc(user.uid);
+      let snap = await ref.get();
       let employee = snap.exists ? (snap.data() || {}) : null;
   
-      // If there's no employee doc (first Google login), create a stub with active:false
+      // If first-time Google login, create stub doc (inactive)
       if (!employee) {
         employee = await ensureEmployeeDoc(user, "google");
+        snap = await ref.get();
+        employee = snap.exists ? (snap.data() || {}) : employee;
       }
   
       requireActive(employee);
@@ -256,7 +259,7 @@
       clearMsg();
       setBusy(true);
       try {
-        await handleGoogle(); // will navigate away
+        await handleGoogle(); // navigates away
       } catch (err) {
         showMsg(err?.message || "Google sign-in failed.", true);
         setBusy(false);
@@ -280,12 +283,20 @@
       passEl.type = type;
     });
   
-    // ----- Key change: rely on auth state instead of getRedirectResult() -----
+    // ----- Handle redirect completion via auth state (and sign out on authZ failures) -----
     auth.onAuthStateChanged(async (user) => {
+      if (!user) return;
       try {
-        if (!user) return;
         await authorizeAndRedirect(user);
       } catch (e) {
+        // If they’re inactive / not admin / insufficient perms → sign out to avoid being stuck
+        if (
+          e?.code === "employee/inactive" ||
+          e?.code === "employee/not-admin" ||
+          String(e?.message || "").includes("Missing or insufficient permissions")
+        ) {
+          try { await auth.signOut(); } catch (_) {}
+        }
         showMsg(e?.message || "Login error.", true);
       }
     });
