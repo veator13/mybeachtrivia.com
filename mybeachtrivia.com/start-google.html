@@ -1,33 +1,25 @@
-<!-- /start-google.html  (served on BOTH domains, but we will open it on *.web.app) -->
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Signing you in…</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- Firebase compat SDKs -->
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
-  <!-- Your shared config (authDomain stays mybeachtrivia.com) -->
-  <script src="/firebase-init.js"></script>
-  <script>
-    (async function () {
-      try {
-        // Optional: honor ?return=... else fall back to login page
-        const params = new URLSearchParams(location.search);
-        const ret = params.get("return") || "https://mybeachtrivia.com/login.html";
-        sessionStorage.setItem("bt_return_to", ret);
+  <title>Starting Google Sign-In…</title>
 
-        const auth = firebase.auth();
-        const provider = new firebase.auth.GoogleAuthProvider();
-        // Kick off redirect immediately
-        await auth.signInWithRedirect(provider);
-      } catch (e) {
-        document.body.textContent = "Couldn’t start Google sign-in: " + (e && e.message ? e.message : e);
-      }
-    }());
-  </script>
-  <style>body{font:16px system-ui, -apple-system, Segoe UI, Roboto, sans-serif; padding:24px}</style>
+  <!-- Firebase (compat) -->
+  <link rel="preload" href="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js" as="script">
+  <link rel="preload" href="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js" as="script">
+  <script defer src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+
+  <!-- Your shared init (uses authDomain=beach-trivia-website.web.app) -->
+  <script defer src="/firebase-init.js"></script>
+
+  <!-- External script (moved out of inline) -->
+  <script defer src="/start-google.js?v=1"></script>
+
+  <style>body{font:14px system-ui, -apple-system, Segoe UI, Roboto, sans-serif; padding:24px}</style>
 </head>
-<body>Starting Google sign-in…</body>
+<body>
+  <p>Opening Google…</p>
+</body>
 </html>
