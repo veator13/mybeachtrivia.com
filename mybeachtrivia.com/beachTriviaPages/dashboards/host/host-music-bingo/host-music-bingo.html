@@ -5,6 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Music Bingo — Host Console</title>
 
+  <!-- ✅ CSP to allow RTDB + Firebase while keeping the page locked down -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' 'unsafe-eval' https://www.gstatic.com https://www.googleapis.com https://*.firebaseio.com;
+    connect-src 'self' https://*.googleapis.com https://www.googleapis.com https://*.gstatic.com wss://*.firebaseio.com https://*.firebaseio.com;
+    img-src 'self' data: https:;
+    style-src 'self' 'unsafe-inline';
+  ">
+
   <!-- Your site styles -->
   <link rel="stylesheet" href="host-music-bingo.css" />
 </head>
