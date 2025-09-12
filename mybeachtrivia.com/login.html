@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Login - Beach Trivia</title>
 
+  <!-- Silence /favicon.ico 404 in console -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg'/>">
+
   <!-- Preload SDKs (performance hint) -->
   <link rel="preload" href="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js" as="script">
   <link rel="preload" href="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js" as="script">
@@ -20,7 +23,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
 
   <!-- Initialize Firebase BEFORE page logic -->
-  <script src="/firebase-init.js?v=1"></script>
+  <script src="/firebase-init.js?v=2"></script>
 </head>
 <body>
   <div class="container">
@@ -107,7 +110,7 @@
   </div>
 
   <!-- Page logic (uses redirect for Google; CSP-safe) -->
-  <script src="/login.js?v=uidfix6"></script>
+  <script src="/login.js?v=uidfix8"></script>
   <!-- Fallback loader (only runs if SDKs failed to load) -->
   <script src="/firebase-fallback.js?v=1"></script>
 </body>

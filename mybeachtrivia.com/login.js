@@ -1,13 +1,11 @@
 /* /mybeachtrivia.com/login.js
    Email/Password & Google auth, Firestore authZ via employees/{uid}
-   - New signups (email or Google) create employees/{uid} with active:false, roles:[]
+   - New signups create employees/{uid} with active:false, roles:[]
    - Existing users must be active:true to proceed
    - Admin tab requires 'admin' role
-   - Employee tab routes to Host dashboard (even if user is also admin)
-   - Google auth: hand off to https://beach-trivia-website.web.app/start-google.html
-     to initiate sign-in (CSP-friendly), then complete on this domain via auth state.
+   - Employee tab routes to Host dashboard
+   - Google auth: run on web.app helper (no CSP issues), then finish here with signInWithCredential.
 */
-
 (function () {
     if (typeof firebase === "undefined") {
       console.error("Firebase SDK not found on window.");
@@ -37,6 +35,14 @@
     const switchToSignup = $("#switchToSignup");
     const hiddenUserType = $("#userType");
   
+    // Origins/URLs
+    const WEBAPP_ORIGIN  = "https://beach-trivia-website.web.app";
+    const POPUP_ORIGINS  = [
+      "https://beach-trivia-website.web.app",
+      "https://beach-trivia-website.firebaseapp.com",
+    ];
+    const RETURN_URL     = `${location.origin}/login.html`; // where the helper returns to
+  
     // ----- Tab helpers -----
     function selectedTab() {
       if (adminToggle?.classList?.contains("active")) return "admin";
@@ -60,7 +66,6 @@
       const prefTab = urlTab || sessionStorage.getItem("bt_login_tab");
       if (prefTab) setTab(prefTab);
     } catch (_) {}
-  
     employeeToggle?.addEventListener("click", () => {
       setTab("employee");
       try { sessionStorage.setItem("bt_login_tab", "employee"); } catch (_) {}
@@ -72,14 +77,8 @@
   
     // ----- UI helpers -----
     const setBusy = (busy) => {
-      if (loginBtn) {
-        loginBtn.disabled = !!busy;
-        loginBtn.classList?.toggle("opacity-60", !!busy);
-      }
-      if (googleBtn) {
-        googleBtn.disabled = !!busy;
-        googleBtn.classList?.toggle("opacity-60", !!busy);
-      }
+      if (loginBtn)  { loginBtn.disabled  = !!busy; loginBtn.classList?.toggle("opacity-60", !!busy); }
+      if (googleBtn) { googleBtn.disabled = !!busy; googleBtn.classList?.toggle("opacity-60", !!busy); }
     };
     const showMsg = (text, isError = false) => {
       if (!msgBox) { alert(text); return; }
@@ -87,14 +86,10 @@
       msgBox.style.display = "block";
       msgBox.style.color = isError ? "#b00020" : "#0a7";
     };
-    const clearMsg = () => {
-      if (!msgBox) return;
-      msgBox.textContent = "";
-      msgBox.style.display = "none";
-    };
+    const clearMsg = () => { if (msgBox) { msgBox.textContent = ""; msgBox.style.display = "none"; } };
   
     // ----- Auth mode -----
-    let mode = "login"; // or "signup"
+    let mode = "login";
     const switchTo = (m) => {
       mode = m;
       if (m === "signup") {
@@ -133,7 +128,6 @@
       const parts = (displayName || "").trim().split(/\s+/);
       return { firstName: parts[0] || "", lastName: parts.slice(1).join(" ") || "" };
     }
-  
     async function ensureEmployeeDoc(user, source = "email") {
       const ref = db.collection("employees").doc(user.uid);
       const snap = await ref.get();
@@ -144,25 +138,20 @@
         active: false,
         email: user.email || "",
         displayName: user.displayName || `${firstName} ${lastName}`.trim() || "",
-        firstName,
-        lastName,
+        firstName, lastName,
         roles: [],
-        source, // "email" or "google"
+        source,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       };
       await ref.set(payload, { merge: true });
       return payload;
     }
-  
     function requireActive(employee) {
       if (employee.active === true) return;
-      const err = new Error(
-        "Your account was created but is not yet active. Please contact an administrator to activate it."
-      );
+      const err = new Error("Your account was created but is not yet active. Please contact an administrator to activate it.");
       err.code = "employee/inactive";
       throw err;
     }
-  
     function requireRoleForTab(roles) {
       if (selectedTab() === "admin" && !roles.includes("admin")) {
         const err = new Error("You must be an admin to use the Admin login.");
@@ -170,23 +159,38 @@
         throw err;
       }
     }
-  
     function computeRedirect(roles) {
       const params = new URLSearchParams(location.search);
       const next = params.get("next");
       if (next) return next;
-      const tabSel = selectedTab();
-      if (tabSel === "admin") return "/beachTriviaPages/dashboards/admin/";
-      return "/beachTriviaPages/dashboards/host/";
+      return selectedTab() === "admin"
+        ? "/beachTriviaPages/dashboards/admin/"
+        : "/beachTriviaPages/dashboards/host/";
     }
   
-    // ----- Auth flows (email/password & signup) -----
+    async function authorizeAndRedirect(user) {
+      if (!user) return;
+      const ref = db.collection("employees").doc(user.uid);
+      let snap = await ref.get();
+      let employee = snap.exists ? (snap.data() || {}) : null;
+  
+      if (!employee) {
+        employee = await ensureEmployeeDoc(user, "google");
+        snap = await ref.get();
+        employee = snap.exists ? (snap.data() || {}) : employee;
+      }
+  
+      requireActive(employee);
+      requireRoleForTab(Array.isArray(employee.roles) ? employee.roles : []);
+      location.assign(computeRedirect(employee.roles || []));
+    }
+  
+    // ----- Email/password handlers -----
     async function handleLogin(email, password) {
       await applyPersistence();
       const { user } = await auth.signInWithEmailAndPassword(email, password);
       return user;
     }
-  
     async function handleSignup(email, password, firstName, lastName) {
       await applyPersistence();
       const { user } = await auth.createUserWithEmailAndPassword(email, password);
@@ -197,43 +201,72 @@
       return user;
     }
   
-    // ----- Google sign-in handoff to web.app (CSP-safe) -----
-    function startGoogleOnWebApp() {
-      // Preserve where to return
-      try { sessionStorage.setItem("bt_return_to", location.href); } catch (_) {}
-      const ret = encodeURIComponent(location.href);
-      // Open the starter hosted on your managed domain
-      location.assign(`https://beach-trivia-website.web.app/start-google.html?return=${ret}`);
-    }
+    // ----- Google via web.app helper -----
+    async function openGoogleHelper() {
+      await applyPersistence();
+      const relay = `${WEBAPP_ORIGIN}/start-google.html?return=${encodeURIComponent(RETURN_URL)}`;
   
-    // ----- Authorize & route -----
-    async function authorizeAndRedirect(user) {
-      if (!user) return;
+      // Listen for popup result via postMessage (accept both origins, and either token key)
+      const onMessage = async (e) => {
+        if (!POPUP_ORIGINS.includes(e.origin)) return;
+        const data = e.data || {};
+        if (data.type !== "bt-google-auth") return;
   
-      const ref = db.collection("employees").doc(user.uid);
-      let snap = await ref.get();
-      let employee = snap.exists ? (snap.data() || {}) : null;
+        const googleIdToken = data.googleIdToken || data.idToken || null;
+        const accessToken   = data.accessToken || null;
+        if (!googleIdToken) {
+          setBusy(false);
+          showMsg("Google sign-in failed: missing ID token.", true);
+          return;
+        }
   
-      // If first-time Google login, create stub doc (inactive)
-      if (!employee) {
-        employee = await ensureEmployeeDoc(user, "google");
-        snap = await ref.get();
-        employee = snap.exists ? (snap.data() || {}) : employee;
+        window.removeEventListener("message", onMessage);
+        try {
+          const cred = firebase.auth.GoogleAuthProvider.credential(googleIdToken, accessToken);
+          await auth.signInWithCredential(cred);
+          // onAuthStateChanged will finish
+        } catch (err) {
+          setBusy(false);
+          showMsg(err?.message || "Google sign-in failed.", true);
+        }
+      };
+      window.addEventListener("message", onMessage);
+  
+      // Try popup
+      const w = window.open(relay, "bt_google", "width=520,height=640,noopener");
+      if (!w) {
+        // Popup blocked → full redirect to helper
+        location.assign(relay);
       }
-  
-      requireActive(employee);
-      requireRoleForTab(Array.isArray(employee.roles) ? employee.roles : []);
-  
-      const target = computeRedirect(employee.roles || []);
-      location.assign(target);
     }
+  
+    // Accept redirect fallback (#google_id_token / #id_token / legacy #bt_token)
+    (async function handleHashToken() {
+      const hash = location.hash ? location.hash.substring(1) : "";
+      if (!hash) return;
+      const hp = new URLSearchParams(hash);
+      const googleIdToken =
+        hp.get("google_id_token") ||
+        hp.get("id_token") ||
+        hp.get("bt_token");
+      const accessToken = hp.get("access_token") || null;
+      if (!googleIdToken) return;
+  
+      history.replaceState(null, "", location.pathname + location.search); // clean URL
+      try {
+        const cred = firebase.auth.GoogleAuthProvider.credential(googleIdToken, accessToken);
+        await auth.signInWithCredential(cred);
+        // onAuthStateChanged will finish
+      } catch (err) {
+        showMsg(err?.message || "Google sign-in failed.", true);
+      }
+    })();
   
     // ----- Form handlers -----
     form?.addEventListener("submit", async (e) => {
       e.preventDefault();
       clearMsg();
       setBusy(true);
-  
       const email = (emailEl?.value || "").trim();
       const pw    = passEl?.value || "";
       if (!email || !pw) {
@@ -241,12 +274,10 @@
         showMsg("Please enter your email and password.", true);
         return;
       }
-  
       try {
         const user = mode === "signup"
           ? await handleSignup(email, pw, firstNameEl?.value || "", lastNameEl?.value || "")
           : await handleLogin(email, pw);
-  
         await authorizeAndRedirect(user);
       } catch (err) {
         const code = err?.code;
@@ -259,10 +290,15 @@
       }
     });
   
-    googleBtn?.addEventListener("click", () => {
+    googleBtn?.addEventListener("click", async () => {
       clearMsg();
       setBusy(true);
-      startGoogleOnWebApp(); // navigates away; onAuthStateChanged will finish after redirect
+      try {
+        await openGoogleHelper(); // popup or redirect to web.app
+      } catch (err) {
+        showMsg(err?.message || "Google sign-in failed.", true);
+        setBusy(false);
+      }
     });
   
     forgotLink?.addEventListener("click", async (e) => {
@@ -282,13 +318,12 @@
       passEl.type = type;
     });
   
-    // ----- Complete login via auth state (covers Google & email flows) -----
+    // Finish any successful sign-in
     auth.onAuthStateChanged(async (user) => {
       if (!user) return;
       try {
         await authorizeAndRedirect(user);
       } catch (e) {
-        // If inactive / not admin / insufficient perms → sign out so they aren’t stuck
         if (
           e?.code === "employee/inactive" ||
           e?.code === "employee/not-admin" ||
@@ -301,5 +336,5 @@
       }
     });
   
-    console.log("Login page ready (Google handoff to web.app starter).");
+    console.log("Login page ready (Google via web.app/firebaseapp.com relay; no CSP changes required).");
   })();

@@ -1,25 +1,26 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="utf-8">
   <title>Starting Google Sign-In…</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; }
+    .wrap { display:flex; align-items:center; justify-content:center; min-height:100vh; }
+    .card { font-size:18px; color:#111; }
+  </style>
 
-  <!-- Firebase (compat) -->
-  <link rel="preload" href="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js" as="script">
-  <link rel="preload" href="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js" as="script">
-  <script defer src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-  <script defer src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <!-- Firebase compat SDKs (use web.app domain CSP) -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
 
-  <!-- Your shared init (uses authDomain=beach-trivia-website.web.app) -->
-  <script defer src="/firebase-init.js"></script>
-
-  <!-- External script (moved out of inline) -->
-  <script defer src="/start-google.js?v=1"></script>
-
-  <style>body{font:14px system-ui, -apple-system, Segoe UI, Roboto, sans-serif; padding:24px}</style>
+  <!-- Init that points to web.app (authDomain) -->
+  <script src="/firebase-init.js?v=2"></script>
 </head>
 <body>
-  <p>Opening Google…</p>
+  <div class="wrap"><div class="card">Opening Google…</div></div>
+
+  <!-- Loop-proof starter -->
+  <script src="/start-google.js?v=3"></script>
 </body>
 </html>
