@@ -6,7 +6,9 @@ import {
   updateGameSongIndex,
   updateGameStatus,
   getPlayerCount,
-  requireEmployee // ✅ ensure employee is signed in before reads/writes
+  requireEmployee,         // ✅ ensure employee is signed in before reads/writes
+  watchPlayerCountRTDB,    // ✅ NEW: RTDB live player watcher
+  setGamePlayerCount       // ✅ NEW: mirror count to Firestore
 } from './data.js';
 import { renderJoinQRCode } from './qr.js';
 
@@ -43,6 +45,27 @@ const els = {
 };
 
 let activeGame = null;
+
+// ---- RTDB Player Watcher ----
+let stopWatchingPlayers = null;
+
+function attachPlayerWatcher(gameId) {
+  // stop a previous subscription if any
+  if (stopWatchingPlayers) { stopWatchingPlayers(); stopWatchingPlayers = null; }
+
+  // start a new one
+  stopWatchingPlayers = watchPlayerCountRTDB(gameId, async (count) => {
+    // Update the UI pill
+    if (els.playerCount) els.playerCount.textContent = String(count);
+
+    // Mirror to Firestore so anything reading games/{id}.playerCount stays consistent
+    try {
+      await setGamePlayerCount(gameId, count);
+    } catch (e) {
+      console.debug('setGamePlayerCount failed:', e?.message || e);
+    }
+  });
+}
 
 // ---------------- UI HELPERS ----------------
 function ensureJoinLinkDisplay() {
@@ -156,6 +179,9 @@ async function handleStartGame(e) {
     await requireEmployee();
     const game = await createGame({ playlistId, name, playerLimit });
     updateGameUI(game, playlistName);
+
+    // ✅ Start live player watcher (RTDB)
+    attachPlayerWatcher(game.id);
   } catch (err) {
     console.error('Error creating game:', err);
     alert('Error creating game: ' + (err?.message || String(err)));
@@ -198,6 +224,10 @@ async function handleEndGame(e) {
   if (!activeGame) return;
   await updateGameStatus(activeGame.id, 'ended');
   activeGame = null;
+
+  // ✅ Stop RTDB watcher
+  if (stopWatchingPlayers) { stopWatchingPlayers(); stopWatchingPlayers = null; }
+
   els.gameSection?.classList.add('hidden');
   if (els.qrBox) els.qrBox.innerHTML = '';
   if (els.joinLinkDisplay) els.joinLinkDisplay.textContent = '';

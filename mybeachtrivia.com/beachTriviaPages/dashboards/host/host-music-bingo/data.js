@@ -24,6 +24,11 @@ import {
   setPersistence,
   browserLocalPersistence
 } from 'https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js';
+import {
+  getDatabase,
+  ref as rtdbRef,
+  onValue
+} from 'https://www.gstatic.com/firebasejs/10.13.2/firebase-database.js';
 
 // ------- Project config: Beach-Trivia-Website -------
 const firebaseConfig = {
@@ -39,12 +44,14 @@ const firebaseConfig = {
 const LOGIN_URL = '/beachTriviaPages/login.html';
 
 // ---------- Singleton Firebase boot (idempotent) ----------
-let app, db, auth;
+let app, db, auth, rtdb;
 (function boot() {
   try {
     app = getApps().length ? getApp() : initializeApp(firebaseConfig);
     db = getFirestore(app);
     auth = getAuth(app);
+    rtdb = getDatabase(app);
+
     // best-effort; do not block module load
     setPersistence(auth, browserLocalPersistence).catch((e) =>
       console.warn('[data.js] setPersistence warning:', e?.message || e)
@@ -258,6 +265,42 @@ export async function getPlayerCount(id) {
   const ref = doc(db, 'games', id);
   const snap = await getDoc(ref);
   return snap.exists() ? (snap.data().playerCount ?? 0) : 0;
+}
+
+// ---------- RTDB Live Player Watcher + Mirror ----------
+/**
+ * Listen to RTDB players under /games/{gameId}/players and invoke `callback(count)`
+ * whenever the active-player count changes. Returns an unsubscribe function.
+ * An "active" player is lastActive within the last 2 minutes.
+ */
+export function watchPlayerCountRTDB(gameId, callback) {
+  const playersRef = rtdbRef(rtdb, `games/${gameId}/players`);
+  const unsub = onValue(playersRef, (snap) => {
+    const data = snap.val() || {};
+    const now = Date.now();
+    const ACTIVE_WINDOW_MS = 2 * 60 * 1000; // 2 minutes
+    let count = 0;
+    for (const key in data) {
+      const p = data[key];
+      const t = (p && typeof p.lastActive === 'number') ? p.lastActive : 0;
+      if (now - t < ACTIVE_WINDOW_MS) count++;
+    }
+    try {
+      callback(count);
+    } catch (e) {
+      console.warn('[data.js] playerCount callback error:', e?.message || e);
+    }
+  });
+  return unsub; // call to stop listening
+}
+
+/**
+ * Mirror the RTDB-derived player count back into Firestore (best effort).
+ */
+export async function setGamePlayerCount(id, count) {
+  await requireEmployee(); // keep writes host-only
+  const ref = doc(db, 'games', id);
+  await updateDoc(ref, { playerCount: count, updatedAt: serverTimestamp() });
 }
 
 // ---------- Optional: tiny debug surface in dev tools ----------
