@@ -12,6 +12,11 @@ import {
 } from './data.js';
 import { renderJoinQRCode } from './qr.js';
 
+// ------- Config: force player link to web.app (iOS-friendly) -------
+const WEBAPP_JOIN_BASE =
+  'https://beach-trivia-website.web.app/play-music-bingo/index.html'; // <- use this for QR/link
+const JOIN_VERSION = 6; // bump to bust caches when script/index changes
+
 // ------- Element lookups (match host-music-bingo.html) -------
 const els = {
   // Form
@@ -151,7 +156,8 @@ function updateGameUI(game, playlistName) {
 
   if (els.playerCount) els.playerCount.textContent = game.playerCount ?? 0;
 
-  const joinUrl = `${window.location.origin}/play-music-bingo/index.html?gameId=${encodeURIComponent(game.id)}`;
+  // ✅ Use web.app for player link/QR (works on iOS behind Cloudflare)
+  const joinUrl = `${WEBAPP_JOIN_BASE}?gameId=${encodeURIComponent(game.id)}&v=${JOIN_VERSION}`;
 
   ensureJoinLinkDisplay();
   els.joinLinkDisplay.textContent = joinUrl;
