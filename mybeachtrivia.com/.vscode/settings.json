@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+      "database.rules.json": "jsonc",
+      "*.rules.json": "jsonc"
+    }
+  }
+  
