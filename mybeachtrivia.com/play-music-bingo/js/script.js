@@ -3,7 +3,8 @@
  * - Firestore: game + playlist data
  * - RTDB: player presence only
  * - Anonymous Auth for each player (UID = playerId)
- * - NEW: Gate presence behind a user tap (previews won't count)
+ * - Presence is gated behind a user tap (previews won't count)
+ * - Writes presence immediately; registers onDisconnect when connected
  ******************************/
 
 /* ---------- Bootstrap ---------- */
@@ -152,7 +153,7 @@ async function initializeGame() {
     // Live updates: Firestore game doc + RTDB players only
     setupGameUpdates(gameId);
 
-    // NEW: Gate presence behind a user tap
+    // Gate presence behind a user tap (previews won't count)
     renderJoinGate(gameId);
 
   } catch (err) {
@@ -328,6 +329,8 @@ async function safeJoinGame(gameId, sessionKey) {
     const auth = firebase.auth();
     let user = auth.currentUser;
     if (!user) {
+      // Keep LOCAL so the same device stays one logical player
+      try { await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); } catch (_) {}
       const cred = await auth.signInAnonymously();
       user = cred.user;
     }
@@ -339,31 +342,49 @@ async function safeJoinGame(gameId, sessionKey) {
     const existing = localStorage.getItem(key);
     if (existing !== uid) localStorage.setItem(key, uid);
 
-    // RTDB presence with onDisconnect cleanup
+    // RTDB presence reference
     const db = firebase.database();
     const playerRef = db.ref(`games/${gameId}/players/${uid}`);
 
-    // Only write when connected; schedule removal on disconnect
-    const connRef = db.ref('.info/connected');
-    connRef.on('value', (snap) => {
-      if (snap.val() === true) {
-        try {
-          playerRef.onDisconnect().remove(); // remove node when tab really leaves
-        } catch (_) {}
-        playerRef.set({
-          joinedAt: firebase.database.ServerValue.TIMESTAMP,
-          lastActive: firebase.database.ServerValue.TIMESTAMP
-        });
-      }
+    // Cancel any stale onDisconnects (best-effort)
+    try { await playerRef.onDisconnect().cancel(); } catch (_) {}
+
+    // 1) Write presence immediately (even if .info/connected is slow)
+    await playerRef.set({
+      joinedAt: firebase.database.ServerValue.TIMESTAMP,
+      lastActive: firebase.database.ServerValue.TIMESTAMP
     });
+
+    // 2) When connected, register onDisconnect cleanup (best-effort)
+    try {
+      const connRef = db.ref('.info/connected');
+      connRef.on('value', (snap) => {
+        if (snap.val() === true) {
+          try { playerRef.onDisconnect().remove(); } catch (_) {}
+        }
+      });
+    } catch (_) {}
 
     // Heartbeat every 30s
     setInterval(() => {
       playerRef.child('lastActive').set(firebase.database.ServerValue.TIMESTAMP);
     }, 30_000);
 
+    // Also refresh lastActive when tab becomes visible again
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        try { playerRef.child('lastActive').set(firebase.database.ServerValue.TIMESTAMP); } catch {}
+      }
+    });
+
     // Mark this tab session as joined so refreshes don’t re-count
     sessionStorage.setItem(sessionKey, '1');
+
+    // Best-effort cleanup on pagehide (iOS)
+    window.addEventListener('pagehide', () => {
+      try { navigator.sendBeacon?.('/', new Uint8Array()); } catch (_) {}
+      try { playerRef.child('lastActive').set(firebase.database.ServerValue.TIMESTAMP); } catch {}
+    });
 
   } catch (err) {
     console.error('Error joining game:', err);

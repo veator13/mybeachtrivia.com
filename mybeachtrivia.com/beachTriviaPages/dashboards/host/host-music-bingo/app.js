@@ -7,15 +7,15 @@ import {
   updateGameStatus,
   getPlayerCount,
   requireEmployee,         // ✅ ensure employee is signed in before reads/writes
-  watchPlayerCountRTDB,    // ✅ NEW: RTDB live player watcher
-  setGamePlayerCount       // ✅ NEW: mirror count to Firestore
+  watchPlayerCountRTDB,    // ✅ RTDB live player watcher
+  setGamePlayerCount       // ✅ mirror count to Firestore
 } from './data.js';
 import { renderJoinQRCode } from './qr.js';
 
 // ------- Config: force player link to web.app (iOS-friendly) -------
 const WEBAPP_JOIN_BASE =
-  'https://beach-trivia-website.web.app/play-music-bingo/index.html'; // <- use this for QR/link
-const JOIN_VERSION = 6; // bump to bust caches when script/index changes
+  'https://beach-trivia-website.web.app/play-music-bingo/index.html'; // use this for QR/link
+const JOIN_VERSION = 9; // bump to bust caches when script/index changes
 
 // ------- Element lookups (match host-music-bingo.html) -------
 const els = {
