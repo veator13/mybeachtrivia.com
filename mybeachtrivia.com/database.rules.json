@@ -1,0 +1,19 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "games": {
+      "$gameId": {
+        "players": {
+          "$uid": {
+            ".read": "auth != null",
+            ".write": "auth != null && auth.uid === $uid",
+            "joinedAt":   { ".validate": "newData.isNumber()" },
+            "lastActive": { ".validate": "newData.isNumber()" }
+          }
+        }
+      }
+    }
+  }
+}
