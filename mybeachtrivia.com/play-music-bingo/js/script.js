@@ -3,8 +3,8 @@
  * - Firestore: game + playlist data
  * - RTDB: player presence only
  * - Anonymous Auth for each player (UID = playerId)
- * - Presence is gated behind a user tap (previews won't count)
- * - Writes presence immediately; registers onDisconnect when connected
+ * - Presence gated behind a user tap (previews won't count)
+ * - iOS-friendly: Auth.Persistence.NONE + write guard
  ******************************/
 
 /* ---------- Bootstrap ---------- */
@@ -263,7 +263,21 @@ function showCurrentSong(songIndex) {
         80%{ opacity: 1; }
         100%{ opacity: 0; }
       }
-      /* Join overlay styles */
+    `;
+    document.head.appendChild(style);
+  }
+  note.innerHTML = `<strong>Now Playing:</strong><br>${song} — ${artist}`;
+  note.style.animation = 'none'; note.offsetHeight; // reflow
+  note.style.animation = 'fadeInOut 5s forwards';
+}
+
+/* ---------- Presence: gated join + heartbeat ---------- */
+function renderJoinGate(gameId) {
+  // Inject minimal styles for the overlay (only once)
+  if (!document.getElementById('mb-join-style')) {
+    const style = document.createElement('style');
+    style.id = 'mb-join-style';
+    style.textContent = `
       .mb-join-overlay {
         position: fixed; inset: 0; background: rgba(0,0,0,.72);
         display: flex; align-items: center; justify-content: center;
@@ -280,16 +294,11 @@ function showCurrentSong(songIndex) {
         display:inline-block; padding:12px 18px; border-radius: 10px; border: 0;
         background: #6C5CE7; color:#fff; font-weight: 600; cursor: pointer;
       }
+      .mb-join-btn[disabled] { opacity: .6; cursor: default; }
     `;
     document.head.appendChild(style);
   }
-  note.innerHTML = `<strong>Now Playing:</strong><br>${song} — ${artist}`;
-  note.style.animation = 'none'; note.offsetHeight; // reflow
-  note.style.animation = 'fadeInOut 5s forwards';
-}
 
-/* ---------- Presence: gated join + heartbeat ---------- */
-function renderJoinGate(gameId) {
   // If we already joined in this tab session, auto-skip the gate
   const sessionKey = `mb_joined_${gameId}`;
   if (sessionStorage.getItem(sessionKey) === '1') {
@@ -316,6 +325,7 @@ function renderJoinGate(gameId) {
     try {
       await safeJoinGame(gameId, sessionKey);
     } finally {
+      // Remove the overlay regardless of network acks
       overlay.remove();
     }
   }, { once: true });
@@ -325,19 +335,26 @@ async function safeJoinGame(gameId, sessionKey) {
   try {
     console.log('Joining game (gated):', gameId);
 
-    // Ensure anonymous auth
     const auth = firebase.auth();
+
+    // iOS-friendly: do not rely on persistent storage
+    try {
+      await auth.setPersistence(firebase.auth.Auth.Persistence.NONE);
+      console.log('[auth] setPersistence NONE ok');
+    } catch (e) {
+      console.warn('[auth] setPersistence NONE failed:', e?.message || e);
+    }
+
     let user = auth.currentUser;
     if (!user) {
-      // Keep LOCAL so the same device stays one logical player
-      try { await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); } catch (_) {}
+      console.log('[auth] signing in anonymously…');
       const cred = await auth.signInAnonymously();
       user = cred.user;
     }
     const uid = user.uid;
-    console.log('Player UID:', uid);
+    console.log('[auth] UID:', uid);
 
-    // Keep LS in sync with old behavior (non-counting)
+    // (Optional) keep LS in sync with legacy behavior
     const key = `bingo_player_${gameId}`;
     const existing = localStorage.getItem(key);
     if (existing !== uid) localStorage.setItem(key, uid);
@@ -349,28 +366,37 @@ async function safeJoinGame(gameId, sessionKey) {
     // Cancel any stale onDisconnects (best-effort)
     try { await playerRef.onDisconnect().cancel(); } catch (_) {}
 
-    // 1) Write presence immediately (even if .info/connected is slow)
-    await playerRef.set({
+    // 1) Write presence immediately; don't hang UI if slow
+    const writePresence = playerRef.set({
       joinedAt: firebase.database.ServerValue.TIMESTAMP,
       lastActive: firebase.database.ServerValue.TIMESTAMP
     });
 
-    // 2) When connected, register onDisconnect cleanup (best-effort)
+    await Promise.race([
+      writePresence,
+      new Promise((resolve) => setTimeout(resolve, 2500))
+    ]);
+    console.log('[presence] initial write scheduled/guarded');
+
+    // 2) When connected, register onDisconnect cleanup
     try {
       const connRef = db.ref('.info/connected');
       connRef.on('value', (snap) => {
         if (snap.val() === true) {
           try { playerRef.onDisconnect().remove(); } catch (_) {}
+          console.log('[presence] onDisconnect registered');
         }
       });
-    } catch (_) {}
+    } catch (_) {
+      console.warn('[presence] onDisconnect registration failed (non-blocking)');
+    }
 
     // Heartbeat every 30s
     setInterval(() => {
       playerRef.child('lastActive').set(firebase.database.ServerValue.TIMESTAMP);
     }, 30_000);
 
-    // Also refresh lastActive when tab becomes visible again
+    // Refresh lastActive when tab becomes visible again
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
         try { playerRef.child('lastActive').set(firebase.database.ServerValue.TIMESTAMP); } catch {}
@@ -380,7 +406,7 @@ async function safeJoinGame(gameId, sessionKey) {
     // Mark this tab session as joined so refreshes don’t re-count
     sessionStorage.setItem(sessionKey, '1');
 
-    // Best-effort cleanup on pagehide (iOS)
+    // Best-effort ping on pagehide (iOS)
     window.addEventListener('pagehide', () => {
       try { navigator.sendBeacon?.('/', new Uint8Array()); } catch (_) {}
       try { playerRef.child('lastActive').set(firebase.database.ServerValue.TIMESTAMP); } catch {}
