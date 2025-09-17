@@ -1,64 +1,46 @@
-// Check if Firebase is already initialized from firebase-init.js
-if (typeof firebase === 'undefined' || !firebase.apps.length) {
-    console.error('Firebase not initialized. Please check firebase-init.js is loading correctly.');
-    // Fall back to sample data if Firebase isn't available
-    setTimeout(() => {
-      initializeGameWithSampleData();
-    }, 100);
+/******************************
+ * Music Bingo — Player client
+ * - Uses Firestore for game + playlist data
+ * - Uses RTDB for player presence only
+ * - Anonymous Auth for each player (UID becomes playerId)
+ ******************************/
+
+/* ---------- Bootstrap ---------- */
+
+// If firebase-init.js failed to load, fall back to sample data.
+if (typeof firebase === 'undefined' || !firebase.apps?.length) {
+    console.error('Firebase not initialized. Falling back to sample data.');
+    setTimeout(() => initializeGameWithSampleData(), 0);
   } else {
-    console.log('Firebase already initialized, initializing game...');
-    // Firebase already loaded, initialize the game
+    console.log('Firebase initialized — starting player app…');
     initializeGame();
   }
   
-  // ---------- Helpers: Auth + UID-as-playerId ----------
-  async function ensureAuthed() {
-    // Make sure the Firebase Auth instance exists
-    if (!firebase.auth) return;
+  /* ---------- Globals ---------- */
   
-    // If there is already a user, we're good
-    if (firebase.auth().currentUser) return;
+  let gameData = null;        // Firestore game doc { name, playlistId, currentSongIndex, … }
+  let playlistData = null;    // Firestore playlist doc (song1..song25, artist1..artist25)
+  let currentSongIndex = -1;  // Which song is currently “playing”
   
-    // Try to restore a previous auth state quickly (helps on mobile reloads)
-    await new Promise(resolve => setTimeout(resolve, 0));
+  // RTDB listener handle (players presence only)
+  let playersRef = null;
+  // Firestore unsubscribe handle (game doc)
+  let unsubscribeFirestore = null;
   
-    if (!firebase.auth().currentUser) {
-      console.log('[auth] Signing in anonymously…');
-      await firebase.auth().signInAnonymously().catch(err => {
-        console.error('[auth] anonymous sign-in failed:', err);
-        throw err;
-      });
-    }
-  }
+  /* ---------- Board persistence (localStorage) ---------- */
   
-  function getAuthedPlayerId() {
-    const user = firebase.auth && firebase.auth().currentUser;
-    return user ? user.uid : null;
-  }
-  
-  // ---------- Global game variables ----------
-  let gameData = null;
-  let playlistData = null;
-  let currentSongIndex = -1;
-  
-  // ---------- Board persistence ----------
   function saveBoardState() {
     const board1 = document.querySelector('.board-1');
     const board2 = document.querySelector('.board-2');
-  
-    const board1State = getBoardState(board1);
-    const board2State = getBoardState(board2);
-  
+    if (!board1 || !board2) return;
     const gameId = getUrlParameter('gameId') || 'default';
-  
-    localStorage.setItem(`musicBingo_${gameId}_board1`, JSON.stringify(board1State));
-    localStorage.setItem(`musicBingo_${gameId}_board2`, JSON.stringify(board2State));
-  
-    console.log('Board state saved to localStorage');
+    localStorage.setItem(`musicBingo_${gameId}_board1`, JSON.stringify(getBoardState(board1)));
+    localStorage.setItem(`musicBingo_${gameId}_board2`, JSON.stringify(getBoardState(board2)));
+    console.log('Board state saved.');
   }
   
-  function getBoardState(boardElement) {
-    const cells = boardElement.querySelectorAll('.bingo-cell');
+  function getBoardState(boardEl) {
+    const cells = boardEl.querySelectorAll('.bingo-cell');
     const state = [];
     cells.forEach(cell => {
       state.push({
@@ -72,372 +54,289 @@ if (typeof firebase === 'undefined' || !firebase.apps.length) {
   
   function loadBoardState() {
     const gameId = getUrlParameter('gameId') || 'default';
-    const board1StateStr = localStorage.getItem(`musicBingo_${gameId}_board1`);
-    const board2StateStr = localStorage.getItem(`musicBingo_${gameId}_board2`);
+    const s1 = localStorage.getItem(`musicBingo_${gameId}_board1`);
+    const s2 = localStorage.getItem(`musicBingo_${gameId}_board2`);
+    if (!s1 || !s2) return false;
   
-    if (board1StateStr && board2StateStr) {
-      console.log('Found saved board state, restoring…');
-      const board1State = JSON.parse(board1StateStr);
-      const board2State = JSON.parse(board2StateStr);
-      restoreBoard(document.querySelector('.board-1'), board1State);
-      restoreBoard(document.querySelector('.board-2'), board2State);
-      return true;
-    }
+    const board1 = document.querySelector('.board-1');
+    const board2 = document.querySelector('.board-2');
+    if (!board1 || !board2) return false;
   
-    console.log('No saved board state found');
-    return false;
+    restoreBoard(board1, JSON.parse(s1));
+    restoreBoard(board2, JSON.parse(s2));
+    console.log('Restored saved boards.');
+    return true;
   }
   
-  function restoreBoard(boardElement, state) {
-    boardElement.innerHTML = '';
+  function restoreBoard(boardEl, state) {
+    if (!boardEl) return;
+    boardEl.innerHTML = '';
     state.forEach(cellState => {
       const cell = document.createElement('div');
       cell.classList.add('bingo-cell');
-  
-      if (!cellState.isCenter) {
-        cell.textContent = cellState.content;
-      }
-  
-      if (cellState.isMatched) {
-        cell.classList.add('matched');
-      }
   
       if (cellState.isCenter) {
         cell.classList.add('center-cell');
         cell.addEventListener('click', handleLogoCellClick);
       } else {
+        cell.textContent = cellState.content || '';
         cell.addEventListener('click', () => {
           cell.classList.toggle('matched');
           saveBoardState();
         });
       }
   
-      boardElement.appendChild(cell);
+      if (cellState.isMatched) cell.classList.add('matched');
+      boardEl.appendChild(cell);
     });
   }
   
-  // ---------- Utilities ----------
+  /* ---------- Utils ---------- */
+  
   function getUrlParameter(name) {
     const urlParams = new URLSearchParams(window.location.search);
-    const value = urlParams.get(name);
-    console.log(`Getting URL parameter '${name}': ${value}`);
-    return value;
+    const v = urlParams.get(name);
+    console.log(`URL param ${name} =`, v);
+    return v;
   }
   
-  // ---------- Main game initialization ----------
+  /* ---------- Main init ---------- */
+  
   async function initializeGame() {
     try {
-      console.log('Starting game initialization…');
+      console.log('Initializing game…');
   
       const gameId = getUrlParameter('gameId');
       if (!gameId) {
-        console.log('No game ID provided, using sample data');
+        console.warn('No gameId in URL — using sample data.');
         initializeGameWithSampleData();
         return;
       }
   
-      console.log('Initializing game with ID:', gameId);
-  
+      // Firestore
       const db = firebase.firestore();
-      console.log('Firebase Firestore instance obtained');
   
-      const gameDoc = await db.collection('games').doc(gameId).get();
-      if (!gameDoc.exists) {
+      // Load game
+      const gameSnap = await db.collection('games').doc(gameId).get();
+      if (!gameSnap.exists) {
         console.error('Game not found:', gameId);
-        alert('Game not found. Please check your link and try again.');
+        alert('Game not found. Please check your link.');
         initializeGameWithSampleData();
         return;
       }
-  
-      gameData = { id: gameDoc.id, ...gameDoc.data() };
-      console.log('Game data loaded:', gameData);
+      gameData = { id: gameSnap.id, ...gameSnap.data() };
+      console.log('Game doc:', gameData);
   
       updateGameTitle(gameData.name || 'Music Bingo');
+      currentSongIndex = Number.isInteger(gameData.currentSongIndex)
+        ? gameData.currentSongIndex
+        : -1;
   
-      const playlistDoc = await db.collection('music_bingo').doc(gameData.playlistId).get();
-      if (!playlistDoc.exists) {
-        console.error('Playlist not found:', gameData.playlistId);
-        alert('Playlist not found. Please check with the game host.');
+      // Load playlist
+      const playlistId = gameData.playlistId;
+      const playlistSnap = await db.collection('music_bingo').doc(playlistId).get();
+      if (!playlistSnap.exists) {
+        console.error('Playlist not found:', playlistId);
+        alert('Playlist not found. Ask the host to check.');
         initializeGameWithSampleData();
         return;
       }
+      playlistData = { id: playlistSnap.id, ...playlistSnap.data() };
+      console.log('Playlist doc:', playlistData);
   
-      playlistData = { id: playlistDoc.id, ...playlistDoc.data() };
-      console.log('Playlist data loaded:', playlistData);
-  
-      const extractedSongs = [];
-      const extractedArtists = [];
+      // Extract 25 songs + 25 artists
+      const songs = [];
+      const artists = [];
       for (let i = 1; i <= 25; i++) {
-        const songKey = `song${i}`;
-        const artistKey = `artist${i}`;
-        if (playlistData[songKey] && playlistData[artistKey]) {
-          extractedSongs.push(playlistData[songKey]);
-          extractedArtists.push(playlistData[artistKey]);
-        }
+        const s = playlistData[`song${i}`];
+        const a = playlistData[`artist${i}`];
+        if (s && a) { songs.push(s); artists.push(a); }
       }
-      console.log(`Extracted ${extractedSongs.length} songs and ${extractedArtists.length} artists`);
+      console.log(`Using ${songs.length} songs / ${artists.length} artists`);
   
-      currentSongIndex = gameData.currentSongIndex || -1;
-      console.log('Current song index:', currentSongIndex);
+      // Build boards (from saved state if available)
+      initializeBoards(songs, artists);
   
-      initializeBoards(extractedSongs, extractedArtists);
-  
+      // Live updates: Firestore game doc + RTDB players only
       setupGameUpdates(gameId);
   
-      // IMPORTANT: ensure auth before joining (so writes to /players/{uid} pass rules)
-      await ensureAuthed();
+      // Join as a player (anonymous auth + presence)
       await joinGame(gameId);
   
-    } catch (error) {
-      console.error('Error initializing game:', error);
-      alert('Error loading game data. Using sample data instead.');
+    } catch (err) {
+      console.error('initializeGame error:', err);
+      alert('Error loading game. Using sample data.');
       initializeGameWithSampleData();
     }
   }
   
-  // ---------- Sample fallback ----------
+  /* ---------- Sample data fallback ---------- */
+  
   function initializeGameWithSampleData() {
-    console.log('Initializing with sample data…');
-  
     const sampleSongs = [
-      "Oh, Pretty Woman",
-      "California Dreamin'",
-      "I'm a Believer",
-      "Mr. Tambourine Man",
-      "Good Vibration",
-      "Happy Together",
-      "Mrs. Robinson",
-      "House Of The Rising Sun",
-      "Somebody to Love",
-      "Brown Eyed Girl",
-      "I Got You Babe",
-      "The Locomotion",
-      "Do Wah Diddy",
-      "Sugar, Sugar",
-      "Blue Moon"
+      "Oh, Pretty Woman", "California Dreamin'", "I'm a Believer", "Mr. Tambourine Man",
+      "Good Vibration", "Happy Together", "Mrs. Robinson", "House Of The Rising Sun",
+      "Somebody to Love", "Brown Eyed Girl", "I Got You Babe", "The Locomotion",
+      "Do Wah Diddy", "Sugar, Sugar", "Blue Moon", "Respect", "Stand by Me",
+      "My Girl", "Unchained Melody", "Be My Baby", "Great Balls of Fire", "Twist and Shout",
+      "Jailhouse Rock", "Sherry", "Runaround Sue"
     ];
-  
     const sampleArtists = [
-      "Roy Orbison",
-      "The Mamas & The Papas",
-      "The Monkees",
-      "The Byrds",
-      "The Beach Boys",
-      "The Turtles",
-      "Simon & Garfunkel",
-      "The Animals",
-      "Jefferson Airplane",
-      "Van Morrison",
-      "Sonny & Cher",
-      "Little Eva",
-      "Manfred Mann",
-      "The Archies",
-      "The Marcels"
+      "Roy Orbison", "The Mamas & The Papas", "The Monkees", "The Byrds",
+      "The Beach Boys", "The Turtles", "Simon & Garfunkel", "The Animals",
+      "Jefferson Airplane", "Van Morrison", "Sonny & Cher", "Little Eva",
+      "Manfred Mann", "The Archies", "The Marcels", "Aretha Franklin", "Ben E. King",
+      "The Temptations", "The Righteous Brothers", "The Ronettes", "Jerry Lee Lewis",
+      "The Beatles", "Elvis Presley", "The Four Seasons", "Dion"
     ];
-  
+    updateGameTitle('Music Bingo');
     initializeBoards(sampleSongs, sampleArtists);
   }
   
-  // ---------- UI: Title ----------
+  /* ---------- UI helpers ---------- */
+  
   function updateGameTitle(title) {
-    console.log('Updating game title to:', title);
-    const titleElement = document.querySelector('.game-title');
-    if (titleElement) {
-      titleElement.textContent = title;
-    }
+    const el = document.querySelector('.game-title');
+    if (el) el.textContent = title;
   }
   
-  // ---------- Realtime updates (Firestore + RTDB) ----------
+  /* ---------- Live updates ---------- */
+  
   function setupGameUpdates(gameId) {
     try {
-      console.log('Setting up real-time updates for game:', gameId);
-  
       const db = firebase.firestore();
-      const unsubscribeFirestore = db.collection('games').doc(gameId)
+  
+      // 1) Firestore: watch the game doc
+      unsubscribeFirestore = db.collection('games').doc(gameId)
         .onSnapshot((doc) => {
-          if (doc.exists) {
-            console.log('Received Firestore game update:', doc.data());
-            handleGameUpdate(doc.id, doc.data());
-          } else {
-            console.error('Game document no longer exists in Firestore');
+          if (!doc.exists) return;
+          const data = doc.data();
+          // Update title if changed
+          if (data?.name && data.name !== gameData?.name) {
+            updateGameTitle(data.name);
           }
-        }, (error) => {
-          console.error('Error listening for Firestore game updates:', error);
-        });
-  
-      let gameRef;
-      try {
-        const database = firebase.database();
-        console.log('Firebase database reference created:', typeof database);
-  
-        gameRef = database.ref('games/' + gameId);
-        console.log('Realtime Database reference created for path:', 'games/' + gameId);
-  
-        gameRef.on('value', (snapshot) => {
-          console.log('Realtime Database snapshot received:', snapshot.exists());
-          if (snapshot.exists()) {
-            console.log('Received Realtime Database game update:', snapshot.val());
-            handleGameUpdate(gameId, snapshot.val());
-          } else {
-            console.log('No data available in Realtime Database for game:', gameId);
+          // Track current song index
+          if (Number.isInteger(data?.currentSongIndex) &&
+              data.currentSongIndex !== currentSongIndex) {
+            console.log('Current song index changed:', currentSongIndex, '→', data.currentSongIndex);
+            currentSongIndex = data.currentSongIndex;
+            if (currentSongIndex >= 0) showCurrentSong(currentSongIndex);
           }
-        }, (error) => {
-          console.error('Error listening for Realtime Database updates:', error);
-        });
-      } catch (dbError) {
-        console.error('Error setting up Realtime Database listener:', dbError);
-        console.log('Continuing with only Firestore updates');
-      }
-  
-      function handleGameUpdate(id, data) {
-        const updatedGame = { id, ...data };
-        gameData = updatedGame;
-  
-        if (updatedGame.currentSongIndex !== currentSongIndex) {
-          console.log(`Current song index changed from ${currentSongIndex} to ${updatedGame.currentSongIndex}`);
-          currentSongIndex = updatedGame.currentSongIndex;
-  
-          if (currentSongIndex >= 0) {
-            showCurrentSong(currentSongIndex);
+          // Ended?
+          if (data?.status === 'ended') {
+            console.log('Game ended.');
+            alert('This game has ended. Thanks for playing!');
+            if (unsubscribeFirestore) unsubscribeFirestore();
+            try { if (playersRef) playersRef.off(); } catch (_) {}
           }
-        }
+        }, (err) => console.error('Firestore game listener error:', err));
   
-        if (updatedGame.status === 'ended') {
-          console.log('Game has ended');
-          alert('This game has ended. Thank you for playing!');
+      // 2) RTDB: players presence only (allowed by your rules)
+      const rtdb = firebase.database();
+      playersRef = rtdb.ref(`games/${gameId}/players`);
+      playersRef.on('value', (snap) => {
+        const count = snap.exists() ? Object.keys(snap.val()).length : 0;
+        console.log('Players currently joined:', count);
+        const el = document.querySelector('.player-count');
+        if (el) el.textContent = String(count);
+      }, (err) => {
+        // If rules temporarily disallow, we just log and continue (game still works via Firestore)
+        console.warn('Players listener error (non-blocking):', err?.message || err);
+      });
   
-          if (unsubscribeFirestore) unsubscribeFirestore();
-          try {
-            if (firebase.database && gameRef) gameRef.off();
-          } catch (error) {
-            console.error('Error when stopping Realtime Database listener:', error);
-          }
-        }
-      }
-  
-    } catch (error) {
-      console.error('Error setting up game updates:', error);
+    } catch (err) {
+      console.error('setupGameUpdates error:', err);
     }
   }
   
-  // ---------- UI: Show current song ----------
+  /* ---------- Now Playing toast ---------- */
+  
   function showCurrentSong(songIndex) {
-    console.log('showCurrentSong called with index:', songIndex);
+    if (!playlistData) return;
+    const sKey = `song${songIndex + 1}`;
+    const aKey = `artist${songIndex + 1}`;
+    const song = playlistData[sKey];
+    const artist = playlistData[aKey];
+    if (!song || !artist) return;
   
-    if (!playlistData) {
-      console.error('playlistData is not available!');
-      return;
-    }
-  
-    const songKey = `song${songIndex + 1}`;
-    const artistKey = `artist${songIndex + 1}`;
-  
-    console.log(`Looking for song with keys: ${songKey}, ${artistKey}`);
-  
-    if (playlistData[songKey] && playlistData[artistKey]) {
-      console.log(`Found song: ${playlistData[songKey]} - ${playlistData[artistKey]}`);
-  
-      let notification = document.querySelector('.song-notification');
-  
-      if (!notification) {
-        console.log('Creating notification element…');
-        notification = document.createElement('div');
-        notification.className = 'song-notification';
-        document.body.appendChild(notification);
-  
-        const style = document.createElement('style');
-        style.textContent = `
-          .song-notification {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: linear-gradient(135deg, #8338EC, #5E60CE);
-            color: white;
-            padding: 15px 20px;
-            border-radius: 10px;
-            box-shadow: 0 4px 15px rgba(131, 56, 236, 0.4);
-            z-index: 1000;
-            text-align: center;
-            animation: fadeInOut 5s forwards;
-            pointer-events: none;
-          }
-          @keyframes fadeInOut {
-            0% { opacity: 0; transform: translate(-50%, -20px); }
-            10% { opacity: 1; transform: translate(-50%, 0); }
-            80% { opacity: 1; }
-            100% { opacity: 0; }
-          }
-        `;
-        document.head.appendChild(style);
-      }
-  
-      notification.innerHTML = `
-        <strong>Now Playing:</strong><br>
-        ${playlistData[songKey]} - ${playlistData[artistKey]}
+    let note = document.querySelector('.song-notification');
+    if (!note) {
+      note = document.createElement('div');
+      note.className = 'song-notification';
+      document.body.appendChild(note);
+      const style = document.createElement('style');
+      style.textContent = `
+        .song-notification {
+          position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+          background: linear-gradient(135deg,#8338EC,#5E60CE); color: #fff;
+          padding: 14px 18px; border-radius: 10px; box-shadow: 0 4px 15px rgba(131,56,236,.4);
+          z-index: 1000; text-align: center; pointer-events: none; animation: fadeInOut 5s forwards;
+        }
+        @keyframes fadeInOut {
+          0% { opacity: 0; transform: translate(-50%,-20px); }
+          10%{ opacity: 1; transform: translate(-50%,0); }
+          80%{ opacity: 1; }
+          100%{ opacity: 0; }
+        }
       `;
-  
-      notification.style.animation = 'none';
-      // Trigger reflow
-      // eslint-disable-next-line no-unused-expressions
-      notification.offsetHeight;
-      notification.style.animation = 'fadeInOut 5s forwards';
-    } else {
-      console.error(`Song not found for index ${songIndex}. Available keys in playlistData:`, Object.keys(playlistData));
+      document.head.appendChild(style);
     }
+    note.innerHTML = `<strong>Now Playing:</strong><br>${song} — ${artist}`;
+    note.style.animation = 'none'; note.offsetHeight; // reflow
+    note.style.animation = 'fadeInOut 5s forwards';
   }
   
-  // ---------- Join game using Auth UID ----------
+  /* ---------- Presence: join + heartbeat ---------- */
+  
   async function joinGame(gameId) {
     try {
       console.log('Joining game:', gameId);
   
-      // Make sure we have an authenticated user
-      await ensureAuthed();
-      const playerId = getAuthedPlayerId();
-      if (!playerId) {
-        throw new Error('No authenticated user; cannot join game');
+      // Ensure anonymous auth
+      const auth = firebase.auth();
+      let user = auth.currentUser;
+      if (!user) {
+        const cred = await auth.signInAnonymously();
+        user = cred.user;
       }
+      const uid = user.uid;
+      console.log('Player joined with UID:', uid);
   
-      // Keep localStorage for your UI continuity, but it’s not authoritative anymore
-      localStorage.setItem(`bingo_player_${gameId}`, playerId);
+      // Keep localStorage in sync (optional, keeps old behavior)
+      const key = `bingo_player_${gameId}`;
+      const existing = localStorage.getItem(key);
+      if (existing !== uid) localStorage.setItem(key, uid);
   
-      // Add/touch player node under their UID; rules require auth.uid == playerId
-      const database = firebase.database();
-      await database.ref(`games/${gameId}/players/${playerId}`).set({
+      // Write presence to RTDB (allowed by rules)
+      const db = firebase.database();
+      const playerRef = db.ref(`games/${gameId}/players/${uid}`);
+      await playerRef.set({
         joinedAt: firebase.database.ServerValue.TIMESTAMP,
         lastActive: firebase.database.ServerValue.TIMESTAMP
       });
   
-      console.log('Player joined with UID (playerId):', playerId);
-  
       // Heartbeat every 30s
-      setInterval(() => updatePlayerActivity(gameId, playerId), 30000);
+      setInterval(() => {
+        playerRef.child('lastActive').set(firebase.database.ServerValue.TIMESTAMP);
+      }, 30_000);
   
-    } catch (error) {
-      console.error('Error joining game:', error);
+    } catch (err) {
+      console.error('Error joining game:', err);
     }
   }
   
-  function updatePlayerActivity(gameId, playerId) {
-    try {
-      if (!playerId) return;
-      const database = firebase.database();
-      database.ref(`games/${gameId}/players/${playerId}/lastActive`)
-        .set(firebase.database.ServerValue.TIMESTAMP);
-    } catch (error) {
-      console.error('Error updating player activity:', error);
+  /* ---------- Board creation ---------- */
+  
+  function createBingoBoard(boardEl, songs, artists) {
+    if (!boardEl) return;
+    boardEl.innerHTML = '';
+  
+    const combined = [...songs, ...artists];
+    // Shuffle
+    for (let i = combined.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [combined[i], combined[j]] = [combined[j], combined[i]];
     }
-  }
-  
-  // ---------- Board creation & interactions ----------
-  function createBingoBoard(boardElement, songs, artists) {
-    console.log('Creating bingo board…');
-  
-    boardElement.innerHTML = '';
-  
-    const combinedList = [...songs, ...artists];
-    const shuffledList = combinedList.sort(() => 0.5 - Math.random());
   
     for (let i = 0; i < 25; i++) {
       const cell = document.createElement('div');
@@ -447,37 +346,36 @@ if (typeof firebase === 'undefined' || !firebase.apps.length) {
         cell.classList.add('center-cell');
         cell.addEventListener('click', handleLogoCellClick);
       } else {
-        cell.textContent = shuffledList[i] || '';
+        cell.textContent = combined[i] || '';
         cell.addEventListener('click', () => {
           cell.classList.toggle('matched');
           saveBoardState();
         });
       }
   
-      boardElement.appendChild(cell);
+      boardEl.appendChild(cell);
     }
   
-    console.log('Bingo board created successfully');
     saveBoardState();
   }
   
   function handleLogoCellClick() {
-    console.log('Logo cell clicked - free space');
-    alert('Free space! This counts as marked for bingo.');
+    alert('Free space!');
   }
   
   function initializeBoards(songs, artists) {
-    console.log('Initializing boards with', songs.length, 'songs and', artists.length, 'artists');
+    const board1 = document.querySelector('.board-1');
+    const board2 = document.querySelector('.board-2');
+    if (!board1 || !board2) return;
   
     if (!loadBoardState()) {
-      const board1 = document.querySelector('.board-1');
-      const board2 = document.querySelector('.board-2');
       createBingoBoard(board1, songs, artists);
       createBingoBoard(board2, songs, artists);
     }
   }
   
-  // ---------- Swipe / UI controls ----------
+  /* ---------- Swipe & board switching ---------- */
+  
   let touchStartX = 0;
   let touchEndX = 0;
   const boardsWrapper = document.querySelector('.boards-wrapper');
@@ -487,144 +385,111 @@ if (typeof firebase === 'undefined' || !firebase.apps.length) {
   document.addEventListener('touchstart', e => {
     touchStartX = e.changedTouches[0].screenX;
   });
-  
   document.addEventListener('touchend', e => {
     touchEndX = e.changedTouches[0].screenX;
     handleSwipe();
   });
   
   function handleSwipe() {
-    const minSwipeDistance = 50;
-    if (touchEndX < touchStartX - minSwipeDistance) {
-      console.log('Swiped left to board 2');
-      switchToBoard(2);
-    } else if (touchEndX > touchStartX + minSwipeDistance) {
-      console.log('Swiped right to board 1');
-      switchToBoard(1);
-    }
+    const min = 50;
+    if (touchEndX < touchStartX - min) switchToBoard(2);
+    else if (touchEndX > touchStartX + min) switchToBoard(1);
   }
   
-  function switchToBoard(boardNum) {
-    console.log('Switching to board', boardNum);
-    if (boardNum === 1) {
+  function switchToBoard(n) {
+    if (!boardsWrapper) return;
+    if (n === 1) {
       boardsWrapper.style.transform = 'translateX(0)';
-      boardDots[1].classList.remove('active');
-      boardDots[0].classList.add('active');
-      boardBtns[1].classList.remove('active');
-      boardBtns[0].classList.add('active');
+      boardDots[1]?.classList.remove('active');
+      boardDots[0]?.classList.add('active');
+      boardBtns[1]?.classList.remove('active');
+      boardBtns[0]?.classList.add('active');
     } else {
       boardsWrapper.style.transform = 'translateX(-50%)';
-      boardDots[0].classList.remove('active');
-      boardDots[1].classList.add('active');
-      boardBtns[0].classList.remove('active');
-      boardBtns[1].classList.add('active');
+      boardDots[0]?.classList.remove('active');
+      boardDots[1]?.classList.add('active');
+      boardBtns[0]?.classList.remove('active');
+      boardBtns[1]?.classList.add('active');
     }
   }
   
-  document.querySelector('.swipe-hint.left').addEventListener('click', () => {
-    switchToBoard(1);
-  });
-  
-  document.querySelector('.swipe-hint.right').addEventListener('click', () => {
-    switchToBoard(2);
-  });
+  document.querySelector('.swipe-hint.left')?.addEventListener('click', () => switchToBoard(1));
+  document.querySelector('.swipe-hint.right')?.addEventListener('click', () => switchToBoard(2));
   
   boardBtns.forEach(btn => {
     btn.addEventListener('click', () => {
-      const boardNum = parseInt(btn.getAttribute('data-board'));
-      switchToBoard(boardNum);
+      const n = parseInt(btn.getAttribute('data-board'), 10);
+      switchToBoard(n);
     });
   });
   
-  // ---------- Buttons: New game / Check bingo ----------
-  document.getElementById('new-game-btn').addEventListener('click', () => {
-    console.log('New game button clicked');
+  /* ---------- New board / Bingo check ---------- */
   
+  document.getElementById('new-game-btn')?.addEventListener('click', () => {
     const gameId = getUrlParameter('gameId') || 'default';
     localStorage.removeItem(`musicBingo_${gameId}_board1`);
     localStorage.removeItem(`musicBingo_${gameId}_board2`);
-    console.log('Cleared saved board state');
   
-    if (playlistData) {
-      const extractedSongs = [];
-      const extractedArtists = [];
-      for (let i = 1; i <= 25; i++) {
-        const songKey = `song${i}`;
-        const artistKey = `artist${i}`;
-        if (playlistData[songKey] && playlistData[artistKey]) {
-          extractedSongs.push(playlistData[songKey]);
-          extractedArtists.push(playlistData[artistKey]);
-        }
-      }
-  
-      console.log(`Regenerating boards with ${extractedSongs.length} songs and ${extractedArtists.length} artists`);
-      const board1 = document.querySelector('.board-1');
-      const board2 = document.querySelector('.board-2');
-      createBingoBoard(board1, extractedSongs, extractedArtists);
-      createBingoBoard(board2, extractedSongs, extractedArtists);
-    } else {
-      console.log('No playlist data available, falling back to sample data');
+    if (!playlistData) {
       initializeGameWithSampleData();
+      return;
     }
+  
+    const songs = [];
+    const artists = [];
+    for (let i = 1; i <= 25; i++) {
+      const s = playlistData[`song${i}`];
+      const a = playlistData[`artist${i}`];
+      if (s && a) { songs.push(s); artists.push(a); }
+    }
+  
+    const b1 = document.querySelector('.board-1');
+    const b2 = document.querySelector('.board-2');
+    createBingoBoard(b1, songs, artists);
+    createBingoBoard(b2, songs, artists);
   });
   
-  document.getElementById('check-bingo-btn').addEventListener('click', () => {
-    console.log('Checking for Bingo…');
-    const activeBoard = boardsWrapper.style.transform === 'translateX(-50%)'
-      ? document.querySelector('.board-2')
-      : document.querySelector('.board-1');
+  document.getElementById('check-bingo-btn')?.addEventListener('click', () => {
+    const activeBoard =
+      boardsWrapper?.style.transform === 'translateX(-50%)'
+        ? document.querySelector('.board-2')
+        : document.querySelector('.board-1');
   
-    if (checkForBingo(activeBoard)) {
-      console.log('BINGO found!');
-      document.querySelector('.bingo-message').style.display = 'block';
+    if (activeBoard && checkForBingo(activeBoard)) {
+      document.querySelector('.bingo-message')?.setAttribute('style', 'display:block;');
     } else {
-      console.log('No Bingo yet');
       alert('No bingo yet. Keep playing!');
     }
   });
   
-  document.getElementById('close-bingo-message').addEventListener('click', () => {
-    console.log('Closing bingo message');
-    document.querySelector('.bingo-message').style.display = 'none';
+  document.getElementById('close-bingo-message')?.addEventListener('click', () => {
+    document.querySelector('.bingo-message')?.setAttribute('style', 'display:none;');
   });
   
   function checkForBingo(board) {
     const cells = board.querySelectorAll('.bingo-cell');
-    const centerIndex = 12;
-    const cellsArray = Array.from(cells);
+    const arr = Array.from(cells);
   
     // rows
-    for (let i = 0; i < 5; i++) {
-      const row = cellsArray.slice(i * 5, i * 5 + 5);
-      if (row.every(cell => cell.classList.contains('matched') || cell.classList.contains('center-cell'))) {
-        console.log(`Found bingo in row ${i}`);
+    for (let r = 0; r < 5; r++) {
+      const row = arr.slice(r * 5, r * 5 + 5);
+      if (row.every(c => c.classList.contains('matched') || c.classList.contains('center-cell'))) {
         return true;
       }
     }
-  
     // cols
-    for (let i = 0; i < 5; i++) {
-      const column = [
-        cellsArray[i], cellsArray[i + 5], cellsArray[i + 10], cellsArray[i + 15], cellsArray[i + 20]
-      ];
-      if (column.every(cell => cell.classList.contains('matched') || cell.classList.contains('center-cell'))) {
-        console.log(`Found bingo in column ${i}`);
+    for (let c = 0; c < 5; c++) {
+      const col = [arr[c], arr[c+5], arr[c+10], arr[c+15], arr[c+20]];
+      if (col.every(x => x.classList.contains('matched') || x.classList.contains('center-cell'))) {
         return true;
       }
     }
-  
     // diagonals
-    const diagonal1 = [cellsArray[0], cellsArray[6], cellsArray[12], cellsArray[18], cellsArray[24]];
-    const diagonal2 = [cellsArray[4], cellsArray[8], cellsArray[12], cellsArray[16], cellsArray[20]];
+    const d1 = [arr[0], arr[6], arr[12], arr[18], arr[24]];
+    const d2 = [arr[4], arr[8], arr[12], arr[16], arr[20]];
+    if (d1.every(x => x.classList.contains('matched') || x.classList.contains('center-cell'))) return true;
+    if (d2.every(x => x.classList.contains('matched') || x.classList.contains('center-cell'))) return true;
   
-    if (diagonal1.every(cell => cell.classList.contains('matched') || cell.classList.contains('center-cell'))) {
-      console.log('Found bingo in diagonal 1');
-      return true;
-    }
-    if (diagonal2.every(cell => cell.classList.contains('matched') || cell.classList.contains('center-cell'))) {
-      console.log('Found bingo in diagonal 2');
-      return true;
-    }
     return false;
   }
   
