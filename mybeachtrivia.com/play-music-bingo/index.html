@@ -1,69 +1,76 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Music Bingo</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Music Bingo</title>
 
-    <!-- ✅ CSP to allow RTDB + Firebase while keeping the page locked down -->
-    <meta http-equiv="Content-Security-Policy" content="
-      default-src 'self';
-      script-src 'self' 'unsafe-eval' https://www.gstatic.com https://www.googleapis.com https://*.firebaseio.com;
-      connect-src 'self' https://*.googleapis.com https://www.googleapis.com https://*.gstatic.com wss://*.firebaseio.com https://*.firebaseio.com;
-      img-src 'self' data: https:;
-      style-src 'self' 'unsafe-inline';
-    ">
+  <!-- Page-level CSP (your Cloudflare Worker also sets CSP headers) -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    base-uri 'self';
+    object-src 'none';
+    img-src 'self' data: https:;
+    script-src 'self' 'unsafe-eval' https://www.gstatic.com https://www.googleapis.com https://*.firebaseio.com;
+    connect-src 'self'
+      https://firestore.googleapis.com
+      https://identitytoolkit.googleapis.com
+      https://securetoken.googleapis.com
+      https://www.googleapis.com
+      https://firebaseinstallations.googleapis.com
+      https://firebaseremoteconfig.googleapis.com
+      https://*.firebaseio.com
+      wss://*.firebaseio.com;
+    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+    font-src 'self' https://fonts.gstatic.com;
+  ">
 
-    <link rel="stylesheet" href="css/styles.css">
-    
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-    <!-- ✅ Added Auth SDK so players can sign in anonymously -->
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-    
-    <!-- Firebase initialization -->
-    <script src="js/firebase-init.js"></script>
+  <link rel="stylesheet" href="css/styles.css" />
+
+  <!-- Firebase SDKs (v8) -->
+  <script defer src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+  <!-- Your Firebase project init -->
+  <script defer src="js/firebase-init.js"></script>
 </head>
 <body>
-    <h1 class="game-title">Music Bingo</h1>
-    
-    <div class="bingo-container">
-        <div class="swipe-hint left">&#10094;</div>
-        <div class="swipe-hint right">&#10095;</div>
-        
-        <div class="boards-wrapper">
-            <div class="bingo-board board-1">
-                <!-- Cells will be dynamically populated -->
-            </div>
-            <div class="bingo-board board-2">
-                <!-- Cells will be dynamically populated -->
-            </div>
-        </div>
+  <h1 class="game-title">Music Bingo</h1>
 
-        <div class="board-nav">
-            <div class="board-dot active"></div>
-            <div class="board-dot"></div>
-        </div>
-    </div>
-    
-    <div class="board-selector">
-        <button class="board-btn active" data-board="1">Board 1</button>
-        <button class="board-btn" data-board="2">Board 2</button>
-    </div>
-    
-    <div class="controls">
-        <button id="new-game-btn" class="btn">New Board</button>
-        <button id="check-bingo-btn" class="btn">Check Bingo</button>
-    </div>
-    
-    <div class="bingo-message">
-        <h2>BINGO!</h2>
-        <p>Congratulations! You got Bingo!</p>
-        <button id="close-bingo-message" class="btn">Close</button>
+  <div class="bingo-container">
+    <div class="swipe-hint left">&#10094;</div>
+    <div class="swipe-hint right">&#10095;</div>
+
+    <div class="boards-wrapper">
+      <div class="bingo-board board-1"></div>
+      <div class="bingo-board board-2"></div>
     </div>
 
-    <script src="js/script.js"></script>
+    <div class="board-nav">
+      <div class="board-dot active"></div>
+      <div class="board-dot"></div>
+    </div>
+  </div>
+
+  <div class="board-selector">
+    <button class="board-btn active" data-board="1">Board 1</button>
+    <button class="board-btn" data-board="2">Board 2</button>
+  </div>
+
+  <div class="controls">
+    <button id="new-game-btn" class="btn">New Board</button>
+    <button id="check-bingo-btn" class="btn">Check Bingo</button>
+  </div>
+
+  <div class="bingo-message" style="display:none">
+    <h2>BINGO!</h2>
+    <p>Congratulations! You got Bingo!</p>
+    <button id="close-bingo-message" class="btn">Close</button>
+  </div>
+
+  <!-- Main app logic; bump v= to bust caches after updates -->
+  <script defer src="js/script.js?v=5"></script>
 </body>
 </html>
