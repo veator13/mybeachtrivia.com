@@ -25,9 +25,50 @@ service cloud.firestore {
                .data.active == true;
     }
 
-    // Common public flag on docs: { public: true }
     function isPublic(data) {
       return data.public == true;
+    }
+
+    /* ---------- Type guards ---------- */
+    function isString(v) { return v is string; }
+    function isNumber(v) { return v is int || v is float; }
+    function isTimestamp(v) { return v is timestamp; }
+
+    /* ---------- Game validation ---------- */
+    // Allowed fields for a game document
+    function gameAllowedKeys() {
+      return ['name', 'playlistId', 'status', 'currentSongIndex',
+              'playerLimit', 'createdBy', 'createdAt'];
+    }
+
+    // Validate shape/types on create
+    function validGameCreate(d) {
+      return d.keys().hasOnly(gameAllowedKeys()) &&
+             isString(d.name) &&
+             d.name.size() > 0 &&
+             isString(d.playlistId) &&
+             // status is optional on create; if present, must be one of:
+             (!(d.keys().hasAny(['status'])) || d.status in ['new','running','paused','ended']) &&
+             // currentSongIndex optional; if present, must be >= -1
+             (!(d.keys().hasAny(['currentSongIndex'])) || (isNumber(d.currentSongIndex) && d.currentSongIndex >= -1)) &&
+             // playerLimit optional; if present reasonable (1..500)
+             (!(d.keys().hasAny(['playerLimit'])) || (isNumber(d.playerLimit) && d.playerLimit >= 1 && d.playerLimit <= 500)) &&
+             // creator assertion
+             d.createdBy == me() &&
+             isTimestamp(d.createdAt);
+    }
+
+    // Validate shape/types on update; allow partial updates but types must stay valid
+    function validGameUpdate(before, after) {
+      return after.keys().hasOnly(gameAllowedKeys()) &&
+             isString(after.name) && after.name.size() > 0 &&
+             isString(after.playlistId) &&
+             (after.status in ['new','running','paused','ended']) &&
+             isNumber(after.currentSongIndex) && after.currentSongIndex >= -1 &&
+             (!(after.keys().hasAny(['playerLimit'])) || (isNumber(after.playerLimit) && after.playerLimit >= 1 && after.playerLimit <= 500)) &&
+             // createdBy/createdAt are immutable
+             after.createdBy == before.createdBy &&
+             after.createdAt == before.createdAt;
     }
 
     /* ---------- Access control collections ---------- */
@@ -62,9 +103,23 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
-    match /games/{docId} {
-      allow read: if isActiveEmp() || isPublic(resource.data);
-      allow create, update, delete: if isAdmin();
+    // GAME documents:
+    // - Employees can CREATE (for themselves) with valid shape.
+    // - Employees can UPDATE their own games with valid shape.
+    // - Admins can read/write any, and DELETE any.
+    match /games/{gameId} {
+      allow read: if isActiveEmp() || isAdmin() || isPublic(resource.data);
+
+      allow create: if isActiveEmp() && validGameCreate(request.resource.data);
+
+      allow update: if (
+        isAdmin() ||
+        (isActiveEmp() &&
+         resource.data.createdBy == me() &&
+         validGameUpdate(resource.data, request.resource.data))
+      );
+
+      allow delete: if isAdmin();
     }
 
     // Music Bingo playlists (curated content used by players)
