@@ -328,7 +328,7 @@ function renderJoinGate(gameId) {
   const sessionKey = `mb_joined_${gameId}`;
   if (sessionStorage.getItem(sessionKey) === '1') {
     console.log('Already joined this session — skipping gate.');
-    safeJoinGame(gameId, sessionKey);
+    safeJoinGame(gameId, sessionKey).catch(()=>{});
     return;
   }
 
@@ -348,9 +348,12 @@ function renderJoinGate(gameId) {
   btn?.addEventListener('click', async () => {
     btn.disabled = true;
     try {
-      await safeJoinGame(gameId, sessionKey);
+      // Remove overlay even if safeJoinGame hangs (iOS Chrome edge)
+      await Promise.race([
+        safeJoinGame(gameId, sessionKey),
+        new Promise((resolve) => setTimeout(resolve, 4000))
+      ]);
     } finally {
-      // Remove the overlay regardless of network acks
       overlay.remove();
     }
   }, { once: true });
@@ -370,12 +373,36 @@ async function safeJoinGame(gameId, sessionKey) {
       console.warn('[auth] setPersistence NONE failed:', e?.message || e);
     }
 
-    let user = auth.currentUser;
-    if (!user) {
-      console.log('[auth] signing in anonymously…');
-      const cred = await auth.signInAnonymously();
-      user = cred.user;
+    // Force-sign-out first to avoid stale anon sessions (esp. iOS Chrome normal tabs)
+    try {
+      if (auth.currentUser) {
+        console.log('[auth] found existing user — signing out first');
+        await auth.signOut();
+      }
+    } catch (e) {
+      console.warn('[auth] signOut failed (non-blocking):', e?.message || e);
     }
+
+    // Fresh anonymous sign-in with timeout + graceful fallback
+    let user = null;
+    try {
+      console.log('[auth] signing in anonymously…');
+      const cred = await Promise.race([
+        auth.signInAnonymously(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('auth timeout')), 3500))
+      ]);
+      // If the race above resolved with a credential, it will have user
+      if (cred && cred.user) user = cred.user;
+    } catch (e) {
+      console.warn('[auth] signInAnonymously issue:', e?.message || e);
+      // Fallback: if auth eventually attached a user, use it
+      user = auth.currentUser || null;
+    }
+
+    if (!user) {
+      throw new Error('Could not obtain anonymous user');
+    }
+
     const uid = user.uid;
     console.log('[auth] UID:', uid);
 
