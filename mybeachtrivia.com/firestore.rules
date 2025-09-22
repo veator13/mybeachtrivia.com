@@ -8,20 +8,20 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function uid() {
+    function me() {
       return isSignedIn() ? request.auth.uid : null;
     }
 
     // Admins are listed by UID under: /admins/{uid}
     function isAdmin() {
       return isSignedIn() &&
-             exists(/databases/$(database)/documents/admins/$(uid()));
+             exists(/databases/$(database)/documents/admins/$(me()));
     }
 
     // Employees stored at: /employees/{uid} with { active: true }
     function isActiveEmp() {
       return isSignedIn() &&
-             get(/databases/$(database)/documents/employees/$(uid()))
+             get(/databases/$(database)/documents/employees/$(me()))
                .data.active == true;
     }
 
@@ -30,7 +30,20 @@ service cloud.firestore {
       return data.public == true;
     }
 
-    /* ---------- Collections ---------- */
+    /* ---------- Access control collections ---------- */
+
+    // Allow a signed-in user (or admins) to read their own status docs
+    match /employees/{userId} {
+      allow read: if isAdmin() || (isSignedIn() && me() == userId);
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /admins/{userId} {
+      allow read: if isAdmin() || (isSignedIn() && me() == userId);
+      allow create, update, delete: if isAdmin();
+    }
+
+    /* ---------- App data ---------- */
 
     // Anyone can submit an application; only admins can view/manage
     match /Applications/{appId} {
@@ -55,7 +68,6 @@ service cloud.firestore {
     }
 
     // Music Bingo playlists (curated content used by players)
-    // Allow read if explicitly public, or the requester is an employee/admin
     match /music_bingo/{docId} {
       allow read: if isPublic(resource.data) || isActiveEmp() || isAdmin();
       allow create, update, delete: if isAdmin();
