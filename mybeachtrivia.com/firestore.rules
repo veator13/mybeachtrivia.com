@@ -1,94 +1,67 @@
+// Firestore Security Rules
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /* ---------- Helpers ---------- */
-
-    function isAuthed() {
+    function isSignedIn() {
       return request.auth != null;
     }
 
-    // Employee doc for the signed-in user
-    function me() {
-      return isAuthed()
-        ? get(/databases/$(database)/documents/employees/$(request.auth.uid))
-        : null;
+    function uid() {
+      return isSignedIn() ? request.auth.uid : null;
     }
 
-    function hasEmp() {
-      return isAuthed() && me() != null && me().exists();
-    }
-
-    // Active employee: employee doc has { active: true }
-    function isActiveEmp() {
-      return hasEmp()
-        && ('active' in me().data)
-        && (me().data.active == true);
-    }
-
-    // Robust admin detector (supports multiple schema styles)
+    // Admins are listed by UID under: /admins/{uid}
     function isAdmin() {
-      return hasEmp() && (
-        (('admin' in me().data) && me().data.admin == true) ||
-        (('role'  in me().data) && me().data.role  == 'admin') ||
-        (('roles' in me().data) && me().data.roles.hasAny(['admin']))
-      );
+      return isSignedIn() &&
+             exists(/databases/$(database)/documents/admins/$(uid()));
     }
 
-    function isSelf(uid) {
-      return isAuthed() && (request.auth.uid == uid);
+    // Employees stored at: /employees/{uid} with { active: true }
+    function isActiveEmp() {
+      return isSignedIn() &&
+             get(/databases/$(database)/documents/employees/$(uid()))
+               .data.active == true;
     }
 
-    // Employees may update ONLY these personal fields on their own doc.
-    function selfUpdateIsSafe() {
-      let allowed = [
-        'displayName', 'photoURL', 'email', 'phone',
-        'notifications', 'availability', 'bio'
-      ];
-      let changed = request.resource.data.diff(resource.data).changedKeys();
-      return changed.hasOnly(allowed);
-    }
-
-    // No one (except admin) may touch these sensitive fields.
-    function touchesSensitive() {
-      let sensitive = ['admin','role','roles','active','permissions','wage','rate','pay','title'];
-      let changed = request.resource.data.diff(resource.data).changedKeys();
-      return changed.hasAny(sensitive);
+    // Common public flag on docs: { public: true }
+    function isPublic(data) {
+      return data.public == true;
     }
 
     /* ---------- Collections ---------- */
 
-    // Employees
-    match /employees/{uid} {
-      // Active employees (and admins) can read the roster.
-      allow read: if isActiveEmp() || isAdmin();
-
-      // Only admins can create/delete employee docs.
-      allow create: if isAdmin();
-      allow delete: if isAdmin();
-
-      // Admins can update anything; employees can safely edit their own profile fields.
-      allow update: if
-        isAdmin() ||
-        (isSelf(uid) && selfUpdateIsSafe() && !touchesSensitive());
-    }
-
-    // Public job applications (user-facing form can write without auth)
+    // Anyone can submit an application; only admins can view/manage
     match /Applications/{appId} {
-      allow create: if true;                        // anyone may submit
-      allow read, update, delete: if isAdmin();     // only admins manage
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
     }
 
-    // Operational data: locations, shifts, games
-    // - Active employees can read
-    // - Admins write
-    // - Optional public read if { public: true }
-    match /{colName}/{docId} where colName in ['locations','shifts','games'] {
-      allow read: if isActiveEmp() || (('public' in resource.data) && resource.data.public == true);
+    // Operational data — readable by active employees or if the doc is public
+    match /locations/{docId} {
+      allow read: if isActiveEmp() || isPublic(resource.data);
       allow create, update, delete: if isAdmin();
     }
 
-    // Default deny everything else
+    match /shifts/{docId} {
+      allow read: if isActiveEmp() || isPublic(resource.data);
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /games/{docId} {
+      allow read: if isActiveEmp() || isPublic(resource.data);
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Music Bingo playlists (curated content used by players)
+    // Allow read if explicitly public, or the requester is an employee/admin
+    match /music_bingo/{docId} {
+      allow read: if isPublic(resource.data) || isActiveEmp() || isAdmin();
+      allow create, update, delete: if isAdmin();
+    }
+
+    /* ---------- Default deny ---------- */
     match /{document=**} {
       allow read, write: if false;
     }
