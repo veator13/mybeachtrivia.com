@@ -21,8 +21,9 @@ let gameData = null;
 let playlistData = null;
 let currentSongIndex = -1;
 
-let playersRef = null;            // RTDB listener handle
-let unsubscribeFirestore = null;  // Firestore listener handle
+let playersRef = null;             // RTDB players node ref (listener attached post-auth)
+let detachPlayers = null;          // function to detach players listener (if attached)
+let unsubscribeFirestore = null;   // Firestore listener handle
 
 /* ---------- Board persistence (localStorage) ---------- */
 function saveBoardState() {
@@ -95,6 +96,41 @@ function getUrlParameter(name) {
   return v;
 }
 
+/* ---------- RTDB players count (attach only AFTER auth) ---------- */
+function attachPlayersListenerAfterAuth(gameId) {
+  try {
+    if (playersRef) {
+      console.log('[players] listener already attached — skipping');
+      return;
+    }
+
+    const rtdb = firebase.database();
+    playersRef = rtdb.ref(`games/${gameId}/players`);
+
+    const handler = (snap) => {
+      const val = snap.val();
+      const count = val ? Object.keys(val).length : 0;
+      console.log('[players] joined count =', count);
+      const el = document.querySelector('.player-count');
+      if (el) el.textContent = String(count);
+    };
+
+    playersRef.on('value', handler, (err) => {
+      console.warn('[players] listener error (non-blocking):', err?.message || err);
+    });
+
+    detachPlayers = () => {
+      try { playersRef && playersRef.off('value', handler); } catch (_) {}
+      playersRef = null;
+      console.log('[players] listener detached');
+    };
+
+    console.log('[players] listener attached (post-auth)');
+  } catch (err) {
+    console.error('[players] attach failed:', err);
+  }
+}
+
 /* ---------- Main init ---------- */
 async function initializeGame() {
   try {
@@ -150,7 +186,7 @@ async function initializeGame() {
     // Build boards (from saved state if available)
     initializeBoards(songs, artists);
 
-    // Live updates: Firestore game doc + RTDB players only
+    // Live updates: Firestore game doc (players listener attaches after auth)
     setupGameUpdates(gameId);
 
     // Gate presence behind a user tap (previews won't count)
@@ -214,22 +250,11 @@ function setupGameUpdates(gameId) {
           console.log('Game ended.');
           alert('This game has ended. Thanks for playing!');
           if (unsubscribeFirestore) unsubscribeFirestore();
-          try { if (playersRef) playersRef.off(); } catch (_) {}
+          try { if (detachPlayers) detachPlayers(); else if (playersRef) playersRef.off(); } catch (_) {}
         }
       }, (err) => console.error('Firestore game listener error:', err));
 
-    // 2) RTDB: players presence count (non-critical)
-    const rtdb = firebase.database();
-    playersRef = rtdb.ref(`games/${gameId}/players`);
-    playersRef.on('value', (snap) => {
-      const count = snap.exists() ? Object.keys(snap.val()).length : 0;
-      console.log('Players currently joined:', count);
-      const el = document.querySelector('.player-count');
-      if (el) el.textContent = String(count);
-    }, (err) => {
-      console.warn('Players listener error (non-blocking):', err?.message || err);
-    });
-
+    // (RTDB players listener now attaches ONLY after anon auth in safeJoinGame)
   } catch (err) {
     console.error('setupGameUpdates error:', err);
   }
@@ -353,6 +378,9 @@ async function safeJoinGame(gameId, sessionKey) {
     }
     const uid = user.uid;
     console.log('[auth] UID:', uid);
+
+    // After we definitely have auth, attach the RTDB players listener (once).
+    attachPlayersListenerAfterAuth(gameId);
 
     // (Optional) keep LS in sync with legacy behavior
     const key = `bingo_player_${gameId}`;
