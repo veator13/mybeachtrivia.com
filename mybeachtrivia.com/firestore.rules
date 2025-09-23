@@ -1,134 +1,66 @@
-// Firestore Security Rules
+// Firestore Rules
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    /* ---------- Helpers ---------- */
-    function isSignedIn() {
-      return request.auth != null;
+    /* ---------- helpers ---------- */
+    function signedIn() { return request.auth != null; }
+    function empDoc() {
+      return signedIn()
+        ? get(/databases/$(database)/documents/employees/$(request.auth.uid))
+        : null;
     }
-
-    function me() {
-      return isSignedIn() ? request.auth.uid : null;
-    }
-
-    // Admins are listed by UID under: /admins/{uid}
-    function isAdmin() {
-      return isSignedIn() &&
-             exists(/databases/$(database)/documents/admins/$(me()));
-    }
-
-    // Employees stored at: /employees/{uid} with { active: true }
     function isActiveEmp() {
-      return isSignedIn() &&
-             get(/databases/$(database)/documents/employees/$(me()))
-               .data.active == true;
+      return empDoc().exists() && (empDoc().data.active == true);
     }
-
-    function isPublic(data) {
-      return data.public == true;
+    // roles can be an array like ["admin","host"] or an object with booleans
+    function hasRole(role) {
+      return isActiveEmp() &&
+        (
+          (empDoc().data.roles is list && role in empDoc().data.roles) ||
+          (empDoc().data.roles is map  && (empDoc().data.roles[role] == true))
+        );
     }
+    function isAdmin() { return hasRole("admin"); }
+    function isHost()  { return hasRole("host") || isAdmin(); }
 
-    /* ---------- Type guards ---------- */
-    function isString(v) { return v is string; }
-    function isNumber(v) { return v is int || v is float; }
-    function isTimestamp(v) { return v is timestamp; }
-
-    /* ---------- Game validation ---------- */
-    // Allowed fields for a game document
-    function gameAllowedKeys() {
-      return ['name', 'playlistId', 'status', 'currentSongIndex',
-              'playerLimit', 'createdBy', 'createdAt'];
-    }
-
-    // Validate shape/types on create
-    function validGameCreate(d) {
-      return d.keys().hasOnly(gameAllowedKeys()) &&
-             isString(d.name) &&
-             d.name.size() > 0 &&
-             isString(d.playlistId) &&
-             // status is optional on create; if present, must be one of:
-             (!(d.keys().hasAny(['status'])) || d.status in ['new','running','paused','ended']) &&
-             // currentSongIndex optional; if present, must be >= -1
-             (!(d.keys().hasAny(['currentSongIndex'])) || (isNumber(d.currentSongIndex) && d.currentSongIndex >= -1)) &&
-             // playerLimit optional; if present reasonable (1..500)
-             (!(d.keys().hasAny(['playerLimit'])) || (isNumber(d.playerLimit) && d.playerLimit >= 1 && d.playerLimit <= 500)) &&
-             // creator assertion
-             d.createdBy == me() &&
-             isTimestamp(d.createdAt);
-    }
-
-    // Validate shape/types on update; allow partial updates but types must stay valid
-    function validGameUpdate(before, after) {
-      return after.keys().hasOnly(gameAllowedKeys()) &&
-             isString(after.name) && after.name.size() > 0 &&
-             isString(after.playlistId) &&
-             (after.status in ['new','running','paused','ended']) &&
-             isNumber(after.currentSongIndex) && after.currentSongIndex >= -1 &&
-             (!(after.keys().hasAny(['playerLimit'])) || (isNumber(after.playerLimit) && after.playerLimit >= 1 && after.playerLimit <= 500)) &&
-             // createdBy/createdAt are immutable
-             after.createdBy == before.createdBy &&
-             after.createdAt == before.createdAt;
-    }
-
-    /* ---------- Access control collections ---------- */
-
-    // Allow a signed-in user (or admins) to read their own status docs
-    match /employees/{userId} {
-      allow read: if isAdmin() || (isSignedIn() && me() == userId);
-      allow create, update, delete: if isAdmin();
-    }
-
-    match /admins/{userId} {
-      allow read: if isAdmin() || (isSignedIn() && me() == userId);
-      allow create, update, delete: if isAdmin();
-    }
-
-    /* ---------- App data ---------- */
-
-    // Anyone can submit an application; only admins can view/manage
-    match /Applications/{appId} {
+    /* ---------- applications (public submit; admins manage) ---------- */
+    match /applications/{appId} {
       allow create: if true;
       allow read, update, delete: if isAdmin();
     }
 
-    // Operational data — readable by active employees or if the doc is public
-    match /locations/{docId} {
-      allow read: if isActiveEmp() || isPublic(resource.data);
+    /* ---------- employees (admin only) ---------- */
+    match /employees/{uid} {
+      allow read, create, update, delete: if isAdmin();
+    }
+
+    /* ---------- operational data (employee read, admin manage) ---------- */
+    match /{col}/{id} where col in ["locations","shifts","scores","shiftTypes"] {
+      allow read: if isActiveEmp();
       allow create, update, delete: if isAdmin();
     }
 
-    match /shifts/{docId} {
-      allow read: if isActiveEmp() || isPublic(resource.data);
+    /* ---------- music bingo playlists ---------- */
+    // Playlists are not sensitive; allow public read so the host UI (and future
+    // public experiences) can list them without auth friction.
+    match /music_bingo/{playlistId} {
+      allow read: if true;
+      // Keep writes restricted to admins so content is curated.
       allow create, update, delete: if isAdmin();
     }
 
-    // GAME documents:
-    // - Employees can CREATE (for themselves) with valid shape.
-    // - Employees can UPDATE their own games with valid shape.
-    // - Admins can read/write any, and DELETE any.
+    /* ---------- games ---------- */
+    // Everyone can read games (player clients need this).
+    // Hosts/Admins can create & update; only admins can delete.
     match /games/{gameId} {
-      allow read: if isActiveEmp() || isAdmin() || isPublic(resource.data);
-
-      allow create: if isActiveEmp() && validGameCreate(request.resource.data);
-
-      allow update: if (
-        isAdmin() ||
-        (isActiveEmp() &&
-         resource.data.createdBy == me() &&
-         validGameUpdate(resource.data, request.resource.data))
-      );
-
+      allow read: if true;
+      allow create: if isHost();
+      allow update: if isHost();
       allow delete: if isAdmin();
     }
 
-    // Music Bingo playlists (curated content used by players)
-    match /music_bingo/{docId} {
-      allow read: if isPublic(resource.data) || isActiveEmp() || isAdmin();
-      allow create, update, delete: if isAdmin();
-    }
-
-    /* ---------- Default deny ---------- */
+    /* ---------- default deny ---------- */
     match /{document=**} {
       allow read, write: if false;
     }
