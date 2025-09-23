@@ -1,13 +1,14 @@
 // app.js — Host Music Bingo (QR enabled, CSS-class based)
 import {
   fetchPlaylists,
+  createGame,               // ✅ use data-layer helper to create the game
   getGame,
   updateGameSongIndex,
   updateGameStatus,
   getPlayerCount,
-  requireEmployee,         // ✅ ensure employee is signed in before reads/writes
-  watchPlayerCountRTDB,    // ✅ RTDB live player watcher
-  setGamePlayerCount       // ✅ mirror count to Firestore
+  requireEmployee,          // ✅ ensure employee is signed in before reads/writes
+  watchPlayerCountRTDB,     // ✅ RTDB live player watcher
+  setGamePlayerCount        // ✅ mirror count to Firestore
 } from './data.js';
 import { renderJoinQRCode } from './qr.js';
 
@@ -183,12 +184,9 @@ async function handleStartGame(e) {
     // Ensure auth at action time too (in case session expires)
     await requireEmployee();
 
-    // Create the game (rules require createdBy/createdAt)
-    const db = firebase.firestore();
-    const docRef = await createGame(db, name, playlistId, playerLimit);
+    // ✅ Create the game via data-layer helper (no global firebase usage here)
+    const game = await createGame({ playlistId, name, playerLimit });
 
-    // Fetch the created game to render UI
-    const game = await getGame(docRef.id);
     updateGameUI(game, playlistName);
 
     // ✅ Start live player watcher (RTDB)
