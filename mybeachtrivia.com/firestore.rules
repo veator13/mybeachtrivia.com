@@ -5,22 +5,28 @@ service cloud.firestore {
     /* ---------- helpers ---------- */
     function signedIn() { return request.auth != null; }
 
-    function empDoc() {
-      return signedIn()
-        ? get(/databases/$(database)/documents/employees/$(request.auth.uid))
-        : null;
+    function empPath() {
+      return /databases/$(database)/documents/employees/$(request.auth.uid);
+    }
+
+    function empExists() {
+      return signedIn() && exists(empPath());
+    }
+
+    function empData() {
+      return signedIn() ? get(empPath()).data : null;
     }
 
     function isActiveEmp() {
-      return empDoc().exists() && (empDoc().data.active == true);
+      return empExists() && (empData().active == true);
     }
 
     // roles can be an array ["admin","host"] or a map {admin:true, host:true}
     function hasRole(role) {
       return isActiveEmp() &&
         (
-          (empDoc().data.roles is list && role in empDoc().data.roles) ||
-          (empDoc().data.roles is map  && (empDoc().data.roles[role] == true))
+          (empData().roles is list && role in empData().roles) ||
+          (empData().roles is map  && (empData().roles[role] == true))
         );
     }
 
@@ -39,26 +45,23 @@ service cloud.firestore {
     }
 
     /* ---------- operational data (employee read, admin manage) ---------- */
-    // Use a generic match and restrict by collection name in the condition.
     match /{col}/{id} {
-      allow read: if (col in ["locations","shifts","scores","shiftTypes"]) && isActiveEmp();
+      allow read:  if (col in ["locations","shifts","scores","shiftTypes"]) && isActiveEmp();
       allow create, update, delete: if (col in ["locations","shifts","scores","shiftTypes"]) && isAdmin();
     }
 
     /* ---------- music bingo playlists ---------- */
-    // Public read so host UI (and future public UIs) can list playlists.
     match /music_bingo/{playlistId} {
-      allow read: if true;
+      allow read: if true;                 // public read
       allow create, update, delete: if isAdmin();
     }
 
     /* ---------- games ---------- */
-    // Players need to read; hosts/admins can create/update; delete kept to admins.
     match /games/{gameId} {
-      allow read: if true;
-      allow create: if isHost();
-      allow update: if isHost();
-      allow delete: if isAdmin();
+      allow read: if true;                 // players must read
+      allow create: if isHost();           // hosts/admins create
+      allow update: if isHost();           // hosts/admins update
+      allow delete: if isAdmin();          // only admins delete
     }
 
     /* ---------- default deny ---------- */
