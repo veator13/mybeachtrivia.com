@@ -1,7 +1,6 @@
 // app.js — Host Music Bingo (QR enabled, CSS-class based)
 import {
   fetchPlaylists,
-  createGame,
   getGame,
   updateGameSongIndex,
   updateGameStatus,
@@ -183,7 +182,13 @@ async function handleStartGame(e) {
   try {
     // Ensure auth at action time too (in case session expires)
     await requireEmployee();
-    const game = await createGame({ playlistId, name, playerLimit });
+
+    // Create the game (rules require createdBy/createdAt)
+    const db = firebase.firestore();
+    const docRef = await createGame(db, name, playlistId, playerLimit);
+
+    // Fetch the created game to render UI
+    const game = await getGame(docRef.id);
     updateGameUI(game, playlistName);
 
     // ✅ Start live player watcher (RTDB)
@@ -253,7 +258,8 @@ async function init() {
   } catch (e) {
     console.warn('[app] not signed in → redirecting to login:', e.message);
     const redirectTo = location.pathname + location.search + location.hash;
-    location.assign('/beachTriviaPages/login.html?redirect=' + encodeURIComponent(redirectTo));
+    // ✅ root login path to avoid nested 404s
+    location.assign('/login.html?redirect=' + encodeURIComponent(redirectTo));
     return; // stop init until after login
   }
 
@@ -296,3 +302,28 @@ async function init() {
 }
 
 init();
+
+/* ---------------- CREATE GAME (local helper) ---------------- */
+// Create a game as the signed-in employee (rules require createdBy/createdAt)
+async function createGame(db, name, playlistId, playerLimitInput) {
+  const uid = firebase.auth().currentUser?.uid;
+  if (!uid) throw new Error('Not signed in');
+
+  const data = {
+    name: String(name || '').trim(),
+    playlistId: String(playlistId || '').trim(),
+    status: 'new',                 // allowed: new|running|paused|ended
+    currentSongIndex: -1,          // start before first song
+    createdBy: uid,                // REQUIRED by rules
+    createdAt: firebase.firestore.FieldValue.serverTimestamp() // REQUIRED by rules
+  };
+
+  // Only include playerLimit if it’s a valid number (omit if empty/invalid)
+  const n = Number(playerLimitInput);
+  if (Number.isFinite(n) && n >= 1 && n <= 500) {
+    data.playerLimit = Math.floor(n);
+  }
+
+  // Write to /games
+  return db.collection('games').add(data);
+}
