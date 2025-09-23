@@ -1,14 +1,14 @@
 // app.js — Host Music Bingo (QR enabled, CSS-class based)
 import {
   fetchPlaylists,
-  createGame,
+  createGame,               // ✅ use data-layer helper to create the game
   getGame,
   updateGameSongIndex,
   updateGameStatus,
   getPlayerCount,
-  requireEmployee,         // ✅ ensure employee is signed in before reads/writes
-  watchPlayerCountRTDB,    // ✅ RTDB live player watcher
-  setGamePlayerCount       // ✅ mirror count to Firestore
+  requireEmployee,          // ✅ ensure employee is signed in before reads/writes
+  watchPlayerCountRTDB,     // ✅ RTDB live player watcher
+  setGamePlayerCount        // ✅ mirror count to Firestore
 } from './data.js';
 import { renderJoinQRCode } from './qr.js';
 
@@ -183,7 +183,10 @@ async function handleStartGame(e) {
   try {
     // Ensure auth at action time too (in case session expires)
     await requireEmployee();
+
+    // ✅ Create the game via data-layer helper (no global firebase usage here)
     const game = await createGame({ playlistId, name, playerLimit });
+
     updateGameUI(game, playlistName);
 
     // ✅ Start live player watcher (RTDB)
@@ -253,7 +256,8 @@ async function init() {
   } catch (e) {
     console.warn('[app] not signed in → redirecting to login:', e.message);
     const redirectTo = location.pathname + location.search + location.hash;
-    location.assign('/beachTriviaPages/login.html?redirect=' + encodeURIComponent(redirectTo));
+    // ✅ root login path to avoid nested 404s
+    location.assign('/login.html?redirect=' + encodeURIComponent(redirectTo));
     return; // stop init until after login
   }
 

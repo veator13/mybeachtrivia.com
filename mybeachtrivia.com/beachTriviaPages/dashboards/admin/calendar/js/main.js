@@ -396,10 +396,60 @@ function fetchAllDataFromFirebase() {
 document.addEventListener('DOMContentLoaded', () => {
   console.log('DOM Content Loaded – waiting for auth to initialize');
 
-  // Handle Proceed button early (unchanged)
+  // Handle Proceed button early (ENHANCED: now handles form conflicts too)
   elements.proceedBookingBtn.onclick = function () {
+    // Safety: ensure the form submit button isn't left disabled after proceeding
+    if (elements.submitButton) elements.submitButton.disabled = false;
+
     console.log("DIRECT: Proceed button clicked with global state:", globalMoveOperation);
 
+    // -- NEW: FORM add/edit path override --
+    if (state && state.pendingShiftData) {
+      const shiftData = state.pendingShiftData;
+      // Clear first to avoid reuse
+      state.pendingShiftData = null;
+      state.forceBooking = false;
+
+      if (elements.warningModal) {
+        elements.warningModal.style.display = 'none';
+        elements.warningModal.setAttribute('aria-hidden', 'true');
+      }
+
+      const isEdit = !!(state.isEditing && state.editingShiftId);
+      if (isEdit) {
+        const existing = shifts.find(s => String(s.id) === String(state.editingShiftId)) || {};
+        const merged = { ...existing, ...shiftData };
+
+        updateShiftInFirebase(String(state.editingShiftId), merged)
+          .then(() => {
+            const idx = shifts.findIndex(s => String(s.id) === String(state.editingShiftId));
+            if (idx !== -1) shifts[idx] = { id: state.editingShiftId, ...merged };
+            if (typeof closeShiftModal === 'function') { try { closeShiftModal(); } catch(_) {} }
+            if (typeof renderCalendar === 'function') renderCalendar();
+          })
+          .catch(err => {
+            console.error('[calendar] Proceed override UPDATE failed:', err);
+            alert('Could not save your changes. Please try again.');
+          });
+
+        return; // don't fall through to drag/copy
+      } else {
+        saveShiftToFirebase(shiftData)
+          .then(newId => {
+            shifts.push({ id: newId, ...shiftData });
+            if (typeof closeShiftModal === 'function') { try { closeShiftModal(); } catch(_) {} }
+            if (typeof renderCalendar === 'function') renderCalendar();
+          })
+          .catch(err => {
+            console.error('[calendar] Proceed override CREATE failed:', err);
+            alert('Could not save the event. Please try again.');
+          });
+
+        return; // don't fall through to drag/copy
+      }
+    }
+
+    // ---- Existing DRAG/COPY flows below ----
     if (globalMoveOperation.active) {
       // Day copy with conflicts
       if (globalMoveOperation.shifts && globalMoveOperation.shifts.length > 0) {
@@ -421,7 +471,7 @@ document.addEventListener('DOMContentLoaded', () => {
             notes: shift.notes
           };
 
-          savePromises.push(
+        savePromises.push(
             saveShiftToFirebase(newShiftData).then(newId => {
               const ns = { ...newShiftData, id: newId };
               if (state.collapsedShifts.has(shift.id)) state.collapsedShifts.add(ns.id);
@@ -434,9 +484,12 @@ document.addEventListener('DOMContentLoaded', () => {
         Promise.all(savePromises)
           .then(() => {
             shifts = [...shifts, ...newShifts];
-            elements.warningModal.style.display = 'none';
+            if (elements.warningModal) {
+              elements.warningModal.style.display = 'none';
+              elements.warningModal.setAttribute('aria-hidden', 'true');
+            }
             globalMoveOperation = { shiftId: null, targetDate: null, shifts: null, sourceDateStr: null, active: false, isCopy: false };
-            renderCalendar();
+            if (typeof renderCalendar === 'function') renderCalendar();
           })
           .catch(err => {
             console.error('Error saving shifts to Firebase:', err);
@@ -467,9 +520,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 const ns = { ...newShiftData, id: newId };
                 shifts.push(ns);
                 if (state.collapsedShifts.has(originalShift.id)) state.collapsedShifts.add(ns.id);
-                elements.warningModal.style.display = 'none';
+                if (elements.warningModal) {
+                  elements.warningModal.style.display = 'none';
+                  elements.warningModal.setAttribute('aria-hidden', 'true');
+                }
                 globalMoveOperation = { shiftId: null, targetDate: null, shifts: null, sourceDateStr: null, active: false, isCopy: false };
-                renderCalendar();
+                if (typeof renderCalendar === 'function') renderCalendar();
               })
               .catch(err => {
                 console.error('Error copying shift to Firebase:', err);
@@ -482,9 +538,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 const arr = shifts.filter(s => s.id !== shiftId);
                 arr.push(updatedShift);
                 shifts = arr;
-                elements.warningModal.style.display = 'none';
+                if (elements.warningModal) {
+                  elements.warningModal.style.display = 'none';
+                  elements.warningModal.setAttribute('aria-hidden', 'true');
+                }
                 globalMoveOperation = { shiftId: null, targetDate: null, shifts: null, sourceDateStr: null, active: false, isCopy: false };
-                renderCalendar();
+                if (typeof renderCalendar === 'function') renderCalendar();
               })
               .catch(err => {
                 console.error('Error moving shift in Firebase:', err);
@@ -497,10 +556,34 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Default fall-through
-    elements.warningModal.style.display = 'none';
+    if (elements.warningModal) {
+      elements.warningModal.style.display = 'none';
+      elements.warningModal.setAttribute('aria-hidden', 'true');
+    }
     globalMoveOperation = { shiftId: null, targetDate: null, shifts: null, sourceDateStr: null, active: false, isCopy: false };
-    renderCalendar();
+    if (typeof renderCalendar === 'function') renderCalendar();
   };
+
+  // UPDATED: ensure Cancel uses the centralized closer
+  if (elements.cancelBookingBtn) {
+    elements.cancelBookingBtn.onclick = function () {
+      if (typeof window.closeWarningModal === 'function') {
+        window.closeWarningModal();
+      } else {
+        // Fallback (shouldn't happen now)
+        if (elements.warningModal) {
+          elements.warningModal.style.display = 'none';
+          elements.warningModal.setAttribute('aria-hidden', 'true');
+        }
+        state.pendingShiftData = null;
+        state.forceBooking = false;
+        if (elements.submitButton) elements.submitButton.disabled = false;
+        if (elements.submitButton && elements.submitButton.focus) {
+          try { elements.submitButton.focus(); } catch(_) {}
+        }
+      }
+    };
+  }
 
   // >>> Wait for Firebase Auth before touching Firestore <<<
   firebase.auth().onAuthStateChanged(async (user) => {
