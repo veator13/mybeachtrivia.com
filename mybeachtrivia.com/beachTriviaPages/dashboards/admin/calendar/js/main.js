@@ -398,6 +398,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Handle Proceed button early (ENHANCED: now handles form conflicts too)
   elements.proceedBookingBtn.onclick = function () {
+    // Safety: ensure the form submit button isn't left disabled after proceeding
+    if (elements.submitButton) elements.submitButton.disabled = false;
+
     console.log("DIRECT: Proceed button clicked with global state:", globalMoveOperation);
 
     // -- NEW: FORM add/edit path override --
@@ -468,7 +471,7 @@ document.addEventListener('DOMContentLoaded', () => {
             notes: shift.notes
           };
 
-          savePromises.push(
+        savePromises.push(
             saveShiftToFirebase(newShiftData).then(newId => {
               const ns = { ...newShiftData, id: newId };
               if (state.collapsedShifts.has(shift.id)) state.collapsedShifts.add(ns.id);
@@ -561,17 +564,23 @@ document.addEventListener('DOMContentLoaded', () => {
     if (typeof renderCalendar === 'function') renderCalendar();
   };
 
-  // NEW: ensure Cancel clears pending forced save from form flow
+  // UPDATED: ensure Cancel uses the centralized closer
   if (elements.cancelBookingBtn) {
     elements.cancelBookingBtn.onclick = function () {
-      state.pendingShiftData = null;
-      state.forceBooking = false;
-      if (elements.warningModal) {
-        elements.warningModal.style.display = 'none';
-        elements.warningModal.setAttribute('aria-hidden', 'true');
-      }
-      if (elements.submitButton && elements.submitButton.focus) {
-        try { elements.submitButton.focus(); } catch(_) {}
+      if (typeof window.closeWarningModal === 'function') {
+        window.closeWarningModal();
+      } else {
+        // Fallback (shouldn't happen now)
+        if (elements.warningModal) {
+          elements.warningModal.style.display = 'none';
+          elements.warningModal.setAttribute('aria-hidden', 'true');
+        }
+        state.pendingShiftData = null;
+        state.forceBooking = false;
+        if (elements.submitButton) elements.submitButton.disabled = false;
+        if (elements.submitButton && elements.submitButton.focus) {
+          try { elements.submitButton.focus(); } catch(_) {}
+        }
       }
     };
   }
