@@ -1,19 +1,21 @@
-// Firestore Rules
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /* ---------- helpers ---------- */
     function signedIn() { return request.auth != null; }
+
     function empDoc() {
       return signedIn()
         ? get(/databases/$(database)/documents/employees/$(request.auth.uid))
         : null;
     }
+
     function isActiveEmp() {
       return empDoc().exists() && (empDoc().data.active == true);
     }
-    // roles can be an array like ["admin","host"] or an object with booleans
+
+    // roles can be an array ["admin","host"] or a map {admin:true, host:true}
     function hasRole(role) {
       return isActiveEmp() &&
         (
@@ -21,6 +23,7 @@ service cloud.firestore {
           (empDoc().data.roles is map  && (empDoc().data.roles[role] == true))
         );
     }
+
     function isAdmin() { return hasRole("admin"); }
     function isHost()  { return hasRole("host") || isAdmin(); }
 
@@ -36,23 +39,21 @@ service cloud.firestore {
     }
 
     /* ---------- operational data (employee read, admin manage) ---------- */
-    match /{col}/{id} where col in ["locations","shifts","scores","shiftTypes"] {
-      allow read: if isActiveEmp();
-      allow create, update, delete: if isAdmin();
+    // Use a generic match and restrict by collection name in the condition.
+    match /{col}/{id} {
+      allow read: if (col in ["locations","shifts","scores","shiftTypes"]) && isActiveEmp();
+      allow create, update, delete: if (col in ["locations","shifts","scores","shiftTypes"]) && isAdmin();
     }
 
     /* ---------- music bingo playlists ---------- */
-    // Playlists are not sensitive; allow public read so the host UI (and future
-    // public experiences) can list them without auth friction.
+    // Public read so host UI (and future public UIs) can list playlists.
     match /music_bingo/{playlistId} {
       allow read: if true;
-      // Keep writes restricted to admins so content is curated.
       allow create, update, delete: if isAdmin();
     }
 
     /* ---------- games ---------- */
-    // Everyone can read games (player clients need this).
-    // Hosts/Admins can create & update; only admins can delete.
+    // Players need to read; hosts/admins can create/update; delete kept to admins.
     match /games/{gameId} {
       allow read: if true;
       allow create: if isHost();
