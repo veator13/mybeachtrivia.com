@@ -19,57 +19,27 @@
       },
       {
         "source": "/login.js",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "no-store"
-          }
-        ]
+        "headers": [{ "key": "Cache-Control", "value": "no-store" }]
       },
       {
         "source": "/firebase-init.js",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "no-store"
-          }
-        ]
+        "headers": [{ "key": "Cache-Control", "value": "no-store" }]
       },
       {
         "source": "/firebase-fallback.js",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "no-store"
-          }
-        ]
+        "headers": [{ "key": "Cache-Control", "value": "no-store" }]
       },
       {
         "source": "/login.html",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "no-store"
-          }
-        ]
+        "headers": [{ "key": "Cache-Control", "value": "no-store" }]
       },
       {
         "source": "/start-google.html",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "no-store"
-          }
-        ]
+        "headers": [{ "key": "Cache-Control", "value": "no-store" }]
       },
       {
         "source": "/start-google.js",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "no-store"
-          }
-        ]
+        "headers": [{ "key": "Cache-Control", "value": "no-store" }]
       }
     ]
   },
