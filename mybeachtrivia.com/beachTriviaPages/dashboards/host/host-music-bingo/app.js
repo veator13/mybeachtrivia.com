@@ -302,28 +302,3 @@ async function init() {
 }
 
 init();
-
-/* ---------------- CREATE GAME (local helper) ---------------- */
-// Create a game as the signed-in employee (rules require createdBy/createdAt)
-async function createGame(db, name, playlistId, playerLimitInput) {
-  const uid = firebase.auth().currentUser?.uid;
-  if (!uid) throw new Error('Not signed in');
-
-  const data = {
-    name: String(name || '').trim(),
-    playlistId: String(playlistId || '').trim(),
-    status: 'new',                 // allowed: new|running|paused|ended
-    currentSongIndex: -1,          // start before first song
-    createdBy: uid,                // REQUIRED by rules
-    createdAt: firebase.firestore.FieldValue.serverTimestamp() // REQUIRED by rules
-  };
-
-  // Only include playerLimit if it’s a valid number (omit if empty/invalid)
-  const n = Number(playerLimitInput);
-  if (Number.isFinite(n) && n >= 1 && n <= 500) {
-    data.playerLimit = Math.floor(n);
-  }
-
-  // Write to /games
-  return db.collection('games').add(data);
-}
