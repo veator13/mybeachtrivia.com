@@ -5,6 +5,23 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Login - Beach Trivia</title>
 
+  <!-- ✅ Content Security Policy (allow Firebase + Google OAuth only) -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    base-uri 'self';
+    script-src 'self' 'unsafe-eval' https://www.gstatic.com https://apis.google.com https://www.googleapis.com;
+    style-src  'self' 'unsafe-inline';
+    img-src    'self' data: https://www.gstatic.com;
+    connect-src 'self'
+      https://firestore.googleapis.com
+      https://www.googleapis.com
+      https://apis.google.com
+      https://identitytoolkit.googleapis.com
+      https://securetoken.googleapis.com;
+    frame-src 'self' https://accounts.google.com https://apis.google.com;
+    frame-ancestors 'self';
+  ">
+
   <!-- Silence /favicon.ico 404 in console -->
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg'/>">
 
@@ -109,7 +126,7 @@
     </div>
   </div>
 
-  <!-- Page logic (uses redirect for Google; CSP-safe) -->
+  <!-- Page logic (uses redirect to /start-google.html) -->
   <script src="/login.js?v=uidfix8"></script>
   <!-- Fallback loader (only runs if SDKs failed to load) -->
   <script src="/firebase-fallback.js?v=1"></script>
