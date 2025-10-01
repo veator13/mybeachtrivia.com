@@ -23,7 +23,15 @@
   <!-- Preload SDKs (performance hint) -->
   <link rel="preload" href="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js" as="script">
   <link rel="preload" href="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js" as="script">
-  <link rel="preload" href="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js" as="script">
+  <script>
+    // Lazy-load Firestore only when needed
+    window.ensureFirestore = () => new Promise((resolve, reject) => {
+      if (firebase.firestore) return resolve();
+      const s = document.createElement("script");
+      s.async = true; s.onload = resolve; s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  </script>
 
   <!-- Local CSS only (no external icon CDN) -->
   <link rel="stylesheet" href="/login.css">
@@ -32,7 +40,7 @@
   <!-- Firebase SDKs (compat) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
-<!--   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script> -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
 
   <!-- Initialize Firebase BEFORE page logic -->
   <script src="/firebase-init.js?v=2"></script>
