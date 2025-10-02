@@ -1,0 +1,304 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: 'Poppins', 'Roboto', sans-serif; /* Modern font */
+}
+
+body {
+    background-color: #121212; /* Dark background */
+    color: #FFFFFF;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    touch-action: pan-y;
+}
+
+.game-title {
+    font-size: 2rem;
+    margin-bottom: 20px;
+    color: #FFFFFF;
+    text-align: center;
+    font-weight: 600;
+    text-shadow: 0 0 10px rgba(131, 56, 236, 0.5); /* Purple glow */
+}
+
+.bingo-container {
+    width: 95vw;
+    max-width: 450px;
+    background-color: #1E1E1E; /* Dark gray background */
+    border-radius: 15px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3), 0 0 20px rgba(131, 56, 236, 0.2); /* Shadow with purple accent */
+    overflow: hidden;
+    position: relative;
+    padding-bottom: 40px; /* Added padding to make room for the navigation dots */
+}
+
+.boards-wrapper {
+    display: flex;
+    transition: transform 0.3s ease;
+    width: 200%;
+}
+
+.bingo-board {
+    width: 50%;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px; /* Increased gap */
+    padding: 12px; /* Increased padding */
+}
+
+.bingo-cell {
+    aspect-ratio: 1;
+    border: none; /* Removed border */
+    border-radius: 8px; /* Rounded corners */
+    background-color: #2A2A2A; /* Slightly lighter than board background */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    font-size: 0.75rem;
+    position: relative;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    word-wrap: break-word;
+    padding: 4px;
+    line-height: 1.1;
+    overflow: hidden;
+    height: 100%;
+    color: #CCCCCC; /* Light gray text */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); /* Subtle shadow */
+}
+
+.bingo-cell:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    background-color: #333333;
+}
+
+.bingo-cell.matched {
+    background: linear-gradient(135deg, #8338EC, #5E60CE); /* Purple gradient */
+    color: white;
+    transform: scale(1.02);
+    box-shadow: 0 0 10px rgba(131, 56, 236, 0.4);
+}
+
+.bingo-cell.center-cell {
+    background-image: url('../images/BTlogo-Round-Border.png');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-color: #2A2A2A; /* In case the image has transparency */
+    box-shadow: 0 0 15px rgba(131, 56, 236, 0.5);
+}
+
+.board-nav {
+    position: absolute;
+    bottom: 12px; /* Moved up slightly from bottom edge */
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+    z-index: 5; /* Ensure they appear above other elements */
+}
+
+.board-dot {
+    width: 10px;
+    height: 10px;
+    background-color: #444444;
+    border-radius: 50%;
+    transition: background-color 0.2s, transform 0.2s;
+}
+
+.board-dot.active {
+    background-color: #8338EC; /* Purple accent */
+    transform: scale(1.2);
+}
+
+.swipe-hint {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 30px;
+    height: 50px;
+    background: rgba(131, 56, 236, 0.2); /* Purple tint */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.7;
+    z-index: 10;
+    transition: opacity 0.2s, background 0.2s;
+    color: white;
+}
+
+.swipe-hint:hover {
+    opacity: 1;
+    background: rgba(131, 56, 236, 0.4);
+}
+
+.swipe-hint.left {
+    left: 0;
+    border-top-right-radius: 25px;
+    border-bottom-right-radius: 25px;
+}
+
+.swipe-hint.right {
+    right: 0;
+    border-top-left-radius: 25px;
+    border-bottom-left-radius: 25px;
+}
+
+.controls {
+    display: flex;
+    justify-content: center;
+    margin-top: 20px;
+    gap: 15px;
+}
+
+.btn {
+    padding: 10px 20px;
+    background: linear-gradient(135deg, #8338EC, #5E60CE); /* Purple gradient */
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+    font-weight: 500;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+}
+
+.btn:active {
+    transform: translateY(1px);
+}
+
+.bingo-message {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: linear-gradient(135deg, #1E1E1E, #2A2A2A);
+    padding: 25px;
+    border-radius: 15px;
+    box-shadow: 0 0 30px rgba(131, 56, 236, 0.5);
+    z-index: 100;
+    text-align: center;
+    color: white;
+    animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    border: 1px solid rgba(131, 56, 236, 0.3);
+}
+
+@keyframes popIn {
+    0% {
+        transform: translate(-50%, -50%) scale(0.8);
+        opacity: 0;
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 1;
+    }
+}
+
+.bingo-message h2 {
+    color: #8338EC;
+    margin-bottom: 15px;
+    font-size: 2rem;
+    font-weight: 700;
+    text-shadow: 0 0 10px rgba(131, 56, 236, 0.7);
+}
+
+.board-selector {
+    margin-top: 10px;
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+}
+
+.board-btn {
+    padding: 6px 16px;
+    background-color: #2A2A2A;
+    border: none;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    color: #CCCCCC;
+    transition: all 0.2s;
+}
+
+.board-btn:hover {
+    background-color: #333333;
+    transform: translateY(-1px);
+}
+
+.board-btn.active {
+    background: linear-gradient(135deg, #8338EC, #5E60CE);
+    color: white;
+    box-shadow: 0 2px 8px rgba(131, 56, 236, 0.4);
+}
+
+/* Song notification styles */
+.song-notification {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(135deg, #8338EC, #5E60CE);
+    color: white;
+    padding: 15px 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 15px rgba(131, 56, 236, 0.4);
+    z-index: 1000;
+    text-align: center;
+    animation: fadeInOut 5s forwards;
+    pointer-events: none;
+    max-width: 90%;
+}
+
+@keyframes fadeInOut {
+    0% { opacity: 0; transform: translate(-50%, -20px); }
+    10% { opacity: 1; transform: translate(-50%, 0); }
+    80% { opacity: 1; }
+    100% { opacity: 0; }
+}
+
+/* Improved mobile responsiveness */
+@media (max-width: 400px) {
+    .bingo-cell {
+        font-size: 0.7rem;
+        padding: 2px;
+    }
+    
+    .game-title {
+        font-size: 1.7rem;
+        margin-bottom: 10px;
+    }
+    
+    .bingo-container {
+        width: 98vw;
+    }
+    
+    .bingo-board {
+        gap: 4px;
+        padding: 8px;
+    }
+    
+    .song-notification {
+        padding: 10px 15px;
+        font-size: 0.9rem;
+    }
+}
+
+@media (max-width: 320px) {
+    .bingo-cell {
+        font-size: 0.65rem;
+        padding: 1px;
+    }
+}

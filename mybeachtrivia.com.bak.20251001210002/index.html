@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Beach Trivia</title>
+
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- Firebase SDK - Compat to match login.js -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+
+  <!-- Shared Firebase init (replaces inline initializeApp) -->
+  <script src="/firebase-init.js?v=1"></script>
+
+  <!-- Page logic moved out of inline script (CSP-safe).
+       I'll provide /home.js next; this just references it. -->
+  <script src="/home.js?v=1" defer></script>
+</head>
+<body>
+  <nav>
+    <div class="logo-container">
+      <a href="index.html">
+        <img src="beachTriviaPages/images/BTlogo.png" alt="Beach Trivia Logo" />
+      </a>
+    </div>
+
+    <!-- Direct link still works if not signed in; /home.js will change text to "MY DASHBOARD" when signed in -->
+    <a href="login.html" class="login-button" id="loginButton">LOGIN</a>
+
+    <div class="navigation-menu">
+      <a href="beachTriviaPages/1-GetStarted/index.html" class="menu-button">GET STARTED</a>
+      <a href="beachTriviaPages/2-OurServices/index.html" class="menu-button">OUR SERVICES</a>
+      <a href="beachTriviaPages/3-Locations/index.html" class="menu-button">LOCATIONS</a>
+      <a href="beachTriviaPages/4-JoinOurTeam/index.html" class="menu-button">JOIN OUR TEAM</a>
+      <a href="beachTriviaPages/5-AboutUs/index.html" class="menu-button">ABOUT US</a>
+      <a href="beachTriviaPages/6-Tournament/index.html" class="menu-button">TOURNAMENT</a>
+    </div>
+
+    <div class="social-links">
+      <a href="https://www.facebook.com/BeachTrivia" target="_blank" rel="noopener noreferrer">
+        <img src="beachTriviaPages/images/FBlogo.png" alt="Facebook" />
+      </a>
+      <a href="mailto:mybeachtrivia@gmail.com">
+        <img src="beachTriviaPages/images/GMAILlogo2.png" alt="Email" />
+      </a>
+      <a href="https://www.instagram.com/beachtrivia/" target="_blank" rel="noopener noreferrer">
+        <img src="beachTriviaPages/images/INSTAlogo2.png" alt="Instagram" />
+      </a>
+    </div>
+  </nav>
+</body>
+</html>

@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Beach Trivia Calendar</title>
+
+  <link rel="stylesheet" href="css/styles.css" />
+
+  <style>
+    /* Toggle Switch Styling */
+    .toggle-group { display: flex; flex-direction: column; }
+    .toggle-switch-container { display: flex; align-items: center; gap: 10px; margin-top: 5px; }
+    .toggle-switch { position: relative; display: inline-block; width: 50px; height: 24px; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #2e4561; transition: .4s; border-radius: 24px; }
+    .toggle-slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: #e0e0e0; transition: .4s; border-radius: 50%; }
+    input:checked + .toggle-slider { background-color: #3699ff; }
+    input:focus + .toggle-slider { box-shadow: 0 0 1px #3699ff; }
+    input:checked + .toggle-slider:before { transform: translateX(26px); }
+    .toggle-label { color: var(--text-primary); font-size: 14px; }
+
+    /* Simple guard UI */
+    #auth-loading { display: flex; align-items: center; justify-content: center; padding: 24px; }
+    #error-container { display: none; align-items: center; justify-content: center; padding: 24px; gap: 12px; flex-direction: column; }
+    .dashboard-container { display: none; }
+    .btn { padding: 8px 12px; border: 0; border-radius: 6px; cursor: pointer; }
+    .btn.primary { background: #2e4561; color: #fff; }
+    .btn.ghost { background: transparent; color: #2e4561; border: 1px solid #2e4561; }
+  </style>
+</head>
+
+<body>
+  <!-- Guard status UI (optional, used by guard-admin.js if present) -->
+  <div id="auth-loading" aria-live="polite">Checking admin access…</div>
+  <div id="error-container" role="alert">
+    <div id="error-text">You do not have permission to access this page.</div>
+    <div style="display:flex; gap:8px;">
+      <button id="back-to-login" class="btn ghost">Back to Login</button>
+      <button id="logout-btn" class="btn primary">Sign out</button>
+    </div>
+  </div>
+
+  <!-- MAIN CONTENT (hidden until guard allows) -->
+  <div class="dashboard-container">
+    <div class="container">
+      <header>
+        <h1>Beach Trivia Calendar</h1>
+        <div style="opacity:.8; font-size:.9rem;">Welcome, <span id="user-display-name">Admin</span></div>
+      </header>
+
+      <div class="controls">
+        <div class="date-nav">
+          <button id="prev-month" aria-label="Previous month">Previous</button>
+          <h2 class="month-display" id="current-month">March 2025</h2>
+          <button id="next-month" aria-label="Next month">Next</button>
+        </div>
+
+        <div class="filters">
+          <div class="filter-group employee-filter">
+            <label for="employee-select">Host:</label>
+            <select id="employee-select" aria-label="Filter by host">
+              <option value="all">All Hosts</option>
+              <option value="1">Rob C.</option>
+              <option value="2">Grayson B.</option>
+              <option value="3">Michael S.</option>
+              <option value="4">Sarah D.</option>
+            </select>
+          </div>
+
+          <div class="filter-group event-filter">
+            <label for="event-select">Event:</label>
+            <select id="event-select" aria-label="Filter by event type">
+              <option value="all">All Events</option>
+              <option value="classic-trivia">Classic Trivia</option>
+              <option value="themed-trivia">Themed Trivia</option>
+              <option value="classic-bingo">Classic Bingo</option>
+              <option value="music-bingo">Music Bingo</option>
+              <option value="beach-feud">Beach Feud</option>
+            </select>
+          </div>
+
+          <div class="filter-group location-filter">
+            <label for="location-select">Location:</label>
+            <select id="location-select" aria-label="Filter by location">
+              <option value="all">All Locations</option>
+              <option value="Sly Clyde">Sly Clyde</option>
+              <option value="COVA Brewing Company">COVA Brewing Company</option>
+              <option value="Warriors Taphouse">Warriors Taphouse</option>
+            </select>
+          </div>
+
+          <div class="filter-group view-buttons">
+            <label>View:</label>
+            <div class="button-group-inline">
+              <button id="expand-all-btn" class="small-btn" aria-label="Expand all shifts">Expand All</button>
+              <button id="collapse-all-btn" class="small-btn" aria-label="Collapse all shifts">Collapse All</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="calendar-container">
+        <!-- Month navigation drop zones -->
+        <div id="prev-month-dropzone" class="month-nav-dropzone left" aria-label="Drop to move to previous month">
+          <div class="dropzone-text"><span>◄</span><br /><span>Previous<br />Month</span></div>
+        </div>
+        <div id="next-month-dropzone" class="month-nav-dropzone right" aria-label="Drop to move to next month">
+          <div class="dropzone-text"><span>►</span><br /><span>Next<br />Month</span></div>
+        </div>
+
+        <table class="calendar" id="calendar" aria-label="Beach Trivia Calendar">
+          <caption class="sr-only">Monthly calendar showing scheduled events</caption>
+          <thead>
+            <tr>
+              <th scope="col" class="week-copy-header"></th>
+              <th scope="col">Sunday</th>
+              <th scope="col">Monday</th>
+              <th scope="col">Tuesday</th>
+              <th scope="col">Wednesday</th>
+              <th scope="col">Thursday</th>
+              <th scope="col">Friday</th>
+              <th scope="col">Saturday</th>
+              <th scope="col" class="week-copy-header"></th>
+            </tr>
+          </thead>
+          <tbody id="calendar-body">
+            <!-- Calendar will be generated with JavaScript -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Add Shift Modal -->
+    <div class="modal" id="shift-modal" role="dialog" aria-labelledby="modal-title" aria-hidden="true">
+      <div class="modal-content">
+        <h2 id="modal-title">Add New Event</h2>
+        <form id="shift-form">
+          <div class="form-group">
+            <label for="shift-date">Date:</label>
+            <input type="date" id="shift-date" required aria-describedby="date-hint" />
+            <small id="date-hint" class="form-hint">Select the date for this event</small>
+          </div>
+
+          <div class="form-group">
+            <label for="shift-employee">Host:</label>
+            <div class="select-with-button">
+              <select id="shift-employee" required aria-describedby="host-hint">
+                <option value="">Select Host</option>
+                <option value="1">Rob C.</option>
+                <option value="2">Grayson B.</option>
+                <option value="3">Michael S.</option>
+                <option value="4">Sarah D.</option>
+              </select>
+              <button type="button" id="add-new-host-btn" class="add-host-btn" aria-label="Add a new host">+</button>
+            </div>
+            <small id="host-hint" class="form-hint">Choose who will host this event</small>
+          </div>
+
+          <div class="time-inputs">
+            <div class="form-group time-select">
+              <label for="start-time">Start Time:</label>
+              <select id="start-time" required aria-describedby="start-time-hint">
+                <option value="">Select</option>
+              </select>
+              <small id="start-time-hint" class="form-hint">Event start time</small>
+            </div>
+            <div class="form-group time-select">
+              <label for="end-time">End Time:</label>
+              <select id="end-time" required aria-describedby="end-time-hint">
+                <option value="">Select</option>
+              </select>
+              <small id="end-time-hint" class="form-hint">Event end time</small>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="shift-type">Event Type:</label>
+            <select id="shift-type" required aria-describedby="event-type-hint">
+              <option value="">Select Event Type</option>
+              <option value="classic-trivia">Classic Trivia</option>
+              <option value="themed-trivia">Themed Trivia</option>
+              <option value="classic-bingo">Classic Bingo</option>
+              <option value="music-bingo">Music Bingo</option>
+              <option value="beach-feud">Beach Feud</option>
+            </select>
+            <small id="event-type-hint" class="form-hint">Type of event being scheduled</small>
+          </div>
+
+          <div class="form-group conditional-field" id="theme-field">
+            <label for="shift-theme">Theme Name:</label>
+            <input type="text" id="shift-theme" placeholder="Enter theme name" aria-describedby="theme-hint" />
+            <small id="theme-hint" class="form-hint">Required for themed trivia events</small>
+          </div>
+
+          <div class="form-group">
+            <label for="shift-location">Location:</label>
+            <div class="select-with-button">
+              <select id="shift-location" required aria-describedby="location-hint">
+                <option value="">Select Location</option>
+                <option value="Sly Clyde">Sly Clyde</option>
+                <option value="COVA Brewing Company">COVA Brewing Company</option>
+                <option value="Warriors Taphouse">Warriors Taphouse</option>
+              </select>
+              <button type="button" id="add-new-location-btn" class="add-host-btn" aria-label="Add a new location">+</button>
+            </div>
+            <small id="location-hint" class="form-hint">Where the event will be held</small>
+          </div>
+
+          <div class="form-group">
+            <label for="shift-notes">Notes:</label>
+            <input type="text" id="shift-notes" aria-describedby="notes-hint" />
+            <small id="notes-hint" class="form-hint">Optional additional information</small>
+          </div>
+
+          <div class="spacer"></div>
+        </form>
+        <div class="button-group">
+          <button type="button" class="cancel" id="cancel-shift">Cancel</button>
+          <button type="submit" form="shift-form">Save Event</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Same-Day Booking Warning Modal -->
+    <div class="modal" id="warning-modal" role="dialog" aria-labelledby="warning-title" aria-hidden="true">
+      <div class="modal-content warning">
+        <h2 id="warning-title">Same-Day Event Warning</h2>
+        <div class="warning-message">
+          <p id="warning-text">This host already has another event scheduled on this date.</p>
+          <div class="conflict-details" id="conflict-details" aria-live="polite"></div>
+        </div>
+        <div class="button-group">
+          <button type="button" class="cancel" id="cancel-booking">Cancel</button>
+          <button type="button" class="proceed" id="proceed-booking">Proceed Anyway</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Clear Day Modal -->
+    <div class="modal" id="clear-day-modal" role="dialog" aria-labelledby="clear-day-title" aria-hidden="true">
+      <div class="modal-content warning">
+        <h2 id="clear-day-title">Clear Events</h2>
+        <div class="warning-message">
+          <p id="clear-day-warning">Are you sure you want to delete all events on this date?</p>
+          <div class="day-details" id="day-events-list"></div>
+        </div>
+        <div class="button-group">
+          <button type="button" class="cancel" id="cancel-clear-day">Cancel</button>
+          <button type="button" class="danger-proceed" id="confirm-clear-day">Delete All Events</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- New Host Modal -->
+    <div class="modal" id="new-host-modal" role="dialog" aria-labelledby="new-host-title" aria-hidden="true">
+      <div class="modal-content">
+        <h2 id="new-host-title">Add New Host</h2>
+        <form id="new-host-form">
+          <div class="form-group">
+            <label for="new-host-firstname">First Name:</label>
+            <input type="text" id="new-host-firstname" required aria-describedby="firstname-hint" placeholder="Enter first name" />
+            <small id="firstname-hint" class="form-hint">Enter the first name of the host</small>
+          </div>
+
+          <div class="form-group">
+            <label for="new-host-lastname">Last Name:</label>
+            <input type="text" id="new-host-lastname" required aria-describedby="lastname-hint" placeholder="Enter last name" />
+            <small id="lastname-hint" class="form-hint">Enter the last name of the host</small>
+          </div>
+
+          <div class="form-group">
+            <label for="new-host-nickname">Nickname:</label>
+            <input type="text" id="new-host-nickname" aria-describedby="nickname-hint" placeholder="Enter nickname (optional)" />
+            <small id="nickname-hint" class="form-hint">Enter the nickname of the host (if applicable)</small>
+          </div>
+
+          <div class="form-group">
+            <label for="new-host-phone">Phone:</label>
+            <input type="tel" id="new-host-phone" aria-describedby="phone-hint" placeholder="Enter phone number" />
+            <small id="phone-hint" class="form-hint">Enter the host's phone number</small>
+          </div>
+
+          <div class="form-group">
+            <label for="new-host-email">Email:</label>
+            <input type="email" id="new-host-email" aria-describedby="email-hint" placeholder="Enter email address" />
+            <small id="email-hint" class="form-hint">Enter the host's email address</small>
+          </div>
+
+          <div class="form-group">
+            <label for="new-host-emergency-contact">Emergency Contact:</label>
+            <input type="text" id="new-host-emergency-contact" aria-describedby="emergency-contact-hint" placeholder="Enter emergency contact name" />
+            <small id="emergency-contact-hint" class="form-hint">Enter name of emergency contact</small>
+          </div>
+
+          <div class="form-group">
+            <label for="new-host-emergency-phone">Emergency Phone:</label>
+            <input type="tel" id="new-host-emergency-phone" aria-describedby="emergency-phone-hint" placeholder="Enter emergency contact phone" />
+            <small id="emergency-phone-hint" class="form-hint">Enter phone number of emergency contact</small>
+          </div>
+
+          <div class="form-group">
+            <label for="new-host-employee-id">Employee ID:</label>
+            <input type="text" id="new-host-employee-id" aria-describedby="employee-id-hint" placeholder="Enter employee ID number" />
+            <small id="employee-id-hint" class="form-hint">Enter the host's employee ID number</small>
+          </div>
+
+          <div class="form-group toggle-group">
+            <label for="new-host-active">Active:</label>
+            <div class="toggle-switch-container">
+              <label class="toggle-switch">
+                <input type="checkbox" id="new-host-active" checked />
+                <span class="toggle-slider"></span>
+              </label>
+              <span class="toggle-label">Active</span>
+            </div>
+            <small id="active-hint" class="form-hint">Toggle whether this host is currently active</small>
+          </div>
+
+          <div class="spacer"></div>
+        </form>
+        <div class="button-group">
+          <button type="button" class="cancel" id="cancel-new-host">Cancel</button>
+          <button type="submit" form="new-host-form" id="save-new-host">Save Host</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- New Location Modal -->
+    <div class="modal" id="new-location-modal" role="dialog" aria-labelledby="new-location-title" aria-hidden="true">
+      <div class="modal-content">
+        <h2 id="new-location-title">Add New Location</h2>
+        <form id="new-location-form">
+          <div class="form-group">
+            <label for="new-location-name">Location Name:</label>
+            <input type="text" id="new-location-name" required aria-describedby="new-location-hint" placeholder="Enter location name" />
+            <small id="new-location-hint" class="form-hint">Enter the name of the new location</small>
+          </div>
+
+          <div class="form-group">
+            <label for="new-location-address">Address:</label>
+            <input type="text" id="new-location-address" aria-describedby="address-hint" placeholder="Enter location address" />
+            <small id="address-hint" class="form-hint">Enter the address of the location</small>
+          </div>
+
+          <div class="form-group">
+            <label for="new-location-contact">Primary Contact:</label>
+            <input type="text" id="new-location-contact" aria-describedby="contact-hint" placeholder="Enter primary contact name" />
+            <small id="contact-hint" class="form-hint">Enter the name of the primary contact person</small>
+          </div>
+
+          <div class="form-group">
+            <label for="new-location-phone">Phone:</label>
+            <input type="tel" id="new-location-phone" aria-describedby="location-phone-hint" placeholder="Enter phone number" />
+            <small id="location-phone-hint" class="form-hint">Enter the location's phone number</small>
+          </div>
+
+          <div class="form-group">
+            <label for="new-location-email">Email:</label>
+            <input type="email" id="new-location-email" aria-describedby="location-email-hint" placeholder="Enter email address" />
+            <small id="location-email-hint" class="form-hint">Enter the location's email address</small>
+          </div>
+
+          <div class="form-group toggle-group">
+            <label for="new-location-active">Active:</label>
+            <div class="toggle-switch-container">
+              <label class="toggle-switch">
+                <input type="checkbox" id="new-location-active" checked />
+                <span class="toggle-slider"></span>
+              </label>
+              <span class="toggle-label">Active</span>
+            </div>
+            <small id="location-active-hint" class="form-hint">Toggle whether this location is currently active</small>
+          </div>
+
+          <div class="spacer"></div>
+        </form>
+        <div class="button-group">
+          <button type="button" class="cancel" id="cancel-new-location">Cancel</button>
+          <button type="submit" form="new-location-form" id="save-new-location">Save Location</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Copy Shift Modal -->
+    <div class="modal" id="copy-shift-modal" role="dialog" aria-labelledby="copy-shift-title" aria-hidden="true">
+      <div class="modal-content">
+        <h2 id="copy-shift-title">Copy Event</h2>
+        <form id="copy-shift-form">
+          <div class="form-group">
+            <label for="copy-method">Copy Method:</label>
+            <select id="copy-method" required aria-describedby="copy-method-hint" onchange="toggleRecurringOptions()">
+              <option value="single">Single Date</option>
+              <option value="weekly">Weekly Recurring</option>
+            </select>
+            <small id="copy-method-hint" class="form-hint">Choose how to copy this event</small>
+          </div>
+
+          <div class="form-group">
+            <label for="copy-date">Target Date:</label>
+            <input type="date" id="copy-date" required aria-describedby="copy-date-hint" />
+            <small id="copy-date-hint" class="form-hint">Select the date to copy to</small>
+          </div>
+
+          <div class="form-group conditional-field" id="recurring-options" style="display: none;">
+            <label for="recurring-weeks">Number of Weeks:</label>
+            <input type="number" id="recurring-weeks" min="1" max="52" value="4" aria-describedby="recurring-weeks-hint" />
+            <small id="recurring-weeks-hint" class="form-hint">Number of weekly occurrences to create</small>
+          </div>
+
+          <div class="spacer"></div>
+        </form>
+        <div class="button-group">
+          <button type="button" class="cancel" id="cancel-copy-shift" onclick="closeCopyShiftModal()">Cancel</button>
+          <button type="submit" form="copy-shift-form" id="save-copy-shift" onclick="copyShift(event)">Copy Event</button>
+        </div>
+      </div>
+    </div>
+  </div> <!-- /dashboard-container -->
+
+  <!-- ========= Scripts (order matters) ========= -->
+  <!-- Firebase SDK (compat v9, works with v8-style code) -->
+  <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-firestore-compat.js"></script>
+
+  <!-- CSP-safe Firebase init (external file) -->
+  <script src="../../../firebase-init.js"></script>
+
+  <!-- ADMIN GUARD (must come AFTER Firebase init) -->
+  <script src="../guard-admin.js"></script>
+
+  <!-- App scripts (load AFTER guard so UI stays hidden until authorized) -->
+  <script src="js/calendar-core.js"></script>
+  <script src="js/utilities.js"></script>
+  <script src="js/calendar-ui.js"></script>
+  <script src="js/week-operations.js"></script>
+  <script src="js/event-crud.js"></script>
+  <script src="js/modal-handlers.js"></script>
+  <script src="js/drag-drop-handler.js"></script>
+  <script src="js/event-listeners.js"></script>
+  <script src="js/main.js?v=2"></script>
+</body>
+</html>

@@ -1,26 +1,35 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
+  <meta charset="utf-8" />
   <title>Starting Google Sign-In…</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Icons / PWA -->
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" href="/favicon-32.png" sizes="32x32">
+  <link rel="icon" type="image/png" href="/favicon-16.png" sizes="16x16">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+
   <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; }
-    .wrap { display:flex; align-items:center; justify-content:center; min-height:100vh; }
-    .card { font-size:18px; color:#111; }
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0}
+    .wrap{min-height:100vh;display:flex;align-items:center;justify-content:center}
+    .card{font-size:18px;color:#111}
   </style>
 
-  <!-- Firebase compat SDKs (use web.app domain CSP) -->
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <!-- Firebase compat SDKs (must load before init + start-google.js) -->
+  <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-firestore-compat.js"></script>
 
-  <!-- Init that points to web.app (authDomain) -->
+  <!-- Initialize Firebase BEFORE page logic -->
   <script src="/firebase-init.js?v=2"></script>
 </head>
 <body>
   <div class="wrap"><div class="card">Opening Google…</div></div>
 
-  <!-- Loop-proof starter -->
-  <script src="/start-google.js?v=3"></script>
+  <!-- Start-Google logic (non-module; runs after compat + init) -->
+  <script src="/start-google.js?v=3" defer></script>
 </body>
 </html>

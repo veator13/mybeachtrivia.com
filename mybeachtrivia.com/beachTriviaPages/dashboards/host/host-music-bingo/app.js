@@ -72,6 +72,32 @@ function attachPlayerWatcher(gameId) {
   });
 }
 
+// ---------------- UTILITIES ----------------
+
+// Safe clipboard helper to avoid NotAllowedError when document isn't focused.
+async function copyToClipboardSafe(text) {
+  try {
+    if (document.hasFocus() && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (_) {}
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.top = '-1000px';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 // ---------------- UI HELPERS ----------------
 function ensureJoinLinkDisplay() {
   if (!els.joinLinkDisplay) {
@@ -122,20 +148,19 @@ function wireCopyJoin() {
   if (!els.copyJoinBtn) return;
   els.copyJoinBtn.addEventListener('click', async () => {
     ensureJoinLinkDisplay();
-    try {
-      const value = (els.joinLinkDisplay?.innerText || els.joinLinkDisplay?.textContent || '').trim();
-      if (!value) {
-        alert('No join link available yet.');
-        return;
-      }
-      await navigator.clipboard.writeText(value);
-      const orig = els.copyJoinBtn.textContent;
-      els.copyJoinBtn.textContent = 'Copied!';
-      setTimeout(() => (els.copyJoinBtn.textContent = orig), 1200);
-    } catch (e) {
-      console.error('Copy failed:', e);
-      alert('Copy failed. Try manually copying the link above.');
+    const value = (els.joinLinkDisplay?.innerText || els.joinLinkDisplay?.textContent || '').trim();
+    if (!value) {
+      alert('No join link available yet.');
+      return;
     }
+    const ok = await copyToClipboardSafe(value);
+    if (!ok) {
+      alert('Copy failed. Please copy the link shown next to the button.');
+      return;
+    }
+    const orig = els.copyJoinBtn.textContent;
+    els.copyJoinBtn.textContent = 'Copied!';
+    setTimeout(() => (els.copyJoinBtn.textContent = orig), 1200);
   });
 }
 

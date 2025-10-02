@@ -1,0 +1,23 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "games": {
+      "$gameId": {
+        "players": {
+          // Let signed-in clients read the players list (for counts)
+          ".read": "auth != null",
+
+          "$uid": {
+            // Only the owner can write their own presence
+            ".write": "auth != null && auth.uid === $uid",
+
+            "joinedAt": { ".validate": "newData.isNumber()" },
+            "lastActive": { ".validate": "newData.isNumber()" }
+          }
+        }
+      }
+    }
+  }
+}

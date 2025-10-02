@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Employees Admin</title>
+
+  <link rel="stylesheet" href="style.css"/>
+
+  <!-- Firebase SDKs (compat) -->
+  <script defer src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+
+  <!-- Your Firebase config + initialize (no inline JS) -->
+  <script defer src="/firebase-init.js"></script>
+
+  <!-- Auth guard (runs after Firebase is ready) -->
+  <script defer src="../auth-guard.js"></script>
+</head>
+<body>
+  <!-- Authentication Loading Overlay -->
+  <div id="auth-loading" class="auth-overlay">
+    <div class="spinner"></div>
+    <p>Verifying access...</p>
+  </div>
+
+  <div class="container" style="display:none;">
+    <h1>Employees Management</h1>
+
+    <!-- ===== Invite a Host ===== -->
+    <section class="card" id="invite-host-card" style="margin:1rem 0;padding:1rem;border:1px solid #ddd;border-radius:8px;">
+      <h3 style="margin-top:0;">Invite a Host</h3>
+      <label>Email:&nbsp;
+        <input id="invite-email" type="email" placeholder="person@example.com" required style="min-width:280px;">
+      </label>
+      <label style="margin-left:1rem;">Role:&nbsp;
+        <select id="invite-role">
+          <option value="host" selected>host</option>
+          <option value="admin">admin</option>
+        </select>
+      </label>
+      <label style="margin-left:1rem;">
+        <input id="invite-active" type="checkbox" checked> Active
+      </label>
+      <button id="send-invite-btn" style="margin-left:1rem;">Send Invite</button>
+      <div id="invite-status" style="margin-top:.5rem;font-size:.9rem;color:#555;"></div>
+      <div style="margin-top:.5rem;font-size:.85rem;color:#777;">
+        Tip: Make sure <em>Email link (passwordless)</em> is enabled in Firebase Auth. Invite writes a doc to
+        <code>employeeInvites</code> and emails a sign-in link that flows through <code>start-google.html</code>
+        to auto-create <code>employees/{uid}</code>.
+      </div>
+    </section>
+    <!-- ===== /Invite a Host ===== -->
+
+    <!-- Existing “Add Employee” flow (you can keep this UI) -->
+    <button id="addNewEmployeeBtn">Add New Employee</button>
+
+    <div id="employeeModal" class="modal">
+      <div class="modal-content">
+        <span class="close-modal">&times;</span>
+        <form id="employeeForm">
+          <input type="hidden" id="employeeId">
+          <div class="form-group">
+            <label for="firstName">First Name</label>
+            <input type="text" id="firstName" required>
+          </div>
+          <div class="form-group">
+            <label for="lastName">Last Name</label>
+            <input type="text" id="lastName" required>
+          </div>
+          <div class="form-group">
+            <label for="email">Email</label>
+            <input type="email" id="email" required>
+          </div>
+          <div class="form-group">
+            <label for="phone">Phone</label>
+            <input type="tel" id="phone">
+          </div>
+          <div class="form-group">
+            <label for="nickname">Nickname</label>
+            <input type="text" id="nickname">
+          </div>
+          <div class="form-group">
+            <label for="employeeID">Employee ID</label>
+            <input type="text" id="employeeID">
+          </div>
+          <div class="form-group">
+            <label for="emergencyContactName">Emergency Contact Name</label>
+            <input type="text" id="emergencyContactName">
+          </div>
+          <div class="form-group">
+            <label for="emergencyContactPhone">Emergency Contact Phone</label>
+            <input type="tel" id="emergencyContactPhone">
+          </div>
+          <div class="form-group">
+            <label for="active">Active</label>
+            <select id="active">
+              <option value="true">Yes</option>
+              <option value="false">No</option>
+            </select>
+          </div>
+          <div class="form-actions">
+            <button type="submit" id="saveEmployee">Save Employee</button>
+            <button type="button" id="cancelEdit">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Employees Table -->
+    <table id="employeesTable">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Employee ID</th>
+          <th>Active</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="employeesTableBody"></tbody>
+    </table>
+  </div>
+
+  <!-- Show the page after auth (no inline) -->
+  <script defer src="boot.js"></script>
+
+  <!-- Invite button logic (no inline) -->
+  <script defer src="invite.js"></script>
+
+  <!-- Your existing page logic -->
+  <script type="module" src="script.js"></script>
+
+  <style>
+    /* Overlay styles (inline CSS is OK with your CSP) */
+    .auth-overlay {
+      position: fixed; inset: 0; width: 100%; height: 100%;
+      background-color: rgba(0,0,0,0.8);
+      display: flex; flex-direction: column; justify-content: center; align-items: center;
+      z-index: 1000; color: #fff;
+    }
+    .spinner {
+      border: 4px solid rgba(255,255,255,0.3);
+      border-radius: 50%;
+      border-top: 4px solid #3699ff;
+      width: 40px; height: 40px;
+      animation: spin 1s linear infinite;
+      margin-bottom: 15px;
+    }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  </style>
+</body>
+</html>

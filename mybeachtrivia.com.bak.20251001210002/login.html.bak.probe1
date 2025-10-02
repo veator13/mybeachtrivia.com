@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="dns-prefetch" href="https://apis.google.com">
+  <link rel="dns-prefetch" href="https://accounts.google.com">
+  <link rel="dns-prefetch" href="https://www.gstatic.com">
+  <link rel="preconnect" href="https://apis.google.com" crossorigin>
+  <link rel="preconnect" href="https://accounts.google.com" crossorigin>
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+<meta name="theme-color" content="#101317">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Login - Beach Trivia</title>
+
+  <!-- Silence /favicon.ico 404 in console -->
+
+  <!-- Preload SDKs (performance hint) -->
+  <link rel="preload" href="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js" as="script">
+  <link rel="preload" href="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js" as="script">
+  <script>
+    // Lazy-load Firestore only when needed
+    window.ensureFirestore = () => new Promise((resolve, reject) => {
+      if (firebase.firestore) return resolve();
+      const s = document.createElement("script");
+      s.async = true; s.onload = resolve; s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  </script>
+
+  <!-- Local CSS only (no external icon CDN) -->
+  <link rel="stylesheet" href="/login.css">
+  <link rel="stylesheet" href="/icons.css">
+
+  <!-- Firebase SDKs (compat) -->
+
+  <!-- Initialize Firebase BEFORE page logic -->
+</head>
+<body>
+  <div class="container">
+    <div class="login-container">
+      <div class="form-container">
+        <div class="header">
+          <h2 id="loginTitle">Employee Login</h2>
+          <p>Please enter your credentials to access the system.</p>
+        </div>
+
+        <div class="toggle-container">
+          <div id="employee-toggle" class="toggle-option employee active">Employee</div>
+          <div id="admin-toggle" class="toggle-option admin">Admin</div>
+        </div>
+
+        <div id="messageContainer" class="message-container" style="display:none;"></div>
+
+        <form id="loginForm">
+          <input type="hidden" id="userType" name="userType" value="employee">
+
+          <!-- Sign-up only fields (hidden by default; JS toggles them) -->
+          <div id="nameRow" class="form-group" style="display:none;">
+            <label for="firstName">Name</label>
+            <div class="input-with-icon">
+              <span class="icon icon--user" aria-hidden="true"></span>
+              <input type="text" id="firstName" name="firstName" placeholder="First name" style="margin-right:8px;">
+              <input type="text" id="lastName" name="lastName" placeholder="Last name">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="username">Email</label>
+            <div class="input-with-icon">
+              <span class="icon icon--mail" aria-hidden="true"></span>
+              <input type="email" id="username" name="username" placeholder="Enter your email" required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="password">Password</label>
+            <div class="input-with-icon">
+              <span class="icon icon--lock" aria-hidden="true"></span>
+              <input type="password" id="password" name="password" placeholder="Enter your password" required>
+              <button type="button" id="togglePassword" class="toggle-password icon icon--eye" aria-label="Show password"></button>
+            </div>
+          </div>
+
+          <div class="form-group checkbox-group">
+            <label>
+              <input type="checkbox" id="rememberMe" name="rememberMe">
+              <span>Remember me</span>
+            </label>
+            <a href="#" id="forgotPassword" class="forgot-password">Forgot password?</a>
+          </div>
+
+          <div class="form-group">
+            <button type="submit" id="loginButton">
+              <span id="loginButtonText">Login</span>
+              <span class="icon icon--arrow" aria-hidden="true" style="margin-left:8px;"></span>
+            </button>
+          </div>
+
+          <div class="form-group" style="margin-top:8px;">
+            <button type="button" id="googleButton" class="google-btn" style="width:100%;">
+              <span class="icon icon--google" aria-hidden="true"></span>
+              Continue with Google
+            </button>
+          </div>
+        </form>
+
+        <div class="form-footer">
+          <p id="authSwitchLine">
+            Don't have an account? <a href="#" class="signup-link" id="switchToSignup">Sign up</a>
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="motivation-container">
+      <img src="beachTriviaPages/images/BTlogo.png" alt="Beach Trivia Logo" class="logo">
+      <h2>Bring the Fun!</h2>
+      <p>Create memorable experiences for our guests with Beach Trivia.</p>
+    </div>
+  </div>
+
+  <!-- Page logic (uses redirect for Google; CSP-safe) -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js" defer></script>
+  <script src="/firebase-init.js" defer></script>
+  <script src="/login.js?v=uidfix8" defer></script>
+  <!-- Fallback loader (only runs if SDKs failed to load) -->
+</body>
+</html>

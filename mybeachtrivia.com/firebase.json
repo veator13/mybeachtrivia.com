@@ -13,34 +13,34 @@
         "headers": [
           {
             "key": "Content-Security-Policy",
-            "value": "default-src 'self'; base-uri 'self'; object-src 'none'; img-src 'self' data: blob: https://*.googleusercontent.com https://www.gstatic.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://apis.google.com https://www.googleapis.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebaseinstallations.googleapis.com https://firebaseremoteconfig.googleapis.com https://www.googleapis.com https://*.googleapis.com https://*.gstatic.com https://*.firebaseio.com https://*.firebasedatabase.app wss://*.firebaseio.com wss://*.firebasedatabase.app; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; frame-src 'self' https://accounts.google.com https://*.firebaseapp.com https://*.web.app; frame-ancestors 'self'"
+            "value": "default-src 'self'; base-uri 'self'; object-src 'none'; img-src 'self' data: https: blob:; font-src 'self' https: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'unsafe-eval' https://www.gstatic.com https://apis.google.com; connect-src 'self' https://www.gstatic.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebaseinstallations.googleapis.com https://firebaseremoteconfig.googleapis.com https://www.googleapis.com https://apis.google.com https://*.googleapis.com https://*.gstatic.com https://*.firebaseio.com wss://*.firebaseio.com https://firebasestorage.googleapis.com https://*.cloudfunctions.net https://accounts.google.com; frame-src 'self' https://accounts.google.com https://*.firebaseapp.com https://*.web.app; frame-ancestors 'self'"
           }
         ]
       },
       {
-        "source": "/login.js",
-        "headers": [{ "key": "Cache-Control", "value": "no-store" }]
+        "source": "**/*.@(js|css)",
+        "headers": [
+          { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+        ]
       },
       {
-        "source": "/firebase-init.js",
-        "headers": [{ "key": "Cache-Control", "value": "no-store" }]
+        "source": "**/*.@(png|jpg|jpeg|gif|svg|webp|ico|woff|woff2|ttf|eot)",
+        "headers": [
+          { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+        ]
       },
       {
-        "source": "/firebase-fallback.js",
-        "headers": [{ "key": "Cache-Control", "value": "no-store" }]
+        "source": "/beachTriviaPages/dashboards/admin/**",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-store" }
+        ]
       },
-      {
-        "source": "/login.html",
-        "headers": [{ "key": "Cache-Control", "value": "no-store" }]
-      },
-      {
-        "source": "/start-google.html",
-        "headers": [{ "key": "Cache-Control", "value": "no-store" }]
-      },
-      {
-        "source": "/start-google.js",
-        "headers": [{ "key": "Cache-Control", "value": "no-store" }]
-      }
+      { "source": "/login.js",             "headers": [ { "key": "Cache-Control", "value": "no-store" } ] },
+      { "source": "/firebase-init.js",     "headers": [ { "key": "Cache-Control", "value": "no-store" } ] },
+      { "source": "/firebase-fallback.js", "headers": [ { "key": "Cache-Control", "value": "no-store" } ] },
+      { "source": "/login.html",           "headers": [ { "key": "Cache-Control", "value": "no-store" } ] },
+      { "source": "/start-google.html",    "headers": [ { "key": "Cache-Control", "value": "no-store" } ] },
+      { "source": "/start-google.js",      "headers": [ { "key": "Cache-Control", "value": "no-store" } ] }
     ]
   },
   "database": {
@@ -49,5 +49,18 @@
   "firestore": {
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
-  }
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ]
+    }
+  ]
 }

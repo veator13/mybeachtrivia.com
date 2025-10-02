@@ -1,0 +1,82 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- Helpers ----------
+    function authed() { return request.auth != null; }
+
+    function employee() {
+      return get(/databases/$(database)/documents/employees/$(request.auth.uid));
+    }
+
+    function isEmployee() {
+      return authed() && employee().exists();
+    }
+
+    function isActiveEmployee() {
+      return isEmployee() && employee().data.active == true;
+    }
+
+    function hasRole(role) {
+      return isActiveEmployee()
+             && role in (employee().data.roles is list ? employee().data.roles : []);
+    }
+
+    // ---------- Playlists (new, unified) ----------
+    match /playlists/{doc} {
+      allow read: if resource.data.published == true || isEmployee();
+
+      allow create, update: if (hasRole('host') || hasRole('admin'))
+        && request.resource.data.keys().hasAll(['title', 'tracks', 'published'])
+        && request.resource.data.title is string
+        && request.resource.data.published is bool
+        && request.resource.data.tracks is list;
+
+      allow delete: if hasRole('admin') || hasRole('host');
+    }
+
+    // ---------- Legacy music bingo (players can still use) ----------
+    match /music_bingo/{doc} {
+      allow read: if true;
+      allow create, update, delete: if hasRole('host') || hasRole('admin');
+    }
+
+    // ---------- Games ----------
+    match /games/{doc} {
+      allow read: if true;
+      allow create, update: if (hasRole('host') || hasRole('admin'))
+        && request.resource.data.keys().hasAll(['name', 'playlistId', 'status'])
+        && request.resource.data.name is string
+        && request.resource.data.playlistId is string
+        && request.resource.data.status in ['pending','active','paused','finished','ended'];
+      allow delete: if hasRole('admin') || hasRole('host');
+    }
+
+    // ---------- Employees ----------
+    match /employees/{uid} {
+      // bootstrap: let a signed-in user create their doc once
+      allow create: if authed()
+        && request.auth.uid == uid
+        && !exists(/databases/$(database)/documents/employees/$(uid));
+
+      // read: any employee, or yourself even if not yet active
+      allow read: if isEmployee() || (authed() && request.auth.uid == uid);
+
+      // only admins can update/delete employee docs
+      allow update, delete: if hasRole('admin');
+    }
+
+    // ---------- Ops / schedule / scores ----------
+    match /Teams/{doc}         { allow read, write: if isEmployee(); }
+    match /locations/{doc}     { allow read, write: if isEmployee(); }
+    match /shiftTypes/{doc}    { allow read, write: if isEmployee(); }
+    match /shifts/{doc}        { allow read, write: if isEmployee(); }
+    match /Applications/{doc}  { allow read, write: if isEmployee(); }
+    match /scores/{doc}        { allow read, write: if isEmployee(); }
+
+    // ---------- Deny everything else ----------
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

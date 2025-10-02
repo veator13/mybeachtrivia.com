@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Employee Dashboard (Host)</title>
+
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- Firebase SDKs (compat, match admin page) -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js" defer></script>
+
+  <!-- Your one-time initializer (must call firebase.initializeApp(...)) -->
+  <script src="/firebase-init.js?v=1" defer></script>
+
+  <!-- Shared guard (signed-in + active employee) -->
+  <script src="/beachTriviaPages/dashboards/auth-guard.js?v=1" defer></script>
+
+  <!-- Host role guard (host|admin allowed) -->
+  <script src="/beachTriviaPages/dashboards/host/guard-host.js?v=1" defer></script>
+
+  <!-- Main dashboard script (your page logic; external only) -->
+  <script src="dashboard.js?v=1" defer></script>
+</head>
+<body>
+  <!-- Authentication Loading Overlay -->
+  <div id="auth-loading">
+    <div class="spinner"></div>
+    <p>Verifying access...</p>
+  </div>
+
+  <!-- Error Message Container -->
+  <div id="error-container" style="display: none;">
+    <div class="error-message">
+      <p id="error-text">An error occurred. Please try again.</p>
+      <button id="back-to-login">Return to Login</button>
+    </div>
+  </div>
+
+  <!-- Host Dashboard Content -->
+  <div class="dashboard-container" style="display: none;">
+    <div class="dashboard">
+      <header>
+        <h1>Employee Dashboard</h1>
+
+        <div class="user-profile">
+          <img
+            src="data:image/gif;base64,R0lGODlhMgAyAIAAAAAAAP///yH5BAEAAAEALAAAAAAyADIAAAL8jI+py+0Po5y02ouz3rz7D4biSJbmiabqyrbuC8fyTNf2jef6zvf+DwwKh8Si8YhMKpfMpvMJjUqn1Kr1is1qt9yu9wsGi8fksvl8Tq/b7/i8fs/v+/+/+Ns/+AcYKDhIWGh4iJiouMjY6PgIGSk5SVlpeYmZqbnJ2en5CRoqOkpaanqKmqq6ytrq+gobb3+Pn6+/z9/v/4+fr7/PvwIGW0sZ+DUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf+gEaCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp+goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2+v8DBwsPExcbHyMnKy8zNzs/Q0dLT1NXW19jZ2tvc3d7f4OHi4+Tl5ufo6err7O3u7/Dx8vP09fb3+Pn6+/z9/v8AAwocSLCgwYMIEypcyLChw4cQI0qcSLGixYsYM2rcyLGjx48gQ4ocSbKkyZMoU6pcybKly5cwY8qcSbOmzZs4c+rcybOnz59AgwodSrSo0aNIkypdyrSp06dQo0qdSrWq1atYs2rdyrWr169gw4odS7as2bNo06pdy7at27dw48qdS7eu3bt48+rdy7ev37+AAwseTLiw4cOIEytezLix48eQI0ueTLmy5cuYM2vez7mz58+gQ4seTbq06dOoU6tezbq169ewY8ueTbu27du4c+vezbu379/AgwsfTry48ePIkytfzry58+fQo0ufTr269evYs2vfzr279+/gw4sfT768+fPo06tfz769+/fw48ufT7++/fv48+vfz7+///8ABijggAQWaOCBCCao4IIMNujggxBGKOGEFFZo4YUYZqjhhhx26OGHIIYo4ogjkkaJhRx66OKLMMYo44w01mjjjTjmaOONOOao44489ujjj0AGKeSQRBZp5JFIJqnkkkw26eSTUEYp5ZRUVmnllVhmqeWWXHbp5ZdghpmmmmGGKWaYZJZp5plopqnmmmy26eabcMYp55x01mnnnXjmqeeefPbp55+ABirooIQWauihiCaq6KKMNuroo5BG+iilj0b6aKVwjTXWWG3FNddgZJVl1llvzTXXXXvtNRhihx122F6D7bXYYo8tdthkkw222WSTfbbZZ6ONNtpqr8022263DTfccMsNN9xwww033HDDDTfccMMNN9xwww033HDDDTfccMMNN9xwww033HDDDTfccMMNN9xwww033HDDDTfccMMNN9xwww033HDDDTfccMMNN9xwww033A=="
+            alt="User Profile"
+            class="profile-pic"
+          />
+          <!-- Guard will set this text from employee doc -->
+          <span id="user-display-name" class="username">Employee</span>
+          <button id="logout-btn">Logout</button>
+        </div>
+      </header>
+
+      <nav class="dashboard-nav">
+        <!-- Add destinations via data-href; your dashboard.js can navigate -->
+        <button class="nav-btn" data-href="./">Home</button>
+        <button class="nav-btn" data-href="../calendar/">Calendar</button>
+        <button class="nav-btn" data-href="scoresheet/index.html">Scoresheet</button>
+        <button class="nav-btn" data-href="host-music-bingo/host-music-bingo.html">Host Music Bingo</button>
+        <button class="nav-btn">Request Materials</button>
+        <button class="nav-btn">Resources</button>
+        <button class="nav-btn">Request Time Off</button>
+        <button class="nav-btn">Notification Settings</button>
+      </nav>
+
+      <main>
+        <section class="quick-stats">
+          <div class="stat-card">
+            <h3>Current Pay Period</h3>
+            <p class="stat-value">3/5 Weeks</p>
+          </div>
+          <div class="stat-card">
+            <h3>Shows Worked</h3>
+            <p class="stat-value">3</p>
+          </div>
+          <div class="stat-card">
+            <h3>Hours Worked</h3>
+            <p class="stat-value">40/40 hrs</p>
+          </div>
+        </section>
+
+        <section class="upcoming-shows">
+          <h2>Upcoming Shows</h2>
+          <div class="shows-list">
+            <!-- Shows will be populated here -->
+          </div>
+        </section>
+      </main>
+
+      <footer>
+        <button id="add-task-btn">Add New Task</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Minimal CSS for auth overlay & error card (inline CSS is fine for CSP) -->
+  <style>
+    #auth-loading {
+      position: fixed; inset: 0;
+      background-color: var(--dark-background, #0b0d12);
+      display: flex; flex-direction: column; justify-content: center; align-items: center;
+      z-index: 1000; color: #fff;
+    }
+    .spinner {
+      border: 4px solid rgba(255,255,255,0.1);
+      border-top: 4px solid #4da3ff;
+      border-radius: 50%;
+      width: 40px; height: 40px;
+      animation: spin 1s linear infinite; margin-bottom: 16px;
+    }
+    @keyframes spin { 0%{transform:rotate(0)} 100%{transform:rotate(360deg)} }
+
+    #error-container {
+      position: fixed; inset: 0;
+      background-color: var(--dark-background, #0b0d12);
+      display: none; align-items: center; justify-content: center;
+      z-index: 1000;
+    }
+    .error-message {
+      background: #f8d7da; color: #721c24;
+      padding: 20px; border-radius: 10px; max-width: 420px; width: 90%;
+      text-align: center;
+    }
+    .error-message button {
+      margin-top: 12px; border: 0; background: #c82333; color: #fff;
+      padding: 8px 12px; border-radius: 6px; cursor: pointer;
+    }
+    .error-message button:hover { background: #a71d2a; }
+  </style>
+</body>
+</html>

@@ -1,0 +1,25 @@
+{
+  "result": [
+    {
+      "id": "9e60b1b47fc643cfb2a47a125b494536",
+      "pattern": "mybeachtrivia.com/refreshToken*",
+      "script": "spotify-auth",
+      "request_limit_fail_open": false
+    },
+    {
+      "id": "f36a0952083b4de7aad32436ad155e93",
+      "pattern": "mybeachtrivia.com/spotifyLogin*",
+      "script": "spotify-auth",
+      "request_limit_fail_open": false
+    },
+    {
+      "id": "f81f00fa992e4a2b9c2e532860ffe7e6",
+      "pattern": "mybeachtrivia.com/spotifyCallback*",
+      "script": "spotify-auth",
+      "request_limit_fail_open": false
+    }
+  ],
+  "success": true,
+  "errors": [],
+  "messages": []
+}

@@ -1,0 +1,134 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+
+    /* ---------- Helpers ---------- */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Admin check:
+    // - Primary: employees/{uid}.roles includes "admin" and account is active
+    // - Also accepts a custom claim { admin: true } if you ever add it
+    function isAdmin() {
+      if (!isSignedIn()) return false;
+
+      // Custom claim still works
+      if (request.auth.token.admin == true) return true;
+
+      // Roles-based admin from employees/{uid}
+      let emp = get(/databases/$(db)/documents/employees/$(request.auth.uid));
+      return emp.exists()
+             && emp.data.active == true
+             && emp.data.roles != null
+             && emp.data.roles.hasAny(['admin']);
+    }
+
+    // Any authenticated user (your “host” role for now)
+    function isHost() {
+      return isSignedIn();
+    }
+
+    /* ---------- Employee Invites ----------
+       Admin creates: employeeInvites/{inviteId} with fields:
+       { email: string, role: 'host'?, active: true?, createdAt: timestamp? }
+       Invited user may delete their own invite upon redemption.
+    */
+    match /employeeInvites/{inviteId} {
+      // Admins manage invites
+      allow read, create, update, delete: if isAdmin();
+
+      // Invited user can delete their own invite (email must match)
+      allow delete: if isSignedIn() &&
+                    resource.data.email == request.auth.token.email;
+    }
+
+    /* ---------- Employees ----------
+       Canonical record: employees/{uid}
+
+       Create is allowed by:
+       - Admin: doc id MUST equal uid (explicit provisioning)
+       - Self with valid invite:
+         * doc id == request.auth.uid
+         * includes inviteId
+         * invite exists AND invite.email == signed-in email
+    */
+    match /employees/{uid} {
+      // Read: admin or the user themselves
+      allow read: if isAdmin() || (isSignedIn() && uid == request.auth.uid);
+
+      // Create
+      allow create: if
+        // Admin create path
+        (isAdmin()
+          && request.resource.id == request.resource.data.uid
+          && request.resource.data.keys().hasAll(['firstName','lastName','email','uid'])
+        )
+        ||
+        // Self-register path (with invite)
+        (isSignedIn()
+          && request.resource.id == request.auth.uid
+          && request.resource.data.keys().hasAll(['firstName','lastName','email','uid','inviteId'])
+          && request.resource.data.uid == request.auth.uid
+          && get(/databases/$(db)/documents/employeeInvites/$(request.resource.data.inviteId)).exists()
+          && get(/databases/$(db)/documents/employeeInvites/$(request.resource.data.inviteId)).data.email
+               == request.auth.token.email
+        );
+
+      // Update:
+      //  - Admin: any
+      //  - Self: only limited profile fields
+      allow update: if isAdmin() ||
+        (isSignedIn() && uid == request.auth.uid &&
+         request.resource.data.diff(resource.data).changedKeys()
+           .hasOnly(['nickname','phone']));
+
+      // Delete: admin only
+      allow delete: if isAdmin();
+    }
+
+    /* ---------- Locations ----------
+       Admin maintains; hosts read for scheduling.
+    */
+    match /locations/{locId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    /* ---------- Shifts (Calendar) ----------
+       Everyone signed in can read.
+       Hosts can write only their own shifts (employeeId must be their uid).
+    */
+    match /shifts/{shiftId} {
+      allow read: if isSignedIn();
+
+      allow create: if isAdmin() ||
+        (isHost() && request.resource.data.employeeId == request.auth.uid);
+
+      allow update: if isAdmin() ||
+        (isHost() &&
+         resource.data.employeeId == request.auth.uid &&
+         request.resource.data.employeeId == request.auth.uid);
+
+      allow delete: if isAdmin() ||
+        (isHost() && resource.data.employeeId == request.auth.uid);
+    }
+
+    /* ---------- Bingo / Game Data ----------
+       Keep liberal for signed-in hosts (adjust names if yours differ).
+    */
+    match /games/{id}            { allow read, write: if isHost(); }
+    match /music_bingo/{id}      { allow read, write: if isHost(); }
+    match /play_music_bingo/{id} { allow read, write: if isHost(); }
+    match /host_music_bingo/{id} { allow read, write: if isHost(); }
+
+    /* ---------- Default ----------
+       Signed-in users can READ everything else; writes are denied
+       unless explicitly allowed above.
+    */
+    match /{document=**} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+  }
+}

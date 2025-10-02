@@ -5,14 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Music Bingo — Host Console</title>
 
-  <!-- ✅ CSP to allow RTDB + Firebase while keeping the page locked down -->
-  <meta http-equiv="Content-Security-Policy" content="
-    default-src 'self';
-    script-src 'self' 'unsafe-eval' https://www.gstatic.com https://www.googleapis.com https://*.firebaseio.com;
-    connect-src 'self' https://*.googleapis.com https://www.googleapis.com https://*.gstatic.com wss://*.firebaseio.com https://*.firebaseio.com;
-    img-src 'self' data: https:;
-    style-src 'self' 'unsafe-inline';
-  ">
+  <!-- Icons / PWA -->
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" href="/favicon-32.png" sizes="32x32">
+  <link rel="icon" type="image/png" href="/favicon-16.png" sizes="16x16">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
 
   <!-- Your site styles -->
   <link rel="stylesheet" href="host-music-bingo.css" />
