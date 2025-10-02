@@ -1,225 +1,223 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
-import { 
-    getFirestore, 
-    collection, 
-    addDoc, 
-    getDocs, 
-    doc, 
-    updateDoc, 
-    deleteDoc,
-    getDoc,
-    query,
-    orderBy
-} from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
+// employees-management/script.js (Firebase v9 COMPAT APIs, no imports)
+// Assumes firebase-app-compat.js, firebase-auth-compat.js, firebase-firestore-compat.js
+// and firebase-init.js are loaded in index.html BEFORE this file.
 
-// Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyDBKCotY1F943DKfVQqKOGPPkAkQe2Zgog",
-  authDomain: "beach-trivia-website.firebaseapp.com",
-  projectId: "beach-trivia-website",
-  storageBucket: "beach-trivia-website.firebasestorage.app",
-  messagingSenderId: "459479368322",
-  appId: "1:459479368322:web:7bd3d080d3b9e77610aa9b",
-  measurementId: "G-24MQRKKDNY"
-};
+/////////////////////////
+// Firebase handles
+/////////////////////////
+const auth = firebase.auth();
+const db   = firebase.firestore();
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+/////////////////////////
+// Role helpers (safe + backward compatible)
+//
+// Some employee docs have a single `role: "host"`,
+// others may have `roles: ["host", "admin"]`.
+// These helpers read both patterns and normalize to an array.
+/////////////////////////
+function extractRoles(docData = {}) {
+  const arr = Array.isArray(docData.roles) ? docData.roles : [];
+  const single = docData.role ? [docData.role] : [];
+  return [...new Set([...arr, ...single].filter(Boolean).map(r => String(r).toLowerCase()))];
+}
+function isAdminFromDoc(docData = {}) {
+  return extractRoles(docData).includes('admin');
+}
+function displayRole(docData = {}) {
+  const roles = extractRoles(docData);
+  if (roles.length === 0) return '—';
+  return roles.includes('admin') ? 'admin' : roles[0];
+}
 
+/////////////////////////
 // DOM Elements
-const modal = document.getElementById('employeeModal');
-const form = document.getElementById('employeeForm');
-const tableBody = document.getElementById('employeesTableBody');
-const saveButton = document.getElementById('saveEmployee');
-const cancelButton = document.getElementById('cancelEdit');
+/////////////////////////
+const modal             = document.getElementById('employeeModal');
+const form              = document.getElementById('employeeForm');
+const tableBody         = document.getElementById('employeesTableBody');
+const saveButton        = document.getElementById('saveEmployee');
+const cancelButton      = document.getElementById('cancelEdit');
 const addNewEmployeeBtn = document.getElementById('addNewEmployeeBtn');
-const closeModalBtn = document.querySelector('.close-modal');
+const closeModalBtn     = document.querySelector('.close-modal');
 
-// Modal Functions
-function openModal(isEditing = false) {
-    // If not editing, ensure the form is reset
-    if (!isEditing) {
-        form.reset();
-        document.getElementById('employeeId').value = '';
-    }
-    
-    // Display the modal
-    modal.style.display = 'block';
-}
-
+/////////////////////////
+// Modal helpers
+/////////////////////////
+function openModal() { if (modal) modal.style.display = 'block'; }
 function closeModal() {
-    // Hide the modal
-    modal.style.display = 'none';
-    
-    // Always reset the form when closing the modal
-    // This ensures a clean slate for the next time the modal is opened
-    form.reset();
-    document.getElementById('employeeId').value = '';
+  if (modal) modal.style.display = 'none';
+  if (form) form.reset();
+  const idEl = document.getElementById('employeeId');
+  if (idEl) idEl.value = '';
 }
 
-// Fetch and Display Employees
+/////////////////////////
+// Fetch & render employees (ADMIN ONLY)
+/////////////////////////
 async function fetchEmployees() {
-    tableBody.innerHTML = ''; // Clear existing rows
-    try {
-        const querySnapshot = await getDocs(collection(db, 'employees'));
-        
-        querySnapshot.forEach((document) => {
-            const employee = document.data();
-            
-            const row = tableBody.insertRow();
-            row.innerHTML = `
-                <td>${employee.firstName || ''} ${employee.lastName || ''}</td>
-                <td>${employee.email || ''}</td>
-                <td>${employee.employeeID || 'UNKNOWN'}</td>
-                <td>${employee.active === true ? 'Yes' : 'No'}</td>
-                <td>
-                    <button class="edit-btn" data-id="${document.id}">Edit</button>
-                    <button class="delete-btn" data-id="${document.id}">Delete</button>
-                </td>
-            `;
-        });
+  if (!tableBody) return;
 
-        // Remove existing event listeners and add new ones
-        tableBody.querySelectorAll('.edit-btn').forEach(btn => {
-            // Clone the button to remove all existing event listeners
-            const oldBtn = btn;
-            const newBtn = oldBtn.cloneNode(true);
-            oldBtn.parentNode.replaceChild(newBtn, oldBtn);
-            
-            // Add new event listener
-            newBtn.addEventListener('click', (e) => {
-                console.log('Edit button clicked, ID:', e.target.dataset.id);
-                editEmployee(e.target.dataset.id);
-            });
-        });
-
-        tableBody.querySelectorAll('.delete-btn').forEach(btn => {
-            // Clone the button to remove all existing event listeners
-            const oldBtn = btn;
-            const newBtn = oldBtn.cloneNode(true);
-            oldBtn.parentNode.replaceChild(newBtn, oldBtn);
-            
-            // Add new event listener
-            newBtn.addEventListener('click', () => deleteEmployee(btn.dataset.id));
-        });
-    } catch (error) {
-        console.error("Error fetching employees: ", error);
-        alert('Failed to fetch employees. Check console for details.');
+  tableBody.innerHTML = '';
+  try {
+    // ----- Optional UX guard: only proceed if current user is admin by profile
+    const meUid = auth.currentUser && auth.currentUser.uid;
+    if (!meUid) {
+      console.warn('No signed-in user; skipping list.');
+      return;
     }
+    const meSnap = await db.collection('employees').doc(meUid).get();
+    const meData = meSnap.exists ? (meSnap.data() || {}) : {};
+    if (!isAdminFromDoc(meData)) {
+      console.warn('Not an admin by profile; skipping list.');
+      return; // rules would block anyway; this avoids noisy alerts
+    }
+    // ----- End UX guard
+
+    // Order by firstName then lastName for nicer display (fields may be missing on older docs)
+    const snap = await db.collection('employees').orderBy('firstName').get();
+
+    snap.forEach(docSnap => {
+      const employee = docSnap.data() || {};
+      const row = tableBody.insertRow();
+
+      const roleLabel  = displayRole(employee);   // available if you want to show/use it
+      const activeTxt  = employee.active === true ? 'Yes' : 'No';
+
+      row.innerHTML = `
+        <td>${employee.firstName || ''} ${employee.lastName || ''}</td>
+        <td>${employee.email || ''}</td>
+        <td>${employee.employeeID || '—'}</td>
+        <td>${activeTxt}</td>
+        <td>
+          <button class="edit-btn" data-id="${docSnap.id}">Edit</button>
+          <button class="delete-btn" data-id="${docSnap.id}">Delete</button>
+        </td>
+      `;
+    });
+
+    // Rebind buttons (replace nodes to drop any stale listeners)
+    tableBody.querySelectorAll('.edit-btn').forEach(btn => {
+      const newBtn = btn.cloneNode(true);
+      btn.parentNode.replaceChild(newBtn, btn);
+      newBtn.addEventListener('click', (e) => editEmployee(e.target.dataset.id));
+    });
+
+    tableBody.querySelectorAll('.delete-btn').forEach(btn => {
+      const newBtn = btn.cloneNode(true);
+      btn.parentNode.replaceChild(newBtn, btn);
+      newBtn.addEventListener('click', () => deleteEmployee(newBtn.dataset.id));
+    });
+  } catch (err) {
+    console.error('Error fetching employees:', err);
+    alert('Failed to load employees (check permissions / console).');
+  }
 }
 
-// Add or Update Employee
+/////////////////////////
+// Save (create/update) employee
+// NOTE: Direct "create" to employees/{uid} requires admin to know the UID.
+// In practice, use the "Create & Send" invite flow to provision new users.
+// This form is still useful for editing existing employees.
+/////////////////////////
 async function saveEmployee(e) {
-    e.preventDefault();
-    
-    // Prepare employee data
-    const employeeData = {
-        firstName: document.getElementById('firstName').value,
-        lastName: document.getElementById('lastName').value,
-        email: document.getElementById('email').value,
-        phone: document.getElementById('phone').value,
-        nickname: document.getElementById('nickname').value,
-        employeeID: document.getElementById('employeeID').value,
-        emergencyContactName: document.getElementById('emergencyContactName').value,
-        emergencyContactPhone: document.getElementById('emergencyContactPhone').value,
-        active: document.getElementById('active').value === 'true' // Explicitly convert to boolean
-    };
+  e.preventDefault();
 
-    try {
-        const employeeId = document.getElementById('employeeId').value;
-        
-        if (employeeId) {
-            // Update existing employee
-            const employeeRef = doc(db, 'employees', employeeId);
-            await updateDoc(employeeRef, employeeData);
-            alert('Employee updated successfully!');
-        } else {
-            // Add new employee
-            const docRef = await addDoc(collection(db, 'employees'), employeeData);
-            alert('Employee added successfully!');
-        }
+  const idEl = document.getElementById('employeeId');
+  const employeeId = (idEl && idEl.value || '').trim();
 
-        // Close modal and refresh table
-        closeModal(); // This will also reset the form
-        fetchEmployees();
-    } catch (error) {
-        console.error("Error saving employee: ", error);
-        alert('Failed to save employee. Check console for details.');
+  const employeeData = {
+    firstName: (document.getElementById('firstName')?.value || '').trim(),
+    lastName:  (document.getElementById('lastName')?.value  || '').trim(),
+    email:     (document.getElementById('email')?.value     || '').trim(),
+    phone:     (document.getElementById('phone')?.value     || '').trim(),
+    nickname:  (document.getElementById('nickname')?.value  || '').trim(),
+    employeeID: (document.getElementById('employeeID')?.value || '').trim(),
+    emergencyContactName:  (document.getElementById('emergencyContactName')?.value  || '').trim(),
+    emergencyContactPhone: (document.getElementById('emergencyContactPhone')?.value || '').trim(),
+    active: (document.getElementById('active')?.value === 'true')
+  };
+
+  try {
+    if (employeeId) {
+      // Update existing employee (allowed to admin per rules)
+      await db.collection('employees').doc(employeeId).update(employeeData);
+      alert('Employee updated.');
+    } else {
+      // Creating a new employee doc here will FAIL unless the doc id == UID (per rules).
+      // Use the invite flow for new users, or set employeeId to a known UID before saving.
+      alert('To add a NEW employee, use the "Create & Send" invite flow above.');
+      return;
     }
-}
 
-// Edit Employee
-async function editEmployee(id) {
-    try {
-        console.log('Editing employee with ID:', id);
-        const employeeRef = doc(db, 'employees', id);
-        const employeeSnap = await getDoc(employeeRef);
-        
-        if (employeeSnap.exists()) {
-            const employee = employeeSnap.data();
-            console.log('Employee data:', employee);
-            
-            // First, reset the form to clear any previous data
-            form.reset();
-            
-            // Then open the modal - we don't need the isEditing parameter anymore
-            // since we're explicitly managing the form state here
-            modal.style.display = 'block';
-            
-            // Then populate form with employee data
-            document.getElementById('firstName').value = employee.firstName || '';
-            document.getElementById('lastName').value = employee.lastName || '';
-            document.getElementById('email').value = employee.email || '';
-            document.getElementById('phone').value = employee.phone || '';
-            document.getElementById('nickname').value = employee.nickname || '';
-            document.getElementById('employeeID').value = employee.employeeID || '';
-            document.getElementById('emergencyContactName').value = employee.emergencyContactName || '';
-            document.getElementById('emergencyContactPhone').value = employee.emergencyContactPhone || '';
-            document.getElementById('active').value = employee.active ? 'true' : 'false';
-
-            // Set the hidden employeeId field
-            document.getElementById('employeeId').value = id;
-        } else {
-            console.log('No employee found with this ID');
-        }
-    } catch (error) {
-        console.error("Error fetching employee details: ", error);
-        alert('Failed to fetch employee details. Check console for details.');
-    }
-}
-
-// Delete Employee
-async function deleteEmployee(id) {
-    if (confirm('Are you sure you want to delete this employee?')) {
-        try {
-            await deleteDoc(doc(db, 'employees', id));
-            alert('Employee deleted successfully!');
-            fetchEmployees();
-        } catch (error) {
-            console.error("Error deleting employee: ", error);
-            alert('Failed to delete employee. Check console for details.');
-        }
-    }
-}
-
-// Cancel Edit
-function cancelEdit() {
     closeModal();
+    fetchEmployees();
+  } catch (err) {
+    console.error('Error saving employee:', err);
+    alert('Save failed (see console).');
+  }
 }
 
-// Event Listeners
-form.addEventListener('submit', saveEmployee);
-cancelButton.addEventListener('click', cancelEdit);
-addNewEmployeeBtn.addEventListener('click', () => openModal(false)); // Explicitly set isEditing to false
-closeModalBtn.addEventListener('click', closeModal);
-
-// Close modal if clicked outside
-window.addEventListener('click', (event) => {
-    if (event.target === modal) {
-        closeModal();
+/////////////////////////
+// Edit existing employee
+/////////////////////////
+async function editEmployee(id) {
+  try {
+    const docRef = db.collection('employees').doc(id);
+    const snap = await docRef.get();
+    if (!snap.exists) {
+      alert('Employee not found.');
+      return;
     }
-});
+    const e = snap.data() || {};
 
-// Initial fetch of employees
-fetchEmployees();
+    // Populate form
+    const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+    setVal('firstName', e.firstName || '');
+    setVal('lastName',  e.lastName  || '');
+    setVal('email',     e.email     || '');
+    setVal('phone',     e.phone     || '');
+    setVal('nickname',  e.nickname  || '');
+    setVal('employeeID', e.employeeID || '');
+    setVal('emergencyContactName',  e.emergencyContactName  || '');
+    setVal('emergencyContactPhone', e.emergencyContactPhone || '');
+    setVal('active', e.active === true ? 'true' : 'false');
+
+    const idEl = document.getElementById('employeeId');
+    if (idEl) idEl.value = id;
+
+    openModal();
+  } catch (err) {
+    console.error('Error fetching employee details:', err);
+    alert('Failed to fetch employee details.');
+  }
+}
+
+/////////////////////////
+// Delete employee (admin only)
+/////////////////////////
+async function deleteEmployee(id) {
+  if (!confirm('Delete this employee?')) return;
+  try {
+    await db.collection('employees').doc(id).delete();
+    fetchEmployees();
+  } catch (err) {
+    console.error('Error deleting employee:', err);
+    alert('Delete failed (see console).');
+  }
+}
+
+/////////////////////////
+// Wire up UI (guard each in case element is absent)
+/////////////////////////
+if (form) form.addEventListener('submit', saveEmployee);
+if (cancelButton) cancelButton.addEventListener('click', (e) => { e.preventDefault(); closeModal(); });
+if (addNewEmployeeBtn) addNewEmployeeBtn.addEventListener('click', () => openModal());
+if (closeModalBtn) closeModalBtn.addEventListener('click', closeModal);
+
+// Close when clicking outside modal
+window.addEventListener('click', (evt) => { if (evt.target === modal) closeModal(); });
+
+// Load employees when signed-in admin is confirmed by auth-guard
+auth.onAuthStateChanged((user) => {
+  if (user) fetchEmployees();
+});

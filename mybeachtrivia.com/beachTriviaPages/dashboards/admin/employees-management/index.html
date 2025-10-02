@@ -1,162 +1,160 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Employees Admin</title>
-    <!-- Auth Guard Script - Add this to protect the page -->
-    <script src="auth-guard.js"></script>
-    <link rel="stylesheet" href="style.css">
-    
-    <!-- Firebase SDK scripts -->
-    <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-firestore-compat.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Employees Admin</title>
+
+  <link rel="stylesheet" href="style.css"/>
+
+  <!-- Firebase SDKs (compat) -->
+  <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-firestore-compat.js"></script>
+  <!-- Functions SDK (needed for adminCreateEmployee callable) -->
+  <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-functions-compat.js"></script>
+
+  <!-- Your Firebase config + initialize -->
+  <script src="/firebase-init.js"></script>
+
+  <!-- Auth guard (keeps page hidden until authorized) -->
+  <script src="./auth-guard.js" defer></script>
 </head>
 <body>
-    <!-- Authentication Loading Overlay -->
-    <div id="auth-loading" class="auth-overlay">
-        <div class="spinner"></div>
-        <p>Verifying access...</p>
-    </div>
+  <!-- Authentication Loading Overlay -->
+  <div id="auth-loading" class="auth-overlay">
+    <div class="spinner"></div>
+    <p>Verifying access...</p>
+  </div>
 
-    <div class="container" style="display: none;">
-        <h1>Employees Management</h1>
-        
-        <!-- Add New Employee Button -->
-        <button id="addNewEmployeeBtn">Add New Employee</button>
+  <div class="container" style="display:none;">
+    <h1>Employees Management</h1>
 
-        <!-- Employee Modal -->
-        <div id="employeeModal" class="modal">
-            <div class="modal-content">
-                <span class="close-modal">&times;</span>
-                
-                <!-- Employee Form -->
-                <form id="employeeForm">
-                    <input type="hidden" id="employeeId">
-                    <div class="form-group">
-                        <label for="firstName">First Name</label>
-                        <input type="text" id="firstName" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="lastName">Last Name</label>
-                        <input type="text" id="lastName" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="email">Email</label>
-                        <input type="email" id="email" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="phone">Phone</label>
-                        <input type="tel" id="phone">
-                    </div>
-                    <div class="form-group">
-                        <label for="nickname">Nickname</label>
-                        <input type="text" id="nickname">
-                    </div>
-                    <div class="form-group">
-                        <label for="employeeID">Employee ID</label>
-                        <input type="text" id="employeeID">
-                    </div>
-                    <div class="form-group">
-                        <label for="emergencyContactName">Emergency Contact Name</label>
-                        <input type="text" id="emergencyContactName">
-                    </div>
-                    <div class="form-group">
-                        <label for="emergencyContactPhone">Emergency Contact Phone</label>
-                        <input type="tel" id="emergencyContactPhone">
-                    </div>
-                    <div class="form-group">
-                        <label for="active">Active</label>
-                        <select id="active">
-                            <option value="true">Yes</option>
-                            <option value="false">No</option>
-                        </select>
-                    </div>
-                    <div class="form-actions">
-                        <button type="submit" id="saveEmployee">Save Employee</button>
-                        <button type="button" id="cancelEdit">Cancel</button>
-                    </div>
-                </form>
-            </div>
+    <!-- ===== Provision Employee (admin creates Auth user + sends password setup link) ===== -->
+    <section class="card" id="provision-card" style="margin:1rem 0;padding:1rem;border:1px solid #ddd;border-radius:8px;">
+      <h3 style="margin-top:0;">Create Employee &amp; Send Password Setup Link</h3>
+      <div style="display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;">
+        <label>Email:
+          <input id="email-input" type="email" placeholder="person@example.com" required style="min-width:280px;">
+        </label>
+        <label>Role:
+          <select id="role-input">
+            <option value="host" selected>Host</option>
+            <option value="admin">Admin</option>
+          </select>
+        </label>
+        <button id="provision-btn">Create &amp; Send</button>
+      </div>
+      <div id="provision-status" style="margin-top:.5rem;font-size:.9rem;color:#555;"></div>
+      <details style="margin-top:.5rem;">
+        <summary style="cursor:pointer;font-size:.9rem;">What this does</summary>
+        <div style="font-size:.9rem;color:#666;">
+          Creates the Auth user (if not already present), writes <code>employees/{uid}</code> with <code>{email, role, active:true}</code>,
+          and generates a secure password-reset link (first-time password setup). We’ll also copy the link to your clipboard.
         </div>
+      </details>
+    </section>
+    <!-- ===== /Provision Employee ===== -->
 
-        <!-- Employees Table -->
-        <table id="employeesTable">
-            <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Employee ID</th>
-                    <th>Active</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody id="employeesTableBody">
-                <!-- Employees will be dynamically populated here -->
-            </tbody>
-        </table>
+    <!-- Existing “Add/Edit Employee” modal & table (unchanged) -->
+    <button id="addNewEmployeeBtn">Add New Employee</button>
+
+    <div id="employeeModal" class="modal">
+      <div class="modal-content">
+        <span class="close-modal">&times;</span>
+        <form id="employeeForm">
+          <input type="hidden" id="employeeId">
+          <div class="form-group">
+            <label for="firstName">First Name</label>
+            <input type="text" id="firstName" required>
+          </div>
+          <div class="form-group">
+            <label for="lastName">Last Name</label>
+            <input type="text" id="lastName" required>
+          </div>
+          <div class="form-group">
+            <label for="email">Email</label>
+            <input type="email" id="email" required>
+          </div>
+          <div class="form-group">
+            <label for="phone">Phone</label>
+            <input type="tel" id="phone">
+          </div>
+          <div class="form-group">
+            <label for="nickname">Nickname</label>
+            <input type="text" id="nickname">
+          </div>
+          <div class="form-group">
+            <label for="employeeID">Employee ID</label>
+            <input type="text" id="employeeID">
+          </div>
+          <div class="form-group">
+            <label for="emergencyContactName">Emergency Contact Name</label>
+            <input type="text" id="emergencyContactName">
+          </div>
+          <div class="form-group">
+            <label for="emergencyContactPhone">Emergency Contact Phone</label>
+            <input type="tel" id="emergencyContactPhone">
+          </div>
+          <div class="form-group">
+            <label for="active">Active</label>
+            <select id="active">
+              <option value="true">Yes</option>
+              <option value="false">No</option>
+            </select>
+          </div>
+          <div class="form-actions">
+            <button type="submit" id="saveEmployee">Save Employee</button>
+            <button type="button" id="cancelEdit">Cancel</button>
+          </div>
+        </form>
+      </div>
     </div>
 
-    <!-- Initialize Firebase -->
-    <script>
-    // Your web app's Firebase configuration
-    const firebaseConfig = {
-      apiKey: "AIzaSyDBKCotY1F943DKfVQqKOGPPkAkQe2Zgog",
-      authDomain: "beach-trivia-website.firebaseapp.com",
-      projectId: "beach-trivia-website",
-      storageBucket: "beach-trivia-website.firebasestorage.app",
-      messagingSenderId: "459479368322",
-      appId: "1:459479368322:web:7bd3d080d3b9e77610aa9b",
-      measurementId: "G-24MQRKKDNY"
-    };
+    <!-- Employees Table -->
+    <table id="employeesTable">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Employee ID</th>
+          <th>Active</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="employeesTableBody"></tbody>
+    </table>
+  </div>
 
-    // Initialize Firebase
-    firebase.initializeApp(firebaseConfig);
-    
-    // Auth state listener to show content after verification
-    firebase.auth().onAuthStateChanged(user => {
-        if (user) {
-            // Hide loading overlay and show content when authenticated
-            document.getElementById('auth-loading').style.display = 'none';
-            document.querySelector('.container').style.display = 'block';
-        }
-    });
-    </script>
+  <!-- Show the page after auth -->
+  <script src="boot.js"></script>
 
-    <script type="module" src="script.js"></script>
-    
-    <style>
-    /* Additional styles for auth overlay */
+  <!-- REMOVE the old email-link invite flow -->
+  <!-- <script src="invite.js"></script> -->
+
+  <!-- Page logic -->
+  <script src="./script.js" defer></script>
+
+  <!-- New provision flow (calls callable function) -->
+  <script src="./provision.js" defer></script>
+
+  <style>
+    /* Overlay styles (inline OK) */
     .auth-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background-color: rgba(0, 0, 0, 0.8);
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        z-index: 1000;
-        color: white;
+      position: fixed; inset: 0; width: 100%; height: 100%;
+      background-color: rgba(0,0,0,0.8);
+      display: flex; flex-direction: column; justify-content: center; align-items: center;
+      z-index: 1000; color: #fff;
     }
-    
     .spinner {
-        border: 4px solid rgba(255, 255, 255, 0.3);
-        border-radius: 50%;
-        border-top: 4px solid #3699ff;
-        width: 40px;
-        height: 40px;
-        animation: spin 1s linear infinite;
-        margin-bottom: 15px;
+      border: 4px solid rgba(255,255,255,0.3);
+      border-radius: 50%;
+      border-top: 4px solid #3699ff;
+      width: 40px; height: 40px;
+      animation: spin 1s linear infinite;
+      margin-bottom: 15px;
     }
-    
-    @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-    }
-    </style>
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  </style>
 </body>
 </html>

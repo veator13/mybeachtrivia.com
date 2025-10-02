@@ -2,69 +2,29 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    /* ---------- helpers ---------- */
-    function signedIn() { return request.auth != null; }
-
-    function empPath() {
-      return /databases/$(database)/documents/employees/$(request.auth.uid);
-    }
-
-    function empExists() {
-      return signedIn() && exists(empPath());
-    }
-
-    function empData() {
-      return signedIn() ? get(empPath()).data : null;
-    }
-
-    function isActiveEmp() {
-      return empExists() && (empData().active == true);
-    }
-
-    // roles can be an array ["admin","host"] or a map {admin:true, host:true}
-    function hasRole(role) {
-      return isActiveEmp() &&
+    // Helper: doc-based admin/owner check
+    function isAdmin() {
+      return request.auth != null && (
+        // role field is a single string
+        get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.role in ['admin', 'owner']
+        ||
+        // roles field is a list/array and contains admin or owner
         (
-          (empData().roles is list && role in empData().roles) ||
-          (empData().roles is map  && (empData().roles[role] == true))
-        );
+          get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.roles != null &&
+          get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.roles.hasAny(['admin','owner'])
+        )
+      );
     }
 
-    function isAdmin() { return hasRole("admin"); }
-    function isHost()  { return hasRole("host") || isAdmin(); }
-
-    /* ---------- applications (public submit; admins manage) ---------- */
-    match /applications/{appId} {
-      allow create: if true;
-      allow read, update, delete: if isAdmin();
-    }
-
-    /* ---------- employees (admin only) ---------- */
     match /employees/{uid} {
-      allow read, create, update, delete: if isAdmin();
-    }
+      // Read: user can read their own doc; admins can read anyone
+      allow read: if (request.auth != null && request.auth.uid == uid) || isAdmin();
 
-    /* ---------- operational data (employee read, admin manage) ---------- */
-    match /{col}/{id} {
-      allow read:  if (col in ["locations","shifts","scores","shiftTypes"]) && isActiveEmp();
-      allow create, update, delete: if (col in ["locations","shifts","scores","shiftTypes"]) && isAdmin();
-    }
-
-    /* ---------- music bingo playlists ---------- */
-    match /music_bingo/{playlistId} {
-      allow read: if true;                 // public read
+      // Write: only admins
       allow create, update, delete: if isAdmin();
     }
 
-    /* ---------- games ---------- */
-    match /games/{gameId} {
-      allow read: if true;                 // players must read
-      allow create: if isHost();           // hosts/admins create
-      allow update: if isHost();           // hosts/admins update
-      allow delete: if isAdmin();          // only admins delete
-    }
-
-    /* ---------- default deny ---------- */
+    // Everything else: deny by default
     match /{document=**} {
       allow read, write: if false;
     }
