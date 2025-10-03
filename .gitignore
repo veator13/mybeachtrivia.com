@@ -67,3 +67,12 @@ node_modules/
 
 # dataconnect generated files
 .dataconnect
+# Local artifacts
+*.zip
+*.bak.*
+*.bad.*
+.DS_Store
+
+# Node deps
+functions/node_modules/
+functions-v2/node_modules/
