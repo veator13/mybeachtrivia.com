@@ -15,7 +15,7 @@
     el.addEventListener("blur", apply);
     apply();
   }
-  window.addEventListener("DOMContentLoaded", () => {
+  ((fn)=>{ if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', fn); else fn(); })(() => {
     _wirePhone("phone");
     _wirePhone("emergencyContactPhone");
   });
