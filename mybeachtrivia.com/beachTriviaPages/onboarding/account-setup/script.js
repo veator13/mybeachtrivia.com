@@ -1,5 +1,25 @@
 /* Employee self-setup: sign in (if needed) then let the user fill allowed fields */
 (function(){
+
+  // --- phone auto-format (XXX-XXX-XXXX) ---
+  function _fmtPhone(v) {
+    const d = (v || "").replace(/\D/g, "").slice(0, 10);
+    const a = d.slice(0,3), b = d.slice(3,6), c = d.slice(6,10);
+    return d.length > 6 ? `${a}-${b}-${c}` : d.length > 3 ? `${a}-${b}` : a;
+  }
+  function _wirePhone(id){
+    const el = document.getElementById(id);
+    if (!el) return;
+    const apply = () => { el.value = _fmtPhone(el.value); };
+    el.addEventListener("input", apply);
+    el.addEventListener("blur", apply);
+    apply();
+  }
+  window.addEventListener("DOMContentLoaded", () => {
+    _wirePhone("phone");
+    _wirePhone("emergencyContactPhone");
+  });
+
   const auth = firebase.auth();
   const db   = firebase.firestore();
 
