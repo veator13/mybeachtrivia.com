@@ -54,6 +54,32 @@ function closeModal() {
 /////////////////////////
 // Fetch & render employees (ADMIN ONLY)
 /////////////////////////
+// --- LIVE employees list (admin only) ---------------------------------------
+function startEmployeesLive() {
+  if (!tableBody) return;
+  if (window._empLiveUnsub) { try { window._empLiveUnsub(); } catch {} }
+
+  (async () => {
+    try {
+      const meUid = auth.currentUser && auth.currentUser.uid;
+      if (!meUid) return;
+
+      const meSnap = await db.collection("employees").doc(meUid).get({ source: "server" });
+      const meData = meSnap.exists ? (meSnap.data() || {}) : {};
+      if (!isAdminFromDoc(meData)) { tableBody.innerHTML = ""; return; }
+
+      // no orderBy here so docs with missing firstName still stream in
+      window._empLiveUnsub = db.collection("employees").onSnapshot(
+        () => fetchEmployees(),
+        (err) => console.error("[live] listener error:", err)
+      );
+
+      console.log("[live] employees listener attached. To stop: _empLiveUnsub()");
+    } catch (e) {
+      console.error("[live] setup failed:", e);
+    }
+  })();
+}
 async function fetchEmployees() {
   if (!tableBody) return;
 
@@ -74,7 +100,7 @@ async function fetchEmployees() {
     // ----- End UX guard
 
     // Order by firstName then lastName for nicer display (fields may be missing on older docs)
-    const snap = await db.collection('employees').orderBy('firstName').get();
+    const snap = await db.collection('employees').orderBy('email').get({ source: 'server' });
 
     snap.forEach(docSnap => {
       const employee = docSnap.data() || {};
@@ -218,6 +244,127 @@ if (closeModalBtn) closeModalBtn.addEventListener('click', closeModal);
 window.addEventListener('click', (evt) => { if (evt.target === modal) closeModal(); });
 
 // Load employees when signed-in admin is confirmed by auth-guard
-auth.onAuthStateChanged((user) => {
-  if (user) fetchEmployees();
-});
+auth.onAuthStateChanged((user) => { if (user) startEmployeesLiveUI(); });
+// --- LIVE employees list v2: render from snapshot directly ---------------
+function startEmployeesLive2() {
+  if (!tableBody) return;
+  if (window._empLiveUnsub) { try { window._empLiveUnsub(); } catch {} }
+
+  (async () => {
+    try {
+      const meUid = auth.currentUser && auth.currentUser.uid;
+      if (!meUid) return;
+
+      const meSnap = await db.collection('employees').doc(meUid).get({ source: 'server' });
+      const meData = meSnap.exists ? (meSnap.data() || {}) : {};
+      if (!isAdminFromDoc(meData)) { tableBody.innerHTML = ''; return; }
+
+      const q = db.collection('employees').orderBy('email');
+      window._empLiveUnsub = q.onSnapshot({ includeMetadataChanges: true }, (snap) => {
+        // rebuild table from snapshot
+        tableBody.innerHTML = '';
+        snap.forEach((docSnap) => {
+          const d = docSnap.data() || {};
+          const activeTxt = d.active === true ? 'Yes' : 'No';
+          const name = (
+            d.displayName ||
+            (`${d.firstName || ''} ${d.lastName || ''}`).trim() ||
+            d.nickname ||
+            d.email ||
+            docSnap.id
+          );
+          const row = tableBody.insertRow();
+          row.innerHTML = `
+            <td>${name}</td>
+            <td>${d.email || ''}</td>
+            <td>${d.employeeID || '—'}</td>
+            <td>${activeTxt}</td>
+            <td>
+              <button class="edit-btn" data-id="${docSnap.id}">Edit</button>
+              <button class="delete-btn" data-id="${docSnap.id}">Delete</button>
+            </td>
+          `;
+        });
+
+        // rebind buttons after re-render
+        tableBody.querySelectorAll('.edit-btn').forEach(btn => {
+          btn.addEventListener('click', (e) => editEmployee(e.currentTarget.dataset.id));
+        });
+        tableBody.querySelectorAll('.delete-btn').forEach(btn => {
+          btn.addEventListener('click', () => deleteEmployee(btn.dataset.id));
+        });
+      }, (err) => console.error('[live2] listener error:', err));
+
+      console.log('[live2] attached. To stop: _empLiveUnsub()');
+    } catch (e) { console.error('[live2] setup failed:', e); }
+  })();
+}
+
+// --- LIVE employees list (UI direct) -----------------------------------------
+function startEmployeesLiveUI() {
+  if (!tableBody) return;
+
+  // stop any previous listener
+  if (window._empLiveUnsub) { try { window._empLiveUnsub(); } catch {} }
+
+  (async () => {
+    try {
+      const meUid = auth.currentUser && auth.currentUser.uid;
+      if (!meUid) return;
+
+      // admin check using your helper
+      const meSnap = await db.collection('employees').doc(meUid).get({ source: 'server' });
+      const meData = meSnap.exists ? (meSnap.data() || {}) : {};
+      if (!isAdminFromDoc(meData)) { tableBody.innerHTML = ''; return; }
+
+      const pickTbody = () =>
+        document.getElementById('employeesTableBody') ||
+        document.getElementById('employeeTableBody') ||
+        (document.querySelector('#employees-table tbody') || document.querySelector('table#employeesTable tbody'));
+
+      const render = (snap) => {
+        const body = pickTbody();
+        if (!body) return;
+        const fr = document.createDocumentFragment();
+        snap.forEach(docSnap => {
+          const d = docSnap.data() || {};
+          const name =
+            d.displayName ||
+            (`${d.firstName ?? ''} ${d.lastName ?? ''}`).trim() ||
+            d.nickname || d.email || docSnap.id;
+          const activeTxt = d.active === true ? 'Yes' : 'No';
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${name}</td>
+            <td>${d.email ?? ''}</td>
+            <td>${d.employeeID ?? '—'}</td>
+            <td>${activeTxt}</td>
+            <td>
+              <button class="edit-btn" data-id="${docSnap.id}">Edit</button>
+              <button class="delete-btn" data-id="${docSnap.id}">Delete</button>
+            </td>`;
+          fr.appendChild(tr);
+        });
+        body.replaceChildren(fr);
+
+        // rebind actions to the fresh rows
+        body.querySelectorAll('.edit-btn').forEach(btn => {
+          btn.onclick = (e) => editEmployee(e.currentTarget.dataset.id);
+        });
+        body.querySelectorAll('.delete-btn').forEach(btn => {
+          btn.onclick = (e) => deleteEmployee(e.currentTarget.dataset.id);
+        });
+      };
+
+      const q = db.collection('employees').orderBy('email');
+      window._empLiveUnsub = q.onSnapshot({ includeMetadataChanges: true },
+        (snap) => render(snap),
+        (err) => console.error('[liveUI] listener error:', err)
+      );
+
+      console.log('[liveUI] attached. To stop: _empLiveUnsub()');
+    } catch (e) {
+      console.error('[liveUI] setup failed:', e);
+    }
+  })();
+}
