@@ -53,17 +53,26 @@
         const res = await callable({ email, role, idToken });
   
         const { uid, resetLink } = res.data || {};
+const DEST_AFTER_RESET = "https://mybeachtrivia.com/beachTriviaPages/onboarding/account-setup/";
+let finalLink = resetLink;
+try {
+  const u = new URL(resetLink);
+  // Only set if not already provided
+  if (!u.searchParams.get("continueUrl")) u.searchParams.set("continueUrl", DEST_AFTER_RESET);
+  finalLink = u.toString();
+} catch {}
+
         if (!uid || !resetLink) throw new Error("Unexpected response from server.");
   
         if (status) {
           status.innerHTML = `
             ✅ Created/updated <code>employees/${uid}</code> as <b>${role}</b>.
             <br/>Password setup link:
-            <a href="${resetLink}" target="_blank" rel="noopener">Open link</a>
+            <a href="${finalLink}" target="_blank" rel="noopener">Open link</a>
             <br/><small>(Link copied to your clipboard.)</small>
           `;
         }
-        try { await navigator.clipboard.writeText(resetLink); } catch {}
+        try { await navigator.clipboard.writeText(finalLink); } catch {}
   
         // Reset form
         if (emailEl) emailEl.value = "";
