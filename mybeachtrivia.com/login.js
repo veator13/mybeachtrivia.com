@@ -239,7 +239,23 @@
 
     requireActive(employee);
     requireRoleForTab(Array.isArray(employee.roles) ? employee.roles : []);
-    location.assign(computeRedirect(employee.roles || []));
+    
+    // Honor ?return / ?next / ?redirect stored as sessionStorage.afterLogin
+    (function(){
+      try {
+        var t = sessionStorage.getItem("afterLogin");
+        if (t) {
+          var u = new URL(t, location.origin);
+          if (u.origin === location.origin) {
+            sessionStorage.removeItem("afterLogin");
+            location.replace(u.href);
+            return;
+          }
+        }
+      } catch (e) { console.warn("[login.js] return handling error", e); }
+    })();
+    console.log("[login.js] NO afterLogin → going to", computeRedirect(employee.roles || []));
+location.assign(computeRedirect(employee.roles || []));
   }
 
   // ----- Email/password handlers -----

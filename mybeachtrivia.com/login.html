@@ -146,8 +146,73 @@
     </div>
   </div>
 
+  <script src="/login-return.js?v=1" defer></script>
+<script>
+/* early after-login redirect (wins over <script src="/login.js?v=uidfix8" defer></script>) */
+(function () {
+  try {
+    var p = new URLSearchParams(location.search);
+    var target =
+      p.get('return') ||
+      p.get('next') ||
+      p.get('redirect') ||
+      sessionStorage.getItem('afterLogin') ||
+      '/beachTriviaPages/dashboards/host/';
+
+    sessionStorage.setItem('afterLogin', target);
+
+    if (window.firebase && firebase.auth) {
+      firebase.auth().onAuthStateChanged(function (user) {
+        if (!user) return;
+        var t = sessionStorage.getItem('afterLogin') || target;
+        try {
+          var u = new URL(t, location.origin);
+          if (u.origin === location.origin) {
+            sessionStorage.removeItem('afterLogin');
+            location.replace(u.href);
+          }
+        } catch {}
+      });
+    }
+  } catch {}
+})();
+</script>
   <!-- Page logic (uses redirect to /start-google.html) -->
-  <script src="/login.js?v=uidfix8"></script>
+  <script src="/login.js?v=uidfix8" defer></script>
+  <script src="/debug-redirect.js?v=2"></script>
   <!-- Fallback loader (only runs if SDKs failed to load) -->
+<script>
+(function () {
+  try {
+    var params = new URLSearchParams(location.search);
+    var target =
+      params.get('return') ||
+      params.get('next') ||
+      params.get('redirect') ||
+      sessionStorage.getItem('afterLogin') ||
+      '/beachTriviaPages/dashboards/host/';
+
+    // remember desired destination between page loads
+    sessionStorage.setItem('afterLogin', target);
+
+    if (window.firebase && firebase.auth) {
+      firebase.auth().onAuthStateChanged(function (user) {
+        if (!user) return;
+        var t = sessionStorage.getItem('afterLogin') || target;
+
+        // safety: only same-origin
+        try {
+          var u = new URL(t, location.origin);
+          if (u.origin === location.origin) {
+            sessionStorage.removeItem('afterLogin');
+            location.replace(u.href);
+          }
+        } catch (e) { console.warn('[login return] bad URL', e); }
+      });
+    }
+  } catch (e) { console.warn('[login return] init error', e); }
+})();
+</script>
+  <script src="/debug-overlay.js?v=1"></script>
 </body>
 </html>
