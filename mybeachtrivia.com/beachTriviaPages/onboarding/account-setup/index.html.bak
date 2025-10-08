@@ -17,7 +17,7 @@
   </style>
 </head>
 <body>
-  <div class="card" id="setupCard" hidden>
+  <div class="card">
     <h2>Welcome — finish setting up your account</h2>
     <p class="muted">If you just created a password, sign in below to continue.</p>
 
