@@ -19,37 +19,11 @@
   <title>Login - Beach Trivia</title>
 
   <!-- ✅ Content Security Policy (allow Firebase + Google OAuth only) -->
-  <meta http-equiv="Content-Security-Policy" content="
-    default-src 'self';
-    base-uri 'self';
-    script-src 'self' 'unsafe-eval' https://www.gstatic.com https://apis.google.com https://www.googleapis.com;
-    style-src  'self' 'unsafe-inline';
-    img-src    'self' data: https://www.gstatic.com;
-    connect-src 'self'
-      https://firestore.googleapis.com
-      https://www.googleapis.com
-      https://apis.google.com
-      https://identitytoolkit.googleapis.com
-      https://securetoken.googleapis.com;
-    frame-src 'self' https://accounts.google.com https://apis.google.com;
-    frame-ancestors 'self';
-  ">
-
   <!-- Silence /favicon.ico 404 in console -->
 
   <!-- Preload SDKs (performance hint) -->
   <link rel="preload" href="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js" as="script">
   <link rel="preload" href="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js" as="script">
-  <script>
-    // Lazy-load Firestore only when needed
-    window.ensureFirestore = () => new Promise((resolve, reject) => {
-      if (firebase.firestore) return resolve();
-      const s = document.createElement("script");
-      s.async = true; s.onload = resolve; s.onerror = reject;
-      document.head.appendChild(s);
-    });
-  </script>
-
   <!-- Local CSS only (no external icon CDN) -->
   <link rel="stylesheet" href="/login.css">
   <link rel="stylesheet" href="/icons.css">
@@ -146,36 +120,7 @@
     </div>
   </div>
 
-<script>
-(function () {
-  try {
-    var p = new URLSearchParams(location.search);
-    var target =
-      p.get('return') ||
-      p.get('next') ||
-      p.get('redirect') ||
-      sessionStorage.getItem('afterLogin') ||
-      '/beachTriviaPages/dashboards/host/';
-
-    sessionStorage.setItem('afterLogin', target);
-
-    if (window.firebase && firebase.auth) {
-      firebase.auth().onAuthStateChanged(function (user) {
-        if (!user) return;
-        var t = sessionStorage.getItem('afterLogin') || target;
-        try {
-          var u = new URL(t, location.origin);
-          if (u.origin === location.origin) {
-            sessionStorage.removeItem('afterLogin');
-            location.replace(u.href);
-          }
-        } catch {}
-      });
-    }
-  } catch {}
-})();
-</script>
-  <!-- Page logic (uses redirect to /start-google.html) --><!-- Fallback loader (only runs if SDKs failed to load) -->
+<!-- Page logic (uses redirect to /start-google.html) --><!-- Fallback loader (only runs if SDKs failed to load) -->
 <script>
 (function () {
   try {
@@ -211,6 +156,7 @@
   <script src="/debug-overlay.js?v=1"></script>  <script src="/debug-redirect.js?v=3" defer></script>
 
   <script src="/login-return.js?v=1" defer></script>
+  <script src="/login-early-redirect.js?v=1" defer></script>
   <script src="/login.js?v=uidfix8" defer></script>
 </body>
 </html>
