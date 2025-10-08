@@ -72,7 +72,7 @@
         console.log('[onboarding] auto-redirect (complete, active) →', dest);
         location.replace(dest);
         return;
-      } _showSetup(); _showSetup(); show("setupCard", true);
+      } _showSetup(); _showSetup(); _showSetup(); show("setupCard", true);
     } catch(e) { console.warn('[onboarding] auto-redirect check failed', e); } })();
     // ---------------------------------------------------------------------------
 
