@@ -1,6 +1,8 @@
 <!doctype html>
 <html lang="en">
 <head>
+  <style id="precheck-hide">body{visibility:hidden}</style>
+  <script>window._showSetup=function(){try{document.getElementById("precheck-hide")?.remove();document.body.style.visibility="visible"}catch(e){}};setTimeout(function(){if(document.getElementById("precheck-hide")){window._showSetup()}},8000);</script>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Account Setup</title>
