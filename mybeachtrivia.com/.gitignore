@@ -69,3 +69,8 @@ node_modules/
 .dataconnect
 .DS_Store
 .DS_Store
+
+# local auto-fix backups
+*.bak.autofix.*
+login.js.fix*
+
