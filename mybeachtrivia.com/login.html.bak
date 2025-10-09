@@ -45,8 +45,13 @@
           <p>Please enter your credentials to access the system.</p>
         </div>
 
-        <div class="toggle-container">
-          <div id="employee-toggle" class="toggle-option employee active">Employee</div>
+        <div class="role-select" style="margin:12px 0 4px 0;">
+  <label for="roleSelect" style="display:block;font-weight:600;margin-bottom:6px;">Choose dashboard</label>
+  <select id="roleSelect" style="width:100%;padding:10px;border-radius:8px;border:1px solid #30363d;background:#0d1117;color:#c9d1d9;">
+    <option value="host">Employee</option>
+    <option value="admin">Admin</option>
+  </select>
+</div>
           <div id="admin-toggle" class="toggle-option admin">Admin</div>
         </div>
 
