@@ -108,12 +108,14 @@ function requireRoleForSelection(roles){
   }
 }
 function setTab(tab) {
-  const t = (tab || "").toLowerCase() === "admin" ? "admin" : "employee";
+  const t = (String(tab||'').toLowerCase() === 'admin') ? 'admin' : 'employee';
   if (typeof adminToggle !== 'undefined' && adminToggle && typeof employeeToggle !== 'undefined' && employeeToggle) {
-    if (t === "admin") {
-      adminToggle.classList.add("active");
-      employeeToggle.classList.remove("active");
-    } else {
+    if (t === 'admin') { adminToggle.classList.add('active'); employeeToggle.classList.remove('active'); }
+    else { employeeToggle.classList.add('active'); adminToggle.classList.remove('active'); }
+  }
+  if (typeof hiddenUserType !== 'undefined' && hiddenUserType) hiddenUserType.value = t;
+}
+else {
       employeeToggle.classList.add("active");
       adminToggle.classList.remove("active");
     }
@@ -521,8 +523,31 @@ async function redirectByRole(user) {
   try {
     const db = firebase.firestore();
     const uid = user && user.uid;
-    if (!uid) { console.error('No user for redirect'); return; }
-    const empRef = db.collection('employees').doc(uid);
+    if (!uid) return;
+
+    const snap = await db.collection('employees').doc(uid).get();
+    if (!snap.exists) {
+      alert('No employee record found for this account. Please contact an administrator to be added.');
+      await firebase.auth().signOut();
+      return;
+    }
+
+    const data = snap.data() || {};
+    const roles = Array.isArray(data.roles) ? data.roles.map(r => String(r).toLowerCase()) : [];
+    const role = selectedRole();
+    if (!roles.includes(role)) {
+      alert('You do not have access to the selected role. Your roles: ' + roles.join(', '));
+      return;
+    }
+
+    const dest = (ROLE_DEST[role] || ROLE_DEST['host']);
+    window.location.assign(dest);
+  } catch (e) {
+    console.error(e);
+    alert('Login completed, but there was a problem determining your dashboard.');
+  }
+}
+const empRef = db.collection('employees').doc(uid);
     const snap = await empRef.get();
     if (!snap.exists) {
       alert('No employee record found for this account. Please contact an administrator to be added.');
