@@ -520,7 +520,8 @@ redirectByRole(firebase.auth().currentUser);
 async function redirectByRole(user) {
   try {
     const db = firebase.firestore();
-    const uid = user.uid;
+    const uid = user && user.uid;
+    if (!uid) { console.error('No user for redirect'); return; }
     const empRef = db.collection('employees').doc(uid);
     const snap = await empRef.get();
     if (!snap.exists) {
@@ -537,7 +538,7 @@ async function redirectByRole(user) {
     }
     const dest = (ROLE_DEST[role] || ROLE_DEST['host']);
     window.location.assign(dest);
-} catch (e) {
+  } catch (e) {
     console.error(e);
     alert('Login completed, but there was a problem determining your dashboard.');
   }
