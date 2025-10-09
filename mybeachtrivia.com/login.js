@@ -108,10 +108,18 @@ function requireRoleForSelection(roles){
   }
 }
 function setTab(tab) {
-    const t = (tab || "").toLowerCase() === "admin" ? "admin" : "employee";
-    await redirectByRole(firebase.auth().currentUser);
-    if (hiddenUserType) hiddenUserType.value = t;
+  const t = (tab || "").toLowerCase() === "admin" ? "admin" : "employee";
+  if (typeof adminToggle !== 'undefined' && adminToggle && typeof employeeToggle !== 'undefined' && employeeToggle) {
+    if (t === "admin") {
+      adminToggle.classList.add("active");
+      employeeToggle.classList.remove("active");
+    } else {
+      employeeToggle.classList.add("active");
+      adminToggle.classList.remove("active");
+    }
   }
+  if (typeof hiddenUserType !== 'undefined' && hiddenUserType) hiddenUserType.value = t;
+}
   try {
     const urlTab = new URLSearchParams(location.search).get("userType");
     const prefTab = urlTab || sessionStorage.getItem("bt_login_tab");
@@ -352,7 +360,7 @@ try {
   console.warn("[login.js] onboarding check failed; continuing to default redirect", e);
 }
 
-await redirectByRole(firebase.auth().currentUser););
+redirectByRole(firebase.auth().currentUser);
 }
 
   // ----- Email/password handlers -----
@@ -406,8 +414,8 @@ await redirectByRole(firebase.auth().currentUser););
     const w = window.open(relay, "bt_google", "width=520,height=640,noopener");
     if (!w) {
       // Popup blocked → full redirect to helper
-      await redirectByRole(firebase.auth().currentUser);
-    }
+      location.assign(relay);
+}
   }
 
   // Accept redirect fallback (#google_id_token / #id_token / legacy #bt_token)
@@ -529,7 +537,7 @@ async function redirectByRole(user) {
       return;
     }
     const dest = (ROLE_DEST[role] || ROLE_DEST['host']);
-    window.await redirectByRole(firebase.auth().currentUser);
+    /* fixed stray await */.currentUser);
   } catch (e) {
     console.error(e);
     alert('Login completed, but there was a problem determining your dashboard.');
