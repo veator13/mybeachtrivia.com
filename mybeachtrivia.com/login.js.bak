@@ -84,8 +84,11 @@
 // Role → destination mapping
 const ROLE_DEST = {
   host: "/beachTriviaPages/dashboards/host/",
-  admin: "/beachTriviaPages/dashboards/admin/",
-  // add more roles here, e.g.: manager: "/beachTriviaPages/dashboards/manager/"
+  social: "/beachTriviaPages/dashboards/host/",
+  writer: "/beachTriviaPages/dashboards/host/",
+  supply: "/beachTriviaPages/dashboards/host/",
+  regional: "/beachTriviaPages/dashboards/host/",
+  admin: "/beachTriviaPages/dashboards/admin/"
 };
 
 function selectedRole(){

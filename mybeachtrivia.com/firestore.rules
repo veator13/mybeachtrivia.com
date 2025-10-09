@@ -2,13 +2,10 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper: doc-based admin/owner check
+    // existing admin check
     function isAdmin() {
       return request.auth != null && (
-        // role field is a single string
-        get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.role in ['admin', 'owner']
-        ||
-        // roles field is a list/array and contains admin or owner
+        get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.role in ['admin', 'owner'] ||
         (
           get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.roles != null &&
           get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.roles.hasAny(['admin','owner'])
@@ -16,12 +13,45 @@ service cloud.firestore {
       );
     }
 
+    // self helpers
+    function isSelf(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+    function selfAllowedFields() {
+      return ['firstName','lastName','nickname','phone','emergencyContact','emergencyContactPhone','dob','updatedAt'];
+    }
+    // forbid privilege changes by self
+    function noPrivilegeChange() {
+      // For updates, the doc already exists; just ensure privileged fields don't change
+      return request.resource.data.email == resource.data.email
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.roles == resource.data.roles
+        && request.resource.data.active == resource.data.active
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.createdAt == resource.data.createdAt;
+    }
+
     match /employees/{uid} {
       // Read: user can read their own doc; admins can read anyone
-      allow read: if (request.auth != null && request.auth.uid == uid) || isAdmin();
+      allow read: if isSelf(uid) || isAdmin();
 
-      // Write: only admins
-      allow create, update, delete: if isAdmin();
+      // Update: admins OR the user themself, but only certain fields & types
+      allow update: if isAdmin()
+        || (
+          isSelf(uid)
+          && noPrivilegeChange()
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly(selfAllowedFields())
+          && (!request.resource.data.keys().hasAny(['dob']) || request.resource.data.dob is timestamp)
+          && (!request.resource.data.keys().hasAny(['firstName']) || request.resource.data.firstName is string)
+          && (!request.resource.data.keys().hasAny(['lastName']) || request.resource.data.lastName is string)
+          && (!request.resource.data.keys().hasAny(['nickname']) || request.resource.data.nickname is string)
+          && (!request.resource.data.keys().hasAny(['phone']) || request.resource.data.phone is string)
+          && (!request.resource.data.keys().hasAny(['emergencyContact']) || request.resource.data.emergencyContact is string)
+          && (!request.resource.data.keys().hasAny(['emergencyContactPhone']) || request.resource.data.emergencyContactPhone is string)
+        );
+
+      // Create/Delete: admins only
+      allow create, delete: if isAdmin();
     }
 
     // Everything else: deny by default

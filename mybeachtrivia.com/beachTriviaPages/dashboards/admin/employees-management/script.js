@@ -204,7 +204,7 @@ async function editEmployee(id) {
     setVal('phone',     e.phone     || '');
     setVal('nickname',  e.nickname  || '');
     setVal('employeeID', e.employeeID || '');
-    setVal('emergencyContactName',  e.emergencyContactName  || '');
+    setVal('emergencyContactName',  e.emergencyContact  || '');
     setVal('emergencyContactPhone', e.emergencyContactPhone || '');
     setVal('active', e.active === true ? 'true' : 'false');
 

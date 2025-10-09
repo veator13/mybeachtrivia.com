@@ -53,7 +53,10 @@
         const res = await callable({ email, role, idToken });
   
         const { uid, resetLink } = res.data || {};
-const DEST_AFTER_RESET = "https://mybeachtrivia.com/beachTriviaPages/onboarding/account-setup/";
+// After reset, go to login first; login will bounce to account-setup via ?return=
+const __afterLogin = new URL('https://mybeachtrivia.com/login.html');
+__afterLogin.searchParams.set('return', '/beachTriviaPages/onboarding/account-setup/');
+const DEST_AFTER_RESET = __afterLogin.toString();
 let finalLink = resetLink;
 try {
   const u = new URL(resetLink);

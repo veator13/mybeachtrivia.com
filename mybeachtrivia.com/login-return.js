@@ -6,9 +6,8 @@
       sessionStorage.setItem('afterLogin', t);
       console.log('[login-return] saved afterLogin =', t);
     } else {
-      console.log('[login-return] no return/next/redirect param');
+      sessionStorage.removeItem('afterLogin');
+      console.log('[login-return] cleared afterLogin (no param)');
     }
-  } catch (e) {
-    console.warn('[login-return] error', e);
-  }
+  } catch (e) { console.warn('[login-return] error', e); }
 })();
