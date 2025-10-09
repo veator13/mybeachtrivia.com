@@ -537,7 +537,7 @@ async function redirectByRole(user) {
     }
     const dest = (ROLE_DEST[role] || ROLE_DEST['host']);
     window.location.assign(dest);
-  } catch (e) {
+} catch (e) {
     console.error(e);
     alert('Login completed, but there was a problem determining your dashboard.');
   }
