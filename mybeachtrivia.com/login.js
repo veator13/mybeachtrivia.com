@@ -110,16 +110,14 @@ function requireRoleForSelection(roles){
 function setTab(tab) {
   const t = (String(tab||'').toLowerCase() === 'admin') ? 'admin' : 'employee';
   if (typeof adminToggle !== 'undefined' && adminToggle && typeof employeeToggle !== 'undefined' && employeeToggle) {
-    if (t === 'admin') { adminToggle.classList.add('active'); employeeToggle.classList.remove('active'); }
-    else { employeeToggle.classList.add('active'); adminToggle.classList.remove('active'); }
-  }
+    if (t === 'admin') {
+      adminToggle.classList.add('active');
+      employeeToggle.classList.remove('active');
+    }
+
   if (typeof hiddenUserType !== 'undefined' && hiddenUserType) hiddenUserType.value = t;
 }
-else {
-      employeeToggle.classList.add("active");
-      adminToggle.classList.remove("active");
-    }
-  }
+
   if (typeof hiddenUserType !== 'undefined' && hiddenUserType) hiddenUserType.value = t;
 }
   try {
