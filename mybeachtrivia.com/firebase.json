@@ -99,6 +99,6 @@
     "indexes": "firestore.indexes.json"
   },
   "functions": {
-    "source": "functions"
+    "source": "functions_gcfv1"
   }
 }
