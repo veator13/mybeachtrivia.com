@@ -40,11 +40,8 @@
 
           }
 
-        }
-
       } catch (e) { console.warn("[login.js] early afterLogin redirect error", e); }
-
-    });
+);
 
   } catch (e) { console.warn("[login.js] early afterLogin hook failed", e); }
 
@@ -106,20 +103,21 @@ function requireRoleForSelection(roles){
     err.code = "employee/not-in-role";
     throw err;
   }
-}
+
 function setTab(tab) {
-  const t = (String(tab||'').toLowerCase() === 'admin') ? 'admin' : 'employee';
+  const t = (String(tab || '').toLowerCase() === 'admin') ? 'admin' : 'employee';
   if (typeof adminToggle !== 'undefined' && adminToggle && typeof employeeToggle !== 'undefined' && employeeToggle) {
     if (t === 'admin') {
       adminToggle.classList.add('active');
       employeeToggle.classList.remove('active');
+    } else {
+      employeeToggle.classList.add('active');
+      adminToggle.classList.remove('active');
     }
 
   if (typeof hiddenUserType !== 'undefined' && hiddenUserType) hiddenUserType.value = t;
 }
 
-  if (typeof hiddenUserType !== 'undefined' && hiddenUserType) hiddenUserType.value = t;
-}
   try {
     const urlTab = new URLSearchParams(location.search).get("userType");
     const prefTab = urlTab || sessionStorage.getItem("bt_login_tab");
@@ -128,17 +126,17 @@ function setTab(tab) {
   employeeToggle?.addEventListener("click", () => {
     setTab("employee");
     try { sessionStorage.setItem("bt_login_tab", "employee"); } catch (_) {}
-  });
+);
   adminToggle?.addEventListener("click", () => {
     setTab("admin");
     try { sessionStorage.setItem("bt_login_tab", "admin"); } catch (_) {}
-  });
+);
 
   // ----- UI helpers -----
   const setBusy = (busy) => {
     if (loginBtn)  { loginBtn.disabled  = !!busy; loginBtn.classList?.toggle("opacity-60", !!busy); }
     if (googleBtn) { googleBtn.disabled = !!busy; googleBtn.classList?.toggle("opacity-60", !!busy); }
-  };
+;
   const showMsg = (text, isError = false) => {
     if (!msgBox) { alert(text); return; }
     msgBox.textContent = text;
@@ -179,7 +177,6 @@ function setTab(tab) {
     } catch (e) {
       console.warn("setPersistence warning:", e?.message);
     }
-  }
 
   // ----- Employee doc helpers -----
   function splitName(displayName = "") {
@@ -216,7 +213,7 @@ function setTab(tab) {
       err.code = "employee/not-admin";
       throw err;
     }
-  }
+
   function computeRedirect(roles) {
     const params = new URLSearchParams(location.search);
     const next = params.get("next");
@@ -277,7 +274,6 @@ function setTab(tab) {
     } catch (e) {
       console.error("[invite] redeem error:", e);
     }
-  }
 
   async function authorizeAndRedirect(user) {
     if (!user) return;
@@ -309,9 +305,9 @@ function setTab(tab) {
             location.replace(u.href);
             return;
           }
-        }
+
       } catch (e) { console.warn("[login.js] return handling error", e); }
-    })();
+)();
     console.log("[login.js] NO afterLogin → going to", computeRedirect(employee.roles || []));
     // Prefer sessionStorage.afterLogin if present (same-origin) and EXIT this handler
     try {
@@ -324,7 +320,7 @@ function setTab(tab) {
           location.replace(u.href);
           return; // stop before computeRedirect
         }
-      }
+
     } catch (e) { console.warn("[login.js] return handling error", e); }
     
 // Prefer sessionStorage.afterLogin if present (same-origin) and EXIT this handler
@@ -338,7 +334,7 @@ try {
       location.replace(__u.href);
       return; // stop before computeRedirect
     }
-  }
+
 } catch (e) { console.warn("[login.js] return handling error", e); }
 
 // FINAL SAFETY: if onboarding not complete, go to account-setup
@@ -355,7 +351,7 @@ try {
     location.replace('/beachTriviaPages/onboarding/account-setup/');
     return;
   }
-} catch (e) {
+ catch (e) {
   console.warn("[login.js] onboarding check failed; continuing to default redirect", e);
 }
 
@@ -406,7 +402,7 @@ redirectByRole(firebase.auth().currentUser);
         setBusy(false);
         showMsg(err?.message || "Google sign-in failed.", true);
       }
-    };
+;
     window.addEventListener("message", onMessage);
 
     // Try popup
@@ -415,7 +411,6 @@ redirectByRole(firebase.auth().currentUser);
       // Popup blocked → full redirect to helper
       location.assign(relay);
 }
-  }
 
   // Accept redirect fallback (#google_id_token / #id_token / legacy #bt_token)
   (async function handleHashToken() {
@@ -437,7 +432,7 @@ redirectByRole(firebase.auth().currentUser);
     } catch (err) {
       showMsg(err?.message || "Google sign-in failed.", true);
     }
-  })();
+)();
 
   // ----- Form handlers -----
   form?.addEventListener("submit", async (e) => {
@@ -465,7 +460,7 @@ redirectByRole(firebase.auth().currentUser);
     } finally {
       setBusy(false);
     }
-  });
+);
 
   googleBtn?.addEventListener("click", async () => {
     clearMsg();
@@ -476,7 +471,7 @@ redirectByRole(firebase.auth().currentUser);
       showMsg(err?.message || "Google sign-in failed.", true);
       setBusy(false);
     }
-  });
+);
 
   forgotLink?.addEventListener("click", async (e) => {
     e.preventDefault();
@@ -488,7 +483,7 @@ redirectByRole(firebase.auth().currentUser);
     } catch (err) {
       showMsg(err?.message || "Could not send password reset email.", true);
     }
-  });
+);
 
   $("#togglePassword")?.addEventListener("click", () => {
     const type = passEl.type === "password" ? "text" : "password";
@@ -507,15 +502,14 @@ redirectByRole(firebase.auth().currentUser);
         String(e?.message || "").includes("Missing or insufficient permissions")
       ) {
         try { await auth.signOut(); } catch (_) {}
-      }
+
       showMsg(e?.message || "Login error.", true);
       setBusy(false);
     }
-  });
+);
 
   console.log("Login page ready (Google via web.app/firebaseapp.com relay; no CSP changes required).");
 })();
-
 
 async function redirectByRole(user) {
   try {
@@ -544,7 +538,7 @@ async function redirectByRole(user) {
     console.error(e);
     alert('Login completed, but there was a problem determining your dashboard.');
   }
-}
+
 const empRef = db.collection('employees').doc(uid);
     const snap = await empRef.get();
     if (!snap.exists) {
@@ -565,4 +559,4 @@ const empRef = db.collection('employees').doc(uid);
     console.error(e);
     alert('Login completed, but there was a problem determining your dashboard.');
   }
-}
+
