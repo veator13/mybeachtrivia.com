@@ -15,35 +15,26 @@
   const auth = firebase.auth();
 
   // Early redirect to ?return / sessionStorage.afterLogin once signed in (CSP-safe)
-
-  try {
-
-    auth.onAuthStateChanged(function(user){
-
-      if (!user) return;
-
-      try {
-
-        var t = sessionStorage.getItem("afterLogin");
-
-        if (t) {
-
-          var u = new URL(t, location.origin);
-
-          if (u.origin === location.origin) {
-
-            sessionStorage.removeItem("afterLogin");
-
-            location.replace(u.href);
-
-            return;
-
-          }
-
-      } 
-);
-
-  } catch (e) { console.warn("[login.js] early afterLogin hook failed", e); }
+try {
+  auth.onAuthStateChanged(function(user) {
+    if (!user) return;
+    try {
+      const t = sessionStorage.getItem("afterLogin");
+      if (t) {
+        const u = new URL(t, location.origin);
+        if (u.origin === location.origin) {
+          sessionStorage.removeItem("afterLogin");
+          location.replace(u.href);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn("[login.js] early afterLogin hook failed", e);
+    }
+  });
+} catch (e) {
+  console.warn("[login.js] early onAuthStateChanged hook failed", e);
+}
 
   const db   = firebase.firestore();
 
