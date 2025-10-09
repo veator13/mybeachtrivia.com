@@ -98,8 +98,8 @@
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
-  "functions": [
-    {
+  "functions": {
+    "0": {
       "source": "functions",
       "codebase": "default",
       "ignore": [
@@ -109,6 +109,7 @@
         "firebase-debug.*.log",
         "*.local"
       ]
-    }
-  ]
+    },
+    "source": "functions"
+  }
 }
