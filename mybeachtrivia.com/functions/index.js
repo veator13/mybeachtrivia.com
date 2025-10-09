@@ -22,8 +22,7 @@ async function resolveAuth(data, context) {
     return {
       uid: context.auth.uid,
       email: context.auth.token?.email || null,
-      tokenClaims: context.auth.token || {},
-    };
+      tokenClaims: context.auth.token || {} };
   }
   const idTok = typeof data?.idToken === "string" ? data.idToken.trim() : "";
   if (!idTok) {
@@ -128,8 +127,7 @@ uid,
         role,                // single role kept for back-compat
         roles: roles,       // normalized array
         active: true,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      },
+        createdAt: admin.firestore.FieldValue.serverTimestamp() },
       { merge: true }
     );
 
@@ -138,8 +136,7 @@ uid,
 
     const actionCodeSettings = {
       url: "https://mybeachtrivia.com/login.html",
-      handleCodeInApp: false,
-    };
+      handleCodeInApp: false };
     const resetLink = await admin.auth().generatePasswordResetLink(email, actionCodeSettings);
 
     return { uid, resetLink };
@@ -156,8 +153,7 @@ exports.whoami = functions
       aud: hasAuth ? context.auth.token?.aud : null,
       iss: hasAuth ? context.auth.token?.iss : null,
       email: hasAuth ? context.auth.token?.email : null,
-      claims: hasAuth ? context.auth.token : null,
-    };
+      claims: hasAuth ? context.auth.token : null };
   });
 
 /** -----------------------------
