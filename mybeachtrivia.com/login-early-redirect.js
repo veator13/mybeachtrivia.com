@@ -1,16 +1,20 @@
 (function () {
   try {
     var p = new URLSearchParams(location.search);
-    var target =
-      p.get('return') || p.get('next') || p.get('redirect') ||
-      sessionStorage.getItem('afterLogin') ||
-      '/beachTriviaPages/dashboards/host/';
-    sessionStorage.setItem('afterLogin', target);
+    var paramTarget = p.get('return') || p.get('next') || p.get('redirect');
+
+    // Only act if caller provided a target or one already exists.
+    if (!paramTarget && !sessionStorage.getItem('afterLogin')) return;
+
+    if (paramTarget) {
+      sessionStorage.setItem('afterLogin', paramTarget);
+    }
 
     if (window.firebase && firebase.auth) {
       firebase.auth().onAuthStateChanged(function (user) {
         if (!user) return;
-        var t = sessionStorage.getItem('afterLogin') || target;
+        var t = sessionStorage.getItem('afterLogin');
+        if (!t) return;  // nothing to do; let login.js decide (Admin/Employee)
         try {
           var u = new URL(t, location.origin);
           if (u.origin === location.origin) {
