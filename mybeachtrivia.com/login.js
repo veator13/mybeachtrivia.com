@@ -1,6 +1,6 @@
 /* /mybeachtrivia.com/login.js
    Email/Password & Google auth, Firestore authZ via employees/{uid}
-   - New signups create employees/{uid} with active:false, roles:[]
+   - New signups create employees/{uid} with active:false, roles: ["host"]
    - Existing users must be active:true to proceed
    - Admin tab requires 'admin' role
    - Employee tab routes to Host dashboard
@@ -195,7 +195,7 @@ function setTab(tab) {
       email: user.email || "",
       displayName: user.displayName || `${firstName} ${lastName}`.trim() || "",
       firstName, lastName,
-      roles: [],
+      roles: ["host"],
       source,
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     };
@@ -258,8 +258,8 @@ function setTab(tab) {
         nickname: "",
         phone: "",
         employeeID: "",
-        active: invite.active !== false, // default true unless explicitly false
-        role: invite.role || "host",
+        active: invite.active !== false,
+        roles: Array.isArray(invite.roles) ? invite.roles : [ (invite.role || "host") ], // default true unless explicitly false
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
       }, { merge: true });
 
