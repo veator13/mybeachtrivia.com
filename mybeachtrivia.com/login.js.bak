@@ -79,13 +79,31 @@
   const RETURN_URL     = `${location.origin}/login.html`; // where the helper returns to
 
   // ----- Tab helpers -----
-  function selectedTab() {
-    if (adminToggle?.classList?.contains("active")) return "admin";
-    if (employeeToggle?.classList?.contains("active")) return "employee";
-    const hv = (hiddenUserType?.value || "").toLowerCase();
-    return hv === "admin" ? "admin" : "employee";
+  function selectedTab(){ return "employee"; } // legacy no-op
+
+// Role → destination mapping
+const ROLE_DEST = {
+  host: "/beachTriviaPages/dashboards/host/",
+  admin: "/beachTriviaPages/dashboards/admin/",
+  // add more roles here, e.g.: manager: "/beachTriviaPages/dashboards/manager/"
+};
+
+function selectedRole(){
+  const el = document.getElementById("roleSelect");
+  if (el && el.value) return el.value;
+  return "host";
+}
+
+function requireRoleForSelection(roles){
+  const role = selectedRole();
+  if (!Array.isArray(roles)) roles = roles ? [roles] : [];
+  if (!roles.includes(role)){
+    const err = new Error("You do not have access to the selected role.");
+    err.code = "employee/not-in-role";
+    throw err;
   }
-  function setTab(tab) {
+}
+function setTab(tab) {
     const t = (tab || "").toLowerCase() === "admin" ? "admin" : "employee";
     if (t === "admin") {
       adminToggle?.classList.add("active");
@@ -187,7 +205,7 @@
     err.code = "employee/inactive";
     throw err;
   }
-  function requireRoleForTab(roles) {
+  function requireRoleForSelection(roles) {
     if (selectedTab() === "admin" && !roles.includes("admin")) {
       const err = new Error("You must be an admin to use the Admin login.");
       err.code = "employee/not-admin";
@@ -273,7 +291,7 @@
     }
 
     requireActive(employee);
-    requireRoleForTab(Array.isArray(employee.roles) ? employee.roles : []);
+    requireRoleForSelection(Array.isArray(employee.roles) ? employee.roles : []);
     
     // Honor ?return / ?next / ?redirect stored as sessionStorage.afterLogin
     (function(){
