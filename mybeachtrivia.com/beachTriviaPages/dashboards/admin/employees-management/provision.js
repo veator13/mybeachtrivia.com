@@ -1,3 +1,10 @@
+function collectSelectedRoles() {
+  const boxes = Array.from(document.querySelectorAll('input[name="roles"]:checked'));
+  let roles = boxes.map(b => (b.value || '').toLowerCase().trim());
+  if (!roles.length) roles = ['host'];
+  return roles;
+}
+
 // employees-management/provision.js
 (function () {
     // --- Firebase helpers ------------------------------------------------------

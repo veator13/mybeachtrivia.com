@@ -82,13 +82,14 @@
   function selectedTab(){ return "employee"; } // legacy no-op
 
 // Role → destination mapping
+// Map each role to its dashboard route
 const ROLE_DEST = {
-  host: "/beachTriviaPages/dashboards/host/",
-  social: "/beachTriviaPages/dashboards/host/",
-  writer: "/beachTriviaPages/dashboards/host/",
-  supply: "/beachTriviaPages/dashboards/host/",
-  regional: "/beachTriviaPages/dashboards/host/",
-  admin: "/beachTriviaPages/dashboards/admin/"
+  host: '/beachTriviaPages/dashboards/host/',
+  social: '/beachTriviaPages/dashboards/social-media-manager/',
+  writer: '/beachTriviaPages/dashboards/writer/',
+  supply: '/beachTriviaPages/dashboards/supply-manager/',
+  regional: '/beachTriviaPages/dashboards/regional-manager/',
+  admin: '/beachTriviaPages/dashboards/admin/',
 };
 
 function selectedRole(){
@@ -108,13 +109,7 @@ function requireRoleForSelection(roles){
 }
 function setTab(tab) {
     const t = (tab || "").toLowerCase() === "admin" ? "admin" : "employee";
-    if (t === "admin") {
-      adminToggle?.classList.add("active");
-      employeeToggle?.classList.remove("active");
-    } else {
-      employeeToggle?.classList.add("active");
-      adminToggle?.classList.remove("active");
-    }
+    await redirectByRole(firebase.auth().currentUser);
     if (hiddenUserType) hiddenUserType.value = t;
   }
   try {
@@ -357,7 +352,7 @@ try {
   console.warn("[login.js] onboarding check failed; continuing to default redirect", e);
 }
 
-location.assign(computeRedirect(employee?.roles || []));
+await redirectByRole(firebase.auth().currentUser););
 }
 
   // ----- Email/password handlers -----
@@ -411,7 +406,7 @@ location.assign(computeRedirect(employee?.roles || []));
     const w = window.open(relay, "bt_google", "width=520,height=640,noopener");
     if (!w) {
       // Popup blocked → full redirect to helper
-      location.assign(relay);
+      await redirectByRole(firebase.auth().currentUser);
     }
   }
 
@@ -513,3 +508,30 @@ location.assign(computeRedirect(employee?.roles || []));
 
   console.log("Login page ready (Google via web.app/firebaseapp.com relay; no CSP changes required).");
 })();
+
+
+async function redirectByRole(user) {
+  try {
+    const db = firebase.firestore();
+    const uid = user.uid;
+    const empRef = db.collection('employees').doc(uid);
+    const snap = await empRef.get();
+    if (!snap.exists) {
+      alert('No employee record found for this account. Please contact an administrator to be added.');
+      await firebase.auth().signOut();
+      return;
+    }
+    const data = snap.data() || {};
+    const roles = Array.isArray(data.roles) ? data.roles.map(r => String(r).toLowerCase()) : [];
+    const role = selectedRole();
+    if (!roles.includes(role)) {
+      alert('You do not have access to the selected role. Your roles: ' + roles.join(', '));
+      return;
+    }
+    const dest = (ROLE_DEST[role] || ROLE_DEST['host']);
+    window.await redirectByRole(firebase.auth().currentUser);
+  } catch (e) {
+    console.error(e);
+    alert('Login completed, but there was a problem determining your dashboard.');
+  }
+}

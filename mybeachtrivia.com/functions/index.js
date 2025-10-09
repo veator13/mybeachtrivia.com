@@ -3,6 +3,16 @@ const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
 admin.initializeApp();
 const db = admin.firestore();
+function sanitizeRoles(input) {
+  let arr = Array.isArray(input) ? input : (input ? [input] : []);
+  arr = arr.map(r => String(r).toLowerCase().trim());
+  const allowed = new Set(['host','admin','regional','supply','writer','social']);
+  const out = [];
+  for (const r of arr) if (allowed.has(r) && !out.includes(r)) out.push(r);
+  if (out.length === 0) out.push('host');
+  return out;
+}
+
 
 /** -----------------------------
  * Helpers
@@ -93,7 +103,7 @@ exports.adminCreateEmployee = functions
     await assertAdminFromCaller(caller);
 
     const email = String(data?.email || "").trim().toLowerCase();
-    const role = data?.role === "admin" ? "admin" : "host";
+    const roles = sanitizeRoles(data?.roles || data?.role);
     if (!email) {
       throw new functions.https.HttpsError("invalid-argument", "email required");
     }
@@ -112,10 +122,11 @@ exports.adminCreateEmployee = functions
 
     await db.collection("employees").doc(uid).set(
       {
-        uid,
+                role: admin.firestore.FieldValue.delete(),
+uid,
         email,
         role,                // single role kept for back-compat
-        roles: [role],       // normalized array
+        roles: roles,       // normalized array
         active: true,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       },

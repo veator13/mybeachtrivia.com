@@ -38,10 +38,15 @@
           <input id="email-input" type="email" placeholder="person@example.com" required style="min-width:280px;">
         </label>
         <label>Role:
-          <select id="role-input">
-            <option value="host" selected>Host</option>
-            <option value="admin">Admin</option>
-          </select>
+          <fieldset id="roles-fieldset" class="roles-fieldset">
+  <legend>Assign roles</legend>
+  <label><input type="checkbox" name="roles" value="host" checked> Host</label>
+  <label><input type="checkbox" name="roles" value="admin"> Admin</label>
+  <label><input type="checkbox" name="roles" value="regional"> Regional manager</label>
+  <label><input type="checkbox" name="roles" value="supply"> Supply manager</label>
+  <label><input type="checkbox" name="roles" value="writer"> Writer</label>
+  <label><input type="checkbox" name="roles" value="social"> Social media manager</label>
+</fieldset>
         </label>
         <button id="provision-btn">Create &amp; Send</button>
       </div>
