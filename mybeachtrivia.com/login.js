@@ -164,9 +164,8 @@ function setTab(tab) {
     }
     clearMsg();
   };
-  switchToSignup?.addEventListener("click", (e) => {
-    e.preventDefault();
-    switchTo(mode === "login" ? "signup" : "login");
+  /* signup disabled */
+    /* signup disabled */;
   });
 
   // ----- Persistence -----
@@ -454,7 +453,7 @@ redirectByRole(firebase.auth().currentUser);
     }
     try {
       const user = mode === "signup"
-        ? await handleSignup(email, pw, firstNameEl?.value || "", lastNameEl?.value || "")
+        ? alert("Sign-ups are disabled. Please use the invite link sent by your manager."); return;
         : await handleLogin(email, pw);
       await authorizeAndRedirect(user);
     } catch (err) {
