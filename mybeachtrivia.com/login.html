@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/login.css?v=4" />
+  <link rel="stylesheet" href="/login.css?v=5" />
 </head>
 <body>
   <main class="page">
@@ -20,30 +20,38 @@
     </header>
 
     <section class="grid">
-      <!-- Left: form -->
       <div class="card">
-        <div class="tabs" role="tablist" aria-label="Choose dashboard">
-          <button id="employee-toggle" class="tab active" type="button">Host</button>
-          <button id="admin-toggle" class="tab" type="button">Admin</button>
+        <!-- Legacy toggle buttons kept but hidden, so old JS won't break -->
+        <div class="tabs" role="tablist" aria-hidden="true">
+          <button id="employee-toggle" class="tab" type="button" tabindex="-1">Host</button>
+          <button id="admin-toggle" class="tab" type="button" tabindex="-1">Admin</button>
         </div>
 
-        <!-- Keeps roleSelect for compatibility (hidden by CSS) -->
-        <label class="visually-hidden" for="roleSelect">Role</label>
-        <select id="roleSelect" name="roleSelect" class="roleSelect">
-          <option value="host" selected>Host</option>
-          <option value="admin">Admin</option>
-        </select>
+        <!-- Visible dropdown for role -->
+        <div class="field">
+          <label for="roleSelect">Choose dashboard</label>
+          <select id="roleSelect" name="roleSelect" class="roleSelect">
+            <option value="host" selected>Host</option>
+            <option value="social">Social Media Manager</option>
+            <option value="writer">Writer</option>
+            <option value="supply">Supply Manager</option>
+            <option value="regional">Regional Manager</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
         <input type="hidden" id="userType" name="userType" value="employee" />
 
         <form id="loginForm" class="form" autocomplete="on">
           <div class="field">
             <label for="username">Email</label>
-            <input id="username" name="username" type="email" placeholder="Enter your email" required inputmode="email" />
+            <input id="username" name="username" type="email" placeholder="Enter your email"
+                   required inputmode="email" autocomplete="username" />
           </div>
 
           <div class="field">
             <label for="password">Password</label>
-            <input id="password" name="password" type="password" placeholder="Enter your password" required />
+            <input id="password" name="password" type="password" placeholder="Enter your password"
+                   required autocomplete="current-password" />
           </div>
 
           <div class="row">
@@ -51,7 +59,6 @@
               <input id="rememberMe" type="checkbox" />
               <span>Remember me</span>
             </label>
-
             <a id="forgotPassword" href="#" class="link">Forgot password?</a>
           </div>
 
@@ -70,7 +77,6 @@
         </form>
       </div>
 
-      <!-- Right: promo card -->
       <aside class="promo card">
         <div class="promo-art">
           <img src="/beachTriviaPages/images/BTlogo.png" alt="" width="44" height="44" />
@@ -86,7 +92,7 @@
     </section>
   </main>
 
-  <!-- Scripts (CSP-safe: all external, no inline) -->
+  <!-- Keep scripts external & ordered for CSP + init-before-usage -->
   <script defer src="/firebase-init.js?v=2"></script>
   <script defer src="/firebase-fallback.js"></script>
   <script defer src="/debug-redirect.js?v=3"></script>
