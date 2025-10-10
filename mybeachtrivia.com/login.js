@@ -108,3 +108,5 @@ function setTab(tab) {
   }
   if (typeof hiddenUserType !== 'undefined' && hiddenUserType) hiddenUserType.value = t;
 }
+
+}});
