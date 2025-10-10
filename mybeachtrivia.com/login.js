@@ -134,3 +134,104 @@
   } catch {}
 
 })();
+
+
+/* ===========================================================
+   BT Login Fix v3 (CSP-safe)
+   - Attaches form submit + button click listeners (once)
+   - Reads role from #roleSelect (fallback #userType → 'host')
+   - Verifies employees/{uid}.active + roles, then redirects
+   - Exposes bt.signInTest(email, pass)
+   =========================================================== */
+(() => {
+  if (window.__btFix_v3) return; window.__btFix_v3 = true;
+
+  const app = (window.firebase && firebase.app) ? firebase.app() : null;
+  const auth = (window.firebase && firebase.auth) ? firebase.auth() : null;
+  const db   = (window.firebase && firebase.firestore) ? firebase.firestore() : null;
+
+  const ROLE_DEST = {
+    host:    '/beachTriviaPages/dashboards/host/',
+    social:  '/beachTriviaPages/dashboards/social-media-manager/',
+    writer:  '/beachTriviaPages/dashboards/writer/',
+    supply:  '/beachTriviaPages/dashboards/supply-manager/',
+    regional:'/beachTriviaPages/dashboards/regional-manager/',
+    admin:   '/beachTriviaPages/dashboards/admin/',
+  };
+
+  const byId = (id) => document.getElementById(id);
+  const roleSelect  = () => byId('roleSelect')?.value || byId('userType')?.value || 'host';
+
+  async function redirectByRole(user) {
+    if (!db || !user) throw new Error('Firestore or user missing');
+    const snap = await db.collection('employees').doc(user.uid).get();
+    const data = snap.data() || {};
+    if (data.active === false) throw new Error('Your account is not active yet.');
+    let roles = data.roles;
+    if (!Array.isArray(roles)) roles = roles ? [String(roles)] : [];
+    const role = roleSelect();
+
+    if (role === 'admin' && !roles.includes('admin')) {
+      const e = new Error('You do not have admin access.'); e.code = 'employee/not-in-role'; throw e;
+    }
+    const dest = ROLE_DEST[role] || ROLE_DEST.host;
+    window.location.assign(dest);
+  }
+
+  async function handleLogin(ev) {
+    ev?.preventDefault?.();
+    if (!auth) { alert('Auth not ready yet.'); return; }
+    const email = byId('username')?.value?.trim();
+    const pass  = byId('password')?.value ?? '';
+    if (!email || !pass) { alert('Enter email and password.'); return; }
+
+    const btn = byId('loginButton');
+    if (btn) btn.disabled = true;
+    try {
+      const { user } = await auth.signInWithEmailAndPassword(email, pass);
+      await redirectByRole(user);
+    } catch (err) {
+      console.error('[BT login] error:', err);
+      alert(err?.message || String(err));
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  function wireOnce() {
+    const form = byId('loginForm');
+    const btn  = byId('loginButton');
+
+    if (form && !form.__btWired) {
+      form.addEventListener('submit', handleLogin);
+      form.__btWired = true;
+    }
+    if (btn && !btn.__btWired) {
+      btn.addEventListener('click', (e) => { e.preventDefault(); form?.dispatchEvent(new Event('submit', { cancelable:true })); });
+      btn.__btWired = true;
+    }
+
+    // keep hidden #userType synced if present
+    const ut = byId('userType');
+    const rs = byId('roleSelect');
+    if (ut && rs && !rs.__btSync) {
+      rs.addEventListener('change', () => { ut.value = rs.value || 'host'; });
+      rs.__btSync = true;
+      ut.value = rs.value || 'host';
+    }
+  }
+
+  (document.readyState === 'loading')
+    ? document.addEventListener('DOMContentLoaded', wireOnce, { once:true })
+    : wireOnce();
+
+  // Expose a console helper for quick testing
+  window.bt = window.bt || {};
+  window.bt.signInTest = async (email, password) => {
+    if (!auth) throw new Error('Auth not ready');
+    const { user } = await auth.signInWithEmailAndPassword(email, password);
+    return redirectByRole(user);
+  };
+
+  console.log('%cBT fix v3 active', 'font-weight:700');
+})();
