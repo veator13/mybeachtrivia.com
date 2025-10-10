@@ -37,7 +37,7 @@
   <script src="/firebase-init.js?v=2"></script>
 </head>
 <body>
-  <div class="container">
+  <div class="container login-container">
     <div class="login-container">
       <div class="form-container">
         <div class="header">
@@ -47,7 +47,7 @@
 
         <div class="role-select" style="margin:12px 0 4px 0;">
   <label for="roleSelect" style="display:block;font-weight:600;margin-bottom:6px;">Choose dashboard</label>
-  <select id="roleSelect" style="width:100%;padding:10px;border-radius:8px;border:1px solid #30363d;background:#0d1117;color:#c9d1d9;">
+  <select id="roleSelect" style="width:100%;padding:10px;border-radius:8px;border:1px solid #30363d;background:#0d1117;color:#c9d1d9;" class="select input">
       <option value="host">Host</option>
       <option value="social">Social media manager</option>
       <option value="writer">Writer</option>
@@ -56,12 +56,12 @@
       <option value="admin">Admin</option>
 </select>
 </div>
-          <div id="admin-toggle" class="toggle-option admin">Admin</div>
+          <div id="admin-toggle" class="toggle-option admin tab">Admin</div>
         </div>
 
         <div id="messageContainer" class="message-container" style="display:none;"></div>
 
-        <form id="loginForm">
+        <form id="loginForm" class="login-container">
           <input type="hidden" id="userType" name="userType" value="employee">
 
           <!-- Sign-up only fields (hidden by default; JS toggles them) -->
@@ -69,8 +69,8 @@
             <label for="firstName">Name</label>
             <div class="input-with-icon">
               <span class="icon icon--user" aria-hidden="true"></span>
-              <input type="text" id="firstName" name="firstName" placeholder="First name" style="margin-right:8px;">
-              <input type="text" id="lastName" name="lastName" placeholder="Last name">
+              <input type="text" id="firstName" name="firstName" placeholder="First name" style="margin-right:8px;" class="input">
+              <input type="text" id="lastName" name="lastName" placeholder="Last name" class="input">
             </div>
           </div>
 
@@ -78,7 +78,7 @@
             <label for="username">Email</label>
             <div class="input-with-icon">
               <span class="icon icon--mail" aria-hidden="true"></span>
-              <input type="email" id="username" name="username" placeholder="Enter your email" required>
+              <input type="email" id="username" name="username" placeholder="Enter your email" required class="input">
             </div>
           </div>
 
@@ -86,12 +86,12 @@
             <label for="password">Password</label>
             <div class="input-with-icon">
               <span class="icon icon--lock" aria-hidden="true"></span>
-              <input type="password" id="password" name="password" placeholder="Enter your password" required>
+              <input type="password" id="password" name="password" placeholder="Enter your password" required class="input">
               <button type="button" id="togglePassword" class="toggle-password icon icon--eye" aria-label="Show password"></button>
             </div>
           </div>
 
-          <div class="form-group checkbox-group">
+          <div class="form-group checkbox-group motivation-container">
             <label>
               <input type="checkbox" id="rememberMe" name="rememberMe">
               <span>Remember me</span>
@@ -100,7 +100,7 @@
           </div>
 
           <div class="form-group">
-            <button type="submit" id="loginButton">
+            <button type="submit" id="loginButton" class="btn btn-primary">
               <span id="loginButtonText">Login</span>
               <span class="icon icon--arrow" aria-hidden="true" style="margin-left:8px;"></span>
             </button>
@@ -120,7 +120,7 @@
     </div>
 
     <div class="motivation-container">
-      <img src="beachTriviaPages/images/BTlogo.png" alt="Beach Trivia Logo" class="logo">
+      <img src="beachTriviaPages/images/BTlogo.png" alt="Beach Trivia Logo" class="logo logo">
       <h2>Bring the Fun!</h2>
       <p>Create memorable experiences for our guests with Beach Trivia.</p>
     </div>
