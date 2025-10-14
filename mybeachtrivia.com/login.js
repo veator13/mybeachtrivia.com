@@ -115,8 +115,36 @@
       }
 
       // Default to host if chosen role not allowed/unknown
-      const dest = DEST[role] || DEST.host;
+      /* replaced: redirect now checks first-login/setup */
+(async function(){
+  try {
+    var user = (firebase && firebase.auth && firebase.auth().currentUser) || null;
+    if (user) {
+      var snap = await firebase.firestore().doc("employees/" + user.uid).get();
+      var emp  = snap.exists ? (snap.data() || {}) : {};
+      var rolesArr = Array.isArray(emp.roles) ? emp.roles
+                    : (typeof emp.role === "string" ? [emp.role] : []);
+      var required = ["firstName","lastName","phone","emergencyContact","emergencyContactPhone","dob"];
+      var missing  = required.filter(function(k){ return !emp[k]; });
+      var mustSetup = (emp.setupCompleted === true) ? false : (missing.length > 0);
+
+      if (mustSetup) {
+        console.log("[login] first login → account-setup");
+        window.location.assign("/beachTriviaPages/onboarding/account-setup/");
+        return;
+      }
+
+      // Otherwise go to chosen dashboard (fallback honors admin if present)
+      var fallback = rolesArr.indexOf("admin") >= 0 ? DEST.admin : DEST.host;
+      var dest = DEST[role] || fallback;
       window.location.assign(dest);
+      return;
+    }
+  } catch (e) { console.warn("[login] redirect check failed", e); }
+  // Fallback if anything above fails
+  var dest = DEST[role] || DEST.host;
+  window.location.assign(dest);
+})();
     } catch (err) {
       console.error('[login] sign-in error:', err);
       alert(err.message || String(err));
