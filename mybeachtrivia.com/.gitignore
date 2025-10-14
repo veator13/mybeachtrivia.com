@@ -104,3 +104,4 @@ Thumbs.db
 login.js.*.*
 beachTriviaPages/js/auth_guard.js
 beachTriviaPages/js/auth-route-guard.js
+beachTriviaPages/js/auth-route-guard.v2.backup-*.js
