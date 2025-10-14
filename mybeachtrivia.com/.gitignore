@@ -97,3 +97,4 @@ dist/
 # function deps (local only)
 functions_gcfv1/node_modules/
 functions-v2/node_modules/
+.cleanup-archives/
