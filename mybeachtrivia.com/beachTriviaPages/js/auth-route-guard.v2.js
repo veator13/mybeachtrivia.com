@@ -86,9 +86,17 @@
         }
 
         if (onLogin) {
-          if (!setupCompleted) return redirectOnce(PATHS.setup);
-          return redirectOnce(defaultDest(roles));
-        }
+  // If profile not complete → onboarding
+  if (!setupCompleted) return redirectOnce(PATHS.setup);
+  // If a 'next' is provided, honor it
+  try {
+    var params = new URLSearchParams(location.search);
+    var next = params.get('next');
+    if (next) return redirectOnce(next);
+  } catch (_) {}
+  // Otherwise, let login.js handle role selection (no auto-redirect here)
+  return;
+}
 
         if (onSetup) {
           if (setupCompleted) return redirectOnce(defaultDest(roles));
