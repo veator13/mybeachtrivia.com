@@ -99,3 +99,8 @@ functions_gcfv1/node_modules/
 functions-v2/node_modules/
 .cleanup-archives/
 Thumbs.db
+
+# Local one-off backups / legacy guard files
+login.js.*.*
+beachTriviaPages/js/auth_guard.js
+beachTriviaPages/js/auth-route-guard.js
