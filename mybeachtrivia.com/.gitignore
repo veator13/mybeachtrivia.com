@@ -80,3 +80,22 @@ login.js.fix*
 *.redirfix.*
 *.bak.autofix.*
 login.js.fix*.*
+# === repo-cleanup (2025-10-14) ===
+.backups/
+*.bak.*
+*.backup.*
+*.old
+*~
+# local editor stuff
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+# build caches (if any)
+.cache/
+tmp/
+dist/
+# function deps (local only)
+functions_gcfv1/node_modules/
+functions-v2/node_modules/
+.cleanup-archives/
+Thumbs.db
