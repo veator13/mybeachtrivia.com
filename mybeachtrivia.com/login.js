@@ -1,45 +1,29 @@
-/* login.js — stable sign-in + role redirect */
+/* login.js – Beach Trivia
+   - CSP-safe (no inline handlers)
+   - Uses #roleSelect dropdown
+   - Verifies Firestore roles and redirects
+*/
 (() => {
-  if (!window.firebase) { console.error('Firebase SDK not found'); return; }
-  const auth = firebase.auth();
-  const db   = firebase.firestore();
+  const $ = (s, r = document) => r.querySelector(s);
 
-  // Early afterLogin redirect (CSP-safe; doesn't touch your debug-redirect flow)
-  try {
-    auth.onAuthStateChanged(async (user) => {
-      if (!user) return;
-      try {
-        const t = sessionStorage.getItem('afterLogin');
-        if (t) {
-          const u = new URL(t, location.origin);
-          if (u.origin === location.origin) {
-            sessionStorage.removeItem('afterLogin');
-            location.replace(u.href);
-            return;
-          }
-        }
-      } catch (e) {
-        console.warn('[login.js] early afterLogin hook failed', e);
-      }
-    });
-  } catch (e) {
-    console.warn('[login.js] onAuthStateChanged attach failed', e);
-  }
+  const els = {
+    form:      $('#loginForm'),
+    email:     $('#username'),
+    pass:      $('#password'),
+    remember:  $('#rememberMe'),
+    btn:       $('#loginButton'),
+    btnTxt:    $('#loginButtonText'),
+    role:      $('#roleSelect'),
+    userType:  $('#userType'),
+    googleBtn: $('#googleButton'),
+    brandLogo: $('#brandLogo'),
+  };
 
-  // ----- DOM refs (defer script => DOM is ready) -----
-  const $ = (s) => document.querySelector(s);
-  const form           = $('#loginForm');
-  const emailEl        = $('#username');
-  const passEl         = $('#password');
-  const loginBtn       = $('#loginButton');
-  const googleBtn      = $('#googleButton');
-  const roleSelect     = $('#roleSelect');
-  const hiddenUserType = $('#userType');
-  const adminToggle    = $('#admin-toggle');
-  const employeeToggle = $('#employee-toggle');
+  // Hide broken logos without inline handlers (CSP)
+  els.brandLogo?.addEventListener('error', () => (els.brandLogo.hidden = true));
 
-  // ----- Destinations by role -----
-  const ROLE_DEST = {
+  // Map roles -> destinations
+  const DEST = {
     host:     '/beachTriviaPages/dashboards/host/',
     social:   '/beachTriviaPages/dashboards/social-media-manager/',
     writer:   '/beachTriviaPages/dashboards/writer/',
@@ -48,190 +32,115 @@
     admin:    '/beachTriviaPages/dashboards/admin/',
   };
 
-  function selectedRole() {
-    const fromDD = roleSelect?.value;
-    if (fromDD) return fromDD;
-    const fromHidden = hiddenUserType?.value;
-    if (fromHidden) return String(fromHidden);
-    return 'host';
-  }
-
-  function setTab(tab) {
-    const t = (String(tab || '').toLowerCase() === 'admin') ? 'admin' : 'employee';
-    if (adminToggle && employeeToggle) {
-      if (t === 'admin') {
-        adminToggle.classList.add('active');
-        employeeToggle.classList.remove('active');
-      } else {
-        employeeToggle.classList.add('active');
-        adminToggle.classList.remove('active');
-      }
+  // Helper: wait until firebase + auth is usable (handles deferred script load)
+  async function waitForAuth(ms = 250, tries = 20) {
+    for (let i = 0; i < tries; i++) {
+      try {
+        if (window.firebase?.auth) return firebase.auth();
+      } catch {}
+      await new Promise(r => setTimeout(r, ms));
     }
-    if (hiddenUserType) hiddenUserType.value = t;
+    throw new Error('Auth not ready yet.');
   }
 
-  async function redirectByRole(user) {
-    const snap = await db.collection('employees').doc(user.uid).get();
-    if (!snap.exists) throw new Error('No employee profile found.');
-    const data = snap.data() || {};
-
-    if (data.active === false) throw new Error('Your account is not active yet.');
-
-    const roles = Array.isArray(data.roles) ? data.roles.map(String)
-                 : (data.roles ? [String(data.roles)] : []);
-    const role  = selectedRole().toLowerCase();
-
-    if (role === 'admin' && !roles.includes('admin')) {
-      const err = new Error('You do not have admin access.');
-      err.code = 'employee/not-in-role';
-      throw err;
-    }
-
-    const dest = ROLE_DEST[role] || ROLE_DEST.host;
-    window.location.assign(dest);
-  }
-
-  async function handleLogin(ev) {
-    ev?.preventDefault();
-    const email = emailEl?.value?.trim();
-    const pass  = passEl?.value || '';
-    if (!email || !pass) { alert('Enter email and password.'); return; }
-
-    if (loginBtn) loginBtn.disabled = true;
+  // Early redirect if already signed in and we have a remembered return
+  (async () => {
     try {
-      const { user } = await auth.signInWithEmailAndPassword(email, pass);
-      await redirectByRole(user);
+      const auth = await waitForAuth(150, 30);
+      auth.onAuthStateChanged((u) => {
+        if (!u) return;
+        const t = sessionStorage.getItem('afterLogin');
+        if (t) {
+          sessionStorage.removeItem('afterLogin');
+          try {
+            const uret = new URL(t, location.origin);
+            if (uret.origin === location.origin) location.replace(uret.href);
+          } catch {}
+        }
+      });
     } catch (e) {
-      console.error('[login.js] sign-in failed', e);
-      alert(e.message || String(e));
-    } finally {
-      if (loginBtn) loginBtn.disabled = false;
+      console.warn('[login] early onAuthStateChanged setup failed:', e);
     }
-  }
+  })();
 
-  // Wire events (no HTML5 blocking)
-  if (form) {
-    form.noValidate = true;
-    form.addEventListener('submit', handleLogin);
+  // Role <-> hidden userType sync (for any legacy code)
+  function syncUserType() {
+    const r = (els.role?.value || 'host').toLowerCase();
+    if (els.userType) els.userType.value = r === 'admin' ? 'admin' : 'employee';
   }
-  loginBtn?.addEventListener('click', handleLogin);
+  els.role?.addEventListener('change', syncUserType);
+  syncUserType();
 
-  // Google flow -> helper page (keeps CSP happy)
-  googleBtn?.addEventListener('click', (e) => {
+  // Google helper (keeps CSP happy)
+  els.googleBtn?.addEventListener('click', (e) => {
     e.preventDefault();
-    const role = selectedRole();
+    const role = (els.role?.value || 'host').toLowerCase();
     const ret  = location.origin + '/login.html';
     location.assign(`/start-google.html?role=${encodeURIComponent(role)}&return=${encodeURIComponent(ret)}`);
   });
 
-  // Respect ?userType & remember choice
-  try {
-    const urlTab = new URLSearchParams(location.search).get('userType');
-    const pref   = urlTab || sessionStorage.getItem('bt_login_tab');
-    if (pref) setTab(pref);
-    adminToggle?.addEventListener('click', ()=>{ setTab('admin');    sessionStorage.setItem('bt_login_tab','admin'); });
-    employeeToggle?.addEventListener('click', ()=>{ setTab('employee'); sessionStorage.setItem('bt_login_tab','employee'); });
-  } catch {}
-
-})();
-
-
-/* ===========================================================
-   BT Login Fix v3 (CSP-safe)
-   - Attaches form submit + button click listeners (once)
-   - Reads role from #roleSelect (fallback #userType → 'host')
-   - Verifies employees/{uid}.active + roles, then redirects
-   - Exposes bt.signInTest(email, pass)
-   =========================================================== */
-(() => {
-  if (window.__btFix_v3) return; window.__btFix_v3 = true;
-
-  const app = (window.firebase && firebase.app) ? firebase.app() : null;
-  const auth = (window.firebase && firebase.auth) ? firebase.auth() : null;
-  const db   = (window.firebase && firebase.firestore) ? firebase.firestore() : null;
-
-  const ROLE_DEST = {
-    host:    '/beachTriviaPages/dashboards/host/',
-    social:  '/beachTriviaPages/dashboards/social-media-manager/',
-    writer:  '/beachTriviaPages/dashboards/writer/',
-    supply:  '/beachTriviaPages/dashboards/supply-manager/',
-    regional:'/beachTriviaPages/dashboards/regional-manager/',
-    admin:   '/beachTriviaPages/dashboards/admin/',
-  };
-
-  const byId = (id) => document.getElementById(id);
-  const roleSelect  = () => byId('roleSelect')?.value || byId('userType')?.value || 'host';
-
-  async function redirectByRole(user) {
-    if (!db || !user) throw new Error('Firestore or user missing');
-    const snap = await db.collection('employees').doc(user.uid).get();
-    const data = snap.data() || {};
-    if (data.active === false) throw new Error('Your account is not active yet.');
-    let roles = data.roles;
-    if (!Array.isArray(roles)) roles = roles ? [String(roles)] : [];
-    const role = roleSelect();
-
-    if (role === 'admin' && !roles.includes('admin')) {
-      const e = new Error('You do not have admin access.'); e.code = 'employee/not-in-role'; throw e;
-    }
-    const dest = ROLE_DEST[role] || ROLE_DEST.host;
-    window.location.assign(dest);
-  }
-
+  // Main login handler
   async function handleLogin(ev) {
-    ev?.preventDefault?.();
-    if (!auth) { alert('Auth not ready yet.'); return; }
-    const email = byId('username')?.value?.trim();
-    const pass  = byId('password')?.value ?? '';
-    if (!email || !pass) { alert('Enter email and password.'); return; }
-
-    const btn = byId('loginButton');
-    if (btn) btn.disabled = true;
+    ev?.preventDefault();
     try {
+      const auth = await waitForAuth(150, 30);
+      // Persistence from "Remember me"
+      await auth.setPersistence(els.remember?.checked ? firebase.auth.Auth.Persistence.LOCAL
+                                                      : firebase.auth.Auth.Persistence.SESSION);
+
+      const email = els.email?.value?.trim();
+      const pass  = els.pass?.value || '';
+      if (!email || !pass) {
+        alert('Enter email and password.');
+        return;
+      }
+
+      els.btn && (els.btn.disabled = true);
       const { user } = await auth.signInWithEmailAndPassword(email, pass);
-      await redirectByRole(user);
+
+      // Check Firestore for roles/active
+      const db = firebase.firestore();
+      const snap = await db.collection('employees').doc(user.uid).get();
+      const data = snap.data() || {};
+      if (data.active === false) throw new Error('Your account is not active yet.');
+
+      let roles = data.roles;
+      if (!Array.isArray(roles)) roles = roles ? [String(roles)] : [];
+
+      const role = (els.role?.value || 'host').toLowerCase();
+
+      // Enforce admin selection requires admin role
+      if (role === 'admin' && !roles.includes('admin')) {
+        throw Object.assign(new Error('You do not have admin access.'), { code: 'employee/not-in-role' });
+      }
+
+      // Default to host if chosen role not allowed/unknown
+      const dest = DEST[role] || DEST.host;
+      window.location.assign(dest);
     } catch (err) {
-      console.error('[BT login] error:', err);
-      alert(err?.message || String(err));
+      console.error('[login] sign-in error:', err);
+      alert(err.message || String(err));
     } finally {
-      if (btn) btn.disabled = false;
+      els.btn && (els.btn.disabled = false);
     }
   }
 
-  function wireOnce() {
-    const form = byId('loginForm');
-    const btn  = byId('loginButton');
-
-    if (form && !form.__btWired) {
-      form.addEventListener('submit', handleLogin);
-      form.__btWired = true;
-    }
-    if (btn && !btn.__btWired) {
-      btn.addEventListener('click', (e) => { e.preventDefault(); form?.dispatchEvent(new Event('submit', { cancelable:true })); });
-      btn.__btWired = true;
-    }
-
-    // keep hidden #userType synced if present
-    const ut = byId('userType');
-    const rs = byId('roleSelect');
-    if (ut && rs && !rs.__btSync) {
-      rs.addEventListener('change', () => { ut.value = rs.value || 'host'; });
-      rs.__btSync = true;
-      ut.value = rs.value || 'host';
-    }
+  // Wire form + button (CSP-safe)
+  function attach() {
+    if (!els.form || !els.btn) return;
+    els.form.addEventListener('submit', handleLogin);
+    els.btn.addEventListener('click', handleLogin);
+    // tiny convenience for Enter in password field
+    els.pass?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') handleLogin(e);
+    });
+    console.log('✅ login handler attached');
   }
+  attach();
 
-  (document.readyState === 'loading')
-    ? document.addEventListener('DOMContentLoaded', wireOnce, { once:true })
-    : wireOnce();
-
-  // Expose a console helper for quick testing
-  window.bt = window.bt || {};
-  window.bt.signInTest = async (email, password) => {
-    if (!auth) throw new Error('Auth not ready');
-    const { user } = await auth.signInWithEmailAndPassword(email, password);
-    return redirectByRole(user);
-  };
-
-  console.log('%cBT fix v3 active', 'font-weight:700');
+  // Small self-test dump (shows current role/email presence)
+  console.table({
+    role: (els.role?.value || 'host'),
+    hasForm: !!els.form, hasBtn: !!els.btn, hasEmail: !!els.email, hasPass: !!els.pass
+  });
 })();

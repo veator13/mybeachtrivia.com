@@ -2,61 +2,44 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // existing admin check
+    function signedIn() { return request.auth != null; }
+    function isSelf(uid) { return signedIn() && request.auth.uid == uid; }
+
+    // Admin if claim 'admin' is true OR roles array contains admin/superadmin
     function isAdmin() {
-      return request.auth != null && (
-        get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.role in ['admin', 'owner'] ||
-        (
-          get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.roles != null &&
-          get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.roles.hasAny(['admin','owner'])
-        )
+      return signedIn() && (
+        request.auth.token.admin == true ||
+        (request.auth.token.roles != null &&
+         request.auth.token.roles.hasAny(['admin','superadmin']))
       );
     }
 
-    // self helpers
-    function isSelf(uid) {
-      return request.auth != null && request.auth.uid == uid;
-    }
-    function selfAllowedFields() {
-      return ['firstName','lastName','nickname','phone','emergencyContact','emergencyContactPhone','dob','updatedAt'];
-    }
-    // forbid privilege changes by self
-    function noPrivilegeChange() {
-      // For updates, the doc already exists; just ensure privileged fields don't change
-      return request.resource.data.email == resource.data.email
-        && request.resource.data.role == resource.data.role
-        && request.resource.data.roles == resource.data.roles
-        && request.resource.data.active == resource.data.active
-        && request.resource.data.uid == resource.data.uid
-        && request.resource.data.createdAt == resource.data.createdAt;
+    // Fields employees may edit on their own profile
+    function selfAllowedKeys() {
+      return [
+        'firstName','lastName','nickname','dob',
+        'phone','emergencyPhone','emergencyName','photoURL',
+        'setupCompleted','updatedAt'
+      ];
     }
 
     match /employees/{uid} {
-      // Read: user can read their own doc; admins can read anyone
+      // Employee can read self; admin can read all
       allow read: if isSelf(uid) || isAdmin();
 
-      // Update: admins OR the user themself, but only certain fields & types
+      // Create by admin only (you create employee docs via admin flow)
+      allow create: if isAdmin();
+
+      // Update: admin any; employee only allow-listed keys on self
       allow update: if isAdmin()
-        || (
-          isSelf(uid)
-          && noPrivilegeChange()
-          && request.resource.data.diff(resource.data).changedKeys().hasOnly(selfAllowedFields())
-          && (!request.resource.data.keys().hasAny(['dob']) || request.resource.data.dob is timestamp)
-          && (!request.resource.data.keys().hasAny(['firstName']) || request.resource.data.firstName is string)
-          && (!request.resource.data.keys().hasAny(['lastName']) || request.resource.data.lastName is string)
-          && (!request.resource.data.keys().hasAny(['nickname']) || request.resource.data.nickname is string)
-          && (!request.resource.data.keys().hasAny(['phone']) || request.resource.data.phone is string)
-          && (!request.resource.data.keys().hasAny(['emergencyContact']) || request.resource.data.emergencyContact is string)
-          && (!request.resource.data.keys().hasAny(['emergencyContactPhone']) || request.resource.data.emergencyContactPhone is string)
-        );
+                 || (isSelf(uid) &&
+                     request.resource.data.diff(resource.data)
+                       .changedKeys().hasOnly(selfAllowedKeys()));
 
-      // Create/Delete: admins only
-      allow create, delete: if isAdmin();
+      // Delete by admin only
+      allow delete: if isAdmin();
     }
 
-    // Everything else: deny by default
-    match /{document=**} {
-      allow read, write: if false;
-    }
+    // (Leave your other collections' rules as they are)
   }
 }
