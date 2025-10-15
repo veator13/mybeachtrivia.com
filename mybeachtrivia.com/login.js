@@ -75,7 +75,7 @@
   els.googleBtn?.addEventListener('click', (e) => {
     e.preventDefault();
     const role = (els.role?.value || 'host').toLowerCase();
-    const ret  = location.origin + '/login.html';
+    const ret  = (DEST[role] || DEST.host);
     location.assign(`/start-google.html?role=${encodeURIComponent(role)}&return=${encodeURIComponent(ret)}`);
   });
 
