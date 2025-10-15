@@ -2,6 +2,18 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ===== TEMP: Hosts/Admins can read EVERYTHING (no writes) =====
+    match /{document=**} {
+      allow read: if request.auth != null && (
+        (request.auth.token.admin == true) ||
+        (request.auth.token.roles != null && ('host' in request.auth.token.roles || 'admin' in request.auth.token.roles || 'superadmin' in request.auth.token.roles)) ||
+        (request.auth.token.role != null  && (request.auth.token.role == 'host' || request.auth.token.role == 'admin' || request.auth.token.role == 'superadmin'))
+      );
+      // no create/update/delete here
+    }
+    // ===== END TEMP =====
+
+
     function signedIn() { return request.auth != null; }
     function isSelf(uid) { return signedIn() && request.auth.uid == uid; }
 
