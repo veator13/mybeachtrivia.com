@@ -2,16 +2,22 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ===== TEMP: Hosts/Admins can read EVERYTHING (no writes) =====
-    match /{document=**} {
-      allow read: if request.auth != null && (
-        (request.auth.token.admin == true) ||
-        (request.auth.token.roles != null && ('host' in request.auth.token.roles || 'admin' in request.auth.token.roles || 'superadmin' in request.auth.token.roles)) ||
-        (request.auth.token.role != null  && (request.auth.token.role == 'host' || request.auth.token.role == 'admin' || request.auth.token.role == 'superadmin'))
+    // ---- role helpers (stable) ----
+    function isSignedIn() { return request.auth != null; }
+    function hasRole(name) {
+      return isSignedIn() && (
+        (request.auth.token.roles != null && name in request.auth.token.roles) ||
+        (request.auth.token.role  != null && request.auth.token.role == name)
       );
-      // no create/update/delete here
     }
-    // ===== END TEMP =====
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.admin == true || hasRole('admin') || hasRole('superadmin')
+      );
+    }
+    function isHostOrAdmin() {
+      return isSignedIn() && ( isAdmin() || hasRole('host') );
+    }
 
 
     function signedIn() { return request.auth != null; }
@@ -54,4 +60,22 @@ service cloud.firestore {
 
     // (Leave your other collections' rules as they are)
   }
+    // playlists: hosts/admins can read all; signed-in can read published items; writes admin-only
+    match /playlists/{playlistId} {
+      allow read: if isHostOrAdmin() || (isSignedIn() && resource.data.published == true);
+      allow create, update, delete: if isAdmin();
+    }
+
+    // legacy music_bingo collection: same as playlists
+    match /music_bingo/{playlistId} {
+      allow read: if isHostOrAdmin() || (isSignedIn() && resource.data.published == true);
+      allow create, update, delete: if isAdmin();
+    }
+
+    // games: players (anon or user) can read; hosts/admins control lifecycle
+    match /games/{gameId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isHostOrAdmin();
+    }
+
 }
