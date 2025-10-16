@@ -51,16 +51,7 @@ service cloud.firestore {
 
 
     // games: players (anon or user) can read; hosts/admins control lifecycle
-    match /games/{gameId} {
-      allow read: if request.auth != null;
-      allow create, update, delete: if request.auth != null && (
-        request.auth.token.admin == true ||
-        (request.auth.token.roles != null &&
-         request.auth.token.roles.hasAny(['host','admin','superadmin'])) ||
-        (request.auth.token.role != null &&
-         (request.auth.token.role == 'host' || request.auth.token.role == 'admin' || request.auth.token.role == 'superadmin'))
-      );
-    }
+
 
     // playlists: allow read via claims OR employees profile; or published=true. Writes admin-only.
 
@@ -135,6 +126,57 @@ service cloud.firestore {
         request.auth.token.admin == true ||
         (request.auth.token.roles != null && ('admin' in request.auth.token.roles || 'superadmin' in request.auth.token.roles)) ||
         (request.auth.token.role  != null && (request.auth.token.role == 'admin' || request.auth.token.role == 'superadmin'))
+      );
+    }
+
+// games: players (anon or user) can read; hosts/admins can create/update; delete is admin/superadmin only
+    match /games/{gameId} {
+      // Player app uses Anonymous Auth → this allows them to read the live game
+      allow read: if request.auth != null;
+
+      // Host/Admin can create or update games if they have role via claims OR employees profile
+      allow create, update: if request.auth != null && (
+        /* Claims path */
+        request.auth.token.admin == true ||
+        (request.auth.token.roles != null && (
+          'host' in request.auth.token.roles ||
+          'admin' in request.auth.token.roles ||
+          'superadmin' in request.auth.token.roles
+        )) ||
+        (request.auth.token.role != null && (
+          request.auth.token.role == 'host' ||
+          request.auth.token.role == 'admin' ||
+          request.auth.token.role == 'superadmin'
+        )) ||
+        /* Profile fallback path */
+        (
+          exists(/databases/$(database)/documents/employees/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.roles != null &&
+          (
+            'host' in get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.roles ||
+            'admin' in get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.roles ||
+            'superadmin' in get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.roles
+          )
+        )
+      );
+
+      // Delete stays restricted to admin/superadmin
+      allow delete: if request.auth != null && (
+        request.auth.token.admin == true ||
+        (request.auth.token.roles != null && (
+          'admin' in request.auth.token.roles || 'superadmin' in request.auth.token.roles
+        )) ||
+        (request.auth.token.role != null && (
+          request.auth.token.role == 'admin' || request.auth.token.role == 'superadmin'
+        )) ||
+        (
+          exists(/databases/$(database)/documents/employees/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.roles != null &&
+          (
+            'admin' in get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.roles ||
+            'superadmin' in get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.roles
+          )
+        )
       );
     }
 }
