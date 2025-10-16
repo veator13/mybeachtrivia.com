@@ -1,3 +1,21 @@
+
+// --- Added by fix: ensure anonymous auth before any Firestore reads (player only) ---
+async function ensureAnonAuth() {
+  try {
+    if (!window.firebase || !firebase.auth) return null;
+    const auth = firebase.auth();
+    if (auth.currentUser) return auth.currentUser;
+    try { await auth.signInAnonymously(); } catch (e) { console.warn('[player] anon sign-in attempt:', e && e.message || e); }
+    return await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('auth timeout')), 8000);
+      const unsub = auth.onAuthStateChanged(u => { if (u) { clearTimeout(timer); unsub(); resolve(u); } });
+    });
+  } catch (e) {
+    console.warn('[player] ensureAnonAuth error:', e && e.message || e);
+  }
+  return null;
+}
+
 /******************************
  * Music Bingo — Player client
  * - Firestore: game + playlist data
@@ -13,7 +31,7 @@ if (typeof firebase === 'undefined' || !firebase.apps?.length) {
   setTimeout(() => initializeGameWithSampleData(), 0);
 } else {
   console.log('Firebase initialized — starting player app…');
-  initializeGame();
+ensureAnonAuth().then(() => initializeGame()).catch(e => { console.error('[player] auth/init failed:', e); alert('Error loading game (auth). Please retry.'); });
 }
 
 /* ---------- Globals ---------- */
