@@ -101,7 +101,10 @@ export async function requireEmployee() {
     throw new Error(`Please log in to host Music Bingo. ${e.message} (Go to ${LOGIN_URL})`);
   });
 
-  // Verify there is an employees/{uid} doc and that this user can host
+  
+  // Ensure custom claims (roles/admin) are present for Firestore rules
+  try { await auth.currentUser.getIdToken(true); } catch (e) { console.warn('[data.js] token refresh:', e?.message || e); }
+// Verify there is an employees/{uid} doc and that this user can host
   const snap = await getDoc(doc(db, 'employees', user.uid));
   if (!snap.exists()) {
     throw new Error(
