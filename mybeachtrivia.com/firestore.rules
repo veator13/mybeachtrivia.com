@@ -63,66 +63,78 @@ service cloud.firestore {
     }
 
     // playlists: allow read via claims OR employees profile; or published=true. Writes admin-only.
-    match /playlists/{playlistId} {
-      allow read: if request.auth != null && (
-        // Claims path
-        request.auth.token.admin == true ||
-        (request.auth.token.roles != null && (
-          'host' in request.auth.token.roles ||
-          'admin' in request.auth.token.roles ||
-          'superadmin' in request.auth.token.roles
-        )) ||
-        (request.auth.token.role != null && (
-          request.auth.token.role == 'host' ||
-          request.auth.token.role == 'admin' ||
-          request.auth.token.role == 'superadmin'
-        )) ||
-        // Profile fallback
-        (let prof = get(/databases/$(database)/documents/employees/$(request.auth.uid)).data;
-         prof.roles != null && (
-           'host' in prof.roles || 'admin' in prof.roles || 'superadmin' in prof.roles
-         ))
-      ) || (request.auth != null && resource.data.published == true);
 
+
+    // legacy music_bingo: same as playlists
+
+
+// playlists: allow read via claims OR employees profile; or published=true. Writes admin-only.
+    match /playlists/{playlistId} {
+      allow read: if 
+        request.auth != null && (
+          /* Claims path */
+          request.auth.token.admin == true ||
+          (request.auth.token.roles != null && (
+            'host' in request.auth.token.roles ||
+            'admin' in request.auth.token.roles ||
+            'superadmin' in request.auth.token.roles
+          )) ||
+          (request.auth.token.role != null && (
+            request.auth.token.role == 'host' ||
+            request.auth.token.role == 'admin' ||
+            request.auth.token.role == 'superadmin'
+          )) ||
+          /* Profile fallback path */
+          (
+            exists(/databases/$(database)/documents/employees/$(request.auth.uid)) &&
+            get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.roles != null &&
+            (
+              'host' in get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.roles ||
+              'admin' in get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.roles ||
+              'superadmin' in get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.roles
+            )
+          )
+        ) || (request.auth != null && resource.data.published == true)
+;
       allow create, update, delete: if request.auth != null && (
         request.auth.token.admin == true ||
-        (request.auth.token.roles != null && (
-          'admin' in request.auth.token.roles || 'superadmin' in request.auth.token.roles
-        )) ||
-        (request.auth.token.role != null && (
-          request.auth.token.role == 'admin' || request.auth.token.role == 'superadmin'
-        ))
+        (request.auth.token.roles != null && ('admin' in request.auth.token.roles || 'superadmin' in request.auth.token.roles)) ||
+        (request.auth.token.role  != null && (request.auth.token.role == 'admin' || request.auth.token.role == 'superadmin'))
       );
     }
 
     // legacy music_bingo: same as playlists
     match /music_bingo/{playlistId} {
-      allow read: if request.auth != null && (
-        request.auth.token.admin == true ||
-        (request.auth.token.roles != null && (
-          'host' in request.auth.token.roles ||
-          'admin' in request.auth.token.roles ||
-          'superadmin' in request.auth.token.roles
-        )) ||
-        (request.auth.token.role != null && (
-          request.auth.token.role == 'host' ||
-          request.auth.token.role == 'admin' ||
-          request.auth.token.role == 'superadmin'
-        )) ||
-        (let prof = get(/databases/$(database)/documents/employees/$(request.auth.uid)).data;
-         prof.roles != null && (
-           'host' in prof.roles || 'admin' in prof.roles || 'superadmin' in prof.roles
-         ))
-      ) || (request.auth != null && resource.data.published == true);
-
+      allow read: if 
+        request.auth != null && (
+          /* Claims path */
+          request.auth.token.admin == true ||
+          (request.auth.token.roles != null && (
+            'host' in request.auth.token.roles ||
+            'admin' in request.auth.token.roles ||
+            'superadmin' in request.auth.token.roles
+          )) ||
+          (request.auth.token.role != null && (
+            request.auth.token.role == 'host' ||
+            request.auth.token.role == 'admin' ||
+            request.auth.token.role == 'superadmin'
+          )) ||
+          /* Profile fallback path */
+          (
+            exists(/databases/$(database)/documents/employees/$(request.auth.uid)) &&
+            get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.roles != null &&
+            (
+              'host' in get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.roles ||
+              'admin' in get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.roles ||
+              'superadmin' in get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.roles
+            )
+          )
+        ) || (request.auth != null && resource.data.published == true)
+;
       allow create, update, delete: if request.auth != null && (
         request.auth.token.admin == true ||
-        (request.auth.token.roles != null && (
-          'admin' in request.auth.token.roles || 'superadmin' in request.auth.token.roles
-        )) ||
-        (request.auth.token.role != null && (
-          request.auth.token.role == 'admin' || request.auth.token.role == 'superadmin'
-        ))
+        (request.auth.token.roles != null && ('admin' in request.auth.token.roles || 'superadmin' in request.auth.token.roles)) ||
+        (request.auth.token.role  != null && (request.auth.token.role == 'admin' || request.auth.token.role == 'superadmin'))
       );
     }
 }
