@@ -31,7 +31,7 @@ if (typeof firebase === 'undefined' || !firebase.apps?.length) {
   setTimeout(() => initializeGameWithSampleData(), 0);
 } else {
   console.log('Firebase initialized — starting player app…');
-ensureAnonAuth().then(() => initializeGame()).catch(e => { console.error('[player] auth/init failed:', e); alert('Error loading game (auth). Please retry.'); });
+ensureAnonAuth().then(() => { try { redirectPlaylistReads(firebase.firestore(), new URLSearchParams(location.search).get('gameId')); } catch (e) { console.warn('[player] redirect error:', e && e.message || e); } return initializeGame(); }).catch(e => { console.error('[player] auth/init failed:', e); alert('Error loading game (auth). Please retry.'); });
 }
 
 /* ---------- Globals ---------- */
