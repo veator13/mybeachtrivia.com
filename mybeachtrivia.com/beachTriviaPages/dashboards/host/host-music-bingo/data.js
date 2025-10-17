@@ -263,10 +263,13 @@ export async function createGame({ playlistId, name, playerLimit }) {
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp()
   };
+  const ref = await addDoc(collection(db, 'games'), game);
 
-  \1
+  // Copy chosen playlist into the game for player reads
+  try { await snapshotPlaylistIntoGame(db, ref.id, playlistId); } catch (e) { console.warn('[data.js] snapshot error', e?.message || e); }
+
       // Copy chosen playlist into the game for player reads
-      try { await snapshotPlaylistIntoGame(db, ref.id, data.playlistId || playlistId); } catch (e) { console.warn('[data.js] snapshot error', e?.message || e); }
+      try { await snapshotPlaylistIntoGame(db, ref.id, playlistId); } catch (e) { console.warn('[data.js] snapshot error', e?.message || e); }
 
   return { id: ref.id, ...game };
 }
