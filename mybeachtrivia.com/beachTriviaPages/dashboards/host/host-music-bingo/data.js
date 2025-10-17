@@ -1,3 +1,30 @@
+
+// --- Snapshot the selected playlist into the game so players never read /playlists ---
+async function snapshotPlaylistIntoGame(db, gameId, playlistId) {
+  try {
+    const primary = await getDoc(doc(db, 'playlists', playlistId));
+    let snap = primary, source = 'playlists';
+    if (!primary.exists()) {
+      const legacy = await getDoc(doc(db, 'music_bingo', playlistId));
+      snap = legacy; source = 'music_bingo';
+    }
+    if (snap && snap.exists && snap.exists()) {
+      const pdata = snap.data();
+      await setDoc(doc(db, 'games', gameId, 'playlist', 'data'), {
+        ...pdata,
+        source,
+        sourceId: playlistId,
+        snapshotAt: serverTimestamp()
+      });
+      console.log('[data.js] snapped playlist into game:', { gameId, source, playlistId });
+    } else {
+      console.warn('[data.js] playlist not found to snapshot', playlistId);
+    }
+  } catch (e) {
+    console.warn('[data.js] snapshotPlaylistIntoGame error:', e?.message || e);
+  }
+}
+
 // data.js — Music Bingo host (Beach-Trivia-Website project)
 // Host-only module: requires employee auth to read ALL playlists.
 // Merges `/playlists` (new) + `/music_bingo` (legacy) with de-dupe.
@@ -237,7 +264,10 @@ export async function createGame({ playlistId, name, playerLimit }) {
     updatedAt: serverTimestamp()
   };
 
-  const ref = await addDoc(collection(db, 'games'), game);
+  \1
+      // Copy chosen playlist into the game for player reads
+      try { await snapshotPlaylistIntoGame(db, ref.id, data.playlistId || playlistId); } catch (e) { console.warn('[data.js] snapshot error', e?.message || e); }
+
   return { id: ref.id, ...game };
 }
 
