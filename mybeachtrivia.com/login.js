@@ -88,6 +88,8 @@
   const url = `/start-google.html?role=${encodeURIComponent(role)}&return=${encodeURIComponent(ret)}`;
   console.log('[login] Google sign-in →', { role, return: ret, url });
   location.assign(url);
+});
+  location.assign(url);
 });).toLowerCase();
     const ret  = (DEST[role] || DEST.host);
     location.assign(`/start-google.html?role=${encodeURIComponent(role)}&return=${encodeURIComponent(ret)}`);
