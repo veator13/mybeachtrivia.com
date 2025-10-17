@@ -73,8 +73,22 @@
 
   // Google helper (keeps CSP happy)
   els.googleBtn?.addEventListener('click', (e) => {
-    e.preventDefault();
-    const role = (els.role?.value || 'host').toLowerCase();
+  e.preventDefault();
+  // Robust role read: radio > select > default
+  const radio = document.querySelector('input[name="role"]:checked');
+  const raw = (radio?.value || els.role?.value || 'host');
+  const role = String(raw).toLowerCase();
+  // Destinations
+  const DEST = {
+    host:  location.origin + '/beachTriviaPages/dashboards/host/',
+    admin: location.origin + '/beachTriviaPages/dashboards/admin/'
+  };
+  const ret = DEST[role] || DEST.host;
+  try { localStorage.setItem('postLoginRole', role); sessionStorage.setItem('postLoginRole', role); } catch {}
+  const url = `/start-google.html?role=${encodeURIComponent(role)}&return=${encodeURIComponent(ret)}`;
+  console.log('[login] Google sign-in →', { role, return: ret, url });
+  location.assign(url);
+});).toLowerCase();
     const ret  = (DEST[role] || DEST.host);
     location.assign(`/start-google.html?role=${encodeURIComponent(role)}&return=${encodeURIComponent(ret)}`);
   });
