@@ -1,4 +1,42 @@
 
+// --- redirect helper (added) ---
+// make any read of 'playlists/<id>' or 'music_bingo/<id>' point to 'games/<GAME_ID>/playlist/data'
+function redirectPlaylistReads(db, gameId) {
+  try {
+    if (!db || db.__mbPatched) return;
+
+    const origDoc = db.doc.bind(db);
+    const origCollection = db.collection.bind(db);
+
+    // Redirect db.doc('playlists/<id>') / db.doc('music_bingo/<id>')
+    db.doc = function(path) {
+      try {
+        if (typeof path === 'string' && gameId &&
+            (/^playlists\/[^/]+$/.test(path) || /^music_bingo\/[^/]+$/.test(path))) {
+          return origDoc(`games/${gameId}/playlist/data`);
+        }
+      } catch (e) {}
+      return origDoc(path);
+    };
+
+    // Also intercept collection('playlists').doc(id) style
+    db.collection = function(name) {
+      const cref = origCollection(name);
+      if (gameId && (name === 'playlists' || name === 'music_bingo')) {
+        const origDocMethod = cref.doc.bind(cref);
+        cref.doc = function(_id) { return origDoc(`games/${gameId}/playlist/data`); };
+      }
+      return cref;
+    };
+
+    db.__mbPatched = true;
+    console.log('[player] redirecting playlist reads to games/' + gameId + '/playlist/data');
+  } catch (e) {
+    console.warn('[player] redirect patch failed:', e && e.message || e);
+  }
+}
+
+
 // --- Added by fix: ensure anonymous auth before any Firestore reads (player only) ---
 async function ensureAnonAuth() {
   try {
