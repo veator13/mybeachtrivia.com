@@ -317,11 +317,10 @@ const admin_bt = require('firebase-admin');
 try { admin_bt.app(); } catch { admin_bt.initializeApp(); }
 
 exports.cleanupStaleAnonymousUsers = functions_v1_bt.pubsub
-  .schedule('every 24 hours')
+  .schedule('every 30 minutes')
   .timeZone('America/New_York')
   .onRun(async () => {
-    const DAYS = 30; // <-- change if you prefer 14, etc.
-    const cutoffMs = Date.now() - DAYS*24*60*60*1000;
+    const MINUTES = 120; const cutoffMs = Date.now() - MINUTES*60*1000;
 
     let nextPageToken = undefined;
     let scanned = 0, deleted = 0, skipped = 0;
@@ -350,7 +349,7 @@ exports.cleanupStaleAnonymousUsers = functions_v1_bt.pubsub
       }
     } while (nextPageToken);
 
-    functions_v1_bt.logger.info(`cleanupStaleAnonymousUsers: scanned=${scanned} deleted=${deleted} skipped=${skipped}`);
+    functions_v1_bt.logger.info(`cleanupStaleAnonymousUsers(120m): scanned=${scanned} deleted=${deleted} skipped=${skipped}`);
     return null;
   });
 // --- end cleanup ---
