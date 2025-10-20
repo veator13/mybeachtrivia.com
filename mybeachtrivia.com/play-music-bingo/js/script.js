@@ -1,4 +1,3 @@
-
 // --- redirect helper (added) ---
 // make any read of 'playlists/<id>' or 'music_bingo/<id>' point to 'games/<GAME_ID>/playlist/data'
 function redirectPlaylistReads(db, gameId) {
@@ -60,7 +59,7 @@ async function ensureAnonAuth() {
  * - RTDB: player presence only
  * - Anonymous Auth for each player (UID = playerId)
  * - Presence gated behind a user tap (previews won't count)
- * - iOS-friendly: Auth.Persistence.LOCAL + write guard
+ * - iOS-friendly: Auth.Persistence.LOCAL with SESSION fallback + write guard
  ******************************/
 
 /* ---------- Bootstrap ---------- */
@@ -69,7 +68,16 @@ if (typeof firebase === 'undefined' || !firebase.apps?.length) {
   setTimeout(() => initializeGameWithSampleData(), 0);
 } else {
   console.log('Firebase initialized — starting player app…');
-ensureAnonAuth().then(() => { try { redirectPlaylistReads(firebase.firestore(), new URLSearchParams(location.search).get('gameId')); } catch (e) { console.warn('[player] redirect error:', e && e.message || e); } return initializeGame(); }).catch(e => { console.error('[player] auth/init failed:', e); alert('Error loading game (auth). Please retry.'); });
+  ensureAnonAuth()
+    .then(() => {
+      try { redirectPlaylistReads(firebase.firestore(), new URLSearchParams(location.search).get('gameId')); }
+      catch (e) { console.warn('[player] redirect error:', e && e.message || e); }
+      return initializeGame();
+    })
+    .catch(e => {
+      console.error('[player] auth/init failed:', e);
+      alert('Error loading game (auth). Please retry.');
+    });
 }
 
 /* ---------- Globals ---------- */
@@ -181,7 +189,7 @@ async function initializeGame() {
       ? gameData.currentSongIndex
       : -1;
 
-    // Load playlist
+    // Load playlist (redirect patched to games/<id>/playlist/data)
     const playlistId = gameData.playlistId;
     const playlistSnap = await db.collection('music_bingo').doc(playlistId).get();
     if (!playlistSnap.exists) {
@@ -393,12 +401,17 @@ async function safeJoinGame(gameId, sessionKey) {
 
     const auth = firebase.auth();
 
-    // iOS-friendly: do not rely on persistent storage
+    // Prefer persistent storage; fallback to SESSION if LOCAL is blocked (Safari Private, ITP)
     try {
       await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
       console.log('[auth] setPersistence LOCAL ok');
-    } catch (e) {
-      console.warn('[auth] setPersistence LOCAL failed:', e?.message || e);
+    } catch (e1) {
+      try {
+        await auth.setPersistence(firebase.auth.Auth.Persistence.SESSION);
+        console.log('[auth] setPersistence SESSION ok (fallback)');
+      } catch (e2) {
+        console.warn('[auth] setPersistence fallback failed:', e2?.message || e2);
+      }
     }
 
     let user = auth.currentUser;
