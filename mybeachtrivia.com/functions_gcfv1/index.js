@@ -310,3 +310,47 @@ const btSnapshot = require('./bt-snapshot');
 exports.snapshotPlaylistOnCreate = btSnapshot.snapshotPlaylistOnCreate;
 exports.snapshotPlaylistOnUpdate  = btSnapshot.snapshotPlaylistOnUpdate;
 // --------------------------------------------------------------------
+
+// --- BeachTrivia: cleanup old anonymous users (scheduled) ---
+const functions_v1_bt = require('firebase-functions/v1');
+const admin_bt = require('firebase-admin');
+try { admin_bt.app(); } catch { admin_bt.initializeApp(); }
+
+exports.cleanupStaleAnonymousUsers = functions_v1_bt.pubsub
+  .schedule('every 24 hours')
+  .timeZone('America/New_York')
+  .onRun(async () => {
+    const DAYS = 30; // <-- change if you prefer 14, etc.
+    const cutoffMs = Date.now() - DAYS*24*60*60*1000;
+
+    let nextPageToken = undefined;
+    let scanned = 0, deleted = 0, skipped = 0;
+
+    do {
+      const page = await admin_bt.auth().listUsers(1000, nextPageToken);
+      nextPageToken = page.pageToken;
+
+      for (const u of page.users) {
+        scanned++;
+        // "Anonymous" in Firebase Auth = no providerData records
+        const isAnon = !u.providerData || u.providerData.length === 0;
+        if (!isAnon) { skipped++; continue; }
+
+        const last = new Date(u.metadata.lastSignInTime || u.metadata.creationTime || 0).getTime();
+        if (last && last < cutoffMs) {
+          try {
+            await admin_bt.auth().deleteUser(u.uid);
+            deleted++;
+          } catch (e) {
+            functions_v1_bt.logger.warn('Failed to delete anon user', u.uid, e?.message || e);
+          }
+        } else {
+          skipped++;
+        }
+      }
+    } while (nextPageToken);
+
+    functions_v1_bt.logger.info(`cleanupStaleAnonymousUsers: scanned=${scanned} deleted=${deleted} skipped=${skipped}`);
+    return null;
+  });
+// --- end cleanup ---
