@@ -60,7 +60,7 @@ async function ensureAnonAuth() {
  * - RTDB: player presence only
  * - Anonymous Auth for each player (UID = playerId)
  * - Presence gated behind a user tap (previews won't count)
- * - iOS-friendly: Auth.Persistence.NONE + write guard
+ * - iOS-friendly: Auth.Persistence.LOCAL + write guard
  ******************************/
 
 /* ---------- Bootstrap ---------- */
@@ -395,7 +395,7 @@ async function safeJoinGame(gameId, sessionKey) {
 
     // iOS-friendly: do not rely on persistent storage
     try {
-      await auth.setPersistence(firebase.auth.Auth.Persistence.NONE);
+      await auth.setPersistence(firebase.auth.Persistence.LOCAL);
       console.log('[auth] setPersistence NONE ok');
     } catch (e) {
       console.warn('[auth] setPersistence NONE failed:', e?.message || e);
