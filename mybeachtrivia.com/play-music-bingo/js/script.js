@@ -395,10 +395,10 @@ async function safeJoinGame(gameId, sessionKey) {
 
     // iOS-friendly: do not rely on persistent storage
     try {
-      await auth.setPersistence(firebase.auth.Persistence.LOCAL);
-      console.log('[auth] setPersistence NONE ok');
+      await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+      console.log('[auth] setPersistence LOCAL ok');
     } catch (e) {
-      console.warn('[auth] setPersistence NONE failed:', e?.message || e);
+      console.warn('[auth] setPersistence LOCAL failed:', e?.message || e);
     }
 
     let user = auth.currentUser;
