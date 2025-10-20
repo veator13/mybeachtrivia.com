@@ -302,3 +302,39 @@ body {
         padding: 1px;
     }
 }
+/* === beach trivia: CRISP BINGO GRID (integer px sizing to avoid blur) === */
+:root{
+  --bt-gap: 8px;
+  --bt-cell: 80px; /* default integer cell size */
+}
+/* Adjust as you like; all are integers */
+@media (max-width: 980px){ :root{ --bt-cell: 72px; } }
+@media (max-width: 860px){ :root{ --bt-cell: 64px; } }
+@media (max-width: 740px){ :root{ --bt-cell: 56px; } }
+@media (max-width: 620px){ :root{ --bt-cell: 48px; } }
+
+/* Apply to the existing grid container (most builds use .bingo-grid) */
+.bingo-grid{
+  grid-template-columns: repeat(5, var(--bt-cell)) !important;
+  grid-auto-rows: var(--bt-cell) !important;
+  gap: var(--bt-gap) !important;
+}
+
+/* Ensure each tile renders at exact integer px */
+.bingo-cell{
+  width: var(--bt-cell) !important;
+  height: var(--bt-cell) !important;
+}
+
+/* Center "free" square: crisp, no crop, DPR-aware source */
+.bingo-cell.center-cell{
+  background-image: image-set(
+    url('/android-chrome-192x192.png') 1x,
+    url('/android-chrome-512x512.png') 2x
+  ) !important;
+  background-size: 88% 88% !important;   /* slight inset looks sharper */
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  image-rendering: auto;
+}
+/* === end crisp grid block === */
