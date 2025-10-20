@@ -305,4 +305,8 @@ exports.reassertMyClaims = functions
     const uid = context.auth.uid;
     const res = await syncClaimsFromDoc(uid);
     return { ok: true, changed: res.changed, claims: res.claims };
-  });
+  });// ---- beach trivia: auto-snapshot playlist for new/updated games ----
+const btSnapshot = require('./bt-snapshot');
+exports.snapshotPlaylistOnCreate = btSnapshot.snapshotPlaylistOnCreate;
+exports.snapshotPlaylistOnUpdate  = btSnapshot.snapshotPlaylistOnUpdate;
+// --------------------------------------------------------------------

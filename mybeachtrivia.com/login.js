@@ -1,7 +1,7 @@
-/* login.js – Beach Trivia
-   - CSP-safe (no inline handlers)
-   - Uses #roleSelect dropdown
-   - Verifies Firestore roles and redirects
+/* login.js – Beach Trivia (CSP-safe)
+   - Works with #roleSelect (or radio[name="role"]) to pick the destination
+   - Email/password + Google flows
+   - First-login → account-setup
 */
 (() => {
   const $ = (s, r = document) => r.querySelector(s);
@@ -22,7 +22,7 @@
   // Hide broken logos without inline handlers (CSP)
   els.brandLogo?.addEventListener('error', () => (els.brandLogo.hidden = true));
 
-  // Map roles -> destinations
+  // Role → destination
   const DEST = {
     host:     '/beachTriviaPages/dashboards/host/',
     social:   '/beachTriviaPages/dashboards/social-media-manager/',
@@ -32,159 +32,101 @@
     admin:    '/beachTriviaPages/dashboards/admin/',
   };
 
-  // Helper: wait until firebase + auth is usable (handles deferred script load)
-  async function waitForAuth(ms = 250, tries = 20) {
+  async function waitForAuth(ms = 150, tries = 40) {
     for (let i = 0; i < tries; i++) {
-      try {
-        if (window.firebase?.auth) return firebase.auth();
-      } catch {}
+      if (window.firebase?.auth) return firebase.auth();
       await new Promise(r => setTimeout(r, ms));
     }
     throw new Error('Auth not ready yet.');
   }
 
-  // Early redirect if already signed in and we have a remembered return
-  (async () => {
-    try {
-      const auth = await waitForAuth(150, 30);
-      auth.onAuthStateChanged((u) => {
-        if (!u) return;
-        const t = sessionStorage.getItem('afterLogin');
-        if (t) {
-          sessionStorage.removeItem('afterLogin');
-          try {
-            const uret = new URL(t, location.origin);
-            if (uret.origin === location.origin) location.replace(uret.href);
-          } catch {}
-        }
-      });
-    } catch (e) {
-      console.warn('[login] early onAuthStateChanged setup failed:', e);
-    }
-  })();
-
-  // Role <-> hidden userType sync (for any legacy code)
+  function currentRole() {
+    const radio = document.querySelector('input[name="role"]:checked');
+    const raw = (radio?.value || els.role?.value || 'host');
+    return String(raw).toLowerCase();
+  }
   function syncUserType() {
-    const r = (els.role?.value || 'host').toLowerCase();
+    const r = currentRole();
     if (els.userType) els.userType.value = r === 'admin' ? 'admin' : 'employee';
   }
   els.role?.addEventListener('change', syncUserType);
   syncUserType();
 
-  // Google helper (keeps CSP happy)
+  // --- Google sign-in (redirect helper page) ---
   els.googleBtn?.addEventListener('click', (e) => {
-  e.preventDefault();
-  // Robust role read: radio > select > default
-  const radio = document.querySelector('input[name="role"]:checked');
-  const raw = (radio?.value || els.role?.value || 'host');
-  const role = String(raw).toLowerCase();
-  // Destinations
-  const DEST = {
-    host:  location.origin + '/beachTriviaPages/dashboards/host/',
-    admin: location.origin + '/beachTriviaPages/dashboards/admin/'
-  };
-  const ret = DEST[role] || DEST.host;
-  try { localStorage.setItem('postLoginRole', role); sessionStorage.setItem('postLoginRole', role); } catch {}
-  const url = `/start-google.html?role=${encodeURIComponent(role)}&return=${encodeURIComponent(ret)}`;
-  console.log('[login] Google sign-in →', { role, return: ret, url });
-  location.assign(url);
-});
-  location.assign(url);
-});).toLowerCase();
-    const ret  = (DEST[role] || DEST.host);
-    location.assign(`/start-google.html?role=${encodeURIComponent(role)}&return=${encodeURIComponent(ret)}`);
+    e.preventDefault();
+    const radio = document.querySelector('input[name="role"]:checked');
+    const raw   = (radio?.value || els.role?.value || 'host');
+    const role  = String(raw).toLowerCase();
+
+    const ret = DEST[role] || DEST.host;
+
+    try {
+      localStorage.setItem('postLoginRole', role);
+      sessionStorage.setItem('postLoginRole', role);
+    } catch {}
+
+    const url = `/start-google.html?role=${encodeURIComponent(role)}&return=${encodeURIComponent(ret)}`;
+    console.log('[login] Google sign-in →', { role, return: ret, url });
+    location.assign(url);
   });
 
-  // Main login handler
+  // --- Email/Password login ---
   async function handleLogin(ev) {
     ev?.preventDefault();
     try {
-      const auth = await waitForAuth(150, 30);
-      // Persistence from "Remember me"
-      await auth.setPersistence(els.remember?.checked ? firebase.auth.Auth.Persistence.LOCAL
-                                                      : firebase.auth.Auth.Persistence.SESSION);
+      const auth = await waitForAuth();
+
+      await auth.setPersistence(
+        els.remember?.checked
+          ? firebase.auth.Auth.Persistence.LOCAL
+          : firebase.auth.Auth.Persistence.SESSION
+      );
 
       const email = els.email?.value?.trim();
       const pass  = els.pass?.value || '';
-      if (!email || !pass) {
-        alert('Enter email and password.');
-        return;
-      }
+      if (!email || !pass) { alert('Enter email and password.'); return; }
 
       els.btn && (els.btn.disabled = true);
       const { user } = await auth.signInWithEmailAndPassword(email, pass);
 
-      // Check Firestore for roles/active
+      // First-login guard: check employees/{uid}
       const db = firebase.firestore();
       const snap = await db.collection('employees').doc(user.uid).get();
-      const data = snap.data() || {};
-      if (data.active === false) throw new Error('Your account is not active yet.');
+      const emp  = snap.exists ? (snap.data() || {}) : {};
+      if (emp.active === false) throw new Error('Your account is not active yet.');
 
-      let roles = data.roles;
-      if (!Array.isArray(roles)) roles = roles ? [String(roles)] : [];
-
-      const role = (els.role?.value || 'host').toLowerCase();
-
-      // Enforce admin selection requires admin role
-      if (role === 'admin' && !roles.includes('admin')) {
-        throw Object.assign(new Error('You do not have admin access.'), { code: 'employee/not-in-role' });
-      }
-
-      // Default to host if chosen role not allowed/unknown
-      /* replaced: redirect now checks first-login/setup */
-(async function(){
-  try {
-    var user = (firebase && firebase.auth && firebase.auth().currentUser) || null;
-    if (user) {
-      var snap = await firebase.firestore().doc("employees/" + user.uid).get();
-      var emp  = snap.exists ? (snap.data() || {}) : {};
-      var rolesArr = Array.isArray(emp.roles) ? emp.roles
-                    : (typeof emp.role === "string" ? [emp.role] : []);
-      var required = ["firstName","lastName","phone","emergencyContact","emergencyContactPhone","dob"];
-      var missing  = required.filter(function(k){ return !emp[k]; });
-      var mustSetup = (emp.setupCompleted === true) ? false : (missing.length > 0);
+      const required = ['firstName','lastName','phone','emergencyContact','emergencyContactPhone','dob'];
+      const missing  = required.filter(k => !emp[k]);
+      const mustSetup = emp.setupCompleted === true ? false : (missing.length > 0);
 
       if (mustSetup) {
-        console.log("[login] first login → account-setup");
-        window.location.assign("/beachTriviaPages/onboarding/account-setup/");
+        console.log('[login] first login → account-setup');
+        location.assign('/beachTriviaPages/onboarding/account-setup/');
         return;
       }
 
-      // Otherwise go to chosen dashboard (fallback honors admin if present)
-      var fallback = rolesArr.indexOf("admin") >= 0 ? DEST.admin : DEST.host;
-      var dest = DEST[role] || fallback;
-      window.location.assign(dest);
-      return;
-    }
-  } catch (e) { console.warn("[login] redirect check failed", e); }
-  // Fallback if anything above fails
-  var dest = DEST[role] || DEST.host;
-  window.location.assign(dest);
-})();
+      // Honor selection (don't force Admin)
+      const role = currentRole();
+      const dest = DEST[role] || (Array.isArray(emp.roles) && emp.roles.includes('admin') ? DEST.admin : DEST.host);
+      location.assign(dest);
     } catch (err) {
       console.error('[login] sign-in error:', err);
-      alert(err.message || String(err));
+      alert(err?.message || String(err));
     } finally {
       els.btn && (els.btn.disabled = false);
     }
   }
 
-  // Wire form + button (CSP-safe)
+  // Wire up
   function attach() {
-    if (!els.form || !els.btn) return;
+    if (!els.form) return;
     els.form.addEventListener('submit', handleLogin);
-    els.btn.addEventListener('click', handleLogin);
-    // tiny convenience for Enter in password field
-    els.pass?.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') handleLogin(e);
-    });
+    els.btn?.addEventListener('click', handleLogin);
+    els.pass?.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleLogin(e); });
     console.log('✅ login handler attached');
   }
   attach();
 
-  // Small self-test dump (shows current role/email presence)
-  console.table({
-    role: (els.role?.value || 'host'),
-    hasForm: !!els.form, hasBtn: !!els.btn, hasEmail: !!els.email, hasPass: !!els.pass
-  });
+  console.table({ role: currentRole(), hasForm: !!els.form, hasBtn: !!els.btn, hasEmail: !!els.email, hasPass: !!els.pass });
 })();

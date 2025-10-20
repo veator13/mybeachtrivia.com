@@ -17,7 +17,12 @@
     try { return new URL(raw, location.origin).href; }
     catch { return "/login.html"; }
   })();
-  const RETURN_ORIGIN = new URL(RETURN_URL, location.origin).origin;
+  // --- role-aware return (inserted) ---
+  const __role = (new URLSearchParams(location.search).get("role")||"").toLowerCase();
+  const ROLE_REDIRECT = (__role==="host")  ? (location.origin+"/beachTriviaPages/dashboards/host/") :
+                         (__role==="admin") ? (location.origin+"/beachTriviaPages/dashboards/admin/") : RETURN_URL;
+  try { localStorage.setItem("postLoginRole", __role); } catch(e) {}
+  const RETURN_ORIGIN = new URL(ROLE_REDIRECT), location.origin).origin;
 
   // Loop guards (for Google redirect flow only)
   const LOOP_FLAG = "bt_google_redirect_started_v3";
@@ -136,7 +141,7 @@
 
     if (postToOpener(payload)) return;
 
-    const u = new URL(RETURN_URL, location.origin);
+    const u = new URL(ROLE_REDIRECT), location.origin);
     u.hash = "authStatus=ok";
     location.replace(u.href);
   }
@@ -145,7 +150,7 @@
   try {
     if (sessionStorage.getItem(DONE_FLAG) === "1") {
       console.log("[start-google] already finished once; returning");
-      location.replace(RETURN_URL);
+      location.replace(ROLE_REDIRECT);
       return;
     }
   } catch {}
@@ -183,7 +188,7 @@
       provider.setCustomParameters({ prompt: "select_account" });
       auth.signInWithRedirect(provider).catch(err => {
         console.error("[start-google] redirect begin error (provision fallback):", err);
-        const u = new URL(RETURN_URL, location.origin);
+        const u = new URL(ROLE_REDIRECT), location.origin);
         u.searchParams.set("authError", err.code || "auth/redirect-begin-failed");
         location.replace(u.href);
       });
@@ -218,7 +223,7 @@
         if (resolved) return;
         unsubscribe && unsubscribe();
         console.warn("[start-google] timeout after email-link; returning with soft error");
-        const u = new URL(RETURN_URL, location.origin);
+        const u = new URL(ROLE_REDIRECT), location.origin);
         u.searchParams.set("authStatus", "cancelled");
         location.replace(u.href);
       }, 15000);
@@ -242,7 +247,7 @@
     console.log("[start-google] starting signInWithRedirect");
     auth.signInWithRedirect(provider).catch(err => {
       console.error("[start-google] redirect begin error:", err);
-      const u = new URL(RETURN_URL, location.origin);
+      const u = new URL(ROLE_REDIRECT), location.origin);
       u.searchParams.set("authError", err.code || "auth/redirect-begin-failed");
       location.replace(u.href);
     });
@@ -269,7 +274,7 @@
     unsubscribe && unsubscribe();
     console.warn("[start-google] no user after redirect; returning with soft error");
     try { sessionStorage.removeItem(LOOP_FLAG); } catch {}
-    const u = new URL(RETURN_URL, location.origin);
+    const u = new URL(ROLE_REDIRECT), location.origin);
     u.searchParams.set("authStatus", "cancelled");
     location.replace(u.href);
   }, 15000);

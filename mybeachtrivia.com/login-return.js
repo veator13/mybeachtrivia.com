@@ -125,3 +125,23 @@
     Promise.resolve().then(() => handleSignedIn(user));
   });
 })();
+(function roleOverride(){
+  try {
+    const qs = new URLSearchParams(location.search);
+    // If an explicit destination is provided or already stored, do nothing.
+    if (qs.get('return') || qs.get('next') || qs.get('redirect') ||
+        sessionStorage.getItem('afterLogin') || localStorage.getItem('afterLogin')) {
+      return;
+    }
+    let role = (qs.get('role') || localStorage.getItem('postLoginRole') || '').toLowerCase();
+    if (role === 'host' || role === 'admin') {
+      const dest = role === 'host'
+        ? (location.origin + '/beachTriviaPages/dashboards/host/')
+        : (location.origin + '/beachTriviaPages/dashboards/admin/');
+      try { localStorage.removeItem('postLoginRole'); sessionStorage.removeItem('postLoginRole'); } catch {}
+      location.replace(dest);
+    }
+  } catch (e) {
+    console.warn('[login-return] role override skipped:', e?.message || e);
+  }
+})();

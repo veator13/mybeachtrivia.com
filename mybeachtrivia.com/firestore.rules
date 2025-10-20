@@ -1,6 +1,15 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+  // === Player read access for live games (anon included) ===
+  function isSignedIn() { return request.auth != null; }
+  match /games/{gameId} {
+    allow read: if isSignedIn();
+  }
+  match /games/{gameId}/{sub=**} {
+    allow read: if isSignedIn();
+  }
+  // === End player read access ===
 
 
 
