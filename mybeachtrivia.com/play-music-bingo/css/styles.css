@@ -86,7 +86,7 @@ body {
 }
 
 .bingo-cell.center-cell {
-    background-image: url('../images/BTlogo-Round-Border.png');
+    background-image: url('/android-chrome-512x512.png');
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
