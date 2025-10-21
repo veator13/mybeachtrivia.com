@@ -30,22 +30,42 @@ function displayRole(docData = {}) {
 }
 
 /////////////////////////
-// DOM Elements
+// Small helpers
 /////////////////////////
-const modal             = document.getElementById('employeeModal');
-const form              = document.getElementById('employeeForm');
-const tableBody         = document.getElementById('employeesTableBody');
-const saveButton        = document.getElementById('saveEmployee');
-const cancelButton      = document.getElementById('cancelEdit');
-const addNewEmployeeBtn = document.getElementById('addNewEmployeeBtn');
-const closeModalBtn     = document.querySelector('.close-modal');
+const esc = (s) =>
+  String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 
 /////////////////////////
-// Modal helpers
+//// DOM Elements
 /////////////////////////
-function openModal() { if (modal) modal.style.display = 'block'; }
+const modal         = document.getElementById('employeeModal');
+const form          = document.getElementById('employeeForm');
+const tableBody     = document.getElementById('employeesTableBody');
+const saveButton    = document.getElementById('saveEmployee');
+const cancelButton  = document.getElementById('cancelEdit');
+const closeModalBtn = document.querySelector('.close-modal');
+
+/////////////////////////
+// Modal helpers (ARIA-friendly)
+/////////////////////////
+function openModal() {
+  if (!modal) return;
+  modal.style.display = 'block';
+  modal.classList.add('is-open');
+  modal.setAttribute('aria-hidden', 'false');
+  try { document.body.style.overflow = 'hidden'; } catch {}
+}
 function closeModal() {
-  if (modal) modal.style.display = 'none';
+  if (!modal) return;
+  modal.classList.remove('is-open');
+  modal.setAttribute('aria-hidden', 'true');
+  modal.style.display = 'none';
+  try { document.body.style.overflow = ''; } catch {}
   if (form) form.reset();
   const idEl = document.getElementById('employeeId');
   if (idEl) idEl.value = '';
@@ -54,7 +74,7 @@ function closeModal() {
 /////////////////////////
 // Save (create/update) employee
 // NOTE: Creating a NEW doc here will fail unless the id == UID (per rules).
-// Use your invite flow for true creates; this form is for edits.
+// Use the "Create & Send" flow above for true creates; this form is for edits.
 /////////////////////////
 async function saveEmployee(e) {
   e.preventDefault();
@@ -138,6 +158,12 @@ async function editEmployee(id) {
 // Delete employee (admin only)
 /////////////////////////
 async function deleteEmployee(id) {
+  if (!id) return;
+  const me = auth.currentUser && auth.currentUser.uid;
+  if (id === me) {
+    alert("You can’t delete your own employee record while signed in.");
+    return;
+  }
   if (!confirm('Delete this employee?')) return;
   try {
     await db.collection('employees').doc(id).delete();
@@ -150,11 +176,14 @@ async function deleteEmployee(id) {
 /////////////////////////
 // Wire up UI (guard each in case element is absent)
 /////////////////////////
-if (form)              form.addEventListener('submit', saveEmployee);
-if (cancelButton)      cancelButton.addEventListener('click', (e) => { e.preventDefault(); closeModal(); });
-if (addNewEmployeeBtn) addNewEmployeeBtn.addEventListener('click', () => openModal());
-if (closeModalBtn)     closeModalBtn.addEventListener('click', closeModal);
-// (Removed global window click-to-close; modal guard below handles backdrop clicks safely.)
+if (form)         form.addEventListener('submit', saveEmployee);
+if (cancelButton) cancelButton.addEventListener('click', (e) => { e.preventDefault(); closeModal(); });
+if (closeModalBtn) closeModalBtn.addEventListener('click', closeModal);
+
+// Close on Escape
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && modal && modal.classList.contains('is-open')) closeModal();
+});
 
 /////////////////////////
 // Auth guard -> live v2 (with sign-out reset)
@@ -202,23 +231,17 @@ function startEmployeesLive2() {
 
           const row = tableBody.insertRow();
           row.innerHTML = `
-            <td>${name}</td>
-            <td>${d.email || ''}</td>
-            <td>${d.employeeID || '—'}</td>
-            <td>${activeTxt}</td>
+            <td>${esc(name)}</td>
+            <td>${esc(d.email || '')}</td>
+            <td>${esc(d.employeeID || '—')}</td>
             <td>
-              <button class="edit-btn" data-id="${docSnap.id}">Edit</button>
-              <button class="delete-btn" data-id="${docSnap.id}">Delete</button>
+              <span class="badge ${d.active === true ? 'badge-success' : 'badge-muted'}">${activeTxt}</span>
+            </td>
+            <td class="actions">
+              <button class="btn btn-sm btn-ghost edit-btn" data-action="edit" data-id="${esc(docSnap.id)}">Edit</button>
+              <button class="btn btn-sm btn-danger delete-btn" data-action="delete" data-id="${esc(docSnap.id)}">Delete</button>
             </td>
           `;
-        });
-
-        // rebind actions after re-render
-        tableBody.querySelectorAll('.edit-btn').forEach(btn => {
-          btn.addEventListener('click', (e) => editEmployee(e.currentTarget.dataset.id));
-        });
-        tableBody.querySelectorAll('.delete-btn').forEach(btn => {
-          btn.addEventListener('click', () => deleteEmployee(btn.dataset.id));
         });
       }, (err) => console.error('[live2] listener error:', err));
 
@@ -227,6 +250,20 @@ function startEmployeesLive2() {
       console.error('[live2] setup failed:', e);
     }
   })();
+}
+
+// Single delegated click handler for Edit/Delete
+if (tableBody) {
+  tableBody.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-action][data-id]');
+    if (!btn) return;
+    const id = btn.dataset.id;
+    if (btn.dataset.action === 'edit') {
+      editEmployee(id);
+    } else if (btn.dataset.action === 'delete') {
+      deleteEmployee(id);
+    }
+  });
 }
 
 /////////////////////////
@@ -261,9 +298,9 @@ function startEmployeesLive2() {
 // Modal guard: allow drag-select; close if click STARTED on backdrop
 /////////////////////////
 (function () {
-  const modal = document.getElementById('employeeModal');
-  if (!modal) return;
-  const content = modal.querySelector('.modal-content') || modal.firstElementChild;
+  const m = document.getElementById('employeeModal');
+  if (!m) return;
+  const content = m.querySelector('.modal-content') || m.firstElementChild;
 
   // Do not let events inside the content bubble to the backdrop
   if (content) {
@@ -274,8 +311,8 @@ function startEmployeesLive2() {
 
   // Close only if mousedown started on backdrop (mouseup can be anywhere)
   let downOnBackdrop = false;
-  modal.addEventListener('mousedown', e => { downOnBackdrop = (e.target === modal); });
-  modal.addEventListener('mouseup',   () => {
+  m.addEventListener('mousedown', e => { downOnBackdrop = (e.target === m); });
+  m.addEventListener('mouseup',   () => {
     if (downOnBackdrop) { try { closeModal(); } catch(_){} }
     downOnBackdrop = false;
   });

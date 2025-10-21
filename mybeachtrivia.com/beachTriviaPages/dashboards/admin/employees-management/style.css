@@ -1,160 +1,483 @@
-body {
-    font-family: Arial, sans-serif;
+/* ===== Employees Management — Modernized Styles ===== */
+
+/* ---------- CSS Variables ---------- */
+:root {
+    --bg: #f6f7fb;
+    --surface: #ffffff;
+    --surface-2: #f2f4f8;
+    --text: #1f2937;
+    --text-muted: #6b7280;
+    --brand: #2563eb;
+    --brand-600: #1d4ed8;
+    --brand-700: #1e40af;
+    --danger: #e11d48;
+    --danger-700: #be123c;
+    --success: #16a34a;
+    --border: #e5e7eb;
+    --shadow: 0 6px 20px rgba(0,0,0,0.08);
+    --radius: 14px;
+    --radius-sm: 10px;
+    --radius-xs: 8px;
+    --gap: 16px;
+  }
+  
+  /* Dark mode (automatic) */
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0b1020;
+      --surface: #0f172a;
+      --surface-2: #111827;
+      --text: #e5e7eb;
+      --text-muted: #9ca3af;
+      --brand: #3b82f6;
+      --brand-600: #2563eb;
+      --brand-700: #1d4ed8;
+      --danger: #fb7185;
+      --danger-700: #f43f5e;
+      --success: #22c55e;
+      --border: #1f2937;
+      --shadow: 0 10px 30px rgba(0,0,0,0.35);
+    }
+  }
+  
+  /* ---------- Base ---------- */
+  *,
+  *::before,
+  *::after { box-sizing: border-box; }
+  
+  html, body {
+    height: 100%;
+  }
+  
+  body {
+    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Apple Color Emoji","Segoe UI Emoji";
     line-height: 1.6;
     margin: 0;
-    padding: 20px;
-    background-color: #f4f4f4;
-}
-
-.container {
+    color: var(--text);
+    background: radial-gradient(1200px 800px at 20% -10%, rgba(37,99,235,.08), transparent 60%),
+                radial-gradient(900px 700px at 110% 10%, rgba(59,130,246,.08), transparent 60%),
+                var(--bg);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  /* Page container */
+  .container {
     max-width: 1200px;
-    margin: 0 auto;
-    background-color: white;
-    padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 0 10px rgba(0,0,0,0.1);
-}
-
-h1 {
-    text-align: center;
-    color: #333;
-}
-
-#addNewEmployeeBtn {
-    display: block;
-    margin: 20px auto;
-    padding: 10px 20px;
-    background-color: #4CAF50;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-}
-
-/* Modal Styles */
-.modal {
-    display: none;
-    position: fixed;
-    z-index: 1;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    overflow: auto;
-    background-color: rgba(0,0,0,0.4);
-}
-
-.modal-content {
-    background-color: #fefefe;
-    margin: 10% auto;
-    padding: 20px;
-    border: 1px solid #888;
-    width: 80%;
-    max-width: 600px;
-    border-radius: 8px;
-    position: relative;
-}
-
-.close-modal {
-    color: #aaa;
-    float: right;
-    font-size: 28px;
-    font-weight: bold;
-    cursor: pointer;
-}
-
-.close-modal:hover {
-    color: black;
-}
-
-#employeeForm {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 15px;
-}
-
-.form-group {
+    margin: clamp(16px, 3.2vw, 32px) auto;
+    padding: clamp(16px, 2.5vw, 28px);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+  }
+  
+  /* ---------- Header ---------- */
+  .page-header {
     display: flex;
-    flex-direction: column;
-}
-
-.form-group label {
-    margin-bottom: 5px;
-    color: #666;
-}
-
-.form-group input,
-.form-group select {
-    padding: 8px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-}
-
-.form-actions {
-    grid-column: span 2;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 1.25rem;
+  }
+  
+  .page-title {
+    margin: 0 0 4px 0;
+    font-size: clamp(1.35rem, 1rem + 1.2vw, 1.8rem);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  
+  .page-subtitle {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+  }
+  
+  /* ---------- Cards ---------- */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: clip;
+    margin: 1rem 0;
+  }
+  
+  .card-head {
+    padding: 16px 18px;
+    background: linear-gradient(to right, var(--surface-2), transparent);
+    border-bottom: 1px solid var(--border);
+  }
+  
+  .card-title {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  
+  .card-body {
+    padding: clamp(14px, 2.2vw, 22px);
+  }
+  
+  /* Provision card layout */
+  .provision-grid {
+    display: grid;
+    grid-template-columns: minmax(260px, 420px) 1fr auto;
+    gap: 14px;
+    align-items: end;
+  }
+  @media (max-width: 920px) {
+    .provision-grid {
+      grid-template-columns: 1fr;
+      align-items: stretch;
+    }
+  }
+  
+  /* ---------- Forms & Inputs ---------- */
+  .field { display: grid; gap: 8px; }
+  
+  .label {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+  }
+  
+  .input,
+  select,
+  textarea {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xs);
+    outline: none;
+    transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
+  }
+  
+  .input::placeholder { color: color-mix(in srgb, var(--text-muted) 85%, transparent); }
+  
+  .input:focus,
+  select:focus,
+  textarea:focus {
+    border-color: color-mix(in srgb, var(--brand) 65%, var(--border));
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 20%, transparent);
+  }
+  
+  /* Roles fieldset */
+  .roles-fieldset {
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-xs);
+    padding: 10px 12px 8px;
+    min-inline-size: 260px;
+    background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+  }
+  .roles-fieldset legend {
+    padding: 0 6px;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+  }
+  .roles-fieldset .check {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 10px 0 0;
+    font-size: 0.95rem;
+  }
+  
+  /* Form inside modal */
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(220px, 1fr));
+    gap: 14px;
+  }
+  @media (max-width: 720px) {
+    .form-grid { grid-template-columns: 1fr; }
+  }
+  
+  /* Legacy selector support (if needed) */
+  #employeeForm .form-group { display: grid; gap: 8px; }
+  
+  /* Form actions */
+  .form-actions {
     display: flex;
     gap: 10px;
-    margin-top: 15px;
-}
-
-.form-actions button {
-    padding: 10px;
-    border: none;
-    border-radius: 4px;
+    margin-top: 6px;
+    justify-content: flex-end;
+  }
+  
+  /* ---------- Buttons ---------- */
+  .btn {
+    --btn-bg: var(--surface-2);
+    --btn-text: var(--text);
+    --btn-border: var(--border);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 40px;
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1px solid var(--btn-border);
+    background: var(--btn-bg);
+    color: var(--btn-text);
+    font-weight: 600;
+    font-size: 0.95rem;
     cursor: pointer;
-}
-
-#saveEmployee {
-    background-color: #4CAF50;
-    color: white;
-}
-
-#cancelEdit {
-    background-color: #f44336;
-    color: white;
-}
-
-#employeesTable {
+    transition: transform .06s ease, background .2s ease, border-color .2s ease, color .2s ease, box-shadow .2s ease;
+    user-select: none;
+  }
+  .btn:active { transform: translateY(1px); }
+  
+  .btn-primary {
+    --btn-bg: linear-gradient(180deg, color-mix(in srgb, var(--brand) 92%, white) 0%, var(--brand-600) 100%);
+    --btn-text: #fff;
+    --btn-border: color-mix(in srgb, var(--brand-700) 85%, black);
+    box-shadow: 0 6px 18px color-mix(in srgb, var(--brand) 25%, transparent);
+  }
+  .btn-primary:hover {
+    --btn-bg: linear-gradient(180deg, var(--brand) 0%, var(--brand-700) 100%);
+  }
+  
+  .btn-ghost {
+    --btn-bg: transparent;
+    --btn-text: var(--text);
+    --btn-border: var(--border);
+  }
+  .btn-ghost:hover {
+    background: color-mix(in srgb, var(--surface-2) 60%, transparent);
+  }
+  
+  .btn-danger {
+    --btn-bg: linear-gradient(180deg, color-mix(in srgb, var(--danger) 95%, white), var(--danger-700));
+    --btn-text: #fff;
+    --btn-border: color-mix(in srgb, var(--danger-700) 85%, black);
+    box-shadow: 0 6px 18px color-mix(in srgb, var(--danger) 25%, transparent);
+  }
+  .btn-danger:hover { filter: brightness(0.98); }
+  
+  .btn-sm {
+    height: 34px;
+    padding: 0 12px;
+    font-size: 0.85rem;
+  }
+  
+  /* Remove/disable old “Add New Employee” button if it still exists in DOM */
+  #addNewEmployeeBtn { display: none !important; }
+  
+  /* ---------- Table ---------- */
+  .table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+  
+  .table {
     width: 100%;
     border-collapse: collapse;
-}
-
-#employeesTable th,
-#employeesTable td {
-    border: 1px solid #ddd;
-    padding: 8px;
+    min-width: 720px;
+    background: var(--surface);
+  }
+  
+  .table th,
+  .table td {
+    padding: 12px 14px;
     text-align: left;
-}
-
-#employeesTable th {
-    background-color: #f2f2f2;
-    font-weight: bold;
-}
-
-.edit-btn, .delete-btn {
-    padding: 5px 10px;
-    margin-right: 5px;
-    border: none;
-    border-radius: 3px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  
+  .table thead th {
+    background: color-mix(in srgb, var(--surface-2) 80%, transparent);
+    color: var(--text);
+    font-weight: 700;
+    font-size: 0.9rem;
+    letter-spacing: .02em;
+  }
+  
+  .table tbody tr:hover {
+    background: color-mix(in srgb, var(--surface-2) 65%, transparent);
+  }
+  
+  .table td.col-actions,
+  .table td.actions {
+    white-space: nowrap;
+  }
+  
+  /* ---------- Badges ---------- */
+  .badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: .02em;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text-muted);
+  }
+  .badge-success {
+    background: color-mix(in srgb, var(--success) 16%, var(--surface-2));
+    color: color-mix(in srgb, var(--success) 85%, black);
+    border-color: color-mix(in srgb, var(--success) 40%, var(--border));
+  }
+  .badge-muted {
+    background: color-mix(in srgb, var(--text-muted) 14%, var(--surface-2));
+    color: var(--text-muted);
+  }
+  
+  /* ---------- Modal ---------- */
+  .modal {
+    display: none; /* toggled by JS */
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: color-mix(in srgb, #000 55%, transparent);
+    backdrop-filter: blur(2.5px);
+  }
+  .modal.is-open { display: grid; place-items: center; }
+  
+  .modal-content {
+    width: min(720px, calc(100% - 28px));
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: clamp(16px, 2.8vw, 24px);
+    transform: translateY(6px) scale(0.98);
+    opacity: 0;
+    animation: modal-in .18s ease-out forwards;
+  }
+  @keyframes modal-in {
+    to { transform: translateY(0) scale(1); opacity: 1; }
+  }
+  
+  .modal-title {
+    margin: 0 0 6px 0;
+    font-size: 1.1rem;
+    font-weight: 700;
+  }
+  
+  .close-modal {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text);
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1;
     cursor: pointer;
+    display: grid;
+    place-items: center;
+    transition: background .2s ease, transform .06s ease, color .2s ease, border-color .2s ease;
+  }
+  .close-modal:hover {
+    background: color-mix(in srgb, var(--surface-2) 70%, transparent);
+  }
+  .close-modal:active { transform: translateY(1px); }
+  
+  /* ---------- Helpers ---------- */
+  .muted { color: var(--text-muted); font-size: 0.92rem; }
+  
+  .help summary {
+    cursor: pointer;
+    user-select: none;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .help div {
+    margin-top: 8px;
+    color: var(--text-muted);
+    font-size: 0.93rem;
+  }
+  
+  /* ---------- Responsive tweaks ---------- */
+  @media (max-width: 600px) {
+    .page-header { align-items: center; }
+    .form-actions { justify-content: stretch; }
+    .form-actions .btn { flex: 1 1 auto; }
+  }
+  
+  /* ---------- Legacy compatibility (kept but modernized palette) ---------- */
+  #employeesTable { width: 100%; }
+  .edit-btn, .delete-btn {
+    /* If old buttons are ever injected, make them look like new ones */
+    all: unset;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 34px;
+    padding: 0 12px;
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    user-select: none;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text);
+  }
+  .edit-btn:hover { background: color-mix(in srgb, var(--brand) 12%, var(--surface-2)); color: var(--text); }
+  .delete-btn {
+    background: color-mix(in srgb, var(--danger) 10%, var(--surface-2));
+    color: color-mix(in srgb, var(--danger) 80%, black);
+    border-color: color-mix(in srgb, var(--danger) 35%, var(--border));
+  }
+  .delete-btn:hover { background: color-mix(in srgb, var(--danger) 18%, var(--surface-2)); }
+  /* === override: Provision card layout v2025-10-21 === */
+.provision-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto;
+  grid-template-rows: auto auto;
+  grid-template-areas:
+    "email  action"
+    "roles  roles";
+  gap: 16px;
+  align-items: start;
 }
+.provision-grid > .field:first-of-type { grid-area: email; }
+.provision-grid > .roles-fieldset      { grid-area: roles; }
+.provision-grid > .actions             { grid-area: action; justify-self: end; align-self: start; }
 
-.edit-btn {
-    background-color: #2196F3;
-    color: white;
+@media (max-width: 920px) {
+  .provision-grid {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "email"
+      "roles"
+      "action";
+  }
+  .provision-grid > .actions { justify-self: stretch; }
+  .provision-grid .btn { width: 100%; }
 }
+/* === override: provision layout polish v2025-10-21b === */
+.card-provision .card-body { padding-block: 16px 18px; }
 
-.delete-btn {
-    background-color: #f44336;
-    color: white;
+.provision-grid .actions { align-self: start; } /* keep button aligned with inputs */
+
+.roles-fieldset {
+  /* turn role items into neat responsive columns */
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px 16px;
+  padding: 12px 14px 10px;
 }
+.roles-fieldset legend { grid-column: 1 / -1; margin-bottom: 4px; }
+.roles-fieldset .check { margin: 0; }
+/* === override: provision grid target fix v2025-10-21c === */
+/* Put ONLY the email field container in the 'email' area (not the roles fieldset) */
+.provision-grid > .field:not(.roles-fieldset) { grid-area: email !important; position: relative; z-index: 2; }
 
-@media (max-width: 768px) {
-    #employeeForm {
-        grid-template-columns: 1fr;
-    }
+/* Roles spans the second row */
+.provision-grid > .roles-fieldset { grid-area: roles !important; position: relative; z-index: 1; }
 
-    .form-actions {
-        grid-column: span 1;
-    }
-}
+/* Keep the action button top-right */
+.provision-grid > .actions { grid-area: action !important; align-self: start; justify-self: end; }

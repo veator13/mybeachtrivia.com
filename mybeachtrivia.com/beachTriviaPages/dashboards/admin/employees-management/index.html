@@ -3,15 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="color-scheme" content="light dark" />
   <title>Employees Admin</title>
 
+  <!-- Page styles -->
   <link rel="stylesheet" href="style.css"/>
 
   <!-- Firebase SDKs (compat) -->
   <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-firestore-compat.js"></script>
-  <!-- Functions SDK (needed for adminCreateEmployee callable) -->
   <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-functions-compat.js"></script>
 
   <!-- Your Firebase config + initialize -->
@@ -20,118 +21,159 @@
   <!-- Auth guard (keeps page hidden until authorized) -->
   <script src="./auth-guard.js" defer></script>
 </head>
-<body>
+<body data-page="employees-admin">
   <!-- Authentication Loading Overlay -->
-  <div id="auth-loading" class="auth-overlay">
-    <div class="spinner"></div>
+  <div id="auth-loading" class="auth-overlay" aria-live="polite">
+    <div class="spinner" role="status" aria-label="Loading"></div>
     <p>Verifying access...</p>
   </div>
 
   <div class="container" style="display:none;">
-    <h1>Employees Management</h1>
+    <header class="page-header">
+      <div>
+        <h1 class="page-title">Employees Management</h1>
+        <p class="page-subtitle">Provision new accounts and manage existing employees.</p>
+      </div>
+    </header>
 
     <!-- ===== Provision Employee (admin creates Auth user + sends password setup link) ===== -->
-    <section class="card" id="provision-card" style="margin:1rem 0;padding:1rem;border:1px solid #ddd;border-radius:8px;">
-      <h3 style="margin-top:0;">Create Employee &amp; Send Password Setup Link</h3>
-      <div style="display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;">
-        <label>Email:
-          <input id="email-input" type="email" placeholder="person@example.com" required style="min-width:280px;">
-        </label>
-        <label>Role:
-          <fieldset id="roles-fieldset" class="roles-fieldset">
-  <legend>Assign roles</legend>
-  <label><input type="checkbox" name="roles" value="host" checked> Host</label>
-  <label><input type="checkbox" name="roles" value="admin"> Admin</label>
-  <label><input type="checkbox" name="roles" value="regional"> Regional manager</label>
-  <label><input type="checkbox" name="roles" value="supply"> Supply manager</label>
-  <label><input type="checkbox" name="roles" value="writer"> Writer</label>
-  <label><input type="checkbox" name="roles" value="social"> Social media manager</label>
-</fieldset>
-        </label>
-        <button id="provision-btn">Create &amp; Send</button>
+    <section class="card card-provision" id="provision-card" aria-labelledby="provision-title">
+      <div class="card-head">
+        <h2 id="provision-title" class="card-title">Create Employee &amp; Send Password Setup Link</h2>
       </div>
-      <div id="provision-status" style="margin-top:.5rem;font-size:.9rem;color:#555;"></div>
-      <details style="margin-top:.5rem;">
-        <summary style="cursor:pointer;font-size:.9rem;">What this does</summary>
-        <div style="font-size:.9rem;color:#666;">
-          Creates the Auth user (if not already present), writes <code>employees/{uid}</code> with <code>{email, role, active:true}</code>,
-          and generates a secure password-reset link (first-time password setup). We’ll also copy the link to your clipboard.
+
+      <div class="card-body">
+        <div class="provision-grid">
+          <div class="field">
+            <label for="email-input" class="label">Email</label>
+            <input id="email-input" type="email" class="input" placeholder="person@example.com" required>
+          </div>
+
+          <fieldset id="roles-fieldset" class="roles-fieldset field">
+            <legend class="label">Assign roles</legend>
+            <label class="check"><input type="checkbox" name="roles" value="host" checked> Host</label>
+            <label class="check"><input type="checkbox" name="roles" value="admin"> Admin</label>
+            <label class="check"><input type="checkbox" name="roles" value="regional"> Regional manager</label>
+            <label class="check"><input type="checkbox" name="roles" value="supply"> Supply manager</label>
+            <label class="check"><input type="checkbox" name="roles" value="writer"> Writer</label>
+            <label class="check"><input type="checkbox" name="roles" value="social"> Social media manager</label>
+          </fieldset>
+
+          <div class="actions">
+            <button id="provision-btn" class="btn btn-primary">
+              Create &amp; Send
+            </button>
+          </div>
         </div>
-      </details>
+
+        <div id="provision-status" class="muted" aria-live="polite"></div>
+
+        <details class="help">
+          <summary>What this does</summary>
+          <div>
+            Creates the Auth user (if not already present), writes
+            <code>employees/{uid}</code> with <code>{ email, role, active: true }</code>,
+            and generates a secure password-reset link (first-time password setup).
+            We’ll also copy the link to your clipboard.
+          </div>
+        </details>
+      </div>
     </section>
     <!-- ===== /Provision Employee ===== -->
 
-    <!-- Existing “Add/Edit Employee” modal & table (unchanged) -->
-    <button id="addNewEmployeeBtn">Add New Employee</button>
+    <!-- NOTE: Removed the obsolete “Add New Employee” button -->
 
-    <div id="employeeModal" class="modal">
+    <!-- Employee Edit Modal (retained for editing existing employees) -->
+    <div id="employeeModal" class="modal" aria-hidden="true" aria-labelledby="employeeModalTitle" role="dialog">
       <div class="modal-content">
-        <span class="close-modal">&times;</span>
-        <form id="employeeForm">
+        <button type="button" class="close-modal" aria-label="Close">&times;</button>
+        <form id="employeeForm" novalidate>
+          <h3 id="employeeModalTitle" class="modal-title">Edit Employee</h3>
           <input type="hidden" id="employeeId">
-          <div class="form-group">
-            <label for="firstName">First Name</label>
-            <input type="text" id="firstName" required>
+
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="firstName" class="label">First Name</label>
+              <input type="text" id="firstName" class="input" required>
+            </div>
+
+            <div class="form-group">
+              <label for="lastName" class="label">Last Name</label>
+              <input type="text" id="lastName" class="input" required>
+            </div>
+
+            <div class="form-group">
+              <label for="email" class="label">Email</label>
+              <input type="email" id="email" class="input" required>
+            </div>
+
+            <div class="form-group">
+              <label for="phone" class="label">Phone</label>
+              <input type="tel" id="phone" class="input">
+            </div>
+
+            <div class="form-group">
+              <label for="nickname" class="label">Nickname</label>
+              <input type="text" id="nickname" class="input">
+            </div>
+
+            <div class="form-group">
+              <label for="employeeID" class="label">Employee ID</label>
+              <input type="text" id="employeeID" class="input">
+            </div>
+
+            <div class="form-group">
+              <label for="emergencyContactName" class="label">Emergency Contact Name</label>
+              <input type="text" id="emergencyContactName" class="input">
+            </div>
+
+            <div class="form-group">
+              <label for="emergencyContactPhone" class="label">Emergency Contact Phone</label>
+              <input type="tel" id="emergencyContactPhone" class="input">
+            </div>
+
+            <div class="form-group">
+              <label for="active" class="label">Active</label>
+              <select id="active" class="input">
+                <option value="true">Yes</option>
+                <option value="false">No</option>
+              </select>
+            </div>
           </div>
-          <div class="form-group">
-            <label for="lastName">Last Name</label>
-            <input type="text" id="lastName" required>
-          </div>
-          <div class="form-group">
-            <label for="email">Email</label>
-            <input type="email" id="email" required>
-          </div>
-          <div class="form-group">
-            <label for="phone">Phone</label>
-            <input type="tel" id="phone">
-          </div>
-          <div class="form-group">
-            <label for="nickname">Nickname</label>
-            <input type="text" id="nickname">
-          </div>
-          <div class="form-group">
-            <label for="employeeID">Employee ID</label>
-            <input type="text" id="employeeID">
-          </div>
-          <div class="form-group">
-            <label for="emergencyContactName">Emergency Contact Name</label>
-            <input type="text" id="emergencyContactName">
-          </div>
-          <div class="form-group">
-            <label for="emergencyContactPhone">Emergency Contact Phone</label>
-            <input type="tel" id="emergencyContactPhone">
-          </div>
-          <div class="form-group">
-            <label for="active">Active</label>
-            <select id="active">
-              <option value="true">Yes</option>
-              <option value="false">No</option>
-            </select>
-          </div>
+
           <div class="form-actions">
-            <button type="submit" id="saveEmployee">Save Employee</button>
-            <button type="button" id="cancelEdit">Cancel</button>
+            <button type="submit" id="saveEmployee" class="btn btn-primary">Save Employee</button>
+            <button type="button" id="cancelEdit" class="btn btn-ghost">Cancel</button>
           </div>
         </form>
       </div>
     </div>
 
     <!-- Employees Table -->
-    <table id="employeesTable">
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Email</th>
-          <th>Employee ID</th>
-          <th>Active</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody id="employeesTableBody"></tbody>
-    </table>
+    <section class="card card-table">
+      <div class="card-head">
+        <h2 class="card-title">Employees</h2>
+      </div>
+      <div class="card-body">
+        <div class="table-wrapper">
+          <table id="employeesTable" class="table">
+            <thead>
+              <tr>
+                <th scope="col">Name</th>
+                <th scope="col">Email</th>
+                <th scope="col">Employee ID</th>
+                <th scope="col">Active</th>
+                <th scope="col" class="col-actions">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="employeesTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
   </div>
 
-  <!-- Show the page after auth -->
+  <!-- Boot (reveals container when auth OK) -->
   <script src="boot.js"></script>
 
   <!-- REMOVE the old email-link invite flow -->
@@ -143,8 +185,8 @@
   <!-- New provision flow (calls callable function) -->
   <script src="./provision.js" defer></script>
 
+  <!-- Inline-only overlay styles (kept here intentionally) -->
   <style>
-    /* Overlay styles (inline OK) */
     .auth-overlay {
       position: fixed; inset: 0; width: 100%; height: 100%;
       background-color: rgba(0,0,0,0.8);
@@ -161,6 +203,8 @@
     }
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
   </style>
+
+  <!-- Route guard (prod) -->
   <script src="/beachTriviaPages/js/auth-route-guard.v2.js?v=2025-10-14a"></script>
 </body>
 </html>
