@@ -81,9 +81,7 @@
     </section>
     <!-- ===== /Provision Employee ===== -->
 
-    <!-- NOTE: Removed the obsolete “Add New Employee” button -->
-
-    <!-- Employee Edit Modal (retained for editing existing employees) -->
+    <!-- Employee Edit Modal -->
     <div id="employeeModal" class="modal" aria-hidden="true" aria-labelledby="employeeModalTitle" role="dialog">
       <div class="modal-content">
         <button type="button" class="close-modal" aria-label="Close">&times;</button>
@@ -161,11 +159,17 @@
               <tr>
                 <th scope="col" class="sticky-col col-fname">First</th>
                 <th scope="col" class="sticky-col col-lname">Last</th>
-                <th scope="col">Email</th>
-                <th scope="col">Phone</th>
-                <th scope="col">Nickname</th>
-                <th scope="col">Employee ID</th>
+
+                <!-- Scrollable info columns -->
+                <th scope="col" class="col-email">Email</th>
+                <th scope="col" class="col-phone">Phone</th>
+                <th scope="col" class="col-nickname">Nickname</th>
+                <th scope="col" class="col-employee-id">Employee ID</th>
+                <th scope="col" class="col-emergency-name">Emergency Contact</th>
+                <th scope="col" class="col-emergency-phone">Emergency Phone</th>
                 <th scope="col">Roles</th>
+
+                <!-- Frozen right side -->
                 <th scope="col" class="sticky-col col-active">Active</th>
                 <th scope="col" class="sticky-col col-actions">Actions</th>
               </tr>
@@ -179,9 +183,6 @@
 
   <!-- Boot (reveals container when auth OK) -->
   <script src="boot.js"></script>
-
-  <!-- REMOVE the old email-link invite flow -->
-  <!-- <script src="invite.js"></script> -->
 
   <!-- Page logic -->
   <script src="./script.js" defer></script>

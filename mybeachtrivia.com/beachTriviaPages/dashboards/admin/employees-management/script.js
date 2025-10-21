@@ -40,6 +40,16 @@ const esc = (s) =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
+/** Format to XXX-XXX-XXXX for display (leaves non-10-digit values as-is). */
+function formatPhoneDisplay(v = '') {
+  const digitsRaw = String(v).replace(/\D/g, '');
+  const d = (digitsRaw.length === 11 && digitsRaw.startsWith('1'))
+    ? digitsRaw.slice(1)
+    : digitsRaw;
+  if (d.length === 10) return `${d.slice(0,3)}-${d.slice(3,6)}-${d.slice(6)}`;
+  return String(v);
+}
+
 /////////////////////////
 // DOM Elements
 /////////////////////////
@@ -136,7 +146,7 @@ async function editEmployee(id) {
     setVal('email',      e.email      || '');
     setVal('phone',      e.phone      || '');
     setVal('nickname',   e.nickname   || '');
-    setVal('employeeID', e.employeeID || '');
+    setVal('employeeID', e.employeeID || e.employeeId || '');
 
     // Prefill fallbacks (canonical + legacy)
     setVal('emergencyContactName',  e.emergencyContact || e.emergencyName || e.emergencyContactName || '');
@@ -226,18 +236,26 @@ function startEmployeesLive2() {
 
           const rolesArr = extractRoles(d);
           const rolesTxt = (rolesArr && rolesArr.length) ? rolesArr.join(', ') : '—';
-          const phoneTxt = d.phone || '';
+
+          const phoneTxt        = formatPhoneDisplay(d.phone || '');
+          const emergencyName   = d.emergencyContact || d.emergencyName || d.emergencyContactName || '';
+          const emergencyPhone  = formatPhoneDisplay(d.emergencyContactPhone || d.emergencyPhone || '');
+
           const activeTxt = d.active === true ? 'Yes' : 'No';
 
           const row = tableBody.insertRow();
           row.innerHTML = `
             <td class="sticky-col col-fname">${esc(d.firstName || '')}</td>
             <td class="sticky-col col-lname">${esc(d.lastName || '')}</td>
-            <td>${esc(d.email || '')}</td>
-            <td>${esc(phoneTxt)}</td>
-            <td>${esc(d.nickname || '')}</td>
-            <td>${esc(d.employeeID || '—')}</td>
+
+            <td class="col-email">${esc(d.email || '')}</td>
+            <td class="col-phone">${esc(phoneTxt)}</td>
+            <td class="col-nickname">${esc(d.nickname || '')}</td>
+            <td class="col-employee-id">${esc(d.employeeID || d.employeeId || '—')}</td>
+            <td class="col-emergency-name">${esc(emergencyName || '—')}</td>
+            <td class="col-emergency-phone">${esc(emergencyPhone || '—')}</td>
             <td>${esc(rolesTxt)}</td>
+
             <td class="sticky-col col-active">
               <span class="badge ${d.active === true ? 'badge-success' : 'badge-muted'}">${activeTxt}</span>
             </td>

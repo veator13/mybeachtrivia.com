@@ -19,493 +19,494 @@
     --radius-sm: 10px;
     --radius-xs: 8px;
     --gap: 16px;
-  
+
     /* widths for frozen columns (tweak as needed) */
     --col-fname-w: 168px;
     --col-lname-w: 188px;
     --col-active-w: 96px;
     --col-actions-w: 172px;
+}
+
+/* Dark mode (automatic) */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b1020;
+    --surface: #0f172a;
+    --surface-2: #111827;
+    --text: #e5e7eb;
+    --text-muted: #9ca3af;
+    --brand: #3b82f6;
+    --brand-600: #2563eb;
+    --brand-700: #1d4ed8;
+    --danger: #fb7185;
+    --danger-700: #f43f5e;
+    --success: #22c55e;
+    --border: #1f2937;
+    --shadow: 0 10px 30px rgba(0,0,0,0.35);
   }
-  
-  /* Dark mode (automatic) */
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #0b1020;
-      --surface: #0f172a;
-      --surface-2: #111827;
-      --text: #e5e7eb;
-      --text-muted: #9ca3af;
-      --brand: #3b82f6;
-      --brand-600: #2563eb;
-      --brand-700: #1d4ed8;
-      --danger: #fb7185;
-      --danger-700: #f43f5e;
-      --success: #22c55e;
-      --border: #1f2937;
-      --shadow: 0 10px 30px rgba(0,0,0,0.35);
-    }
-  }
-  
-  /* ---------- Base ---------- */
-  *,
-  *::before,
-  *::after { box-sizing: border-box; }
-  
-  html, body { height: 100%; }
-  
-  body {
-    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Apple Color Emoji","Segoe UI Emoji";
-    line-height: 1.6;
-    margin: 0;
-    color: var(--text);
-    background:
-      radial-gradient(1200px 800px at 20% -10%, rgba(37,99,235,.08), transparent 60%),
-      radial-gradient(900px 700px at 110% 10%, rgba(59,130,246,.08), transparent 60%),
-      var(--bg);
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-  }
-  
-  /* Page container */
-  .container {
-    max-width: 1200px;
-    margin: clamp(16px, 3.2vw, 32px) auto;
-    padding: clamp(16px, 2.5vw, 28px);
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-  }
-  
-  /* ---------- Header ---------- */
-  .page-header {
-    display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: 16px;
-    margin-bottom: 1.25rem;
-  }
-  .page-title {
-    margin: 0 0 4px 0;
-    font-size: clamp(1.35rem, 1rem + 1.2vw, 1.8rem);
-    font-weight: 700;
-    letter-spacing: -0.01em;
-  }
-  .page-subtitle {
-    margin: 0;
-    color: var(--text-muted);
-    font-size: 0.95rem;
-  }
-  
-  /* ---------- Cards ---------- */
-  .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    overflow: clip;
-    margin: 1rem 0;
-  }
-  .card-head {
-    padding: 16px 18px;
-    background: linear-gradient(to right, var(--surface-2), transparent);
-    border-bottom: 1px solid var(--border);
-  }
-  .card-title {
-    margin: 0;
-    font-size: 1.05rem;
-    font-weight: 700;
-    letter-spacing: -0.01em;
-  }
-  .card-body {
-    padding: clamp(14px, 2.2vw, 22px);
-  }
-  
-  /* Provision card layout (final) */
-  .card-provision .card-body { padding-block: 16px 18px; }
-  
+}
+
+/* ---------- Base ---------- */
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Apple Color Emoji","Segoe UI Emoji";
+  line-height: 1.6;
+  margin: 0;
+  color: var(--text);
+  background:
+    radial-gradient(1200px 800px at 20% -10%, rgba(37,99,235,.08), transparent 60%),
+    radial-gradient(900px 700px at 110% 10%, rgba(59,130,246,.08), transparent 60%),
+    var(--bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Page container */
+.container {
+  max-width: 1200px;
+  margin: clamp(16px, 3.2vw, 32px) auto;
+  padding: clamp(16px, 2.5vw, 28px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+/* ---------- Header ---------- */
+.page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 1.25rem;
+}
+.page-title {
+  margin: 0 0 4px 0;
+  font-size: clamp(1.35rem, 1rem + 1.2vw, 1.8rem);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.page-subtitle {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+
+/* ---------- Cards ---------- */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: clip;
+  margin: 1rem 0;
+}
+.card-head {
+  padding: 16px 18px;
+  background: linear-gradient(to right, var(--surface-2), transparent);
+  border-bottom: 1px solid var(--border);
+}
+.card-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.card-body {
+  padding: clamp(14px, 2.2vw, 22px);
+}
+
+/* Provision card layout (final) */
+.card-provision .card-body { padding-block: 16px 18px; }
+
+.provision-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto;
+  grid-template-rows: auto auto;
+  grid-template-areas:
+    "email  action"
+    "roles  roles";
+  gap: 16px;
+  align-items: start;
+}
+.provision-grid > .field:first-of-type { grid-area: email; }
+.provision-grid > .roles-fieldset      { grid-area: roles; }
+.provision-grid > .actions             { grid-area: action; justify-self: end; align-self: start; }
+.provision-grid .actions { align-self: start; }
+
+@media (max-width: 920px) {
   .provision-grid {
-    display: grid;
-    grid-template-columns: minmax(260px, 1fr) auto;
-    grid-template-rows: auto auto;
+    grid-template-columns: 1fr;
     grid-template-areas:
-      "email  action"
-      "roles  roles";
-    gap: 16px;
-    align-items: start;
+      "email"
+      "roles"
+      "action";
   }
-  .provision-grid > .field:first-of-type { grid-area: email; }
-  .provision-grid > .roles-fieldset      { grid-area: roles; }
-  .provision-grid > .actions             { grid-area: action; justify-self: end; align-self: start; }
-  .provision-grid .actions { align-self: start; }
-  
-  @media (max-width: 920px) {
-    .provision-grid {
-      grid-template-columns: 1fr;
-      grid-template-areas:
-        "email"
-        "roles"
-        "action";
-    }
-    .provision-grid > .actions { justify-self: stretch; }
-    .provision-grid .btn { width: 100%; }
-  }
-  
-  /* Roles fieldset presented in responsive columns */
-  .roles-fieldset {
-    border: 1px dashed var(--border);
-    border-radius: var(--radius-xs);
-    padding: 12px 14px 10px;
-    min-inline-size: 260px;
-    background: color-mix(in srgb, var(--surface-2) 55%, transparent);
-  
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 8px 16px;
-  }
-  .roles-fieldset legend {
-    grid-column: 1 / -1;
-    padding: 0 6px;
-    margin-bottom: 4px;
-    font-size: 0.85rem;
-    color: var(--text-muted);
-  }
-  .roles-fieldset .check {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    margin: 0;
-    font-size: 0.95rem;
-  }
-  
-  /* ---------- Forms & Inputs ---------- */
-  .field { display: grid; gap: 8px; }
-  
-  .label { font-size: 0.85rem; color: var(--text-muted); }
-  
-  .input,
-  select,
-  textarea {
-    width: 100%;
-    padding: 10px 12px;
-    background: var(--surface);
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-xs);
-    outline: none;
-    transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
-  }
-  .input::placeholder { color: color-mix(in srgb, var(--text-muted) 85%, transparent); }
-  .input:focus,
-  select:focus,
-  textarea:focus {
-    border-color: color-mix(in srgb, var(--brand) 65%, var(--border));
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 20%, transparent);
-  }
-  
-  /* Form inside modal */
-  .form-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(220px, 1fr));
-    gap: 14px;
-  }
-  @media (max-width: 720px) { .form-grid { grid-template-columns: 1fr; } }
-  
-  /* Legacy selector support (if needed) */
-  #employeeForm .form-group { display: grid; gap: 8px; }
-  
-  /* Form actions */
-  .form-actions {
-    display: flex;
-    gap: 10px;
-    margin-top: 6px;
-    justify-content: flex-end;
-  }
-  
-  /* ---------- Buttons ---------- */
-  .btn {
-    --btn-bg: var(--surface-2);
-    --btn-text: var(--text);
-    --btn-border: var(--border);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    height: 40px;
-    padding: 0 14px;
-    border-radius: 999px;
-    border: 1px solid var(--btn-border);
-    background: var(--btn-bg);
-    color: var(--btn-text);
-    font-weight: 600;
-    font-size: 0.95rem;
-    cursor: pointer;
-    transition: transform .06s ease, background .2s ease, border-color .2s ease, color .2s ease, box-shadow .2s ease;
-    user-select: none;
-  }
-  .btn:active { transform: translateY(1px); }
-  
-  .btn-primary {
-    --btn-bg: linear-gradient(180deg, color-mix(in srgb, var(--brand) 92%, white) 0%, var(--brand-600) 100%);
-    --btn-text: #fff;
-    --btn-border: color-mix(in srgb, var(--brand-700) 85%, black);
-    box-shadow: 0 6px 18px color-mix(in srgb, var(--brand) 25%, transparent);
-  }
-  .btn-primary:hover {
-    --btn-bg: linear-gradient(180deg, var(--brand) 0%, var(--brand-700) 100%);
-  }
-  
-  .btn-ghost {
-    --btn-bg: transparent;
-    --btn-text: var(--text);
-    --btn-border: var(--border);
-  }
-  .btn-ghost:hover { background: color-mix(in srgb, var(--surface-2) 60%, transparent); }
-  
-  .btn-danger {
-    --btn-bg: linear-gradient(180deg, color-mix(in srgb, var(--danger) 95%, white), var(--danger-700));
-    --btn-text: #fff;
-    --btn-border: color-mix(in srgb, var(--danger-700) 85%, black);
-    box-shadow: 0 6px 18px color-mix(in srgb, var(--danger) 25%, transparent);
-  }
-  .btn-danger:hover { filter: brightness(0.98); }
-  
-  .btn-sm {
-    height: 34px;
-    padding: 0 12px;
-    font-size: 0.85rem;
-  }
-  
-  /* Remove/disable old “Add New Employee” button if it still exists in DOM */
-  #addNewEmployeeBtn { display: none !important; }
-  
-  /* ---------- Table (base) ---------- */
-  .table-wrapper {
-    width: 100%;
-    overflow-x: auto;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-  }
-  .table {
-    width: 100%;
-    border-collapse: collapse;
-    min-width: 720px;
-    background: var(--surface);
-  }
-  .table th,
-  .table td {
-    padding: 12px 14px;
-    text-align: left;
-    border-bottom: 1px solid var(--border);
-    vertical-align: middle;
-  }
-  .table thead th {
-    background: color-mix(in srgb, var(--surface-2) 80%, transparent);
-    color: var(--text);
-    font-weight: 700;
-    font-size: 0.9rem;
-    letter-spacing: .02em;
-  }
-  
-  /* Zebra rows with FULL opacity (no dimming via opacity) */
-  .table tbody tr { --row-bg: var(--surface); background: var(--row-bg); }
-  .table tbody tr:nth-child(even) { --row-bg: color-mix(in srgb, var(--surface-2) 35%, var(--surface)); }
-  .table tbody tr:hover { --row-bg: color-mix(in srgb, var(--surface-2) 55%, var(--surface)); }
-  
-  /* Keep actions in one line */
-  .table td.col-actions,
-  .table td.actions { white-space: nowrap; }
-  
-  /* ---------- Badges ---------- */
-  .badge {
-    display: inline-block;
-    padding: 4px 10px;
-    border-radius: 999px;
-    font-size: 0.78rem;
-    font-weight: 700;
-    letter-spacing: .02em;
-    border: 1px solid var(--border);
-    background: var(--surface-2);
-    color: var(--text-muted);
-  }
-  .badge-success {
-    background: color-mix(in srgb, var(--success) 16%, var(--surface-2));
-    color: color-mix(in srgb, var(--success) 85%, black);
-    border-color: color-mix(in srgb, var(--success) 40%, var(--border));
-  }
-  .badge-muted {
-    background: color-mix(in srgb, var(--text-muted) 14%, var(--surface-2));
-    color: var(--text-muted);
-  }
-  
-  /* ---------- Modal ---------- */
-  .modal {
-    display: none; /* toggled by JS */
-    position: fixed;
-    inset: 0;
-    z-index: 40;
-    background: color-mix(in srgb, #000 55%, transparent);
-    backdrop-filter: blur(2.5px);
-  }
-  .modal.is-open { display: grid; place-items: center; }
-  
-  .modal-content {
-    width: min(720px, calc(100% - 28px));
-    background: var(--surface);
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    padding: clamp(16px, 2.8vw, 24px);
-    transform: translateY(6px) scale(0.98);
-    opacity: 0;
-    animation: modal-in .18s ease-out forwards;
-  }
-  @keyframes modal-in {
-    to { transform: translateY(0) scale(1); opacity: 1; }
-  }
-  .modal-title {
-    margin: 0 0 6px 0;
-    font-size: 1.1rem;
-    font-weight: 700;
-  }
-  .close-modal {
-    position: absolute;
-    top: 10px;
-    right: 12px;
-    width: 34px;
-    height: 34px;
-    border-radius: 999px;
-    border: 1px solid var(--border);
-    background: var(--surface-2);
-    color: var(--text);
-    font-size: 22px;
-    font-weight: 700;
-    line-height: 1;
-    cursor: pointer;
-    display: grid;
-    place-items: center;
-    transition: background .2s ease, transform .06s ease, color .2s ease, border-color .2s ease;
-  }
-  .close-modal:hover { background: color-mix(in srgb, var(--surface-2) 70%, transparent); }
-  .close-modal:active { transform: translateY(1px); }
-  
-  /* ---------- Helpers ---------- */
-  .muted { color: var(--text-muted); font-size: 0.92rem; }
-  .help summary {
-    cursor: pointer;
-    user-select: none;
-    font-weight: 600;
-    color: var(--text);
-  }
-  .help div {
-    margin-top: 8px;
-    color: var(--text-muted);
-    font-size: 0.93rem;
-  }
-  
-  /* ---------- Responsive tweaks ---------- */
-  @media (max-width: 600px) {
-    .page-header { align-items: center; }
-    .form-actions { justify-content: stretch; }
-    .form-actions .btn { flex: 1 1 auto; }
-  }
-  
-  /* ---------- Legacy compatibility (kept but modernized palette) ---------- */
-  #employeesTable { width: 100%; }
-  .edit-btn, .delete-btn {
-    /* If old buttons are ever injected, make them look like new ones */
-    all: unset;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    height: 34px;
-    padding: 0 12px;
-    border-radius: 999px;
-    font-weight: 600;
-    font-size: 0.85rem;
-    cursor: pointer;
-    user-select: none;
-    border: 1px solid var(--border);
-    background: var(--surface-2);
-    color: var(--text);
-  }
-  .edit-btn:hover { background: color-mix(in srgb, var(--brand) 12%, var(--surface-2)); color: var(--text); }
-  .delete-btn {
-    background: color-mix(in srgb, var(--danger) 10%, var(--surface-2));
-    color: color-mix(in srgb, var(--danger) 80%, black);
-    border-color: color-mix(in srgb, var(--danger) 35%, var(--border));
-  }
-  .delete-btn:hover { background: color-mix(in srgb, var(--danger) 18%, var(--surface-2)); }
-  
-  /* === override: Sticky header + frozen cols (v2025-10-21) === */
-  
-  /* Only the table area scrolls; header stays visible */
-  .table-wrapper {
-    overflow: auto; /* x + y */
-    max-height: min(72vh, 740px);
-    border: 1px solid var(--border, #e5e7eb);
-    border-radius: var(--radius, 12px);
-  }
-  
-  /* Table sizing so horizontal scroll works */
-  .table {
-    width: max-content;   /* allow growth beyond container */
-    min-width: 100%;
-    border-collapse: separate;
-    border-spacing: 0;
-  }
-  
-  /* Sticky header (top) */
-  .table thead th {
-    position: sticky;
-    top: 0;
-    z-index: 3;
-    background: color-mix(in srgb, var(--surface, #ffffff) 92%, transparent);
-    -webkit-backdrop-filter: blur(2px);
-    backdrop-filter: blur(2px);
-    box-shadow: 0 1px 0 var(--border, #e5e7eb);
-  }
-  
-  /* Generic sticky cell styling */
-  .table .sticky-col {
-    position: sticky;
-    background: var(--surface, #ffffff);
-    z-index: 2;
-  }
-  .table thead .sticky-col { z-index: 5; } /* header above body */
-  
-  /* Frozen LEFT columns (First, Last) */
-  .table .col-fname {
-    left: 0;
-    width: var(--col-fname-w);
-    min-width: var(--col-fname-w);
-    box-shadow: 1px 0 0 var(--border, #e5e7eb);
-  }
-  .table .col-lname {
-    left: var(--col-fname-w);
-    width: var(--col-lname-w);
-    min-width: var(--col-lname-w);
-    box-shadow: 1px 0 0 var(--border, #e5e7eb);
-  }
-  
-  /* Frozen RIGHT columns (Active, Actions) */
-  .table .col-actions {
-    right: 0;
-    width: var(--col-actions-w);
-    min-width: var(--col-actions-w);
-    box-shadow: -1px 0 0 var(--border, #e5e7eb);
-  }
-  .table .col-active  {
-    right: var(--col-actions-w);
-    width: var(--col-active-w);
-    min-width: var(--col-active-w);
-    box-shadow: -1px 0 0 var(--border, #e5e7eb);
-  }
-  
-  /* Match sticky cells to the row's solid background color */
-  .table tbody td.sticky-col { background: var(--row-bg); }
-  /* === override: clearer zebra + narrower frozen cols v2025-10-21d === */
+  .provision-grid > .actions { justify-self: stretch; }
+  .provision-grid .btn { width: 100%; }
+}
+
+/* Roles fieldset presented in responsive columns */
+.roles-fieldset {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-xs);
+  padding: 12px 14px 10px;
+  min-inline-size: 260px;
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px 16px;
+}
+.roles-fieldset legend {
+  grid-column: 1 / -1;
+  padding: 0 6px;
+  margin-bottom: 4px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.roles-fieldset .check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+/* ---------- Forms & Inputs ---------- */
+.field { display: grid; gap: 8px; }
+
+.label { font-size: 0.85rem; color: var(--text-muted); }
+
+.input,
+select,
+textarea {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  outline: none;
+  transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
+}
+.input::placeholder { color: color-mix(in srgb, var(--text-muted) 85%, transparent); }
+.input:focus,
+select:focus,
+textarea:focus {
+  border-color: color-mix(in srgb, var(--brand) 65%, var(--border));
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 20%, transparent);
+}
+
+/* Form inside modal */
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap: 14px;
+}
+@media (max-width: 720px) { .form-grid { grid-template-columns: 1fr; } }
+
+/* Legacy selector support (if needed) */
+#employeeForm .form-group { display: grid; gap: 8px; }
+
+/* Form actions */
+.form-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+  justify-content: flex-end;
+}
+
+/* ---------- Buttons ---------- */
+.btn {
+  --btn-bg: var(--surface-2);
+  --btn-text: var(--text);
+  --btn-border: var(--border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--btn-border);
+  background: var(--btn-bg);
+  color: var(--btn-text);
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: transform .06s ease, background .2s ease, border-color .2s ease, color .2s ease, box-shadow .2s ease;
+  user-select: none;
+}
+.btn:active { transform: translateY(1px); }
+
+.btn-primary {
+  --btn-bg: linear-gradient(180deg, color-mix(in srgb, var(--brand) 92%, white) 0%, var(--brand-600) 100%);
+  --btn-text: #fff;
+  --btn-border: color-mix(in srgb, var(--brand-700) 85%, black);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--brand) 25%, transparent);
+}
+.btn-primary:hover {
+  --btn-bg: linear-gradient(180deg, var(--brand) 0%, var(--brand-700) 100%);
+}
+
+.btn-ghost {
+  --btn-bg: transparent;
+  --btn-text: var(--text);
+  --btn-border: var(--border);
+}
+.btn-ghost:hover { background: color-mix(in srgb, var(--surface-2) 60%, transparent); }
+
+.btn-danger {
+  --btn-bg: linear-gradient(180deg, color-mix(in srgb, var(--danger) 95%, white), var(--danger-700));
+  --btn-text: #fff;
+  --btn-border: color-mix(in srgb, var(--danger-700) 85%, black);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--danger) 25%, transparent);
+}
+.btn-danger:hover { filter: brightness(0.98); }
+
+.btn-sm {
+  height: 34px;
+  padding: 0 12px;
+  font-size: 0.85rem;
+}
+
+/* Remove/disable old “Add New Employee” button if it still exists in DOM */
+#addNewEmployeeBtn { display: none !important; }
+
+/* ---------- Table (base) ---------- */
+.table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 720px;
+  background: var(--surface);
+}
+.table th,
+.table td {
+  padding: 12px 14px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.table thead th {
+  background: color-mix(in srgb, var(--surface-2) 80%, transparent);
+  color: var(--text);
+  font-weight: 700;
+  font-size: 0.9rem;
+  letter-spacing: .02em;
+}
+
+/* Zebra rows with FULL opacity (no dimming via opacity) */
+.table tbody tr { --row-bg: var(--surface); background: var(--row-bg); }
+.table tbody tr:nth-child(even) { --row-bg: color-mix(in srgb, var(--surface-2) 35%, var(--surface)); }
+.table tbody tr:hover { --row-bg: color-mix(in srgb, var(--surface-2) 55%, var(--surface)); }
+
+/* Keep actions in one line */
+.table td.col-actions,
+.table td.actions { white-space: nowrap; }
+
+/* ---------- Badges ---------- */
+.badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: .02em;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-muted);
+}
+.badge-success {
+  background: color-mix(in srgb, var(--success) 16%, var(--surface-2));
+  color: color-mix(in srgb, var(--success) 85%, black);
+  border-color: color-mix(in srgb, var(--success) 40%, var(--border));
+}
+.badge-muted {
+  background: color-mix(in srgb, var(--text-muted) 14%, var(--surface-2));
+  color: var(--text-muted);
+}
+
+/* ---------- Modal ---------- */
+.modal {
+  display: none; /* toggled by JS */
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: color-mix(in srgb, #000 55%, transparent);
+  backdrop-filter: blur(2.5px);
+}
+.modal.is-open { display: grid; place-items: center; }
+
+.modal-content {
+  width: min(720px, calc(100% - 28px));
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: clamp(16px, 2.8vw, 24px);
+  transform: translateY(6px) scale(0.98);
+  opacity: 0;
+  animation: modal-in .18s ease-out forwards;
+}
+@keyframes modal-in {
+  to { transform: translateY(0) scale(1); opacity: 1; }
+}
+.modal-title {
+  margin: 0 0 6px 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+.close-modal {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: background .2s ease, transform .06s ease, color .2s ease, border-color .2s ease;
+}
+.close-modal:hover { background: color-mix(in srgb, var(--surface-2) 70%, transparent); }
+.close-modal:active { transform: translateY(1px); }
+
+/* ---------- Helpers ---------- */
+.muted { color: var(--text-muted); font-size: 0.92rem; }
+.help summary {
+  cursor: pointer;
+  user-select: none;
+  font-weight: 600;
+  color: var(--text);
+}
+.help div {
+  margin-top: 8px;
+  color: var(--text-muted);
+  font-size: 0.93rem;
+}
+
+/* ---------- Responsive tweaks ---------- */
+@media (max-width: 600px) {
+  .page-header { align-items: center; }
+  .form-actions { justify-content: stretch; }
+  .form-actions .btn { flex: 1 1 auto; }
+}
+
+/* ---------- Legacy compatibility (kept but modernized palette) ---------- */
+#employeesTable { width: 100%; }
+.edit-btn, .delete-btn {
+  /* If old buttons are ever injected, make them look like new ones */
+  all: unset;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  user-select: none;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+}
+.edit-btn:hover { background: color-mix(in srgb, var(--brand) 12%, var(--surface-2)); color: var(--text); }
+.delete-btn {
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface-2));
+  color: color-mix(in srgb, var(--danger) 80%, black);
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--border));
+}
+.delete-btn:hover { background: color-mix(in srgb, var(--danger) 18%, var(--surface-2)); }
+
+/* === override: Sticky header + frozen cols (v2025-10-21) === */
+
+/* Only the table area scrolls; header stays visible */
+.table-wrapper {
+  overflow: auto; /* x + y */
+  max-height: min(72vh, 740px);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: var(--radius, 12px);
+}
+
+/* Table sizing so horizontal scroll works */
+.table {
+  width: max-content;   /* allow growth beyond container */
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+/* Sticky header (top) */
+.table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: color-mix(in srgb, var(--surface, #ffffff) 92%, transparent);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+  box-shadow: 0 1px 0 var(--border, #e5e7eb);
+}
+
+/* Generic sticky cell styling */
+.table .sticky-col {
+  position: sticky;
+  background: var(--surface, #ffffff);
+  z-index: 2;
+}
+.table thead .sticky-col { z-index: 5; } /* header above body */
+
+/* Frozen LEFT columns (First, Last) */
+.table .col-fname {
+  left: 0;
+  width: var(--col-fname-w);
+  min-width: var(--col-fname-w);
+  box-shadow: 1px 0 0 var(--border, #e5e7eb);
+}
+.table .col-lname {
+  left: var(--col-fname-w);
+  width: var(--col-lname-w);
+  min-width: var(--col-lname-w);
+  box-shadow: 1px 0 0 var(--border, #e5e7eb);
+}
+
+/* Frozen RIGHT columns (Active, Actions) */
+.table .col-actions {
+  right: 0;
+  width: var(--col-actions-w);
+  min-width: var(--col-actions-w);
+  box-shadow: -1px 0 0 var(--border, #e5e7eb);
+}
+.table .col-active  {
+  right: var(--col-actions-w);
+  width: var(--col-active-w);
+  min-width: var(--col-active-w);
+  box-shadow: -1px 0 0 var(--border, #e5e7eb);
+}
+
+/* Match sticky cells to the row's solid background color */
+.table tbody td.sticky-col { background: var(--row-bg); }
+
+/* === override: clearer zebra + narrower frozen cols v2025-10-21d === */
 :root{
   --col-fname-w: 140px;   /* was 168 */
   --col-lname-w: 160px;   /* was 188 */
@@ -517,6 +518,7 @@
 .table tbody tr:hover{ --row-bg: color-mix(in srgb, var(--surface-2) 68%, var(--surface)); }
 /* Ensure sticky cells inherit the row color */
 .table tbody td.sticky-col{ background: var(--row-bg); }
+
 /* === override: stronger zebra; even rows lighter in dark v2025-10-21e === */
 :root{
   /* defaults for light mode */
@@ -536,6 +538,7 @@
 .table tbody tr:hover{ --row-bg: var(--row-hover); }
 /* Sticky cells inherit row color */
 .table tbody td.sticky-col{ background: var(--row-bg); }
+
 /* === override: provision grid email overlap fix v2025-10-21f === */
 /* Ensure ONLY the email field container occupies the 'email' area; roles goes to 'roles'. */
 .provision-grid { position: relative; }
@@ -552,3 +555,34 @@
   grid-area: action !important;
   justify-self: end; align-self: start;
 }
+
+/* === override: phone number single-line & new info columns v2025-10-21g === */
+:root{
+  /* sensible defaults for scrollable info columns */
+  --col-email-w: 220px;
+  --col-phone-w: 148px;
+  --col-nickname-w: 140px;
+  --col-employeeid-w: 140px;
+  --col-emergency-name-w: 180px;
+  --col-emergency-phone-w: 160px;
+}
+
+/* Single-line phone numbers (prevents 315- / 409- / 3270 wrapping) */
+.table .col-phone,
+.table .col-emergency-phone {
+  white-space: nowrap;
+  word-break: keep-all;
+  overflow-wrap: normal;
+  hyphens: none;
+}
+
+/* Give common widths to new columns so the horizontal scroll feels consistent */
+.table .col-email         { width: var(--col-email-w);         min-width: var(--col-email-w); }
+.table .col-phone         { width: var(--col-phone-w);         min-width: var(--col-phone-w); }
+.table .col-nickname      { width: var(--col-nickname-w);      min-width: var(--col-nickname-w); }
+.table .col-employee-id   { width: var(--col-employeeid-w);    min-width: var(--col-employeeid-w); }
+.table .col-emergency-name{ width: var(--col-emergency-name-w);min-width: var(--col-emergency-name-w); }
+.table .col-emergency-phone{width: var(--col-emergency-phone-w);min-width: var(--col-emergency-phone-w); }
+
+/* Utility if you ever need it elsewhere */
+.nowrap { white-space: nowrap !important; word-break: keep-all !important; overflow-wrap: normal !important; }
