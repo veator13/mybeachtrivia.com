@@ -505,4 +505,15 @@
   
   /* Match sticky cells to the row's solid background color */
   .table tbody td.sticky-col { background: var(--row-bg); }
-  
+  /* === override: clearer zebra + narrower frozen cols v2025-10-21d === */
+:root{
+  --col-fname-w: 140px;   /* was 168 */
+  --col-lname-w: 160px;   /* was 188 */
+  --col-active-w: 84px;   /* was 96  */
+}
+/* Opaque zebra rows (no opacity dimming) */
+.table tbody tr{ --row-bg: var(--surface); background: var(--row-bg); }
+.table tbody tr:nth-child(even){ --row-bg: color-mix(in srgb, var(--surface-2) 52%, var(--surface)); }
+.table tbody tr:hover{ --row-bg: color-mix(in srgb, var(--surface-2) 68%, var(--surface)); }
+/* Ensure sticky cells inherit the row color */
+.table tbody td.sticky-col{ background: var(--row-bg); }
