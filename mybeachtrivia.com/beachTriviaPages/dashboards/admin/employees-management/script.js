@@ -229,20 +229,30 @@ function startEmployeesLive2() {
             (`${d.firstName || ''} ${d.lastName || ''}`).trim() ||
             d.nickname || d.email || docSnap.id;
 
+          
+          const rolesArr = extractRoles(d);
+          const rolesTxt = (rolesArr && rolesArr.length) ? rolesArr.join(', ') : '—';
+          const phoneTxt = d.phone || '';
+          const activeTxt = d.active === true ? 'Yes' : 'No';
+
           const row = tableBody.insertRow();
           row.innerHTML = `
-            <td>${esc(name)}</td>
+            <td class="sticky-col col-fname">${esc(d.firstName || '')}</td>
+            <td class="sticky-col col-lname">${esc(d.lastName || '')}</td>
             <td>${esc(d.email || '')}</td>
+            <td>${esc(phoneTxt)}</td>
+            <td>${esc(d.nickname || '')}</td>
             <td>${esc(d.employeeID || '—')}</td>
-            <td>
+            <td>${esc(rolesTxt)}</td>
+            <td class="sticky-col col-active">
               <span class="badge ${d.active === true ? 'badge-success' : 'badge-muted'}">${activeTxt}</span>
             </td>
-            <td class="actions">
+            <td class="sticky-col col-actions">
               <button class="btn btn-sm btn-ghost edit-btn" data-action="edit" data-id="${esc(docSnap.id)}">Edit</button>
               <button class="btn btn-sm btn-danger delete-btn" data-action="delete" data-id="${esc(docSnap.id)}">Delete</button>
             </td>
           `;
-        });
+});
       }, (err) => console.error('[live2] listener error:', err));
 
       console.log('[live2] attached. To stop: window._empLiveUnsub?.()');

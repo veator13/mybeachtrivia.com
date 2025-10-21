@@ -481,3 +481,61 @@
 
 /* Keep the action button top-right */
 .provision-grid > .actions { grid-area: action !important; align-self: start; justify-self: end; }
+
+
+/* === override: Sticky header + frozen cols v20251021-122800 === */
+
+:root {
+/* widths for frozen columns (tweak as needed) */
+  --col-fname-w: 168px;
+  --col-lname-w: 188px;
+  --col-active-w: 96px;
+  --col-actions-w: 172px;
+}
+
+/* Only the table area scrolls; header stays visible */
+.table-wrapper {
+  overflow: auto; /* x + y */
+  max-height: min(72vh, 740px);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: var(--radius, 12px);
+}
+
+/* Table sizing so horizontal scroll works */
+.table {
+  width: max-content;   /* allow growth beyond container */
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+/* Sticky header (top) */
+.table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: color-mix(in srgb, var(--surface, #ffffff) 92%, transparent);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+  box-shadow: 0 1px 0 var(--border, #e5e7eb);
+}
+
+/* Generic sticky cell styling */
+.table .sticky-col {
+  position: sticky;
+  background: var(--surface, #ffffff);
+  z-index: 2;
+}
+.table thead .sticky-col { z-index: 5; } /* header above body */
+
+/* Frozen LEFT columns (First, Last) */
+.table .col-fname { left: 0; width: var(--col-fname-w); min-width: var(--col-fname-w); box-shadow: 1px 0 0 var(--border, #e5e7eb); }
+.table .col-lname { left: var(--col-fname-w); width: var(--col-lname-w); min-width: var(--col-lname-w); box-shadow: 1px 0 0 var(--border, #e5e7eb); }
+
+/* Frozen RIGHT columns (Active, Actions) */
+.table .col-actions { right: 0; width: var(--col-actions-w); min-width: var(--col-actions-w); box-shadow: -1px 0 0 var(--border, #e5e7eb); }
+.table .col-active  { right: var(--col-actions-w); width: var(--col-active-w); min-width: var(--col-active-w); box-shadow: -1px 0 0 var(--border, #e5e7eb); }
+
+/* Improve hover/selection legibility under stickies */
+.table tbody tr:hover td { background: color-mix(in srgb, var(--surface-2, #f7f7f8) 55%, transparent); }
+.table tbody td.sticky-col { background: var(--surface, #ffffff); }
