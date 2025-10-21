@@ -19,6 +19,12 @@
     --radius-sm: 10px;
     --radius-xs: 8px;
     --gap: 16px;
+  
+    /* widths for frozen columns (tweak as needed) */
+    --col-fname-w: 168px;
+    --col-lname-w: 188px;
+    --col-active-w: 96px;
+    --col-actions-w: 172px;
   }
   
   /* Dark mode (automatic) */
@@ -45,18 +51,17 @@
   *::before,
   *::after { box-sizing: border-box; }
   
-  html, body {
-    height: 100%;
-  }
+  html, body { height: 100%; }
   
   body {
     font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Apple Color Emoji","Segoe UI Emoji";
     line-height: 1.6;
     margin: 0;
     color: var(--text);
-    background: radial-gradient(1200px 800px at 20% -10%, rgba(37,99,235,.08), transparent 60%),
-                radial-gradient(900px 700px at 110% 10%, rgba(59,130,246,.08), transparent 60%),
-                var(--bg);
+    background:
+      radial-gradient(1200px 800px at 20% -10%, rgba(37,99,235,.08), transparent 60%),
+      radial-gradient(900px 700px at 110% 10%, rgba(59,130,246,.08), transparent 60%),
+      var(--bg);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -80,14 +85,12 @@
     gap: 16px;
     margin-bottom: 1.25rem;
   }
-  
   .page-title {
     margin: 0 0 4px 0;
     font-size: clamp(1.35rem, 1rem + 1.2vw, 1.8rem);
     font-weight: 700;
     letter-spacing: -0.01em;
   }
-  
   .page-subtitle {
     margin: 0;
     color: var(--text-muted);
@@ -103,45 +106,82 @@
     overflow: clip;
     margin: 1rem 0;
   }
-  
   .card-head {
     padding: 16px 18px;
     background: linear-gradient(to right, var(--surface-2), transparent);
     border-bottom: 1px solid var(--border);
   }
-  
   .card-title {
     margin: 0;
     font-size: 1.05rem;
     font-weight: 700;
     letter-spacing: -0.01em;
   }
-  
   .card-body {
     padding: clamp(14px, 2.2vw, 22px);
   }
   
-  /* Provision card layout */
+  /* Provision card layout (final) */
+  .card-provision .card-body { padding-block: 16px 18px; }
+  
   .provision-grid {
     display: grid;
-    grid-template-columns: minmax(260px, 420px) 1fr auto;
-    gap: 14px;
-    align-items: end;
+    grid-template-columns: minmax(260px, 1fr) auto;
+    grid-template-rows: auto auto;
+    grid-template-areas:
+      "email  action"
+      "roles  roles";
+    gap: 16px;
+    align-items: start;
   }
+  .provision-grid > .field:first-of-type { grid-area: email; }
+  .provision-grid > .roles-fieldset      { grid-area: roles; }
+  .provision-grid > .actions             { grid-area: action; justify-self: end; align-self: start; }
+  .provision-grid .actions { align-self: start; }
+  
   @media (max-width: 920px) {
     .provision-grid {
       grid-template-columns: 1fr;
-      align-items: stretch;
+      grid-template-areas:
+        "email"
+        "roles"
+        "action";
     }
+    .provision-grid > .actions { justify-self: stretch; }
+    .provision-grid .btn { width: 100%; }
+  }
+  
+  /* Roles fieldset presented in responsive columns */
+  .roles-fieldset {
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-xs);
+    padding: 12px 14px 10px;
+    min-inline-size: 260px;
+    background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+  
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 8px 16px;
+  }
+  .roles-fieldset legend {
+    grid-column: 1 / -1;
+    padding: 0 6px;
+    margin-bottom: 4px;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+  }
+  .roles-fieldset .check {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    font-size: 0.95rem;
   }
   
   /* ---------- Forms & Inputs ---------- */
   .field { display: grid; gap: 8px; }
   
-  .label {
-    font-size: 0.85rem;
-    color: var(--text-muted);
-  }
+  .label { font-size: 0.85rem; color: var(--text-muted); }
   
   .input,
   select,
@@ -155,35 +195,12 @@
     outline: none;
     transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
   }
-  
   .input::placeholder { color: color-mix(in srgb, var(--text-muted) 85%, transparent); }
-  
   .input:focus,
   select:focus,
   textarea:focus {
     border-color: color-mix(in srgb, var(--brand) 65%, var(--border));
     box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 20%, transparent);
-  }
-  
-  /* Roles fieldset */
-  .roles-fieldset {
-    border: 1px dashed var(--border);
-    border-radius: var(--radius-xs);
-    padding: 10px 12px 8px;
-    min-inline-size: 260px;
-    background: color-mix(in srgb, var(--surface-2) 55%, transparent);
-  }
-  .roles-fieldset legend {
-    padding: 0 6px;
-    font-size: 0.85rem;
-    color: var(--text-muted);
-  }
-  .roles-fieldset .check {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    margin: 6px 10px 0 0;
-    font-size: 0.95rem;
   }
   
   /* Form inside modal */
@@ -192,9 +209,7 @@
     grid-template-columns: repeat(2, minmax(220px, 1fr));
     gap: 14px;
   }
-  @media (max-width: 720px) {
-    .form-grid { grid-template-columns: 1fr; }
-  }
+  @media (max-width: 720px) { .form-grid { grid-template-columns: 1fr; } }
   
   /* Legacy selector support (if needed) */
   #employeeForm .form-group { display: grid; gap: 8px; }
@@ -245,9 +260,7 @@
     --btn-text: var(--text);
     --btn-border: var(--border);
   }
-  .btn-ghost:hover {
-    background: color-mix(in srgb, var(--surface-2) 60%, transparent);
-  }
+  .btn-ghost:hover { background: color-mix(in srgb, var(--surface-2) 60%, transparent); }
   
   .btn-danger {
     --btn-bg: linear-gradient(180deg, color-mix(in srgb, var(--danger) 95%, white), var(--danger-700));
@@ -266,21 +279,19 @@
   /* Remove/disable old “Add New Employee” button if it still exists in DOM */
   #addNewEmployeeBtn { display: none !important; }
   
-  /* ---------- Table ---------- */
+  /* ---------- Table (base) ---------- */
   .table-wrapper {
     width: 100%;
     overflow-x: auto;
     border: 1px solid var(--border);
     border-radius: var(--radius);
   }
-  
   .table {
     width: 100%;
     border-collapse: collapse;
     min-width: 720px;
     background: var(--surface);
   }
-  
   .table th,
   .table td {
     padding: 12px 14px;
@@ -288,7 +299,6 @@
     border-bottom: 1px solid var(--border);
     vertical-align: middle;
   }
-  
   .table thead th {
     background: color-mix(in srgb, var(--surface-2) 80%, transparent);
     color: var(--text);
@@ -296,15 +306,11 @@
     font-size: 0.9rem;
     letter-spacing: .02em;
   }
-  
   .table tbody tr:hover {
     background: color-mix(in srgb, var(--surface-2) 65%, transparent);
   }
-  
   .table td.col-actions,
-  .table td.actions {
-    white-space: nowrap;
-  }
+  .table td.actions { white-space: nowrap; }
   
   /* ---------- Badges ---------- */
   .badge {
@@ -354,13 +360,11 @@
   @keyframes modal-in {
     to { transform: translateY(0) scale(1); opacity: 1; }
   }
-  
   .modal-title {
     margin: 0 0 6px 0;
     font-size: 1.1rem;
     font-weight: 700;
   }
-  
   .close-modal {
     position: absolute;
     top: 10px;
@@ -379,14 +383,11 @@
     place-items: center;
     transition: background .2s ease, transform .06s ease, color .2s ease, border-color .2s ease;
   }
-  .close-modal:hover {
-    background: color-mix(in srgb, var(--surface-2) 70%, transparent);
-  }
+  .close-modal:hover { background: color-mix(in srgb, var(--surface-2) 70%, transparent); }
   .close-modal:active { transform: translateY(1px); }
   
   /* ---------- Helpers ---------- */
   .muted { color: var(--text-muted); font-size: 0.92rem; }
-  
   .help summary {
     cursor: pointer;
     user-select: none;
@@ -432,110 +433,73 @@
     border-color: color-mix(in srgb, var(--danger) 35%, var(--border));
   }
   .delete-btn:hover { background: color-mix(in srgb, var(--danger) 18%, var(--surface-2)); }
-  /* === override: Provision card layout v2025-10-21 === */
-.provision-grid {
-  display: grid;
-  grid-template-columns: minmax(260px, 1fr) auto;
-  grid-template-rows: auto auto;
-  grid-template-areas:
-    "email  action"
-    "roles  roles";
-  gap: 16px;
-  align-items: start;
-}
-.provision-grid > .field:first-of-type { grid-area: email; }
-.provision-grid > .roles-fieldset      { grid-area: roles; }
-.provision-grid > .actions             { grid-area: action; justify-self: end; align-self: start; }
-
-@media (max-width: 920px) {
-  .provision-grid {
-    grid-template-columns: 1fr;
-    grid-template-areas:
-      "email"
-      "roles"
-      "action";
+  
+  /* === override: Sticky header + frozen cols (v2025-10-21) === */
+  
+  /* Only the table area scrolls; header stays visible */
+  .table-wrapper {
+    overflow: auto; /* x + y */
+    max-height: min(72vh, 740px);
+    border: 1px solid var(--border, #e5e7eb);
+    border-radius: var(--radius, 12px);
   }
-  .provision-grid > .actions { justify-self: stretch; }
-  .provision-grid .btn { width: 100%; }
-}
-/* === override: provision layout polish v2025-10-21b === */
-.card-provision .card-body { padding-block: 16px 18px; }
-
-.provision-grid .actions { align-self: start; } /* keep button aligned with inputs */
-
-.roles-fieldset {
-  /* turn role items into neat responsive columns */
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 8px 16px;
-  padding: 12px 14px 10px;
-}
-.roles-fieldset legend { grid-column: 1 / -1; margin-bottom: 4px; }
-.roles-fieldset .check { margin: 0; }
-/* === override: provision grid target fix v2025-10-21c === */
-/* Put ONLY the email field container in the 'email' area (not the roles fieldset) */
-.provision-grid > .field:not(.roles-fieldset) { grid-area: email !important; position: relative; z-index: 2; }
-
-/* Roles spans the second row */
-.provision-grid > .roles-fieldset { grid-area: roles !important; position: relative; z-index: 1; }
-
-/* Keep the action button top-right */
-.provision-grid > .actions { grid-area: action !important; align-self: start; justify-self: end; }
-
-
-/* === override: Sticky header + frozen cols v20251021-122800 === */
-
-:root {
-/* widths for frozen columns (tweak as needed) */
-  --col-fname-w: 168px;
-  --col-lname-w: 188px;
-  --col-active-w: 96px;
-  --col-actions-w: 172px;
-}
-
-/* Only the table area scrolls; header stays visible */
-.table-wrapper {
-  overflow: auto; /* x + y */
-  max-height: min(72vh, 740px);
-  border: 1px solid var(--border, #e5e7eb);
-  border-radius: var(--radius, 12px);
-}
-
-/* Table sizing so horizontal scroll works */
-.table {
-  width: max-content;   /* allow growth beyond container */
-  min-width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-}
-
-/* Sticky header (top) */
-.table thead th {
-  position: sticky;
-  top: 0;
-  z-index: 3;
-  background: color-mix(in srgb, var(--surface, #ffffff) 92%, transparent);
-  -webkit-backdrop-filter: blur(2px);
-  backdrop-filter: blur(2px);
-  box-shadow: 0 1px 0 var(--border, #e5e7eb);
-}
-
-/* Generic sticky cell styling */
-.table .sticky-col {
-  position: sticky;
-  background: var(--surface, #ffffff);
-  z-index: 2;
-}
-.table thead .sticky-col { z-index: 5; } /* header above body */
-
-/* Frozen LEFT columns (First, Last) */
-.table .col-fname { left: 0; width: var(--col-fname-w); min-width: var(--col-fname-w); box-shadow: 1px 0 0 var(--border, #e5e7eb); }
-.table .col-lname { left: var(--col-fname-w); width: var(--col-lname-w); min-width: var(--col-lname-w); box-shadow: 1px 0 0 var(--border, #e5e7eb); }
-
-/* Frozen RIGHT columns (Active, Actions) */
-.table .col-actions { right: 0; width: var(--col-actions-w); min-width: var(--col-actions-w); box-shadow: -1px 0 0 var(--border, #e5e7eb); }
-.table .col-active  { right: var(--col-actions-w); width: var(--col-active-w); min-width: var(--col-active-w); box-shadow: -1px 0 0 var(--border, #e5e7eb); }
-
-/* Improve hover/selection legibility under stickies */
-.table tbody tr:hover td { background: color-mix(in srgb, var(--surface-2, #f7f7f8) 55%, transparent); }
-.table tbody td.sticky-col { background: var(--surface, #ffffff); }
+  
+  /* Table sizing so horizontal scroll works */
+  .table {
+    width: max-content;   /* allow growth beyond container */
+    min-width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  
+  /* Sticky header (top) */
+  .table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: color-mix(in srgb, var(--surface, #ffffff) 92%, transparent);
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+    box-shadow: 0 1px 0 var(--border, #e5e7eb);
+  }
+  
+  /* Generic sticky cell styling */
+  .table .sticky-col {
+    position: sticky;
+    background: var(--surface, #ffffff);
+    z-index: 2;
+  }
+  .table thead .sticky-col { z-index: 5; } /* header above body */
+  
+  /* Frozen LEFT columns (First, Last) */
+  .table .col-fname {
+    left: 0;
+    width: var(--col-fname-w);
+    min-width: var(--col-fname-w);
+    box-shadow: 1px 0 0 var(--border, #e5e7eb);
+  }
+  .table .col-lname {
+    left: var(--col-fname-w);
+    width: var(--col-lname-w);
+    min-width: var(--col-lname-w);
+    box-shadow: 1px 0 0 var(--border, #e5e7eb);
+  }
+  
+  /* Frozen RIGHT columns (Active, Actions) */
+  .table .col-actions {
+    right: 0;
+    width: var(--col-actions-w);
+    min-width: var(--col-actions-w);
+    box-shadow: -1px 0 0 var(--border, #e5e7eb);
+  }
+  .table .col-active  {
+    right: var(--col-actions-w);
+    width: var(--col-active-w);
+    min-width: var(--col-active-w);
+    box-shadow: -1px 0 0 var(--border, #e5e7eb);
+  }
+  
+  /* Improve hover/selection legibility under stickies */
+  .table tbody tr:hover td { background: color-mix(in srgb, var(--surface-2, #f7f7f8) 55%, transparent); }
+  .table tbody td.sticky-col { background: var(--surface, #ffffff); }
+  

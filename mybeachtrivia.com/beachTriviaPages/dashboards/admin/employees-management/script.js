@@ -41,7 +41,7 @@ const esc = (s) =>
     .replace(/'/g, '&#39;');
 
 /////////////////////////
-//// DOM Elements
+// DOM Elements
 /////////////////////////
 const modal         = document.getElementById('employeeModal');
 const form          = document.getElementById('employeeForm');
@@ -223,13 +223,7 @@ function startEmployeesLive2() {
 
         snap.forEach((docSnap) => {
           const d = docSnap.data() || {};
-          const activeTxt = d.active === true ? 'Yes' : 'No';
-          const name =
-            d.displayName ||
-            (`${d.firstName || ''} ${d.lastName || ''}`).trim() ||
-            d.nickname || d.email || docSnap.id;
 
-          
           const rolesArr = extractRoles(d);
           const rolesTxt = (rolesArr && rolesArr.length) ? rolesArr.join(', ') : '—';
           const phoneTxt = d.phone || '';
@@ -252,7 +246,7 @@ function startEmployeesLive2() {
               <button class="btn btn-sm btn-danger delete-btn" data-action="delete" data-id="${esc(docSnap.id)}">Delete</button>
             </td>
           `;
-});
+        });
       }, (err) => console.error('[live2] listener error:', err));
 
       console.log('[live2] attached. To stop: window._empLiveUnsub?.()');
