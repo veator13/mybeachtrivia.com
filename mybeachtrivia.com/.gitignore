@@ -106,3 +106,10 @@ beachTriviaPages/js/auth_guard.js
 beachTriviaPages/js/auth-route-guard.js
 beachTriviaPages/js/auth-route-guard.v2.backup-*.js
 functions_gcfv1/firestore.rules
+# Backups / temp files
+*.bak
+*.bak.*
+*.bad.*
+*.SOS.bak
+*.tmp
+*.swp
