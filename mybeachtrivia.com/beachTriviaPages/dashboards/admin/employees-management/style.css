@@ -432,4 +432,29 @@
     border-color: color-mix(in srgb, var(--danger) 35%, var(--border));
   }
   .delete-btn:hover { background: color-mix(in srgb, var(--danger) 18%, var(--surface-2)); }
-  
+  /* === override: Provision card layout v2025-10-21 === */
+.provision-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto;
+  grid-template-rows: auto auto;
+  grid-template-areas:
+    "email  action"
+    "roles  roles";
+  gap: 16px;
+  align-items: start;
+}
+.provision-grid > .field:first-of-type { grid-area: email; }
+.provision-grid > .roles-fieldset      { grid-area: roles; }
+.provision-grid > .actions             { grid-area: action; justify-self: end; align-self: start; }
+
+@media (max-width: 920px) {
+  .provision-grid {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "email"
+      "roles"
+      "action";
+  }
+  .provision-grid > .actions { justify-self: stretch; }
+  .provision-grid .btn { width: 100%; }
+}
