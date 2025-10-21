@@ -458,3 +458,17 @@
   .provision-grid > .actions { justify-self: stretch; }
   .provision-grid .btn { width: 100%; }
 }
+/* === override: provision layout polish v2025-10-21b === */
+.card-provision .card-body { padding-block: 16px 18px; }
+
+.provision-grid .actions { align-self: start; } /* keep button aligned with inputs */
+
+.roles-fieldset {
+  /* turn role items into neat responsive columns */
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px 16px;
+  padding: 12px 14px 10px;
+}
+.roles-fieldset legend { grid-column: 1 / -1; margin-bottom: 4px; }
+.roles-fieldset .check { margin: 0; }
