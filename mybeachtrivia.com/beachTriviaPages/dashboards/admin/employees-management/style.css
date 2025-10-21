@@ -306,9 +306,13 @@
     font-size: 0.9rem;
     letter-spacing: .02em;
   }
-  .table tbody tr:hover {
-    background: color-mix(in srgb, var(--surface-2) 65%, transparent);
-  }
+  
+  /* Zebra rows with FULL opacity (no dimming via opacity) */
+  .table tbody tr { --row-bg: var(--surface); background: var(--row-bg); }
+  .table tbody tr:nth-child(even) { --row-bg: color-mix(in srgb, var(--surface-2) 35%, var(--surface)); }
+  .table tbody tr:hover { --row-bg: color-mix(in srgb, var(--surface-2) 55%, var(--surface)); }
+  
+  /* Keep actions in one line */
   .table td.col-actions,
   .table td.actions { white-space: nowrap; }
   
@@ -499,7 +503,6 @@
     box-shadow: -1px 0 0 var(--border, #e5e7eb);
   }
   
-  /* Improve hover/selection legibility under stickies */
-  .table tbody tr:hover td { background: color-mix(in srgb, var(--surface-2, #f7f7f8) 55%, transparent); }
-  .table tbody td.sticky-col { background: var(--surface, #ffffff); }
+  /* Match sticky cells to the row's solid background color */
+  .table tbody td.sticky-col { background: var(--row-bg); }
   
