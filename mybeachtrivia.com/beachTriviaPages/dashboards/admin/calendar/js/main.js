@@ -5,9 +5,19 @@
  * Also manages cross-month dropzone visibility for drag/copy/move flows.
  */
 
-// ------------------------------
-// Global Move Operation (used by drag/copy flows)
-// ------------------------------
+/* ===== REQUIRED GLOBALS (used by utilities.js and calendar-ui.js) ===== */
+window.cache = window.cache || { dateStrings: {}, timeMinutes: {} };
+window.eventTypes = window.eventTypes || {
+  'classic-trivia': 'Classic Trivia',
+  'themed-trivia':  'Themed Trivia',
+  'classic-bingo':  'Classic Bingo',
+  'music-bingo':    'Music Bingo',
+  'beach-feud':     'Beach Feud'
+};
+
+/* ------------------------------
+ * Global Move Operation (drag/copy flows)
+ * ------------------------------ */
 let globalMoveOperation = {
   shiftId: null,
   targetDate: null,
@@ -17,9 +27,9 @@ let globalMoveOperation = {
   sourceDateStr: null
 };
 
-// ------------------------------
-// Cached DOM Elements
-// ------------------------------
+/* ------------------------------
+ * Cached DOM Elements
+ * ------------------------------ */
 const elements = {
   calendarBody: document.getElementById('calendar-body'),
   currentMonthDisplay: document.getElementById('current-month'),
@@ -68,9 +78,9 @@ const elements = {
   nextMonthDropzone: document.getElementById('next-month-dropzone')
 };
 
-// ------------------------------
-// State Management
-// ------------------------------
+/* ------------------------------
+ * State Management
+ * ------------------------------ */
 const state = {
   currentDate: new Date(),
   currentMonth: new Date().getMonth(),
@@ -114,17 +124,17 @@ const state = {
   isHoveringNextMonth: false
 };
 
-// ------------------------------
-// Global Data Caches
-// ------------------------------
+/* ------------------------------
+ * Global Data Caches
+ * ------------------------------ */
 const employees = {};
 window.employeesData = {};
 window.locationsData = {};
 let shifts = [];
 
-// ------------------------------
-// Dropdown Helpers (RESTORED)
-// ------------------------------
+/* ------------------------------
+ * Dropdown Helpers
+ * ------------------------------ */
 function addEmployeeToDropdowns(id, name) {
   const opts = [elements.employeeSelect, elements.shiftEmployeeSelect];
   opts.forEach(sel => {
@@ -149,9 +159,9 @@ function addLocationToDropdowns(name) {
   });
 }
 
-// ------------------------------
-// Helpers for Dropzones
-// ------------------------------
+/* ------------------------------
+ * Helpers for Dropzones
+ * ------------------------------ */
 function hideMonthDropzones() {
   if (!elements.prevMonthDropzone || !elements.nextMonthDropzone) return;
   elements.prevMonthDropzone.style.display = 'none';
@@ -174,7 +184,7 @@ function showMonthDropzones() {
   });
 }
 
-// This function is used by a MutationObserver to decide if dropzones should remain visible
+// Used by a MutationObserver to decide if dropzones should remain visible
 function isValidDragOperation() {
   return (
     state.draggedShiftId !== null ||
@@ -189,13 +199,14 @@ function isValidDragOperation() {
   );
 }
 
-// ------------------------------
-// Firestore Data Loads
-// ------------------------------
+/* ------------------------------
+ * Firestore Data Loads
+ * ------------------------------ */
 async function fetchEmployeesFromFirebase() {
   console.log('[calendar] Fetching employees...');
   const db = firebase.firestore();
   const qs = await db.collection('employees').get();
+
   while (elements.employeeSelect.options.length > 1) elements.employeeSelect.remove(1);
   while (elements.shiftEmployeeSelect.options.length > 1) elements.shiftEmployeeSelect.remove(1);
 
@@ -220,6 +231,7 @@ async function fetchLocationsFromFirebase() {
   try {
     const qs = await db.collection('locations').get();
     window.locationsData = {};
+
     while (elements.locationSelect.options.length > 1) elements.locationSelect.remove(1);
     while (elements.shiftLocationSelect.options.length > 1) elements.shiftLocationSelect.remove(1);
 
@@ -247,9 +259,9 @@ async function loadShiftsFromFirebase() {
   }
 }
 
-// ------------------------------
-// Initialization
-// ------------------------------
+/* ------------------------------
+ * Initialization
+ * ------------------------------ */
 document.addEventListener('DOMContentLoaded', () => {
   console.log('DOM ready – waiting for Firebase Auth');
 
