@@ -536,3 +536,19 @@
 .table tbody tr:hover{ --row-bg: var(--row-hover); }
 /* Sticky cells inherit row color */
 .table tbody td.sticky-col{ background: var(--row-bg); }
+/* === override: provision grid email overlap fix v2025-10-21f === */
+/* Ensure ONLY the email field container occupies the 'email' area; roles goes to 'roles'. */
+.provision-grid { position: relative; }
+.provision-grid > .field:not(fieldset) { /* the Email wrapper div */
+  grid-area: email !important;
+  position: relative; z-index: 2; /* keep above any overlapping borders */
+}
+.provision-grid > fieldset.roles-fieldset { /* the Roles fieldset */
+  grid-area: roles !important;
+  position: relative; z-index: 1;
+}
+/* Keep the action button in the top-right cell */
+.provision-grid > .actions {
+  grid-area: action !important;
+  justify-self: end; align-self: start;
+}
