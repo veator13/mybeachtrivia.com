@@ -517,3 +517,22 @@
 .table tbody tr:hover{ --row-bg: color-mix(in srgb, var(--surface-2) 68%, var(--surface)); }
 /* Ensure sticky cells inherit the row color */
 .table tbody td.sticky-col{ background: var(--row-bg); }
+/* === override: stronger zebra; even rows lighter in dark v2025-10-21e === */
+:root{
+  /* defaults for light mode */
+  --row-even: color-mix(in srgb, var(--surface-2) 52%, var(--surface));
+  --row-hover: color-mix(in srgb, var(--surface-2) 68%, var(--surface));
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    /* make even rows LIGHTER than odd in dark mode */
+    --row-even: color-mix(in srgb, #ffffff 12%, var(--surface));
+    --row-hover: color-mix(in srgb, #ffffff 18%, var(--surface));
+  }
+}
+/* Apply */
+.table tbody tr{ --row-bg: var(--surface); background: var(--row-bg); }
+.table tbody tr:nth-child(even){ --row-bg: var(--row-even); }
+.table tbody tr:hover{ --row-bg: var(--row-hover); }
+/* Sticky cells inherit row color */
+.table tbody td.sticky-col{ background: var(--row-bg); }
