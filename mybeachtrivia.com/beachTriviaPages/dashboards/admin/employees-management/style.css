@@ -472,3 +472,12 @@
 }
 .roles-fieldset legend { grid-column: 1 / -1; margin-bottom: 4px; }
 .roles-fieldset .check { margin: 0; }
+/* === override: provision grid target fix v2025-10-21c === */
+/* Put ONLY the email field container in the 'email' area (not the roles fieldset) */
+.provision-grid > .field:not(.roles-fieldset) { grid-area: email !important; position: relative; z-index: 2; }
+
+/* Roles spans the second row */
+.provision-grid > .roles-fieldset { grid-area: roles !important; position: relative; z-index: 1; }
+
+/* Keep the action button top-right */
+.provision-grid > .actions { grid-area: action !important; align-self: start; justify-self: end; }
