@@ -52,98 +52,9 @@ function closeModal() {
 }
 
 /////////////////////////
-// Fetch & render employees (ADMIN ONLY)
-/////////////////////////
-// --- LIVE employees list (admin only) ---------------------------------------
-function startEmployeesLive() {
-  if (!tableBody) return;
-  if (window._empLiveUnsub) { try { window._empLiveUnsub(); } catch {} }
-
-  (async () => {
-    try {
-      const meUid = auth.currentUser && auth.currentUser.uid;
-      if (!meUid) return;
-
-      const meSnap = await db.collection("employees").doc(meUid).get({ source: "server" });
-      const meData = meSnap.exists ? (meSnap.data() || {}) : {};
-      if (!isAdminFromDoc(meData)) { tableBody.innerHTML = ""; return; }
-
-      // no orderBy here so docs with missing firstName still stream in
-      window._empLiveUnsub = db.collection("employees").onSnapshot(
-        () => fetchEmployees(),
-        (err) => console.error("[live] listener error:", err)
-      );
-
-      console.log("[live] employees listener attached. To stop: _empLiveUnsub()");
-    } catch (e) {
-      console.error("[live] setup failed:", e);
-    }
-  })();
-}
-async function fetchEmployees() {
-  if (!tableBody) return;
-
-  tableBody.innerHTML = '';
-  try {
-    // ----- Optional UX guard: only proceed if current user is admin by profile
-    const meUid = auth.currentUser && auth.currentUser.uid;
-    if (!meUid) {
-      console.warn('No signed-in user; skipping list.');
-      return;
-    }
-    const meSnap = await db.collection('employees').doc(meUid).get();
-    const meData = meSnap.exists ? (meSnap.data() || {}) : {};
-    if (!isAdminFromDoc(meData)) {
-      console.warn('Not an admin by profile; skipping list.');
-      return; // rules would block anyway; this avoids noisy alerts
-    }
-    // ----- End UX guard
-
-    // Order by firstName then lastName for nicer display (fields may be missing on older docs)
-    const snap = await db.collection('employees').orderBy('email').get({ source: 'server' });
-
-    snap.forEach(docSnap => {
-      const employee = docSnap.data() || {};
-      const row = tableBody.insertRow();
-
-      const roleLabel  = displayRole(employee);   // available if you want to show/use it
-      const activeTxt  = employee.active === true ? 'Yes' : 'No';
-
-      row.innerHTML = `
-        <td>${employee.firstName || ''} ${employee.lastName || ''}</td>
-        <td>${employee.email || ''}</td>
-        <td>${employee.employeeID || '—'}</td>
-        <td>${activeTxt}</td>
-        <td>
-          <button class="edit-btn" data-id="${docSnap.id}">Edit</button>
-          <button class="delete-btn" data-id="${docSnap.id}">Delete</button>
-        </td>
-      `;
-    });
-
-    // Rebind buttons (replace nodes to drop any stale listeners)
-    tableBody.querySelectorAll('.edit-btn').forEach(btn => {
-      const newBtn = btn.cloneNode(true);
-      btn.parentNode.replaceChild(newBtn, btn);
-      newBtn.addEventListener('click', (e) => editEmployee(e.target.dataset.id));
-    });
-
-    tableBody.querySelectorAll('.delete-btn').forEach(btn => {
-      const newBtn = btn.cloneNode(true);
-      btn.parentNode.replaceChild(newBtn, btn);
-      newBtn.addEventListener('click', () => deleteEmployee(newBtn.dataset.id));
-    });
-  } catch (err) {
-    console.error('Error fetching employees:', err);
-    alert('Failed to load employees (check permissions / console).');
-  }
-}
-
-/////////////////////////
 // Save (create/update) employee
-// NOTE: Direct "create" to employees/{uid} requires admin to know the UID.
-// In practice, use the "Create & Send" invite flow to provision new users.
-// This form is still useful for editing existing employees.
+// NOTE: Creating a NEW doc here will fail unless the id == UID (per rules).
+// Use your invite flow for true creates; this form is for edits.
 /////////////////////////
 async function saveEmployee(e) {
   e.preventDefault();
@@ -152,31 +63,33 @@ async function saveEmployee(e) {
   const employeeId = (idEl && idEl.value || '').trim();
 
   const employeeData = {
-    firstName: (document.getElementById('firstName')?.value || '').trim(),
-    lastName:  (document.getElementById('lastName')?.value  || '').trim(),
-    email:     (document.getElementById('email')?.value     || '').trim(),
-    phone:     (document.getElementById('phone')?.value     || '').trim(),
-    nickname:  (document.getElementById('nickname')?.value  || '').trim(),
+    firstName:  (document.getElementById('firstName')?.value  || '').trim(),
+    lastName:   (document.getElementById('lastName')?.value   || '').trim(),
+    email:      (document.getElementById('email')?.value      || '').trim(),
+    phone:      (document.getElementById('phone')?.value      || '').trim(),
+    nickname:   (document.getElementById('nickname')?.value   || '').trim(),
     employeeID: (document.getElementById('employeeID')?.value || '').trim(),
-    emergencyContactName:  (document.getElementById('emergencyContactName')?.value  || '').trim(),
+
+    // Canonical emergency fields
+    emergencyContact:      (document.getElementById('emergencyContactName')?.value  || '').trim(),
     emergencyContactPhone: (document.getElementById('emergencyContactPhone')?.value || '').trim(),
+
+    // Legacy compatibility (keep in sync)
+    emergencyContactName:  (document.getElementById('emergencyContactName')?.value  || '').trim(),
+    emergencyName:         (document.getElementById('emergencyContactName')?.value  || '').trim(),
+    emergencyPhone:        (document.getElementById('emergencyContactPhone')?.value || '').trim(),
+
     active: (document.getElementById('active')?.value === 'true')
   };
 
   try {
-    if (employeeId) {
-      // Update existing employee (allowed to admin per rules)
-      await db.collection('employees').doc(employeeId).update(employeeData);
-      alert('Employee updated.');
-    } else {
-      // Creating a new employee doc here will FAIL unless the doc id == UID (per rules).
-      // Use the invite flow for new users, or set employeeId to a known UID before saving.
-      alert('To add a NEW employee, use the "Create & Send" invite flow above.');
+    if (!employeeId) {
+      alert('To add a NEW employee, use the “Create & Send” invite flow above.');
       return;
     }
-
+    await db.collection('employees').doc(employeeId).update(employeeData);
+    alert('Employee updated.');
     closeModal();
-    fetchEmployees();
   } catch (err) {
     console.error('Error saving employee:', err);
     alert('Save failed (see console).');
@@ -198,14 +111,17 @@ async function editEmployee(id) {
 
     // Populate form
     const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
-    setVal('firstName', e.firstName || '');
-    setVal('lastName',  e.lastName  || '');
-    setVal('email',     e.email     || '');
-    setVal('phone',     e.phone     || '');
-    setVal('nickname',  e.nickname  || '');
+    setVal('firstName',  e.firstName  || '');
+    setVal('lastName',   e.lastName   || '');
+    setVal('email',      e.email      || '');
+    setVal('phone',      e.phone      || '');
+    setVal('nickname',   e.nickname   || '');
     setVal('employeeID', e.employeeID || '');
-    setVal('emergencyContactName',  e.emergencyContact  || '');
-    setVal('emergencyContactPhone', e.emergencyContactPhone || '');
+
+    // Prefill fallbacks (canonical + legacy)
+    setVal('emergencyContactName',  e.emergencyContact || e.emergencyName || e.emergencyContactName || '');
+    setVal('emergencyContactPhone', e.emergencyContactPhone || e.emergencyPhone || '');
+
     setVal('active', e.active === true ? 'true' : 'false');
 
     const idEl = document.getElementById('employeeId');
@@ -225,7 +141,6 @@ async function deleteEmployee(id) {
   if (!confirm('Delete this employee?')) return;
   try {
     await db.collection('employees').doc(id).delete();
-    fetchEmployees();
   } catch (err) {
     console.error('Error deleting employee:', err);
     alert('Delete failed (see console).');
@@ -235,20 +150,33 @@ async function deleteEmployee(id) {
 /////////////////////////
 // Wire up UI (guard each in case element is absent)
 /////////////////////////
-if (form) form.addEventListener('submit', saveEmployee);
-if (cancelButton) cancelButton.addEventListener('click', (e) => { e.preventDefault(); closeModal(); });
+if (form)              form.addEventListener('submit', saveEmployee);
+if (cancelButton)      cancelButton.addEventListener('click', (e) => { e.preventDefault(); closeModal(); });
 if (addNewEmployeeBtn) addNewEmployeeBtn.addEventListener('click', () => openModal());
-if (closeModalBtn) closeModalBtn.addEventListener('click', closeModal);
+if (closeModalBtn)     closeModalBtn.addEventListener('click', closeModal);
+// (Removed global window click-to-close; modal guard below handles backdrop clicks safely.)
 
-// Close when clicking outside modal
-window.addEventListener('click', (evt) => { if (evt.target === modal) closeModal(); });
+/////////////////////////
+// Auth guard -> live v2 (with sign-out reset)
+/////////////////////////
+auth.onAuthStateChanged((user) => {
+  if (!user) {
+    try { if (window._empLiveUnsub) { window._empLiveUnsub(); } } catch (_) {}
+    window._empLiveUnsub    = null;
+    window._empLiveAttached = false;
+    if (tableBody) tableBody.innerHTML = '';
+    return;
+  }
+  startEmployeesLive2();
+});
 
-// Load employees when signed-in admin is confirmed by auth-guard
-auth.onAuthStateChanged((user) => { if (user) startEmployeesLiveUI(); });
-// --- LIVE employees list v2: render from snapshot directly ---------------
+/////////////////////////
+// LIVE employees list v2: render from snapshot directly
+/////////////////////////
 function startEmployeesLive2() {
+  if (window._empLiveAttached) { console.warn('[liveUI] already attached'); return; }
+  window._empLiveAttached = true;
   if (!tableBody) return;
-  if (window._empLiveUnsub) { try { window._empLiveUnsub(); } catch {} }
 
   (async () => {
     try {
@@ -263,16 +191,15 @@ function startEmployeesLive2() {
       window._empLiveUnsub = q.onSnapshot({ includeMetadataChanges: true }, (snap) => {
         // rebuild table from snapshot
         tableBody.innerHTML = '';
+
         snap.forEach((docSnap) => {
           const d = docSnap.data() || {};
           const activeTxt = d.active === true ? 'Yes' : 'No';
-          const name = (
+          const name =
             d.displayName ||
             (`${d.firstName || ''} ${d.lastName || ''}`).trim() ||
-            d.nickname ||
-            d.email ||
-            docSnap.id
-          );
+            d.nickname || d.email || docSnap.id;
+
           const row = tableBody.insertRow();
           row.innerHTML = `
             <td>${name}</td>
@@ -286,7 +213,7 @@ function startEmployeesLive2() {
           `;
         });
 
-        // rebind buttons after re-render
+        // rebind actions after re-render
         tableBody.querySelectorAll('.edit-btn').forEach(btn => {
           btn.addEventListener('click', (e) => editEmployee(e.currentTarget.dataset.id));
         });
@@ -295,76 +222,61 @@ function startEmployeesLive2() {
         });
       }, (err) => console.error('[live2] listener error:', err));
 
-      console.log('[live2] attached. To stop: _empLiveUnsub()');
-    } catch (e) { console.error('[live2] setup failed:', e); }
-  })();
-}
-
-// --- LIVE employees list (UI direct) -----------------------------------------
-function startEmployeesLiveUI() {
-  if (!tableBody) return;
-
-  // stop any previous listener
-  if (window._empLiveUnsub) { try { window._empLiveUnsub(); } catch {} }
-
-  (async () => {
-    try {
-      const meUid = auth.currentUser && auth.currentUser.uid;
-      if (!meUid) return;
-
-      // admin check using your helper
-      const meSnap = await db.collection('employees').doc(meUid).get({ source: 'server' });
-      const meData = meSnap.exists ? (meSnap.data() || {}) : {};
-      if (!isAdminFromDoc(meData)) { tableBody.innerHTML = ''; return; }
-
-      const pickTbody = () =>
-        document.getElementById('employeesTableBody') ||
-        document.getElementById('employeeTableBody') ||
-        (document.querySelector('#employees-table tbody') || document.querySelector('table#employeesTable tbody'));
-
-      const render = (snap) => {
-        const body = pickTbody();
-        if (!body) return;
-        const fr = document.createDocumentFragment();
-        snap.forEach(docSnap => {
-          const d = docSnap.data() || {};
-          const name =
-            d.displayName ||
-            (`${d.firstName ?? ''} ${d.lastName ?? ''}`).trim() ||
-            d.nickname || d.email || docSnap.id;
-          const activeTxt = d.active === true ? 'Yes' : 'No';
-          const tr = document.createElement('tr');
-          tr.innerHTML = `
-            <td>${name}</td>
-            <td>${d.email ?? ''}</td>
-            <td>${d.employeeID ?? '—'}</td>
-            <td>${activeTxt}</td>
-            <td>
-              <button class="edit-btn" data-id="${docSnap.id}">Edit</button>
-              <button class="delete-btn" data-id="${docSnap.id}">Delete</button>
-            </td>`;
-          fr.appendChild(tr);
-        });
-        body.replaceChildren(fr);
-
-        // rebind actions to the fresh rows
-        body.querySelectorAll('.edit-btn').forEach(btn => {
-          btn.onclick = (e) => editEmployee(e.currentTarget.dataset.id);
-        });
-        body.querySelectorAll('.delete-btn').forEach(btn => {
-          btn.onclick = (e) => deleteEmployee(e.currentTarget.dataset.id);
-        });
-      };
-
-      const q = db.collection('employees').orderBy('email');
-      window._empLiveUnsub = q.onSnapshot({ includeMetadataChanges: true },
-        (snap) => render(snap),
-        (err) => console.error('[liveUI] listener error:', err)
-      );
-
-      console.log('[liveUI] attached. To stop: _empLiveUnsub()');
+      console.log('[live2] attached. To stop: window._empLiveUnsub?.()');
     } catch (e) {
-      console.error('[liveUI] setup failed:', e);
+      console.error('[live2] setup failed:', e);
     }
   })();
 }
+
+/////////////////////////
+// Phone mask: auto-format XXX-XXX-XXXX
+/////////////////////////
+(function () {
+  function formatToUSPhone(raw) {
+    const digits = String(raw || '').replace(/\D/g, '');
+    const d = (digits.length === 11 && digits.startsWith('1')) ? digits.slice(1) : digits.slice(-10);
+    if (d.length <= 3) return d;
+    if (d.length <= 6) return d.slice(0,3) + '-' + d.slice(3);
+    return d.slice(0,3) + '-' + d.slice(3,6) + '-' + d.slice(6,10);
+  }
+  function attachPhoneMasks(root = document) {
+    const inputs = Array.from(root.querySelectorAll('input[type="tel"], input[id*="phone" i], input[name*="phone" i]'));
+    inputs.forEach((el) => {
+      const apply = () => { el.value = formatToUSPhone(el.value); };
+      apply(); // prefilled
+      el.addEventListener('input', apply);
+      el.addEventListener('blur', apply);
+    });
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => attachPhoneMasks());
+  } else {
+    attachPhoneMasks();
+  }
+  window._phoneMask = { formatToUSPhone, attachPhoneMasks };
+})();
+
+/////////////////////////
+// Modal guard: allow drag-select; close if click STARTED on backdrop
+/////////////////////////
+(function () {
+  const modal = document.getElementById('employeeModal');
+  if (!modal) return;
+  const content = modal.querySelector('.modal-content') || modal.firstElementChild;
+
+  // Do not let events inside the content bubble to the backdrop
+  if (content) {
+    ['mousedown','mousemove','mouseup','click'].forEach(ev =>
+      content.addEventListener(ev, e => e.stopPropagation(), { capture:false })
+    );
+  }
+
+  // Close only if mousedown started on backdrop (mouseup can be anywhere)
+  let downOnBackdrop = false;
+  modal.addEventListener('mousedown', e => { downOnBackdrop = (e.target === modal); });
+  modal.addEventListener('mouseup',   () => {
+    if (downOnBackdrop) { try { closeModal(); } catch(_){} }
+    downOnBackdrop = false;
+  });
+})();
