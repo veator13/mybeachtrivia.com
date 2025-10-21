@@ -94,12 +94,12 @@ const state = {
   isDragCopy: false,
   isDragDayMove: false,
   isDragWeekCopy: false,
-  isDragWeekMove: false,         // <-- NEW (week move flow)
+  isDragWeekMove: false,         // week move flow
 
   copyingDayShifts: [],
   copyingWeekShifts: [],
   movingDayShifts: [],
-  movingWeekShifts: [],          // <-- NEW (week move flow)
+  movingWeekShifts: [],          // week move flow
 
   sourceWeekIndex: null,
 
@@ -121,6 +121,33 @@ const employees = {};
 window.employeesData = {};
 window.locationsData = {};
 let shifts = [];
+
+// ------------------------------
+// Dropdown Helpers (RESTORED)
+// ------------------------------
+function addEmployeeToDropdowns(id, name) {
+  const opts = [elements.employeeSelect, elements.shiftEmployeeSelect];
+  opts.forEach(sel => {
+    if (!sel.querySelector(`option[value="${id}"]`)) {
+      const o = document.createElement('option');
+      o.value = id;
+      o.textContent = name;
+      sel.appendChild(o);
+    }
+  });
+}
+
+function addLocationToDropdowns(name) {
+  const opts = [elements.locationSelect, elements.shiftLocationSelect];
+  opts.forEach(sel => {
+    if (!sel.querySelector(`option[value="${name}"]`)) {
+      const o = document.createElement('option');
+      o.value = name;
+      o.textContent = name;
+      sel.appendChild(o);
+    }
+  });
+}
 
 // ------------------------------
 // Helpers for Dropzones
@@ -157,8 +184,8 @@ function isValidDragOperation() {
     state.isDragCopy ||
     state.isDragWeekCopy ||
     state.isDragDayMove ||
-    state.isDragWeekMove ||               // <-- include week move
-    state.movingWeekShifts.length > 0     // <-- include week move
+    state.isDragWeekMove ||
+    state.movingWeekShifts.length > 0
   );
 }
 
