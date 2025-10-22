@@ -1,18 +1,8 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-  // === Player read access for live games (anon included) ===
-  function isSignedIn() { return request.auth != null; }
-  match /games/{gameId} {
-    allow read: if isSignedIn();
-  }
-  match /games/{gameId}/{sub=**} {
-    allow read: if isSignedIn();
-  }
-  // === End player read access ===
 
-
-
+    /* ========= Helpers ========= */
     function signedIn() { return request.auth != null; }
     function isSelf(uid) { return signedIn() && request.auth.uid == uid; }
 
@@ -34,11 +24,12 @@ service cloud.firestore {
       ];
     }
 
+    /* ========= Employees ========= */
     match /employees/{uid} {
       // Employee can read self; admin can read all
       allow read: if isSelf(uid) || isAdmin();
 
-      // Create by admin only (you create employee docs via admin flow)
+      // Create by admin only
       allow create: if isAdmin();
 
       // Update: admin any; employee only allow-listed keys on self
@@ -51,28 +42,14 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // (Leave your other collections' rules as they are)
-  
-    // playlists: hosts/admins can read all; signed-in can read published; writes admin-only
-
-
-    // legacy music_bingo: same as playlists
-
-
-    // games: players (anon or user) can read; hosts/admins control lifecycle
-
-
-    // playlists: allow read via claims OR employees profile; or published=true. Writes admin-only.
-
-
-    // legacy music_bingo: same as playlists
-
-
-// playlists: allow read via claims OR employees profile; or published=true. Writes admin-only.
+    /* ========= Playlists =========
+       Hosts/Admins can read all; any signed-in user can read if published==true;
+       Writes are admin/superadmin only (supports multiple claims shapes + profile fallback).
+    */
     match /playlists/{playlistId} {
-      allow read: if 
-        request.auth != null && (
-          /* Claims path */
+      allow read: if
+        signedIn() && (
+          // Claims path
           request.auth.token.admin == true ||
           (request.auth.token.roles != null && (
             'host' in request.auth.token.roles ||
@@ -84,7 +61,7 @@ service cloud.firestore {
             request.auth.token.role == 'admin' ||
             request.auth.token.role == 'superadmin'
           )) ||
-          /* Profile fallback path */
+          // Profile fallback path
           (
             exists(/databases/$(database)/documents/employees/$(request.auth.uid)) &&
             get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.roles != null &&
@@ -94,20 +71,23 @@ service cloud.firestore {
               'superadmin' in get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.roles
             )
           )
-        ) || (request.auth != null && resource.data.published == true)
-;
-      allow create, update, delete: if request.auth != null && (
+        )
+        || (signedIn() && resource.data.published == true);
+
+      allow create, update, delete: if signedIn() && (
         request.auth.token.admin == true ||
         (request.auth.token.roles != null && ('admin' in request.auth.token.roles || 'superadmin' in request.auth.token.roles)) ||
         (request.auth.token.role  != null && (request.auth.token.role == 'admin' || request.auth.token.role == 'superadmin'))
       );
     }
 
-    // legacy music_bingo: same as playlists
+    /* ========= Legacy music_bingo =========
+       Same as playlists
+    */
     match /music_bingo/{playlistId} {
-      allow read: if 
-        request.auth != null && (
-          /* Claims path */
+      allow read: if
+        signedIn() && (
+          // Claims path
           request.auth.token.admin == true ||
           (request.auth.token.roles != null && (
             'host' in request.auth.token.roles ||
@@ -119,7 +99,7 @@ service cloud.firestore {
             request.auth.token.role == 'admin' ||
             request.auth.token.role == 'superadmin'
           )) ||
-          /* Profile fallback path */
+          // Profile fallback path
           (
             exists(/databases/$(database)/documents/employees/$(request.auth.uid)) &&
             get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.roles != null &&
@@ -129,23 +109,27 @@ service cloud.firestore {
               'superadmin' in get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.roles
             )
           )
-        ) || (request.auth != null && resource.data.published == true)
-;
-      allow create, update, delete: if request.auth != null && (
+        )
+        || (signedIn() && resource.data.published == true);
+
+      allow create, update, delete: if signedIn() && (
         request.auth.token.admin == true ||
         (request.auth.token.roles != null && ('admin' in request.auth.token.roles || 'superadmin' in request.auth.token.roles)) ||
         (request.auth.token.role  != null && (request.auth.token.role == 'admin' || request.auth.token.role == 'superadmin'))
       );
     }
 
-// games: players (anon or user) can read; hosts/admins can create/update; delete is admin/superadmin only
+    /* ========= Games =========
+       Players (anonymous or user) can read live games.
+       Hosts/Admins can create/update; delete is admin/superadmin only.
+    */
     match /games/{gameId} {
-      // Player app uses Anonymous Auth → this allows them to read the live game
-      allow read: if request.auth != null;
+      // Player app uses Anonymous Auth → allow reads to any signed-in user
+      allow read: if signedIn();
 
       // Host/Admin can create or update games if they have role via claims OR employees profile
-      allow create, update: if request.auth != null && (
-        /* Claims path */
+      allow create, update: if signedIn() && (
+        // Claims path
         request.auth.token.admin == true ||
         (request.auth.token.roles != null && (
           'host' in request.auth.token.roles ||
@@ -157,7 +141,7 @@ service cloud.firestore {
           request.auth.token.role == 'admin' ||
           request.auth.token.role == 'superadmin'
         )) ||
-        /* Profile fallback path */
+        // Profile fallback path
         (
           exists(/databases/$(database)/documents/employees/$(request.auth.uid)) &&
           get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.roles != null &&
@@ -170,7 +154,7 @@ service cloud.firestore {
       );
 
       // Delete stays restricted to admin/superadmin
-      allow delete: if request.auth != null && (
+      allow delete: if signedIn() && (
         request.auth.token.admin == true ||
         (request.auth.token.roles != null && (
           'admin' in request.auth.token.roles || 'superadmin' in request.auth.token.roles
@@ -189,13 +173,11 @@ service cloud.firestore {
       );
     }
 
-// games subcollections: players can read; hosts/admins can create/update; delete admin/superadmin
+    // Games subcollections: players can read; hosts/admins can create/update; delete admin/superadmin
     match /games/{gameId}/{subpath=**} {
-      // Player app uses Anonymous Auth → allow reads to any signed-in user
-      allow read: if request.auth != null;
+      allow read: if signedIn();
 
-      // Host/Admin create/update (claims OR employees profile)
-      allow create, update: if request.auth != null && (
+      allow create, update: if signedIn() && (
         request.auth.token.admin == true ||
         (request.auth.token.roles != null && (
           'host' in request.auth.token.roles ||
@@ -218,8 +200,7 @@ service cloud.firestore {
         )
       );
 
-      // Delete limited to admin/superadmin
-      allow delete: if request.auth != null && (
+      allow delete: if signedIn() && (
         request.auth.token.admin == true ||
         (request.auth.token.roles != null && (
           'admin' in request.auth.token.roles || 'superadmin' in request.auth.token.roles
@@ -237,14 +218,16 @@ service cloud.firestore {
         )
       );
     }
-}
-    // playlists: hosts/admins can read all; signed-in can read published items; writes admin-only
 
+    /* ========= Admin Calendar Collections =========
+       Admin-only read/write. These power the admin calendar page.
+    */
+    match /locations/{docId} {
+      allow read, write: if isAdmin();
+    }
 
-    // legacy music_bingo collection: same as playlists
-
-
-    // games: players (anon or user) can read; hosts/admins control lifecycle
-
-
+    match /shifts/{docId} {
+      allow read, write: if isAdmin();
+    }
+  }
 }
