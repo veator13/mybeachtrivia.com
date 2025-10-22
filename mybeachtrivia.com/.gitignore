@@ -113,3 +113,4 @@ functions_gcfv1/firestore.rules
 *.SOS.bak
 *.tmp
 *.swp
+.DS_Store
