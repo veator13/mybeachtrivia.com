@@ -5,19 +5,29 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Music Bingo — Host Console</title>
 
-  <!-- ✅ CSP to allow RTDB + Firebase while keeping the page locked down -->
+  <!-- CSP: allow Firebase/Auth/RTDB while staying tight -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
-    script-src 'self' 'unsafe-eval' https://www.gstatic.com https://www.googleapis.com https://*.firebaseio.com;
-    connect-src 'self' https://*.googleapis.com https://www.googleapis.com https://*.gstatic.com wss://*.firebaseio.com https://*.firebaseio.com;
+    script-src 'self' 'unsafe-eval' https://www.gstatic.com https://www.googleapis.com https://apis.google.com https://*.firebaseio.com;
+    connect-src 'self' https://*.googleapis.com https://www.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://*.gstatic.com https://*.firebaseio.com wss://*.firebaseio.com;
     img-src 'self' data: https:;
     style-src 'self' 'unsafe-inline';
+    frame-src 'self' https://accounts.google.com https://*.firebaseapp.com https://*.gstatic.com;
   ">
 
-  <!-- Your site styles -->
   <link rel="stylesheet" href="host-music-bingo.css" />
-<script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-app-compat.js" defer></script>\n<script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore-compat.js" defer></script>\n<script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-auth-compat.js" defer></script>\n<script src="/beachTriviaPages/js/firebase-modular-shims.js" defer></script>."
-</head>"
+
+  <!-- Firebase (compat) + init FIRST, then optional shims, then page code -->
+  <script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-app-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-auth-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore-compat.js" defer></script>
+
+  <!-- Initializes the DEFAULT app using window.firebaseConfig (shared site-wide) -->
+  <script src="/beachTriviaPages/js/firebase-init.js" defer></script>
+
+  <!-- Optional: light modular shims used by some pages; safe after init -->
+  <script src="/beachTriviaPages/js/firebase-modular-shims.js" defer></script>
+</head>
 <body>
   <div class="app-shell">
     <!-- Topbar -->
@@ -133,6 +143,8 @@
       JavaScript is required to run the Music Bingo host console.
     </p>
   </noscript>
-  <script src="/beachTriviaPages/js/auth-route-guard.v2.js?v=2025-10-14a"></script>
+
+  <!-- Auth gate (runs after Firebase has been initialized) -->
+  <script src="/beachTriviaPages/js/auth-route-guard.v2.js?v=2025-10-14a" defer></script>
 </body>
 </html>
