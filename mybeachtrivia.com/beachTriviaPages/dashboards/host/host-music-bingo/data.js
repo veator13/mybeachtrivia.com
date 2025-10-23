@@ -1,3 +1,4 @@
+
 // --- Snapshot the selected playlist into the game so players never read /playlists ---
 async function snapshotPlaylistIntoGame(db, gameId, playlistId) {
   try {
@@ -13,9 +14,8 @@ async function snapshotPlaylistIntoGame(db, gameId, playlistId) {
         ...pdata,
         source,
         sourceId: playlistId,
-        // Use compat FieldValue (provided by shim) — NO parentheses
-        snapshotAt: serverTimestampCompat
-      }, { merge: true });
+        snapshotAt: serverTimestamp()
+      });
       console.log('[data.js] snapped playlist into game:', { gameId, source, playlistId });
     } else {
       console.warn('[data.js] playlist not found to snapshot', playlistId);
@@ -41,7 +41,7 @@ import {
   getDocs,
   updateDoc,
   doc,
-  // serverTimestamp,  <-- removed (we use compat from shim)
+  serverTimestamp,
   query,
   limit
 } from 'https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js';
@@ -56,9 +56,6 @@ import {
   ref as rtdbRef,
   onValue
 } from 'https://www.gstatic.com/firebasejs/10.13.2/firebase-database.js';
-
-// Use the compat serverTimestamp exposed by the shim (global getter)
-const serverTimestampCompat = globalThis.serverTimestamp;
 
 // ------- Project config: Beach-Trivia-Website -------
 const firebaseConfig = {
@@ -131,10 +128,10 @@ export async function requireEmployee() {
     throw new Error(`Please log in to host Music Bingo. ${e.message} (Go to ${LOGIN_URL})`);
   });
 
+  
   // Ensure custom claims (roles/admin) are present for Firestore rules
   try { await auth.currentUser.getIdToken(true); } catch (e) { console.warn('[data.js] token refresh:', e?.message || e); }
-
-  // Verify there is an employees/{uid} doc and that this user can host
+// Verify there is an employees/{uid} doc and that this user can host
   const snap = await getDoc(doc(db, 'employees', user.uid));
   if (!snap.exists()) {
     throw new Error(
@@ -263,17 +260,16 @@ export async function createGame({ playlistId, name, playerLimit }) {
     playerLimit: playerLimit ?? null,
     playerCount: 0,
     currentSongIndex: -1,
-    createdAt: serverTimestampCompat,
-    updatedAt: serverTimestampCompat
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
   };
   const ref = await addDoc(collection(db, 'games'), game);
 
-  // Copy chosen playlist into the game for player reads (once)
-  try {
-    await snapshotPlaylistIntoGame(db, ref.id, playlistId);
-  } catch (e) {
-    console.warn('[data.js] snapshot error', e?.message || e);
-  }
+  // Copy chosen playlist into the game for player reads
+  try { await snapshotPlaylistIntoGame(db, ref.id, playlistId); } catch (e) { console.warn('[data.js] snapshot error', e?.message || e); }
+
+      // Copy chosen playlist into the game for player reads
+      try { await snapshotPlaylistIntoGame(db, ref.id, playlistId); } catch (e) { console.warn('[data.js] snapshot error', e?.message || e); }
 
   return { id: ref.id, ...game };
 }
@@ -288,7 +284,7 @@ export async function getGame(id) {
 export async function updateGameStatus(id, status) {
   await requireEmployee();
   const ref = doc(db, 'games', id);
-  await updateDoc(ref, { status, updatedAt: serverTimestampCompat });
+  await updateDoc(ref, { status, updatedAt: serverTimestamp() });
   const snap = await getDoc(ref);
   return { id: snap.id, ...snap.data() };
 }
@@ -296,7 +292,7 @@ export async function updateGameStatus(id, status) {
 export async function updateGameSongIndex(id, index) {
   await requireEmployee();
   const ref = doc(db, 'games', id);
-  await updateDoc(ref, { currentSongIndex: index, updatedAt: serverTimestampCompat });
+  await updateDoc(ref, { currentSongIndex: index, updatedAt: serverTimestamp() });
   const snap = await getDoc(ref);
   return { id: snap.id, ...snap.data() };
 }
@@ -340,7 +336,7 @@ export function watchPlayerCountRTDB(gameId, callback) {
 export async function setGamePlayerCount(id, count) {
   await requireEmployee(); // keep writes host-only
   const ref = doc(db, 'games', id);
-  await updateDoc(ref, { playerCount: count, updatedAt: serverTimestampCompat });
+  await updateDoc(ref, { playerCount: count, updatedAt: serverTimestamp() });
 }
 
 // ---------- Optional: tiny debug surface in dev tools ----------
