@@ -1,302 +1,352 @@
-// app.js — Host Music Bingo (QR enabled, CSS-class based)
+// --- Snapshot the selected playlist into the game so players never read /playlists ---
+async function snapshotPlaylistIntoGame(db, gameId, playlistId) {
+  try {
+    const primary = await getDoc(doc(db, 'playlists', playlistId));
+    let snap = primary, source = 'playlists';
+    if (!primary.exists()) {
+      const legacy = await getDoc(doc(db, 'music_bingo', playlistId));
+      snap = legacy; source = 'music_bingo';
+    }
+    if (snap && snap.exists && snap.exists()) {
+      const pdata = snap.data();
+      await setDoc(doc(db, 'games', gameId, 'playlist', 'data'), {
+        ...pdata,
+        source,
+        sourceId: playlistId,
+        snapshotAt: serverTimestamp()   // MODULAR sentinel
+      }, { merge: true });
+      console.log('[data.js] snapped playlist into game:', { gameId, source, playlistId });
+    } else {
+      console.warn('[data.js] playlist not found to snapshot', playlistId);
+    }
+  } catch (e) {
+    console.warn('[data.js] snapshotPlaylistIntoGame error:', e?.message || e);
+  }
+}
+
+// data.js — Music Bingo host (Beach-Trivia-Website project)
+// Host-only module: requires employee auth to read ALL playlists.
+// Merges `/playlists` (new) + `/music_bingo` (legacy) with de-dupe.
+
+console.debug('[data.js] loading…');
+
+// --- USE LITERAL CDN URLS (static import must be string literals) ---
+import { initializeApp, getApp, getApps } from 'https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js';
 import {
-  fetchPlaylists,
-  createGame,               // ✅ use data-layer helper to create the game
-  getGame,
-  updateGameSongIndex,
-  updateGameStatus,
-  getPlayerCount,
-  requireEmployee,          // ✅ ensure employee is signed in before reads/writes
-  watchPlayerCountRTDB,     // ✅ RTDB live player watcher
-  setGamePlayerCount        // ✅ mirror count to Firestore
-} from './data.js';
-import { renderJoinQRCode } from './qr.js';
+  getFirestore,
+  collection,
+  addDoc,
+  getDoc,
+  getDocs,
+  updateDoc,
+  setDoc,           // <-- use modular setDoc
+  doc,
+  serverTimestamp,  // <-- use modular serverTimestamp()
+  query,
+  limit
+} from 'https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js';
+import {
+  getAuth,
+  onAuthStateChanged,
+  setPersistence,
+  browserLocalPersistence
+} from 'https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js';
+import {
+  getDatabase,
+  ref as rtdbRef,
+  onValue
+} from 'https://www.gstatic.com/firebasejs/10.13.2/firebase-database.js';
 
-// ------- Config: force player link to web.app (iOS-friendly) -------
-const WEBAPP_JOIN_BASE =
-  'https://beach-trivia-website.web.app/play-music-bingo/index.html'; // use this for QR/link
-const JOIN_VERSION = 9; // bump to bust caches when script/index changes
-
-// ------- Element lookups (match host-music-bingo.html) -------
-const els = {
-  // Form
-  playlist: document.querySelector('#playlist-select'),
-  gameName: document.querySelector('#game-name'),
-  playerLimit: document.querySelector('#player-limit'),
-  startBtn: document.querySelector('#start-game-btn'),
-
-  // Join/QR UI
-  qrBox: document.querySelector('#qr-code-container'),
-  copyJoinBtn: document.querySelector('#copy-join-link-btn'),
-  joinLinkDisplay: document.querySelector('#join-link-display'),
-
-  // Game panel
-  gameSection: document.querySelector('#game-section'),
-  currentGameName: document.querySelector('#current-game-name'),
-  currentPlaylist: document.querySelector('#current-playlist'),
-  gameId: document.querySelector('#game-id'),
-  currentSong: document.querySelector('#current-song'),
-  playerCount: document.querySelector('#player-count'),
-
-  // Transport controls
-  playBtn: document.querySelector('#play-song-btn'),
-  nextBtn: document.querySelector('#next-song-btn'),
-  pauseBtn: document.querySelector('#pause-game-btn'),
-  resumeBtn: document.querySelector('#resume-game-btn'),
-  endBtn: document.querySelector('#end-game-btn'),
-
-  // Any forms on the page
-  forms: Array.from(document.querySelectorAll('form'))
+// ------- Project config: Beach-Trivia-Website -------
+const firebaseConfig = {
+  apiKey: "AIzaSyDBKCotY1F943DKfVQqKOGPPkAkQe2Zgog",
+  authDomain: "beach-trivia-website.firebaseapp.com",
+  projectId: "beach-trivia-website",
+  storageBucket: "beach-trivia-website.appspot.com",
+  messagingSenderId: "459479368322",
+  appId: "1:459479368322:web:7bd3d080d3b9e77610aa9b",
+  measurementId: "G-24MQRKKDNY"
 };
 
-let activeGame = null;
+const LOGIN_URL = '/beachTriviaPages/login.html';
 
-// ---- RTDB Player Watcher ----
-let stopWatchingPlayers = null;
-
-function attachPlayerWatcher(gameId) {
-  // stop a previous subscription if any
-  if (stopWatchingPlayers) { stopWatchingPlayers(); stopWatchingPlayers = null; }
-
-  // start a new one
-  stopWatchingPlayers = watchPlayerCountRTDB(gameId, async (count) => {
-    // Update the UI pill
-    if (els.playerCount) els.playerCount.textContent = String(count);
-
-    // Mirror to Firestore so anything reading games/{id}.playerCount stays consistent
-    try {
-      await setGamePlayerCount(gameId, count);
-    } catch (e) {
-      console.debug('setGamePlayerCount failed:', e?.message || e);
-    }
-  });
-}
-
-// ---------------- UI HELPERS ----------------
-function ensureJoinLinkDisplay() {
-  if (!els.joinLinkDisplay) {
-    const host = els.qrBox?.parentElement || document.body;
-    const p = document.createElement('p');
-    p.id = 'join-link-display';
-    p.className = 'join-url';
-    host.appendChild(p);
-    els.joinLinkDisplay = p;
-  }
-}
-
-// Render QR above the link (uses CSS classes; minimal inline)
-function renderJoinLink(url) {
-  if (!els.qrBox) return;
-
-  els.qrBox.innerHTML = '';
-
-  // Outer panel
-  const container = document.createElement('div');
-  container.className = 'qr-box';
-
-  // White pad behind QR
-  const qrWrap = document.createElement('div');
-  qrWrap.className = 'qr-wrap';
-
-  // Render QR (falls back silently if lib missing)
+// ---------- Singleton Firebase boot (idempotent) ----------
+let app, db, auth, rtdb;
+(function boot() {
   try {
-    renderJoinQRCode(qrWrap, url, 196);
+    app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+    db = getFirestore(app);
+    auth = getAuth(app);
+    rtdb = getDatabase(app);
+
+    // best-effort; do not block module load
+    setPersistence(auth, browserLocalPersistence).catch((e) =>
+      console.warn('[data.js] setPersistence warning:', e?.message || e)
+    );
+    console.log('[data.js] Firebase ready for project:', app.options.projectId);
   } catch (e) {
-    console.warn('QR render failed; showing link only:', e);
+    console.error('[data.js] Firebase init failed:', e);
+    throw e;
   }
+})();
 
-  // Clickable join link under QR
-  const link = document.createElement('a');
-  link.href = url;
-  link.textContent = url;
-  link.target = '_blank';
-  link.rel = 'noopener noreferrer';
-  link.className = 'join-url';
+// ---------- Auth helpers (employee required, no anonymous) ----------
+let cachedUserPromise = null;
 
-  container.appendChild(qrWrap);
-  container.appendChild(link);
-  els.qrBox.appendChild(container);
-}
+async function ensureEmployeeAuth(timeoutMs = 8000) {
+  if (cachedUserPromise) return cachedUserPromise;
 
-function wireCopyJoin() {
-  if (!els.copyJoinBtn) return;
-  els.copyJoinBtn.addEventListener('click', async () => {
-    ensureJoinLinkDisplay();
-    try {
-      const value = (els.joinLinkDisplay?.innerText || els.joinLinkDisplay?.textContent || '').trim();
-      if (!value) {
-        alert('No join link available yet.');
-        return;
+  cachedUserPromise = new Promise((resolve, reject) => {
+    const t = setTimeout(() => {
+      reject(new Error('Not signed in (timeout). Please log in to host.'));
+    }, timeoutMs);
+
+    const off = onAuthStateChanged(
+      auth,
+      (user) => {
+        if (user) {
+          clearTimeout(t);
+          off();
+          resolve(user);
+        }
+      },
+      (err) => {
+        clearTimeout(t);
+        off();
+        reject(err);
       }
-      await navigator.clipboard.writeText(value);
-      const orig = els.copyJoinBtn.textContent;
-      els.copyJoinBtn.textContent = 'Copied!';
-      setTimeout(() => (els.copyJoinBtn.textContent = orig), 1200);
+    );
+  });
+
+  return cachedUserPromise;
+}
+
+// Exposed for UI to pre-gate actions (now enforces employee + role checks)
+export async function requireEmployee() {
+  // Wait for a signed-in user
+  const user = await ensureEmployeeAuth().catch((e) => {
+    throw new Error(`Please log in to host Music Bingo. ${e.message} (Go to ${LOGIN_URL})`);
+  });
+
+  // Ensure custom claims (roles/admin) are present for Firestore rules
+  try { await auth.currentUser.getIdToken(true); } catch (e) { console.warn('[data.js] token refresh:', e?.message || e); }
+
+  // Verify there is an employees/{uid} doc and that this user can host
+  const snap = await getDoc(doc(db, 'employees', user.uid));
+  if (!snap.exists()) {
+    throw new Error(
+      `Signed in as ${user.email}, but no employee record found (employees/${user.uid}).`
+    );
+  }
+  const emp = snap.data();
+  const roles = Array.isArray(emp.roles) ? emp.roles : [];
+  const isActive = emp.active === true;
+
+  if (!isActive) {
+    throw new Error('Your employee account is not active. Contact an admin.');
+  }
+  if (!roles.includes('host')) {
+    throw new Error(`You are not authorized to host (missing 'host' role).`);
+  }
+
+  return user;
+}
+
+export function getCurrentUser() {
+  return auth.currentUser || null;
+}
+
+// ---------- Playlists ----------
+/**
+ * Reads playlists from BOTH `playlists` (new) and `music_bingo` (legacy),
+ * merges + sorts by title, and normalizes fields.
+ * Requires employee auth so rules allow access to unpublished drafts.
+ */
+export async function fetchPlaylists() {
+  console.log('[data.js] Fetching playlists…');
+
+  // Host page should be employee-only; ensures rules allow the read.
+  await requireEmployee();
+
+  const normalize = (id, data) => {
+    const title =
+      data?.playlistTitle ||
+      data?.title ||
+      data?.name ||
+      data?.displayName ||
+      id;
+
+    return {
+      id,
+      title,                 // canonical
+      playlistTitle: title,  // back-compat
+      name: title,           // back-compat
+      ...data
+    };
+  };
+
+  const got = [];
+  const seen = new Set();
+
+  // Try unified `playlists`
+  try {
+    const snap = await getDocs(collection(db, 'playlists'));
+    snap.forEach(d => {
+      if (!seen.has(d.id)) {
+        got.push(normalize(d.id, d.data()));
+        seen.add(d.id);
+      }
+    });
+  } catch (e) {
+    console.warn('[data.js] playlists read failed (will still try legacy):', e?.code || e?.message || e);
+  }
+
+  // Also read legacy `music_bingo` to surface any not-yet-migrated lists
+  try {
+    const qb = query(collection(db, 'music_bingo'), limit(Math.max(0, 200 - got.length)));
+    const snap = await getDocs(qb);
+    snap.forEach(d => {
+      if (!seen.has(d.id)) {
+        got.push(normalize(d.id, d.data()));
+        seen.add(d.id);
+      }
+    });
+  } catch (e) {
+    console.warn('[data.js] music_bingo read failed:', e?.code || e?.message || e);
+  }
+
+  // Sort & return
+  got.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+  console.log('[data.js] Playlists found:', got.length);
+  return got;
+}
+
+// Back-compat alias
+export const getPlaylists = fetchPlaylists;
+
+// ---------- Games ----------
+export async function createGame({ playlistId, name, playerLimit }) {
+  console.log('[data.js] createGame', { playlistId, name, playerLimit });
+
+  await requireEmployee();
+
+  // Pull playlist title for convenience
+  const plRef = doc(db, 'playlists', playlistId);
+  let playlistTitle = playlistId;
+
+  try {
+    const snap = await getDoc(plRef);
+    if (snap.exists()) {
+      const d = snap.data();
+      playlistTitle = d.playlistTitle || d.title || d.name || playlistTitle;
+    } else {
+      // fall back to legacy collection
+      const oldRef = doc(db, 'music_bingo', playlistId);
+      const oldSnap = await getDoc(oldRef);
+      if (oldSnap.exists()) {
+        const d = oldSnap.data();
+        playlistTitle = d.playlistTitle || d.title || d.name || playlistTitle;
+      }
+    }
+  } catch (e) {
+    console.warn('[data.js] playlist title lookup warning:', e?.message || e);
+  }
+
+  const game = {
+    name: name || 'Music Bingo',
+    playlistId,
+    playlistName: playlistTitle,
+    status: 'active',
+    playerLimit: playerLimit ?? null,
+    playerCount: 0,
+    currentSongIndex: -1,
+    createdAt: serverTimestamp(),   // MODULAR sentinel
+    updatedAt: serverTimestamp()    // MODULAR sentinel
+  };
+
+  const ref = await addDoc(collection(db, 'games'), game);
+
+  // Copy chosen playlist into the game for player reads (once)
+  try {
+    await snapshotPlaylistIntoGame(db, ref.id, playlistId);
+  } catch (e) {
+    console.warn('[data.js] snapshot error', e?.message || e);
+  }
+
+  return { id: ref.id, ...game };
+}
+
+export async function getGame(id) {
+  const ref = doc(db, 'games', id);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) throw new Error('Game not found');
+  return { id: snap.id, ...snap.data() };
+}
+
+export async function updateGameStatus(id, status) {
+  await requireEmployee();
+  const ref = doc(db, 'games', id);
+  await updateDoc(ref, { status, updatedAt: serverTimestamp() });  // MODULAR sentinel
+  const snap = await getDoc(ref);
+  return { id: snap.id, ...snap.data() };
+}
+
+export async function updateGameSongIndex(id, index) {
+  await requireEmployee();
+  const ref = doc(db, 'games', id);
+  await updateDoc(ref, { currentSongIndex: index, updatedAt: serverTimestamp() }); // MODULAR sentinel
+  const snap = await getDoc(ref);
+  return { id: snap.id, ...snap.data() };
+}
+
+export async function getPlayerCount(id) {
+  const ref = doc(db, 'games', id);
+  const snap = await getDoc(ref);
+  return snap.exists() ? (snap.data().playerCount ?? 0) : 0;
+}
+
+// ---------- RTDB Live Player Watcher + Mirror ----------
+/**
+ * Listen to RTDB players under /games/{gameId}/players and invoke `callback(count)`
+ * whenever the active-player count changes. Returns an unsubscribe function.
+ * An "active" player is lastActive within the last 2 minutes.
+ */
+export function watchPlayerCountRTDB(gameId, callback) {
+  const playersRef = rtdbRef(rtdb, `games/${gameId}/players`);
+  const unsub = onValue(playersRef, (snap) => {
+    const data = snap.val() || {};
+    const now = Date.now();
+    const ACTIVE_WINDOW_MS = 2 * 60 * 1000; // 2 minutes
+    let count = 0;
+    for (const key in data) {
+      const p = data[key];
+      const t = (p && typeof p.lastActive === 'number') ? p.lastActive : 0;
+      if (now - t < ACTIVE_WINDOW_MS) count++;
+    }
+    try {
+      callback(count);
     } catch (e) {
-      console.error('Copy failed:', e);
-      alert('Copy failed. Try manually copying the link above.');
+      console.warn('[data.js] playerCount callback error:', e?.message || e);
     }
   });
+  return unsub; // call to stop listening
 }
 
-function updateGameUI(game, playlistName) {
-  activeGame = game;
-  els.gameSection?.classList.remove('hidden');
-
-  if (els.currentGameName) els.currentGameName.textContent = game.name || 'Music Bingo Game';
-  if (els.currentPlaylist) els.currentPlaylist.textContent = playlistName || game.playlistName || game.playlistId || '';
-  if (els.gameId) els.gameId.textContent = game.id || '';
-
-  if (els.currentSong) {
-    els.currentSong.textContent =
-      typeof game.currentSongIndex === 'number'
-        ? `Song ${game.currentSongIndex + 1}`
-        : 'Not started';
-  }
-
-  if (els.playerCount) els.playerCount.textContent = game.playerCount ?? 0;
-
-  // ✅ Use web.app for player link/QR (works on iOS behind Cloudflare)
-  const joinUrl = `${WEBAPP_JOIN_BASE}?gameId=${encodeURIComponent(game.id)}&v=${JOIN_VERSION}`;
-
-  ensureJoinLinkDisplay();
-  els.joinLinkDisplay.textContent = joinUrl;
-  window.currentJoinLink = joinUrl;
-
-  renderJoinLink(joinUrl);
+/**
+ * Mirror the RTDB-derived player count back into Firestore (best effort).
+ */
+export async function setGamePlayerCount(id, count) {
+  await requireEmployee(); // keep writes host-only
+  const ref = doc(db, 'games', id);
+  await updateDoc(ref, { playerCount: count, updatedAt: serverTimestamp() }); // MODULAR sentinel
 }
 
-// ---------------- EVENT HANDLERS ----------------
-async function handleStartGame(e) {
-  e?.preventDefault();
-
-  const playlistId = els.playlist?.value || '';
-  const playlistName = els.playlist?.options[els.playlist.selectedIndex]?.textContent || '';
-  const name = els.gameName?.value.trim() || 'Music Bingo Game';
-  const playerLimit = els.playerLimit?.value ? parseInt(els.playerLimit.value, 10) : null;
-
-  if (!playlistId) {
-    alert('Please select a playlist.');
-    return;
-  }
-
-  try {
-    // Ensure auth at action time too (in case session expires)
-    await requireEmployee();
-
-    // ✅ Create the game via data-layer helper (no global firebase usage here)
-    const game = await createGame({ playlistId, name, playerLimit });
-
-    updateGameUI(game, playlistName);
-
-    // ✅ Start live player watcher (RTDB)
-    attachPlayerWatcher(game.id);
-  } catch (err) {
-    console.error('Error creating game:', err);
-    alert('Error creating game: ' + (err?.message || String(err)));
-  }
+// ---------- Optional: tiny debug surface in dev tools ----------
+if (typeof window !== 'undefined') {
+  window.__mb_dbg = {
+    projectId: () => app?.options?.projectId,
+    whoami: () => auth.currentUser ? { uid: auth.currentUser.uid, email: auth.currentUser.email || null } : null,
+    testPlaylists: () => fetchPlaylists()
+  };
 }
-
-async function handlePlaySong(e) {
-  e?.preventDefault();
-  if (!activeGame) return;
-  await updateGameSongIndex(activeGame.id, 0);
-  const game = await getGame(activeGame.id);
-  activeGame = game;
-  if (els.currentSong) els.currentSong.textContent = `Song ${game.currentSongIndex + 1}`;
-}
-
-async function handleNextSong(e) {
-  e?.preventDefault();
-  if (!activeGame) return;
-  const nextIndex = (activeGame.currentSongIndex ?? -1) + 1;
-  await updateGameSongIndex(activeGame.id, nextIndex);
-  const game = await getGame(activeGame.id);
-  activeGame = game;
-  if (els.currentSong) els.currentSong.textContent = `Song ${game.currentSongIndex + 1}`;
-}
-
-async function handlePauseGame(e) {
-  e?.preventDefault();
-  if (!activeGame) return;
-  await updateGameStatus(activeGame.id, 'paused');
-}
-
-async function handleResumeGame(e) {
-  e?.preventDefault();
-  if (!activeGame) return;
-  await updateGameStatus(activeGame.id, 'active');
-}
-
-async function handleEndGame(e) {
-  e?.preventDefault();
-  if (!activeGame) return;
-  await updateGameStatus(activeGame.id, 'ended');
-  activeGame = null;
-
-  // ✅ Stop RTDB watcher
-  if (stopWatchingPlayers) { stopWatchingPlayers(); stopWatchingPlayers = null; }
-
-  els.gameSection?.classList.add('hidden');
-  if (els.qrBox) els.qrBox.innerHTML = '';
-  if (els.joinLinkDisplay) els.joinLinkDisplay.textContent = '';
-}
-
-// ---------------- INIT ----------------
-async function init() {
-  console.log('Initializing Music Bingo Host...');
-
-  // Prevent any accidental form submit refresh
-  els.forms.forEach((f) => f.addEventListener('submit', (e) => e.preventDefault()));
-
-  // ----- require employee sign-in before any Firestore reads -----
-  try {
-    const me = await requireEmployee();
-    console.log('[app] signed in as:', me.email || me.uid);
-  } catch (e) {
-    console.warn('[app] not signed in → redirecting to login:', e.message);
-    const redirectTo = location.pathname + location.search + location.hash;
-    // ✅ root login path to avoid nested 404s
-    location.assign('/login.html?redirect=' + encodeURIComponent(redirectTo));
-    return; // stop init until after login
-  }
-
-  // Populate playlists
-  try {
-    const playlists = await fetchPlaylists();
-
-    if (els.playlist) {
-      els.playlist.innerHTML = '<option value="" disabled selected>Select a playlist...</option>';
-      playlists.forEach((pl) => {
-        const opt = document.createElement('option');
-        opt.value = pl.id;
-        opt.textContent = pl.playlistTitle || pl.name || pl.id;
-        els.playlist.appendChild(opt);
-      });
-    }
-  } catch (err) {
-    console.error('Failed to load playlists:', err);
-    if (els.playlist) {
-      els.playlist.innerHTML =
-        '<option value="" disabled selected>Error loading playlists - check console</option>';
-    }
-
-    if (err.message?.toLowerCase().includes('log in') || err.message?.toLowerCase().includes('auth')) {
-      alert('Please log in to access Music Bingo. You may need to visit the login page first.');
-    }
-  }
-
-  // Wire controls
-  els.startBtn?.addEventListener('click', handleStartGame);
-  els.playBtn?.addEventListener('click', handlePlaySong);
-  els.nextBtn?.addEventListener('click', handleNextSong);
-  els.pauseBtn?.addEventListener('click', handlePauseGame);
-  els.resumeBtn?.addEventListener('click', handleResumeGame);
-  els.endBtn?.addEventListener('click', handleEndGame);
-
-  wireCopyJoin();
-
-  console.log('Music Bingo Host initialized');
-}
-
-init();
+console.debug('[data.js] ready.');
