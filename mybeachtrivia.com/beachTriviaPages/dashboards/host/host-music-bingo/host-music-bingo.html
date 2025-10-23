@@ -1,138 +1,113 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Music Bingo — Host Console</title>
 
-  <!-- ✅ CSP to allow RTDB + Firebase while keeping the page locked down -->
+  <!-- Optional but sensible CSP (relaxed for inline styles in older CSS) -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
-    script-src 'self' 'unsafe-eval' https://www.gstatic.com https://www.googleapis.com https://*.firebaseio.com;
-    connect-src 'self' https://*.googleapis.com https://www.googleapis.com https://*.gstatic.com wss://*.firebaseio.com https://*.firebaseio.com;
-    img-src 'self' data: https:;
+    script-src 'self' https://www.gstatic.com https://www.googletagmanager.com;
+    connect-src 'self'
+      https://*.googleapis.com https://firestore.googleapis.com
+      https://www.googleapis.com https://securetoken.googleapis.com
+      https://identitytoolkit.googleapis.com https://*.gstatic.com
+      https://*.firebaseio.com wss://*.firebaseio.com;
+    img-src 'self' data: https://*.gstatic.com https://*.googleapis.com;
     style-src 'self' 'unsafe-inline';
+    font-src 'self' data: https://fonts.gstatic.com;
+    frame-src 'self';
+    object-src 'none';
   ">
 
-  <!-- Your site styles -->
-  <link rel="stylesheet" href="host-music-bingo.css" />
-<script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-app-compat.js" defer></script>\n<script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore-compat.js" defer></script>\n<script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-auth-compat.js" defer></script>\n<script src="/beachTriviaPages/js/firebase-modular-shims.js" defer></script>."
-</head>"
+  <link rel="stylesheet" href="/beachTriviaPages/dashboards/host/host-music-bingo/host-music-bingo.css" />
+</head>
 <body>
-  <div class="app-shell">
-    <!-- Topbar -->
-    <header class="topbar">
-      <div class="brand">
-        <span class="logo-dot"></span>
-        <h1 class="brand-title">Music Bingo — Host</h1>
-      </div>
-      <div class="muted">Signed in employee required to host</div>
+  <main class="container">
+    <header class="page-header">
+      <h1>🎵 Music Bingo — Host</h1>
+      <div class="note">Signed in employee required to host</div>
     </header>
 
-    <!-- Main layout: wide left column, 340px right column (per CSS .content) -->
-    <main class="content">
-      <!-- LEFT: Controls -->
-      <aside class="card card--panel">
-        <div class="card-header">
-          <h2 class="card-title">Start or Resume a Game</h2>
-          <p class="card-subtitle">Choose a playlist and set basic options</p>
+    <!-- Start/Resume card -->
+    <section class="card">
+      <h2>Start or Resume a Game</h2>
+      <p>Choose a playlist and set basic options</p>
+
+      <div class="grid">
+        <label for="playlist-select">Playlist</label>
+        <select id="playlist-select" class="input" aria-label="Playlist"></select>
+
+        <label for="game-name">Game Name</label>
+        <input id="game-name" class="input" type="text" placeholder="e.g., Friday Night @ Sandbar" />
+
+        <label for="player-limit">Player Limit</label>
+        <input id="player-limit" class="input" type="number" inputmode="numeric" placeholder="e.g., 150" />
+
+        <div class="actions">
+          <button id="start-game" class="btn primary">Start Game</button>
         </div>
+      </div>
+    </section>
 
-        <div class="setup-form">
-          <div class="form-row">
-            <label for="playlist-select">Playlist</label>
-            <select id="playlist-select" class="input">
-              <!-- populated by app.js -->
-            </select>
-          </div>
+    <!-- Join link & QR -->
+    <section class="card">
+      <h2>Join Link &amp; QR</h2>
 
-          <div class="form-row">
-            <label for="game-name">Game Name</label>
-            <input id="game-name" class="input" type="text" placeholder="e.g., Friday Night @ Sandbar"/>
-          </div>
+      <div class="qr-wrap">
+        <canvas id="qr-canvas" width="256" height="256" aria-label="Join QR"></canvas>
+      </div>
 
-          <div class="form-row">
-            <label for="player-limit">Player Limit</label>
-            <input id="player-limit" class="input" type="number" min="1" step="1" placeholder="e.g., 150"/>
-          </div>
+      <textarea id="join-url" class="mono" rows="3" readonly></textarea>
+      <div class="actions">
+        <button id="copy-join-link" class="btn">Copy Join Link</button>
+      </div>
+    </section>
 
-          <div class="actions">
-            <button id="start-game-btn" type="button" class="btn btn-primary">Start Game</button>
-          </div>
+    <!-- Current game panel (app.js fills this) -->
+    <section class="card" id="current-game-card" hidden>
+      <h2>Current Game</h2>
+      <div class="pairs">
+        <div><strong>Name</strong> <span id="current-name">—</span></div>
+        <div><strong>Playlist</strong> <span id="current-playlist">—</span></div>
+        <div><strong>Game ID</strong> <span id="current-id" class="mono">—</span></div>
+      </div>
+
+      <div class="grid two">
+        <div class="stat">
+          <div class="label">Player Count</div>
+          <div class="value" id="current-count">0</div>
         </div>
-
-        <hr class="divider" />
-
-        <h3 class="card-title" style="margin-top:8px">Join Link &amp; QR</h3>
-        <section id="join-section" aria-live="polite">
-          <!-- app.js will inject a .qr-box inside this container -->
-          <div id="qr-code-container"></div>
-
-          <div class="join-actions">
-            <button id="copy-join-link-btn" type="button" class="btn btn-ghost">Copy Join Link</button>
-            <span id="join-link-display" class="muted"></span>
-          </div>
-
-          <div class="muted" style="text-align:center;margin-top:6px">
-            Players can scan the QR or use the link
-          </div>
-        </section>
-      </aside>
-
-      <!-- RIGHT: Live game panel -->
-      <section id="game-section" class="card card--panel hidden">
-        <div class="card-header">
-          <h2 class="card-title">Current Game</h2>
+        <div class="stat">
+          <div class="label">Current Song</div>
+          <div class="value" id="current-song">0</div>
         </div>
+      </div>
 
-        <div class="pill-group" style="margin-bottom:10px">
-          <span class="pill"><span class="pill-label">Name</span><span class="pill-value" id="current-game-name">—</span></span>
-          <span class="pill"><span class="pill-label">Playlist</span><span class="pill-value" id="current-playlist">—</span></span>
-          <span class="pill"><span class="pill-label">Game ID</span><span class="pill-value"><code id="game-id">—</code></span></span>
-        </div>
-
-        <div class="control-grid">
-          <div class="control-card">
-            <div class="control-head">
-              <h4 class="control-title">Player Count</h4>
-            </div>
-            <div id="player-count" class="pill-value" style="font-size:1.4rem">0</div>
-          </div>
-
-          <div class="control-card">
-            <div class="control-head">
-              <h4 class="control-title">Current Song</h4>
-            </div>
-            <div id="current-song" class="pill-value">Not started</div>
-          </div>
-        </div>
-
-        <div class="btn-row" style="margin-top:12px">
-          <button id="play-song-btn"   type="button" class="btn btn-primary">Start</button>
-          <button id="next-song-btn"   type="button" class="btn btn-primary">Next</button>
-          <button id="pause-game-btn"  type="button" class="btn btn-ghost">Pause</button>
-          <button id="resume-game-btn" type="button" class="btn btn-ghost">Resume</button>
-          <button id="end-game-btn"    type="button" class="btn btn-danger">End Game</button>
-        </div>
-
-        <div id="now-playing" class="now-playing"></div>
-      </section>
-    </main>
+      <div class="actions row">
+        <button id="btn-begin" class="btn">Start</button>
+        <button id="btn-next" class="btn">Next</button>
+        <button id="btn-pause" class="btn">Pause</button>
+        <button id="btn-resume" class="btn">Resume</button>
+        <button id="btn-end" class="btn danger">End Game</button>
+      </div>
+    </section>
 
     <footer class="footer">Music Bingo Host Console — © 2025</footer>
-  </div>
+  </main>
 
-  <!-- QR library (global window.QRCode) — keep this BEFORE app.js -->
-  <script src="lib/qrcode.min.js" defer></script>
+  <!-- 1) Initialize Firebase (modular). This must run BEFORE app.js. -->
+  <script defer src="/firebase-init.js"></script>
 
-  <!-- App logic (imports ./data.js and ./qr.js; renders QR above the link) -->
-  <script type="module" src="app.js"></script>
+  <!-- 2) (Optional) QRCode lib if your app.js uses it. Safe to keep. -->
+  <script defer src="/beachTriviaPages/dashboards/host/host-music-bingo/lib/qrcode.min.js"></script>
 
-  <noscript>
-    <p class="muted" style="text-align:center;margin-top:16px">
-      JavaScript is required to run the Music Bingo host console.
-    </p>
-  </noscript>
-  <script src="/beachTriviaPages/js/auth-route-guard.v2.js?v=2025-10-14a"></script>
+  <!-- 3) App logic (ESM). Uses modular-only data.js internally. -->
+  <script type="module" src="/beachTriviaPages/dashboards/host/host-music-bingo/app.js?v=1"></script>
+
+  <!-- NOTE: We intentionally do NOT load firebase-modular-shims.js here.
+       The page is fully modular; removing the shim eliminates the compat
+       probe that caused the 'app-compat/no-app' warnings. -->
 </body>
 </html>
