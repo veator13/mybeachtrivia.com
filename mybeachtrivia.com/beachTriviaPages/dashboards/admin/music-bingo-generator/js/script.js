@@ -634,7 +634,20 @@ function initUI() {
 
   // Build UI now
   PlaylistManager.initializeTable();
-  PlaylistManager.loadExistingPlaylists();
+
+(async () => {
+  try {
+    const authm = await import('https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js');
+    const auth  = authm.getAuth();
+    if (auth.currentUser) {
+      PlaylistManager.loadExistingPlaylists();
+    } else {
+      authm.onAuthStateChanged(auth, u => u && PlaylistManager.loadExistingPlaylists());
+    }
+  } catch {
+    PlaylistManager.loadExistingPlaylists();
+  }
+})();
 
   console.log('[generator] initUI complete');
 }
