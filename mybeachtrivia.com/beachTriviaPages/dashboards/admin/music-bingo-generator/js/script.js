@@ -15,9 +15,8 @@ import {
   deleteField,
 } from 'https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js';
 
-// Import the TextValidator from validation.js
+// Feature modules
 import { TextValidator } from './validation.js';
-// Import the BingoBoardGenerator from pdfGenerator.js
 import { BingoBoardGenerator } from './pdfGenerator.js';
 
 // ---- guard: wait for the default Firebase app (initialized by boot-firebase.js) ----
@@ -61,7 +60,7 @@ const PlaylistManager = (() => {
 
     // Reset the current playlist ID
     currentPlaylistId = null;
-    console.log('Reset current playlist ID to:', currentPlaylistId);
+    console.log('[generator] reset: currentPlaylistId ->', currentPlaylistId);
 
     // Clear all existing rows
     if (songTableBody) songTableBody.innerHTML = '';
@@ -74,7 +73,7 @@ const PlaylistManager = (() => {
     const songTableBody = document.getElementById('songTableBody');
 
     if (!songTableBody) {
-      console.error('Song table body not found');
+      console.error('[generator] Song table body not found');
       return;
     }
 
@@ -87,10 +86,10 @@ const PlaylistManager = (() => {
     const trackUriCell = newRow.insertCell(3);
     const actionCell = newRow.insertCell(4);
 
-    songCell.innerHTML = `<input type="text" class="song-name" data-song-index="${rowCount}" placeholder="Enter Song Name">`;
+    songCell.innerHTML   = `<input type="text" class="song-name"   data-song-index="${rowCount}"  placeholder="Enter Song Name">`;
     artistCell.innerHTML = `<input type="text" class="artist-name" data-artist-index="${rowCount}" placeholder="Enter Artist Name">`;
-    albumCell.innerHTML = `<input type="text" class="album-name" data-album-index="${rowCount}" placeholder="Enter Album Name">`;
-    trackUriCell.innerHTML = `<input type="text" class="track-uri" data-uri-index="${rowCount}" placeholder="Enter Track URI">`;
+    albumCell.innerHTML  = `<input type="text" class="album-name"  data-album-index="${rowCount}"  placeholder="Enter Album Name">`;
+    trackUriCell.innerHTML = `<input type="text" class="track-uri" data-uri-index="${rowCount}"    placeholder="Enter Track URI">`;
     actionCell.classList.add('remove-row-cell');
     actionCell.innerHTML = `<button class="remove-row-btn">Remove</button>`;
 
@@ -108,6 +107,7 @@ const PlaylistManager = (() => {
     // Only add initial rows if empty (avoid doubling on re-init)
     if (songTableBody.rows.length === 0) {
       for (let i = 0; i < 5; i++) addRow();
+      console.log('[generator] table initialized with 5 rows');
     }
   };
 
@@ -124,7 +124,7 @@ const PlaylistManager = (() => {
     }
 
     // Use the tracked currentPlaylistId instead of dropdown value
-    console.log('Saving with current playlist ID:', currentPlaylistId);
+    console.log('[generator] saving; currentPlaylistId:', currentPlaylistId);
 
     // Create playlist object with dynamic song and artist fields
     const playlistData = {
@@ -133,10 +133,7 @@ const PlaylistManager = (() => {
 
     const songRows = songTableBody.querySelectorAll('tr');
 
-    // Prepare to track the maximum number of songs
-    let maxSongIndex = 0;
-
-    // Populate with current songs and track max index
+    // Populate with current songs
     songRows.forEach((row, index) => {
       const songInput = row.querySelector('.song-name');
       const artistInput = row.querySelector('.artist-name');
@@ -149,18 +146,11 @@ const PlaylistManager = (() => {
       const trackUri = trackUriInput ? trackUriInput.value.trim() : '';
 
       if (songName && artistName) {
-        const songKey = `song${index + 1}`;
-        const artistKey = `artist${index + 1}`;
-        const albumKey = `album${index + 1}`;
-        const uriKey = `uri${index + 1}`;
-
-        playlistData[songKey] = songName;
-        playlistData[artistKey] = artistName;
-
-        if (albumName) playlistData[albumKey] = albumName;
-        if (trackUri) playlistData[uriKey] = trackUri;
-
-        maxSongIndex = index + 1;
+        const i = index + 1;
+        playlistData[`song${i}`]   = songName;
+        playlistData[`artist${i}`] = artistName;
+        if (albumName) playlistData[`album${i}`] = albumName;
+        if (trackUri)  playlistData[`uri${i}`]   = trackUri;
       }
     });
 
@@ -173,7 +163,7 @@ const PlaylistManager = (() => {
       const completePlaylistData = { ...playlistData };
 
       if (currentPlaylistId) {
-        console.log('Updating existing playlist:', currentPlaylistId);
+        console.log('[generator] updating existing playlist:', currentPlaylistId);
 
         // Find fields to delete (song*/artist*/album*/uri* that no longer exist)
         const playlistRef = doc(db, 'music_bingo', currentPlaylistId);
@@ -186,9 +176,9 @@ const PlaylistManager = (() => {
             Object.keys(existingData).forEach((key) => {
               if (
                 (key.startsWith('song') ||
-                  key.startsWith('artist') ||
-                  key.startsWith('album') ||
-                  key.startsWith('uri')) &&
+                 key.startsWith('artist') ||
+                 key.startsWith('album') ||
+                 key.startsWith('uri')) &&
                 !(key in completePlaylistData)
               ) {
                 deletions[key] = deleteField(); // actually delete the field
@@ -213,7 +203,7 @@ const PlaylistManager = (() => {
 
         // Set the current playlist ID to the newly created document
         currentPlaylistId = docRef.id;
-        console.log('Created new playlist with ID:', currentPlaylistId);
+        console.log('[generator] created new playlist id:', currentPlaylistId);
 
         alert('New playlist created successfully!');
       }
@@ -239,18 +229,22 @@ const PlaylistManager = (() => {
 
     try {
       const querySnapshot = await getDocs(collection(db, 'music_bingo'));
+      let added = 0;
       querySnapshot.forEach((snap) => {
         const playlist = snap.data();
         const option = document.createElement('option');
         option.value = snap.id;
         option.textContent = playlist.playlistTitle || '(Untitled)';
         existingPlaylistsSelect.appendChild(option);
+        added++;
       });
 
       // If we have a current playlist ID, select it in the dropdown
       if (currentPlaylistId) {
         existingPlaylistsSelect.value = currentPlaylistId;
       }
+
+      console.log('[generator] playlists loaded:', added);
     } catch (error) {
       console.error('Error loading playlists: ', error);
     }
@@ -262,7 +256,7 @@ const PlaylistManager = (() => {
     const songTableBody = document.getElementById('songTableBody');
 
     const selectedPlaylistId = existingPlaylistsSelect?.value;
-    console.log('Loading playlist with ID:', selectedPlaylistId);
+    console.log('[generator] loadPlaylist id:', selectedPlaylistId);
 
     if (!selectedPlaylistId) {
       // If no playlist is selected, reset the current ID
@@ -294,10 +288,10 @@ const PlaylistManager = (() => {
           // Find all song keys and their matching fields
           Object.keys(playlist).forEach((key) => {
             if (key.startsWith('song') && playlist[key]) {
-              const index = key.substring(4); // Extract the number after "song"
+              const index = key.substring(4); // number after "song"
               const artistKey = `artist${index}`;
-              const albumKey = `album${index}`;
-              const uriKey = `uri${index}`;
+              const albumKey  = `album${index}`;
+              const uriKey    = `uri${index}`;
 
               if (playlist[artistKey]) {
                 songEntries.push({
@@ -305,7 +299,7 @@ const PlaylistManager = (() => {
                   song: playlist[key],
                   artist: playlist[artistKey],
                   album: playlist[albumKey] || '',
-                  uri: playlist[uriKey] || '',
+                  uri:   playlist[uriKey]   || '',
                 });
               }
             }
@@ -318,14 +312,14 @@ const PlaylistManager = (() => {
           songEntries.forEach((entry) => {
             const newRow = addRow();
 
-            const songInput = newRow?.querySelector('.song-name');
-            const artistInput = newRow?.querySelector('.artist-name');
+            const songInput  = newRow?.querySelector('.song-name');
+            const artistInput= newRow?.querySelector('.artist-name');
             const albumInput = newRow?.querySelector('.album-name');
             const trackUriInput = newRow?.querySelector('.track-uri');
 
-            if (songInput) songInput.value = entry.song;
+            if (songInput)   songInput.value   = entry.song;
             if (artistInput) artistInput.value = entry.artist;
-            if (albumInput) albumInput.value = entry.album;
+            if (albumInput)  albumInput.value  = entry.album;
             if (trackUriInput) trackUriInput.value = entry.uri;
           });
 
@@ -337,7 +331,7 @@ const PlaylistManager = (() => {
       });
 
       if (!found) {
-        console.warn('Playlist not found in query snapshot:', selectedPlaylistId);
+        console.warn('[generator] playlist not found in query snapshot:', selectedPlaylistId);
       }
     } catch (error) {
       console.error('Error loading playlist: ', error);
@@ -353,21 +347,14 @@ const PlaylistManager = (() => {
       return;
     }
 
-    // Confirm deletion
     const confirmDelete = confirm('Are you sure you want to delete this playlist? This action cannot be undone.');
 
     if (confirmDelete) {
       try {
-        // Delete the document from Firestore
         await deleteDoc(doc(db, 'music_bingo', selectedPlaylistId));
 
-        // Reset the current playlist ID
         currentPlaylistId = null;
-
-        // Reset the form
         resetPlaylistForm();
-
-        // Refresh the playlists dropdown
         await loadExistingPlaylists();
 
         alert('Playlist deleted successfully');
@@ -385,7 +372,6 @@ const PlaylistManager = (() => {
       return;
     }
 
-    // Check file extension
     if (!file.name.endsWith('.csv')) {
       alert('Please select a CSV file');
       return;
@@ -395,10 +381,7 @@ const PlaylistManager = (() => {
 
     reader.onload = (event) => {
       try {
-        // Get the CSV content
         const csvContent = event.target.result;
-
-        // Parse the CSV
         const rows = parseCSV(csvContent);
 
         if (rows.length === 0) {
@@ -406,24 +389,15 @@ const PlaylistManager = (() => {
           return;
         }
 
-        // Find the column indices for track name, artist name, album name, and track URI
-        let trackNameIndex = -1;
-        let artistNameIndex = -1;
-        let albumNameIndex = -1;
-        let trackUriIndex = -1;
+        // header scan
+        let trackNameIndex = -1, artistNameIndex = -1, albumNameIndex = -1, trackUriIndex = -1;
 
-        // Check header row to find the relevant columns
         for (let i = 0; i < rows[0].length; i++) {
           const header = rows[0][i].trim().toLowerCase();
-          if (header === 'track name') {
-            trackNameIndex = i;
-          } else if (header === 'artist name(s)') {
-            artistNameIndex = i;
-          } else if (header === 'album name') {
-            albumNameIndex = i;
-          } else if (header === 'track uri') {
-            trackUriIndex = i;
-          }
+          if (header === 'track name') trackNameIndex = i;
+          else if (header === 'artist name(s)') artistNameIndex = i;
+          else if (header === 'album name') albumNameIndex = i;
+          else if (header === 'track uri') trackUriIndex = i;
         }
 
         if (trackNameIndex === -1 || artistNameIndex === -1) {
@@ -431,30 +405,18 @@ const PlaylistManager = (() => {
           return;
         }
 
-        // Prepare song/artist pairs for validation
+        // rows
         csvImportData = [];
-
-        // Process each row (skip header row)
         for (let i = 1; i < rows.length; i++) {
-          if (rows[i].length <= Math.max(trackNameIndex, artistNameIndex)) {
-            console.warn(`Skipping row ${i + 1}: insufficient columns`);
-            continue;
-          }
+          if (rows[i].length <= Math.max(trackNameIndex, artistNameIndex)) continue;
 
           const trackName = rows[i][trackNameIndex].trim();
           const artistName = rows[i][artistNameIndex].trim();
-          const albumName =
-            albumNameIndex >= 0 && rows[i].length > albumNameIndex ? rows[i][albumNameIndex].trim() : '';
-          const trackUri =
-            trackUriIndex >= 0 && rows[i].length > trackUriIndex ? rows[i][trackUriIndex].trim() : '';
+          const albumName = albumNameIndex >= 0 && rows[i].length > albumNameIndex ? rows[i][albumNameIndex].trim() : '';
+          const trackUri  = trackUriIndex  >= 0 && rows[i].length > trackUriIndex  ? rows[i][trackUriIndex].trim()  : '';
 
           if (trackName && artistName) {
-            csvImportData.push({
-              song: trackName,
-              artist: artistName,
-              album: albumName,
-              uri: trackUri,
-            });
+            csvImportData.push({ song: trackName, artist: artistName, album: albumName, uri: trackUri });
           }
         }
 
@@ -463,30 +425,20 @@ const PlaylistManager = (() => {
           return;
         }
 
-        // Validate the song/artist pairs
         const isValid = TextValidator.validateEntries(csvImportData);
+        if (isValid) populateTableFromCsv(csvImportData);
 
-        if (isValid) {
-          // If all entries are valid, populate the table directly
-          populateTableFromCsv(csvImportData);
-        }
-        // If not valid, the validation modal will be shown
-        // The event listeners will handle populating the table once validation is complete
       } catch (error) {
         console.error('Error parsing CSV:', error);
         alert('Failed to parse CSV file: ' + (error?.message || error));
       }
     };
 
-    reader.onerror = () => {
-      alert('Error reading the file');
-    };
-
-    // Read the file as text
+    reader.onerror = () => alert('Error reading the file');
     reader.readAsText(file);
   };
 
-  // Helper function to parse CSV
+  // Helper: parse CSV (simple, quote-aware)
   const parseCSV = (text) => {
     const rows = [];
     let currentRow = [];
@@ -499,37 +451,27 @@ const PlaylistManager = (() => {
 
       if (char === '"') {
         if (nextChar === '"') {
-          // Handle escaped quote ("") - add a single quote
           currentField += '"';
-          i++; // Skip the next quote
+          i++;
         } else {
-          // Toggle quote state
           inQuotes = !inQuotes;
         }
       } else if (char === ',' && !inQuotes) {
-        // End of field
         currentRow.push(currentField);
         currentField = '';
       } else if ((char === '\r' || char === '\n') && !inQuotes) {
-        // End of line
         if (currentField !== '' || currentRow.length > 0) {
           currentRow.push(currentField);
           rows.push(currentRow);
           currentRow = [];
           currentField = '';
         }
-
-        // Skip the next character if it's a line feed after a carriage return
-        if (char === '\r' && nextChar === '\n') {
-          i++;
-        }
+        if (char === '\r' && nextChar === '\n') i++;
       } else {
-        // Regular character
         currentField += char;
       }
     }
 
-    // Add the last field and row if any
     if (currentField !== '' || currentRow.length > 0) {
       currentRow.push(currentField);
       rows.push(currentRow);
@@ -542,12 +484,10 @@ const PlaylistManager = (() => {
   const populateTableFromCsv = (entries) => {
     if (!entries || entries.length === 0) return;
 
-    // Clear existing rows
     const songTableBody = document.getElementById('songTableBody');
     if (!songTableBody) return;
     songTableBody.innerHTML = '';
 
-    // Add new rows from validated entries
     entries.forEach((entry) => {
       const newRow = addRow();
 
@@ -565,157 +505,9 @@ const PlaylistManager = (() => {
     alert(`Successfully imported ${entries.length} songs from CSV`);
   };
 
-  // New function to extract the current playlist data
-  const extractCurrentPlaylistData = async () => {
-    if (!currentPlaylistId) {
-      alert('Please select or create a playlist first');
-      return null;
-    }
-
-    // Extract data from the current form
-    const playlistNameInput = document.getElementById('playlistName');
-    const songTableBody = document.getElementById('songTableBody');
-    const playlistName = (playlistNameInput?.value || '').trim();
-
-    if (!playlistName) {
-      alert('Please enter a playlist name');
-      return null;
-    }
-
-    // Create playlist object with dynamic song and artist fields
-    const playlistData = {
-      playlistTitle: playlistName,
-    };
-
-    const songArtistPairs = [];
-    const songRows = songTableBody?.querySelectorAll('tr') || [];
-
-    // Extract all valid song/artist pairs
-    songRows.forEach((row, index) => {
-      const songInput = row.querySelector('.song-name');
-      const artistInput = row.querySelector('.artist-name');
-      const albumInput = row.querySelector('.album-name');
-      const trackUriInput = row.querySelector('.track-uri');
-
-      const songName = songInput ? songInput.value.trim() : '';
-      const artistName = artistInput ? artistInput.value.trim() : '';
-      const albumName = albumInput ? albumInput.value.trim() : '';
-      const trackUri = trackUriInput ? trackUriInput.value.trim() : '';
-
-      if (songName && artistName) {
-        songArtistPairs.push({
-          song: songName,
-          artist: artistName,
-          album: albumName,
-          uri: trackUri,
-        });
-      }
-    });
-
-    // Check if there are enough songs for bingo boards
-    if (songArtistPairs.length < 40) {
-      // Return the number of songs for the warning message
-      return {
-        sufficientSongs: false,
-        songCount: songArtistPairs.length,
-      };
-    }
-
-    return {
-      sufficientSongs: true,
-      playlistName,
-      songArtistPairs,
-    };
-  };
-
-  // Function to show the board copies modal
-  const showBoardCopiesModal = async () => {
-    const boardCopiesModal = document.getElementById('boardCopiesModal');
-    const playlistWarning = document.getElementById('playlistWarning');
-    const generateBoardsBtn = document.getElementById('generateBoardsBtn');
-
-    // Extract current playlist data
-    const playlistData = await extractCurrentPlaylistData();
-
-    // If no playlist is selected
-    if (!playlistData) {
-      return;
-    }
-
-    // Check if there are enough songs
-    if (!playlistData.sufficientSongs) {
-      playlistWarning.textContent = `You need at least 40 songs in your playlist to create bingo boards. Current count: ${playlistData.songCount}`;
-      playlistWarning.style.display = 'block';
-      if (generateBoardsBtn) generateBoardsBtn.disabled = true;
-    } else {
-      playlistWarning.style.display = 'none';
-      if (generateBoardsBtn) generateBoardsBtn.disabled = false;
-    }
-
-    // Show the modal
-    if (boardCopiesModal) boardCopiesModal.style.display = 'block';
-  };
-
-  // Function to close the board copies modal
-  const closeBoardCopiesModal = () => {
-    const boardCopiesModal = document.getElementById('boardCopiesModal');
-    if (boardCopiesModal) boardCopiesModal.style.display = 'none';
-  };
-
-  // Function to generate and print bingo boards
-  const generateBingoBoards = async () => {
-    const copiesInput = document.getElementById('copiesInput');
-    const numCopies = parseInt(copiesInput?.value || '', 10);
-
-    if (isNaN(numCopies) || numCopies < 1) {
-      alert('Please enter a valid number of copies');
-      return;
-    }
-
-    // Extract playlist data again to ensure it's fresh
-    const playlistData = await extractCurrentPlaylistData();
-
-    if (!playlistData || !playlistData.sufficientSongs) {
-      alert('Unable to generate boards. Please ensure your playlist has at least 40 songs.');
-      return;
-    }
-
-    try {
-      // Close the modal
-      closeBoardCopiesModal();
-
-      // Generate twice the number of boards that the user requested
-      const doubledCopies = numCopies * 2;
-
-      // Generate and open the PDF
-      BingoBoardGenerator.generate(
-        playlistData.playlistName,
-        playlistData.songArtistPairs,
-        doubledCopies
-      );
-    } catch (error) {
-      console.error('Error generating bingo boards:', error);
-      alert('Failed to generate bingo boards: ' + (error?.message || error));
-    }
-  };
-
-  // Event listeners for validation events
-  document.addEventListener('validationCompleted', (event) => {
-    // Get the validated entries
-    const validatedEntries = event.detail.entries;
-
-    // Populate the table with the validated entries
-    populateTableFromCsv(validatedEntries);
-  });
-
-  document.addEventListener('validationCanceled', () => {
-    // Clear the CSV import data
-    csvImportData = [];
-    console.log('CSV import canceled by user');
-  });
-
-  // Public methods
+  // Expose public methods
   return {
+    // public for event wiring
     resetPlaylistForm,
     addRow,
     initializeTable,
@@ -724,27 +516,106 @@ const PlaylistManager = (() => {
     loadPlaylist,
     deletePlaylist,
     importFromCsv,
-    showBoardCopiesModal,
-    closeBoardCopiesModal,
-    generateBingoBoards,
+    showBoardCopiesModal: async () => {
+      const boardCopiesModal = document.getElementById('boardCopiesModal');
+      const playlistWarning = document.getElementById('playlistWarning');
+      const generateBoardsBtn = document.getElementById('generateBoardsBtn');
+
+      const playlistData = await (async () => {
+        if (!currentPlaylistId) {
+          alert('Please select or create a playlist first');
+          return null;
+        }
+        const playlistNameInput = document.getElementById('playlistName');
+        const songTableBody = document.getElementById('songTableBody');
+        const playlistName = (playlistNameInput?.value || '').trim();
+        if (!playlistName) {
+          alert('Please enter a playlist name');
+          return null;
+        }
+        const songArtistPairs = [];
+        const rows = songTableBody?.querySelectorAll('tr') || [];
+        rows.forEach((row) => {
+          const song = row.querySelector('.song-name')?.value.trim() || '';
+          const artist = row.querySelector('.artist-name')?.value.trim() || '';
+          const album = row.querySelector('.album-name')?.value.trim() || '';
+          const uri = row.querySelector('.track-uri')?.value.trim() || '';
+          if (song && artist) songArtistPairs.push({ song, artist, album, uri });
+        });
+        if (songArtistPairs.length < 40) return { sufficientSongs: false, songCount: songArtistPairs.length };
+        return { sufficientSongs: true, playlistName, songArtistPairs };
+      })();
+
+      if (!playlistData) return;
+
+      if (!playlistData.sufficientSongs) {
+        if (playlistWarning) {
+          playlistWarning.textContent = `You need at least 40 songs in your playlist to create bingo boards. Current count: ${playlistData.songCount}`;
+          playlistWarning.style.display = 'block';
+        }
+        if (generateBoardsBtn) generateBoardsBtn.disabled = true;
+      } else {
+        if (playlistWarning) playlistWarning.style.display = 'none';
+        if (generateBoardsBtn) generateBoardsBtn.disabled = false;
+      }
+      if (boardCopiesModal) boardCopiesModal.style.display = 'block';
+    },
+    closeBoardCopiesModal: () => {
+      const boardCopiesModal = document.getElementById('boardCopiesModal');
+      if (boardCopiesModal) boardCopiesModal.style.display = 'none';
+    },
+    generateBingoBoards: async () => {
+      const copiesInput = document.getElementById('copiesInput');
+      const numCopies = parseInt(copiesInput?.value || '', 10);
+      if (isNaN(numCopies) || numCopies < 1) {
+        alert('Please enter a valid number of copies');
+        return;
+      }
+      // (Re-)extract data
+      const playlistNameInput = document.getElementById('playlistName');
+      const songTableBody = document.getElementById('songTableBody');
+      const playlistName = (playlistNameInput?.value || '').trim();
+      const pairs = [];
+      (songTableBody?.querySelectorAll('tr') || []).forEach((row) => {
+        const song = row.querySelector('.song-name')?.value.trim() || '';
+        const artist = row.querySelector('.artist-name')?.value.trim() || '';
+        const album = row.querySelector('.album-name')?.value.trim() || '';
+        const uri = row.querySelector('.track-uri')?.value.trim() || '';
+        if (song && artist) pairs.push({ song, artist, album, uri });
+      });
+      if (!playlistName || pairs.length < 40) {
+        alert('Unable to generate boards. Please ensure your playlist has at least 40 songs.');
+        return;
+      }
+      try {
+        // close modal
+        const boardCopiesModal = document.getElementById('boardCopiesModal');
+        if (boardCopiesModal) boardCopiesModal.style.display = 'none';
+        // generate double copies
+        BingoBoardGenerator.generate(playlistName, pairs, numCopies * 2);
+      } catch (e) {
+        console.error('Error generating bingo boards:', e);
+        alert('Failed to generate bingo boards: ' + (e?.message || e));
+      }
+    },
   };
 })();
 
-// Wait for the DOM to be fully loaded
-document.addEventListener('DOMContentLoaded', () => {
+// ---- UI bootstrap ----
+function initUI() {
   // Get references to buttons
-  const addRowBtn = document.getElementById('addRowBtn');
-  const savePlaylistBtn = document.getElementById('savePlaylistBtn');
+  const addRowBtn               = document.getElementById('addRowBtn');
+  const savePlaylistBtn         = document.getElementById('savePlaylistBtn');
   const existingPlaylistsSelect = document.getElementById('existingPlaylists');
-  const createNewPlaylistBtn = document.getElementById('createNewPlaylistBtn');
-  const deletePlaylistBtn = document.getElementById('deletePlaylistBtn');
-  const importCsvBtn = document.getElementById('importCsvBtn');
-  const csvFileInput = document.getElementById('csvFileInput');
-  const createBoardBtn = document.getElementById('createBoardBtn');
-  const cancelBoardsBtn = document.getElementById('cancelBoardsBtn');
-  const generateBoardsBtn = document.getElementById('generateBoardsBtn');
+  const createNewPlaylistBtn    = document.getElementById('createNewPlaylistBtn');
+  const deletePlaylistBtn       = document.getElementById('deletePlaylistBtn');
+  const importCsvBtn            = document.getElementById('importCsvBtn');
+  const csvFileInput            = document.getElementById('csvFileInput');
+  const createBoardBtn          = document.getElementById('createBoardBtn');
+  const cancelBoardsBtn         = document.getElementById('cancelBoardsBtn');
+  const generateBoardsBtn       = document.getElementById('generateBoardsBtn');
 
-  // Add event listeners
+  // Wire events
   if (addRowBtn) addRowBtn.addEventListener('click', PlaylistManager.addRow);
   if (savePlaylistBtn) savePlaylistBtn.addEventListener('click', PlaylistManager.savePlaylist);
   if (existingPlaylistsSelect) existingPlaylistsSelect.addEventListener('change', PlaylistManager.loadPlaylist);
@@ -757,11 +628,25 @@ document.addEventListener('DOMContentLoaded', () => {
       if (file) PlaylistManager.importFromCsv(file);
     });
   }
-  if (createBoardBtn) createBoardBtn.addEventListener('click', PlaylistManager.showBoardCopiesModal);
-  if (cancelBoardsBtn) cancelBoardsBtn.addEventListener('click', PlaylistManager.closeBoardCopiesModal);
+  if (createBoardBtn)  createBoardBtn.addEventListener('click',  PlaylistManager.showBoardCopiesModal);
+  if (cancelBoardsBtn) cancelBoardsBtn.addEventListener('click',  PlaylistManager.closeBoardCopiesModal);
   if (generateBoardsBtn) generateBoardsBtn.addEventListener('click', PlaylistManager.generateBingoBoards);
 
-  // Initialize the table & playlists list
+  // Build UI now
   PlaylistManager.initializeTable();
   PlaylistManager.loadExistingPlaylists();
+
+  console.log('[generator] initUI complete');
+}
+
+// Run now if the DOM is already ready; otherwise wait for it.
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initUI, { once: true });
+} else {
+  initUI();
+}
+
+// Handle bfcache restores (Safari/Chrome back/forward)
+window.addEventListener('pageshow', (e) => {
+  if (e.persisted) initUI();
 });
