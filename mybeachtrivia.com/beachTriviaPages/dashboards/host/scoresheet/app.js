@@ -763,87 +763,65 @@ window.showStandings = showStandings;
 window.closeModal = closeModal;
 window.searchTeams = searchTeams;
 window.clearHighlights = clearHighlights;
-// === [scoresheet] strict per-round input filter: only 0 or round value ===
-// Applies to any inputs inside a container that either:
-//  - has data-round="1|2|3|4", or
-//  - has id like "round1", "round-2", etc., or
-//  - contains a heading with text "ROUND N" (N=1..4)
+// === [scoresheet] PER-QUESTION validator (Q1-5→1/0, Q6-10→2/0, Q11-15→3/0, Q16-20→4/0) ===
 (() => {
-  function detectRoundFrom(el) {
-    // 1) explicit data attribute on container chain
-    let n = el.closest('[data-round]')?.getAttribute('data-round');
-    if (n && /^\d+$/.test(n)) return Number(n);
+  const blockWeirdKeys = (ev) => { if (['e','E','+','-'].includes(ev.key)) ev.preventDefault(); };
+  const allowedForQ = (q) => (!q || q<1 || q>20) ? null : Math.min(4, Math.max(1, Math.ceil(q/5)));
 
-    // 2) id like round1 / round-3 on container chain
-    let idMatch = el.closest('[id]')?.id?.match(/round[-_]?([1-4])\b/i);
-    if (idMatch) return Number(idMatch[1]);
-
-    // 3) nearest section/div/table with heading "ROUND N"
-    let c = el.closest('section,div,table,article') || document;
-    let h = c.querySelector('h1,h2,h3,.title,.round-title');
-    let t = h?.textContent || '';
-    let txtMatch = t.match(/round\s*([1-4])/i);
-    if (txtMatch) return Number(txtMatch[1]);
-
-    return NaN;
-  }
-
-  function bindInput(inp, allowed) {
-    if (inp.__roundBound) return;
-    inp.__roundBound = true;
-    // harden attributes
-    inp.setAttribute('inputmode', 'numeric');
-    inp.setAttribute('step', '1');
-    inp.setAttribute('min', '0');
-    inp.setAttribute('max', String(allowed));
-
-    const sanitize = () => {
-      let raw = (inp.value || '').replace(/[^\d]/g, '');
-      if (raw === '') { inp.value = ''; return; }        // let user clear then blur → 0
-      let n = Number(raw.slice(-1));                     // one digit only
-      if (n === 0) { inp.value = '0'; return; }
-      inp.value = (n === allowed) ? String(allowed) : '0';
-    };
-
-    inp.addEventListener('input', sanitize);
-    inp.addEventListener('blur', () => { if (inp.value === '') inp.value = '0'; });
-  }
-
-  function enforce() {
-    // find all candidate inputs inside any round-like container
-    const containers = new Set([
-      ...document.querySelectorAll('[data-round]'),
-      ...document.querySelectorAll('[id^="round"], [id*="round-"], [id*="round_"]'),
-      ...document.querySelectorAll('section,div,table,article')
-    ]);
-
-    containers.forEach(cont => {
-      // prefer explicit; fallback to id; final fallback via heading text
-      let allowed =
-        Number(cont.getAttribute?.('data-round')) ||
-        (cont.id?.match?.(/round[-_]?([1-4])\b/i)?.[1] && Number(cont.id.match(/round[-_]?([1-4])\b/i)[1])) ||
-        (() => {
-          let t = cont.querySelector?.('h1,h2,h3,.title,.round-title')?.textContent || '';
-          let m = t.match(/round\s*([1-4])/i);
-          return m ? Number(m[1]) : NaN;
-        })();
-
-      // If container provided no clear round, bind per input by detecting on demand
-      const inputs = cont.querySelectorAll?.('input[type="number"], input.score, input[data-q], input.q, input[name*="Q"], input[id*="Q"]') || [];
-      inputs.forEach(inp => {
-        const r = allowed || detectRoundFrom(inp);
-        if (!r || r < 1 || r > 4) return; // skip if unknown
-        bindInput(inp, r);
-      });
+  const headerMap = (tbl) => {
+    const map = {};
+    const ths = tbl.querySelectorAll('thead th, thead td');
+    ths.forEach((th, i) => {
+      const m = (th.textContent||'').match(/\bQ\s*([0-9]{1,2})\b/i);
+      if (m) map[i] = Number(m[1]);
     });
-  }
+    return map;
+  };
 
-  // Run now and on future DOM changes (covers dynamic renders)
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', enforce, { once: true });
-  } else {
-    enforce();
-  }
-  new MutationObserver(() => enforce()).observe(document.documentElement, { childList: true, subtree: true });
+  const isScoreTable = (tbl) => {
+    const map = headerMap(tbl);
+    const qMatches = Object.values(map).filter(n => n>=1 && n<=20).length;
+    return qMatches >= 3;
+  };
+
+  const bindTable = (tbl) => {
+    if (!isScoreTable(tbl)) return;
+    const map = headerMap(tbl);
+    const inputs = tbl.querySelectorAll('input[type="number"], input.score, input[data-q], input.q');
+    inputs.forEach(inp => {
+      const cell = inp.closest('td,th');
+      let q = null;
+
+      if (cell && Number.isInteger(cell.cellIndex) && (cell.cellIndex in map)) q = map[cell.cellIndex];
+      if (!q) {
+        const src = [inp.getAttribute('data-q'), inp.name, inp.id].filter(Boolean).join(' ');
+        const m = src.match(/\bQ\s*([0-9]{1,2})\b/i);
+        if (m) q = Number(m[1]);
+      }
+
+      const allowed = allowedForQ(q);
+      if (!allowed) return;
+
+      inp.setAttribute('inputmode', 'numeric');
+      inp.setAttribute('min', '0');
+      inp.setAttribute('max', String(allowed));
+      inp.setAttribute('step', String(allowed));
+      inp.addEventListener('keydown', blockWeirdKeys);
+
+      const sanitize = () => {
+        let raw = (inp.value || '').replace(/[^\d]/g, '');
+        if (raw === '') { inp.value = ''; return; }
+        let n = Number(raw.slice(0,2));
+        if (n === 0) { inp.value = '0'; return; }
+        inp.value = (n === allowed) ? String(allowed) : '0';
+      };
+      inp.addEventListener('input', sanitize, { passive: true });
+      inp.addEventListener('blur', () => { if (inp.value === '') inp.value = '0'; });
+    });
+  };
+
+  const run = () => document.querySelectorAll('table').forEach(bindTable);
+  if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', run, { once:true }); } else { run(); }
+  new MutationObserver(() => run()).observe(document.documentElement, { childList:true, subtree:true });
 })();
-/// === end strict per-round input filter ===
+// === end PER-QUESTION validator ===
