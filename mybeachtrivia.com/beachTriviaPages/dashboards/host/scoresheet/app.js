@@ -763,134 +763,84 @@ window.showStandings = showStandings;
 window.closeModal = closeModal;
 window.searchTeams = searchTeams;
 window.clearHighlights = clearHighlights;
-// === [scoresheet] PER-QUESTION validator (Q1-5→1/0, Q6-10→2/0, Q11-15→3/0, Q16-20→4/0) ===
+// === [scoresheet] column-walker: enforce 0 or round-value per Q column (host-only) ===
 (() => {
-  const blockWeirdKeys = (ev) => { if (['e','E','+','-'].includes(ev.key)) ev.preventDefault(); };
-  const allowedForQ = (q) => (!q || q<1 || q>20) ? null : Math.min(4, Math.max(1, Math.ceil(q/5)));
+  if (window.__SS_COL_ENFORCER__) return; window.__SS_COL_ENFORCER__ = 1;
+  const allowedForQ = (q) => (!q || q<1 || q>20) ? null : Math.ceil(q/5);
 
-  const headerMap = (tbl) => {
-    const map = {};
-    const ths = tbl.querySelectorAll('thead th, thead td');
-    ths.forEach((th, i) => {
-      const m = (th.textContent||'').match(/\bQ\s*([0-9]{1,2})\b/i);
-      if (m) map[i] = Number(m[1]);
-    });
-    return map;
-  };
-
-  const isScoreTable = (tbl) => {
-    const map = headerMap(tbl);
-    const qMatches = Object.values(map).filter(n => n>=1 && n<=20).length;
-    return qMatches >= 3;
-  };
-
-  const bindTable = (tbl) => {
-    if (!isScoreTable(tbl)) return;
-    const map = headerMap(tbl);
-    const inputs = tbl.querySelectorAll('input[type="number"], input.score, input[data-q], input.q');
-    inputs.forEach(inp => {
-      const cell = inp.closest('td,th');
-      let q = null;
-
-      if (cell && Number.isInteger(cell.cellIndex) && (cell.cellIndex in map)) q = map[cell.cellIndex];
-      if (!q) {
-        const src = [inp.getAttribute('data-q'), inp.name, inp.id].filter(Boolean).join(' ');
-        const m = src.match(/\bQ\s*([0-9]{1,2})\b/i);
-        if (m) q = Number(m[1]);
-      }
-
-      const allowed = allowedForQ(q);
-      if (!allowed) return;
-
-      inp.setAttribute('inputmode', 'numeric');
-      inp.setAttribute('min', '0');
-      inp.setAttribute('max', String(allowed));
-      inp.setAttribute('step', String(allowed));
-      inp.addEventListener('keydown', blockWeirdKeys);
-
-      const sanitize = () => {
-        let raw = (inp.value || '').replace(/[^\d]/g, '');
-        if (raw === '') { inp.value = ''; return; }
-        let n = Number(raw.slice(0,2));
-        if (n === 0) { inp.value = '0'; return; }
-        inp.value = (n === allowed) ? String(allowed) : '0';
-      };
-      inp.addEventListener('input', sanitize, { passive: true });
-      inp.addEventListener('blur', () => { if (inp.value === '') inp.value = '0'; });
-    });
-  };
-
-  const run = () => document.querySelectorAll('table').forEach(bindTable);
-  if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', run, { once:true }); } else { run(); }
-  new MutationObserver(() => run()).observe(document.documentElement, { childList:true, subtree:true });
-})();
-// === end PER-QUESTION validator ===
-// === [scoresheet] fix: map using the THEAD row that actually has Q-cells ===
-(() => {
   function qHeaderRow(tbl){
     const rows = Array.from(tbl.tHead?.rows || []);
-    return rows.find(r => Array.from(r.cells).some(c => /^\s*Q\s*\d+\s*$/i.test(c.textContent||'')))
+    return rows.find(r => Array.from(r.cells).some(c => /\bQ\s*\d+\b/i.test(c.textContent||'')))
         || rows[rows.length-1] || null;
   }
-  function headerMapExact(tbl){
+  function mapQColumns(tbl){
     const row = qHeaderRow(tbl);
     const map = {};
     if (!row) return map;
-    Array.from(row.cells).forEach((cell) => {
+    Array.from(row.cells).forEach(cell => {
       const m = (cell.textContent||'').match(/\bQ\s*([0-9]{1,2})\b/i);
-      if (m) map[cell.cellIndex] = Number(m[1]);   // use the *row's* cellIndex
+      if (m) map[cell.cellIndex] = Number(m[1]);
     });
-    return map;
+    return map; // { colIndex -> Q# }
   }
-  const allowedForQ = (q) => (!q || q<1 || q>20) ? null : Math.min(4, Math.max(1, Math.ceil(q/5)));
-  const blockWeirdKeys = (ev) => { if (['e','E','+','-'].includes(ev.key)) ev.preventDefault(); };
 
-  function bindTableAccurate(tbl){
-    const map = headerMapExact(tbl);
-    if (!Object.keys(map).length) return;
+  function bindEditable(el, allowed){
+    if (el.__colBound) return;
+    el.__colBound = true;
 
-    const inputs = tbl.querySelectorAll('tbody input');
-    inputs.forEach(inp => {
-      if (inp.__pqBound) return;
-      const cell = inp.closest('td,th');
-      if (!cell) return;
-      const q = map[cell.cellIndex] || (() => {
-        const src = [inp.getAttribute('data-q'), inp.name, inp.id].filter(Boolean).join(' ');
-        const m = src.match(/\bQ\s*([0-9]{1,2})\b/i);
-        return m ? Number(m[1]) : null;
-      })();
-      const allowed = allowedForQ(q);
-      if (!allowed) return;
+    const coerce = (val) => {
+      const n = Number(String(val||'').replace(/[^\d]/g,'').slice(0,2));
+      if (!n) return '0';
+      return (n === allowed) ? String(allowed) : '0';
+    };
 
-      inp.__pqBound = true;
-      inp.setAttribute('inputmode', 'numeric');
-      inp.setAttribute('min', '0');
-      inp.setAttribute('max', String(allowed));
-      inp.setAttribute('step', String(allowed));
-      inp.addEventListener('keydown', blockWeirdKeys);
+    const apply = () => {
+      if (el.tagName === 'INPUT') {
+        el.value = (el.value === '') ? '' : coerce(el.value);
+      } else {
+        const t = el.textContent || '';
+        el.textContent = (t === '') ? '' : coerce(t);
+      }
+    };
 
-      const sanitize = () => {
-        let raw = (inp.value || '').replace(/[^\d]/g, '');
-        if (raw === '') { inp.value = ''; return; }
-        let n = Number(raw.slice(0,2));
-        if (n === 0) { inp.value = '0'; return; }
-        inp.value = (n === allowed) ? String(allowed) : '0';
-      };
-      inp.addEventListener('input', sanitize, { passive: true });
-      inp.addEventListener('blur', () => { if (inp.value === '') inp.value = '0'; });
-      // sanitize once immediately to fix any existing bad values
-      sanitize();
+    if (el.tagName === 'INPUT') {
+      el.setAttribute('inputmode','numeric');
+      el.setAttribute('min','0'); el.setAttribute('max', String(allowed));
+      el.setAttribute('step', String(allowed));
+      el.addEventListener('input', apply, { passive:true });
+      el.addEventListener('change', apply);
+      el.addEventListener('blur', () => { if (el.value === '') el.value = '0'; });
+      el.addEventListener('keydown', (e)=>{ if(['e','E','+','-'].includes(e.key)) e.preventDefault(); });
+    } else {
+      el.setAttribute('contenteditable','true');
+      el.addEventListener('input', apply);
+      el.addEventListener('blur', () => { if ((el.textContent||'') === '') el.textContent = '0'; });
+      el.addEventListener('keydown', (e)=>{ if(['e','E','+','-'].includes(e.key)) e.preventDefault(); });
+    }
+    apply();
+  }
+
+  function run(){
+    document.querySelectorAll('table').forEach(tbl => {
+      const colMap = mapQColumns(tbl);
+      if (!Object.keys(colMap).length) return;
+      Array.from(tbl.tBodies || []).forEach(tbody => {
+        Array.from(tbody.rows || []).forEach(tr => {
+          Object.entries(colMap).forEach(([idx, qStr]) => {
+            const q = Number(qStr);
+            const allowed = allowedForQ(q);
+            const cell = tr.cells[Number(idx)];
+            if (!cell || !allowed) return;
+            const el = cell.querySelector('input, [contenteditable="true"], [contenteditable=""]') || cell.querySelector('input, div, span');
+            if (!el) return;
+            bindEditable(el, allowed);
+          });
+        });
+      });
     });
   }
 
-  function runAccurate(){
-    document.querySelectorAll('table').forEach(bindTableAccurate);
-  }
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', runAccurate, { once:true });
-  } else {
-    runAccurate();
-  }
-  new MutationObserver(() => runAccurate()).observe(document.documentElement, { childList:true, subtree:true });
+  if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', run, { once:true }); } else { run(); }
+  new MutationObserver(run).observe(document.documentElement, { childList:true, subtree:true });
 })();
-/// === end accurate Q mapping ===
+// === end column-walker ===
