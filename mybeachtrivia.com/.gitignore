@@ -114,3 +114,7 @@ functions_gcfv1/firestore.rules
 *.tmp
 *.swp
 .DS_Store
+
+# macOS
+.DS_Store
+**/.DS_Store
