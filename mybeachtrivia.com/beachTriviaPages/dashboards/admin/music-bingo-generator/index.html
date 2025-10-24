@@ -1,117 +1,109 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Music Bingo Playlist Creator</title>
-    <link rel="stylesheet" href="css/styles.css">
-  <script type="module" src="./boot-firebase.js"></script>
-  <link rel="stylesheet" href="./auth-gate.css">
-  <script type="module" src="./auth-gate.js"></script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Music Bingo Playlist Creator</title>
+
+  <!-- Page styles (optional) -->
+  <style>
+    body { background:#111; color:#eee; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+    .wrap { max-width: 980px; margin: 40px auto; background:#171717; border-radius:14px; padding:24px 28px; box-shadow: 0 8px 24px rgba(0,0,0,.35); }
+    h1 { text-align:center; color:#b388ff; line-height:1.2; margin: 10px 0 22px; }
+    .toolbar { display:flex; gap:14px; justify-content:center; margin: 12px 0 20px; }
+    .toolbar button { padding:10px 14px; border:0; border-radius:8px; font-weight:600; cursor:pointer; }
+    .toolbar .primary { background:#22c55e; color:#111; }
+    .toolbar .blue { background:#3b82f6; color:white; }
+    .toolbar .purple { background:#a855f7; color:white; }
+    .toolbar .danger { background:#ef4444; color:white; }
+    .controls { display:flex; gap:12px; align-items:center; margin: 14px 0 16px; }
+    .controls input, .controls select { flex:1; background:#222; color:#ddd; border:1px solid #333; padding:10px 12px; border-radius:8px; }
+    table { width:100%; border-collapse:collapse; background:#1e1e1e; border-radius:10px; overflow:hidden; }
+    thead th { text-align:left; background:#262626; color:#b388ff; padding:12px; font-weight:700; }
+    tbody td { padding:12px; border-top:1px solid #2c2c2c; }
+    tbody input { width:100%; background:#262626; color:#eee; border:1px solid #333; padding:8px 10px; border-radius:6px; }
+    .remove-row-cell { text-align:right; }
+    .remove-row-cell button { background:#444; color:#eee; border:0; padding:8px 10px; border-radius:6px; cursor:pointer; }
+    .row-actions { display:flex; justify-content:flex-end; }
+    .footer-actions { display:flex; justify-content:flex-end; margin-top:16px; }
+    .footer-actions button { background:#a855f7; color:white; border:0; padding:10px 14px; border-radius:8px; font-weight:700; cursor:pointer; }
+    /* Modal */
+    .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); place-items:center; z-index:1000; }
+    .modal > .card { width:min(520px, 92vw); background:#171717; border:1px solid #2b2b2b; border-radius:14px; padding:18px; }
+    .modal h3 { margin:0 0 10px; }
+    .modal .actions { display:flex; gap:10px; justify-content:flex-end; margin-top:12px; }
+    .modal input { width:100px; }
+  </style>
+
+  <!-- DO NOT include auth-gate.css/js here (redundant overlay) -->
 </head>
 <body>
-    <div class="container">
-        <div class="header-container">
-            <h1>Music Bingo Playlist Creator</h1>
-            <div class="header-buttons">
-                <button id="createNewPlaylistBtn" class="create-new-btn">Create New Playlist</button>
-                <button id="importCsvBtn" class="import-csv-btn">Import CSV</button>
-                <button id="createBoardBtn" class="create-board-btn">Create Printable Board</button>
-                <button id="deletePlaylistBtn" class="delete-playlist-btn">Delete Playlist</button>
-                <input type="file" id="csvFileInput" accept=".csv" style="display: none;">
-            </div>
-        </div>
-        
-        <div class="playlist-header">
-            <select id="existingPlaylists">
-                <option value="">Select Existing Playlist</option>
-                <!-- Existing playlists will be populated dynamically -->
-            </select>
-            <input type="text" id="playlistName" placeholder="Enter Playlist Name">
-        </div>
+  <div class="wrap">
+    <h1>Music Bingo Playlist<br/>Creator</h1>
 
-        <div class="table-container">
-            <table id="songTable">
-                <thead>
-                    <tr>
-                        <th>Song Name</th>
-                        <th>Artist</th>
-                        <th>Album</th>
-                        <th>Track URI</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="songTableBody">
-                    <!-- Rows will be dynamically added here -->
-                </tbody>
-            </table>
-        </div>
-
-        <div class="btn-container">
-            <button class="add-row-btn" id="addRowBtn">Add Row</button>
-            <button class="save-playlist-btn" id="savePlaylistBtn">Save Playlist</button>
-        </div>
+    <div class="toolbar">
+      <button id="createNewPlaylistBtn" class="primary">Create New Playlist</button>
+      <button id="importCsvBtn" class="blue">Import CSV</button>
+      <button id="createBoardBtn" class="purple">Create Printable Board</button>
+      <button id="deletePlaylistBtn" class="danger">Delete Playlist</button>
+      <input id="csvFileInput" type="file" accept=".csv" style="display:none" />
     </div>
 
-    <!-- Validation Modal for Long Text -->
-    <div id="validationModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Long Text Warning</h2>
-            </div>
-            <div class="modal-body">
-                <p>The following entries exceed the recommended 40 character limit. Long text may display incorrectly in the interface.</p>
-                <p>Please edit them or click the override button to accept.</p>
-                
-                <div class="modal-table-container">
-                    <table id="validationTable">
-                        <thead>
-                            <tr>
-                                <th>Type</th>
-                                <th>Content</th>
-                                <th>Length</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="validationTableBody">
-                            <!-- Rows will be dynamically added here -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button id="approveBtn" class="approve-btn" disabled>Approve All</button>
-                <button id="cancelValidationBtn" class="cancel-btn">Cancel</button>
-            </div>
-        </div>
+    <div class="controls">
+      <select id="existingPlaylists" aria-label="Select Existing Playlist">
+        <option value="">Select Existing Playlist</option>
+      </select>
+      <input id="playlistName" type="text" placeholder="Enter Playlist Name" />
     </div>
 
-    <!-- Bingo Board Copies Modal -->
-    <div id="boardCopiesModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Create Bingo Boards</h2>
-            </div>
-            <div class="modal-body">
-                <p>Enter the number of copies (the system will generate twice this many unique boards):</p>
-                <input type="number" id="copiesInput" min="1" max="100" value="1" class="copies-input">
-                <div id="playlistWarning" class="warning-message" style="display: none;">
-                    <p>You need at least 40 songs in your playlist to create bingo boards.</p>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button id="generateBoardsBtn" class="approve-btn">Generate Boards</button>
-                <button id="cancelBoardsBtn" class="cancel-btn">Cancel</button>
-            </div>
-        </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Song Name</th>
+          <th>Artist</th>
+          <th>Album</th>
+          <th>Track URI</th>
+          <th style="width:110px;"></th>
+        </tr>
+      </thead>
+      <tbody id="songTableBody"></tbody>
+    </table>
+
+    <div class="row-actions" style="margin-top:12px;">
+      <button id="addRowBtn">Add Row</button>
     </div>
 
-    <!-- Add jsPDF library -->
-    <script src="./vendor/jspdf.umd.min.js"></script>
-    
-    <script type="module" src="js/script.js"></script>
-    <script type="module" src="js/validation.js"></script>
-    <script type="module" src="js/pdfGenerator.js"></script>
+    <div class="footer-actions">
+      <button id="savePlaylistBtn">Save Playlist</button>
+    </div>
+  </div>
+
+  <!-- Modal for number of copies -->
+  <div id="boardCopiesModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="copiesTitle">
+    <div class="card">
+      <h3 id="copiesTitle">Create printable boards</h3>
+      <p id="playlistWarning" style="display:none; color:#fca5a5; margin: 6px 0 12px;"></p>
+      <label for="copiesInput">How many sets?</label>
+      <input id="copiesInput" type="number" min="1" value="1" />
+      <div class="actions">
+        <button id="cancelBoardsBtn">Cancel</button>
+        <button id="generateBoardsBtn" class="purple">Generate</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Route guard that ensures the user is already logged in site-wide -->
   <script src="/beachTriviaPages/js/auth-route-guard.v2.js?v=2025-10-14a"></script>
+
+  <!-- Firebase boot (initializes the default app for this project) -->
+  <script type="module" src="./boot-firebase.js"></script>
+
+  <!-- Keep jspdf as classic script so pdfGenerator can use window.jspdf -->
+  <script src="./vendor/jspdf.umd.min.js"></script>
+
+  <!-- Page scripts (modules) -->
+  <script type="module" src="./js/script.js"></script>
+  <script type="module" src="./js/validation.js"></script>
+  <script type="module" src="./js/pdfGenerator.js"></script>
 </body>
 </html>
