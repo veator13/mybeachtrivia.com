@@ -1,5 +1,5 @@
 // Firebase and App Imports
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+import { getApp, getApps } from 'https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js';
 import { 
     getFirestore, 
     collection, 
@@ -8,28 +8,16 @@ import {
     doc, 
     updateDoc, 
     deleteDoc 
-} from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+} from 'https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js';
 
 // Import the TextValidator from validation.js
 import { TextValidator } from './validation.js';
 // Import the BingoBoardGenerator from pdfGenerator.js
 import { BingoBoardGenerator } from './pdfGenerator.js';
 
-// Firebase Configuration (bt-music-bingo)
-// NOTE: storageBucket uses the appspot.com domain (correct for Firebase buckets)
-const firebaseConfig = {
-    apiKey: "AIzaSyD9yVdxmgjuiOrvns-mvn-ZybJF0sCWoMQ",
-    authDomain: "bt-music-bingo.firebaseapp.com",
-    projectId: "bt-music-bingo",
-    storageBucket: "bt-music-bingo.appspot.com",
-    messagingSenderId: "1014937614795",
-    appId: "1:1014937614795:web:e04ee55d7169934bef1e4e",
-    measurementId: "G-P9B40S5DBB"
-};
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+// Firebase app is initialized by boot-firebase.js using /__/firebase/init.json
+// Reuse that default app here:
+const db = getFirestore();
 
 // Playlist Management Module
 const PlaylistManager = (() => {
