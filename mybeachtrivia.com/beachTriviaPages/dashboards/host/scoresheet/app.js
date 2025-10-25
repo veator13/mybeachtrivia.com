@@ -1017,3 +1017,107 @@ window.clearHighlights = clearHighlights;
   document.addEventListener('keydown', onKey, true);
 })();
 // === end TABLE NAVIGATION V3 ===
+// === [scoresheet][HOST] FINAL column — allow negative numbers ===
+(() => {
+  if (window.__HOST_FINAL_NEG__) return; window.__HOST_FINAL_NEG__ = 1;
+
+  function buildHeaderGrid(table){
+    const thead = table.tHead; if (!thead) return {cols:0, labels:[]};
+    const rows = Array.from(thead.rows);
+    let maxCols = 0;
+    rows.forEach(r => { let s=0; for (const c of r.cells) s += Number(c.colSpan||1); maxCols = Math.max(maxCols, s); });
+
+    const occ = Array(maxCols).fill(0);
+    const grid = rows.map(()=>Array(maxCols).fill(null));
+    rows.forEach((r,ri) => {
+      let col = 0;
+      for (const cell of r.cells) {
+        while (occ[col] > 0) col++;
+        const cs = Number(cell.colSpan||1), rs = Number(cell.rowSpan||1);
+        for (let i=0;i<cs;i++){ grid[ri][col+i] = cell; occ[col+i] = rs; }
+        col += cs;
+      }
+      for (let i=0;i<maxCols;i++) if (occ[i]>0) occ[i]--;
+    });
+
+    const labels = Array(maxCols).fill(null);
+    for (let c=0;c<maxCols;c++){
+      let label = '';
+      for (let r=0;r<grid.length;r++){
+        const t = (grid[r][c]?.textContent || '').trim();
+        if (t) label = t;
+      }
+      labels[c] = label;
+    }
+    return { cols:maxCols, labels };
+  }
+
+  function getCellAtCol(tr, colIndex){
+    let pos=0;
+    for (const td of tr.cells){
+      const span = Number(td.colSpan||1);
+      if (colIndex >= pos && colIndex < pos + span) return td;
+      pos += span;
+    }
+    return null;
+  }
+  const findEditor = (td) => td?.querySelector('input, [contenteditable="true"], [contenteditable=""]') || null;
+
+  function bindFinalEditor(el){
+    if (el.__finalNegBound) return;
+    el.__finalNegBound = true;
+
+    const sanitize = () => {
+      let s = (el.tagName === 'INPUT' ? el.value : el.textContent) ?? '';
+      // keep only digits and a single leading '-'
+      s = String(s).replace(/[^\d-]/g, '').replace(/(?!^)-/g, '');
+      if (s === '' || s === '-') return;      // allow temp empty/just '-'
+      const n = Number(s);
+      if (el.tagName === 'INPUT') el.value = String(n);
+      else el.textContent = String(n);
+    };
+
+    if (el.tagName === 'INPUT') {
+      el.removeAttribute('min');              // allow negatives
+      el.setAttribute('step', '1');
+      el.setAttribute('inputmode', 'numeric');
+      el.setAttribute('pattern', '-?[0-9]*');
+      // block e/E/+/. but NOT '-'
+      el.addEventListener('keydown', (e)=>{ if (['e','E','+','.'].includes(e.key)) e.preventDefault(); }, true);
+      el.addEventListener('input', sanitize, { passive:true });
+      el.addEventListener('change', sanitize);
+      el.addEventListener('blur', () => { const v = el.value; if (v === '' || v === '-') el.value = '0'; });
+    } else {
+      el.setAttribute('contenteditable','true');
+      el.addEventListener('keydown', (e)=>{ if (['e','E','+','.'].includes(e.key)) e.preventDefault(); }, true);
+      el.addEventListener('input', sanitize);
+      el.addEventListener('blur', () => { const v = el.textContent||''; if (v === '' || v === '-') el.textContent = '0'; });
+    }
+    // normalize once
+    sanitize();
+  }
+
+  function run(){
+    document.querySelectorAll('table').forEach(table => {
+      const {cols, labels} = buildHeaderGrid(table);
+      if (!cols) return;
+
+      const isFinalCol = (lbl='') => /\bfinal\b/i.test(lbl);
+      for (const tb of table.tBodies) {
+        for (const tr of tb.rows) {
+          for (let c=0;c<cols;c++){
+            if (!isFinalCol(labels[c])) continue;
+            const td = getCellAtCol(tr, c);
+            const el = findEditor(td);
+            if (el) bindFinalEditor(el);
+          }
+        }
+      }
+    });
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run, { once:true });
+  else run();
+  new MutationObserver(run).observe(document.documentElement, { childList:true, subtree:true });
+})();
+// === end FINAL column negatives ===
