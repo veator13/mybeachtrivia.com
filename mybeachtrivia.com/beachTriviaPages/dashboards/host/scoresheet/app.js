@@ -892,16 +892,18 @@ window.clearHighlights = clearHighlights;
   new MutationObserver(run).observe(document.documentElement, { childList:true, subtree:true });
 })();
 // === end GRID ENFORCER ===
-// === [scoresheet][HOST] TABLE NAVIGATION v2 — intercept Arrow keys on inputs ===
+// === [scoresheet][HOST] TABLE NAVIGATION V3 — capture-phase; prevents stepping; moves focus ===
 (() => {
-  if (window.__HOST_TABLE_NAV_V2__) return; window.__HOST_TABLE_NAV_V2__ = 1;
+  if (window.__HOST_TABLE_NAV_V3__) return; window.__HOST_TABLE_NAV_V3__ = 1;
+
+  const isEditor = el => el && (el.matches?.('input, [contenteditable]') ||
+                                el.querySelector?.('input, [contenteditable]'));
 
   function buildHeaderGrid(table){
     const thead = table.tHead; if (!thead) return {cols:0, grid:[], labels:[]};
     const rows = Array.from(thead.rows);
     let maxCols = 0;
     rows.forEach(r => { let s=0; for (const c of r.cells) s += Number(c.colSpan||1); maxCols = Math.max(maxCols, s); });
-
     const occ = Array(maxCols).fill(0);
     const grid = rows.map(()=>Array(maxCols).fill(null));
     rows.forEach((r,ri) => {
@@ -914,7 +916,6 @@ window.clearHighlights = clearHighlights;
       }
       for (let i=0;i<maxCols;i++) if (occ[i]>0) occ[i]--;
     });
-
     const labels = Array(maxCols).fill(null);
     for (let c=0;c<maxCols;c++){
       let label = '';
@@ -924,7 +925,7 @@ window.clearHighlights = clearHighlights;
       }
       labels[c] = label;
     }
-    return { cols: maxCols, grid, labels };
+    return { cols:maxCols, grid, labels };
   }
 
   function getCellAtCol(tr, colIndex){
@@ -937,9 +938,18 @@ window.clearHighlights = clearHighlights;
     return null;
   }
 
+  function colIndexOf(tr, td){
+    let pos=0;
+    for (const c of tr.cells){
+      const span = Number(c.colSpan||1);
+      if (c === td) return pos;
+      pos += span;
+    }
+    return -1;
+  }
+
   function findEditor(td){
-    return td?.querySelector('input, [contenteditable="true"], [contenteditable=""]')
-        || td?.querySelector('input, div, span') || null;
+    return td?.querySelector('input, [contenteditable]') || null;
   }
 
   function indexTable(table){
@@ -947,44 +957,31 @@ window.clearHighlights = clearHighlights;
     const rows = [];
     for (const tb of table.tBodies) for (const tr of tb.rows) rows.push(tr);
 
-    // Navigable columns include Team Name, any Q##, Halftime, Final,
-    // plus any column that actually contains an editor.
     const navCols = Array(cols).fill(false);
-    const labelIsNav = (txt) => {
-      const t = (txt || '').toLowerCase();
+    const labelIsNav = (txt='') => {
+      const t = txt.toLowerCase();
       return /\bq\s*\d+\b/.test(t) || /team(\s*name)?/.test(t) || /half[\s-]?time/.test(t) || /\bfinal\b/.test(t);
     };
     for (let c=0;c<cols;c++){
       if (labelIsNav(labels[c])) { navCols[c] = true; continue; }
-      for (let i=0; i<Math.min(rows.length, 6); i++){
-        const td = getCellAtCol(rows[i], c);
-        if (td && findEditor(td)) { navCols[c] = true; break; }
+      for (let r=0;r<rows.length; r++){
+        const td = getCellAtCol(rows[r], c);
+        if (td && isEditor(td)) { navCols[c] = true; break; }
       }
     }
     return { rows, cols, navCols };
   }
 
-  function currentColIndex(tr, td){
-    let pos=0;
-    for (const cell of tr.cells){
-      const span = Number(cell.colSpan||1);
-      if (cell === td) return pos;
-      pos += span;
-    }
-    return -1;
-  }
-
   function moveFocus(fromEditor, dx, dy){
     const table = fromEditor.closest('table'); if (!table) return;
     const {rows, cols, navCols} = indexTable(table);
-
     const fromTd = fromEditor.closest('td,th'); if (!fromTd) return;
     const fromTr = fromTd.parentElement;
     const rIdx = rows.indexOf(fromTr);
-    let cIdx = currentColIndex(fromTr, fromTd);
-    if (cIdx < 0) return;
+    let cIdx = colIndexOf(fromTr, fromTd);
+    if (rIdx < 0 || cIdx < 0) return;
 
-    // Horizontal: go to previous/next navigable column; clamp at edges
+    // Horizontal: prev/next navigable column (no wrap)
     if (dx) {
       let step = dx > 0 ? 1 : -1;
       let c = cIdx + step;
@@ -992,48 +989,31 @@ window.clearHighlights = clearHighlights;
       if (c >= 0 && c < cols && navCols[c]) cIdx = c;
     }
 
-    // Vertical: same column, different row; clamp within bounds
-    let rTarget = Math.max(0, Math.min(rows.length - 1, rIdx + (dy||0)));
+    // Vertical: same column, clamp to table
+    const rTarget = Math.max(0, Math.min(rows.length - 1, rIdx + (dy||0)));
 
     const targetTr = rows[rTarget];
     const targetTd = getCellAtCol(targetTr, cIdx);
     const targetEl = findEditor(targetTd);
-    if (targetEl) {
-      targetEl.focus();
-      if (targetEl.select) targetEl.select();
-    }
+    if (targetEl) { targetEl.focus(); targetEl.select?.(); }
   }
 
-  function handleArrowKey(e){
-    const k = e.key;
-    if (!['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(k)) return;
-    // Stop number-input stepping & caret movement
+  const ARROWS = new Set(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight']);
+  function onKey(e){
+    if (!ARROWS.has(e.key)) return;
+    const t = e.target;
+    if (!t.closest('table') || !isEditor(t)) return;
+
+    // Kill native number-input stepping & caret moves
     e.preventDefault();
     e.stopImmediatePropagation();
-    moveFocus(e.currentTarget,
-      k==='ArrowRight'? 1 : k==='ArrowLeft'? -1 : 0,
-      k==='ArrowDown' ? 1 : k==='ArrowUp'   ? -1 : 0
-    );
+
+    const dx = (e.key==='ArrowRight') ? 1 : (e.key==='ArrowLeft') ? -1 : 0;
+    const dy = (e.key==='ArrowDown')  ? 1 : (e.key==='ArrowUp')    ? -1 : 0;
+    moveFocus(t, dx, dy);
   }
 
-  function bindNavHandlers(){
-    document.querySelectorAll('table').forEach(table => {
-      const {rows, cols, navCols} = indexTable(table);
-      if (!cols) return;
-      for (const tr of rows){
-        for (let c=0;c<cols;c++){
-          if (!navCols[c]) continue;
-          const td = getCellAtCol(tr, c); if (!td) continue;
-          const el = findEditor(td); if (!el || el.__navV2) continue;
-          el.addEventListener('keydown', handleArrowKey, true); // capture phase
-          el.__navV2 = true;
-        }
-      }
-    });
-  }
-
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bindNavHandlers, { once:true });
-  else bindNavHandlers();
-  new MutationObserver(bindNavHandlers).observe(document.documentElement, { childList:true, subtree:true });
+  // Capture-phase so we beat native stepping and any other handlers
+  document.addEventListener('keydown', onKey, true);
 })();
-// === end TABLE NAVIGATION v2 ===
+// === end TABLE NAVIGATION V3 ===
