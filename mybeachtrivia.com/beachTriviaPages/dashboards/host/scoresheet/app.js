@@ -1365,3 +1365,87 @@ window.clearHighlights = clearHighlights;
   window.__HOST_Q11_15_STRICT_CLEANUP__ = () => { mo.disconnect(); unbinds.forEach(fn=>fn()); };
 })();
 /// === end Q11–Q15 STRICT ===
+// === [scoresheet][HOST] Q11–Q20 PRIORITY CAPTURE SNAP — no flicker, stops other handlers ===
+(() => {
+  if (window.__HOST_Q_PRIORITY_CAPTURE__) return; window.__HOST_Q_PRIORITY_CAPTURE__ = 1;
+
+  function buildHeaderGrid(table){
+    const thead = table.tHead; if (!thead) return {labels:[]};
+    const rows = Array.from(thead.rows); let max=0;
+    rows.forEach(r=>{ let s=0; for(const c of r.cells) s += Number(c.colSpan||1); max=Math.max(max,s); });
+    const occ = Array(max).fill(0), grid = rows.map(()=>Array(max).fill(null));
+    rows.forEach((r,ri)=>{ let c=0; for(const cell of r.cells){
+      while(occ[c]>0) c++; const cs=+cell.colSpan||1, rs=+cell.rowSpan||1;
+      for(let i=0;i<cs;i++){ grid[ri][c+i]=cell; occ[c+i]=rs; } c+=cs;
+    } for(let i=0;i<max;i++) if(occ[i]>0) occ[i]--; });
+    const labels = Array(max).fill(null);
+    for (let c=0;c<max;c++){ let t=''; for (let r=0;r<grid.length;r++){
+      const s=(grid[r][c]?.textContent||'').trim(); if (s) t=s;
+    } labels[c]=t; }
+    return {labels, grid};
+  }
+  function getCellAtCol(tr, colIndex){
+    let pos=0; for (const td of tr.cells){ const span=+td.colSpan||1; if (colIndex>=pos && colIndex<pos+span) return td; pos+=span; }
+    return null;
+  }
+  function collectInputs(table, qs){
+    const {labels} = buildHeaderGrid(table);
+    const qToCol={}; labels.forEach((L,i)=>{ const m=/\bQ\s*([0-9]{1,2})\b/i.exec(L||''); if(m) qToCol[+m[1]]=i; });
+    const out=[];
+    qs.forEach(q=>{
+      const col=qToCol[q]; if(col==null) return;
+      for (const tb of table.tBodies) for (const tr of tb.rows){
+        const td=getCellAtCol(tr,col); if(!td) continue;
+        const el=td.querySelector('input[type=number], [contenteditable]');
+        if (el) out.push(el);
+      }
+    });
+    return out;
+  }
+
+  function bindSnap(el, weight){
+    // normalize attributes so native number input doesn’t interfere
+    if (el.tagName === 'INPUT') {
+      el.removeAttribute('max');
+      el.setAttribute('min','0');
+      el.setAttribute('step','1');
+      el.setAttribute('inputmode','numeric');
+      el.setAttribute('pattern','[0-9]*');
+    }
+
+    // compute -> {0, weight}
+    const compute = () => {
+      const raw = el.tagName === 'INPUT' ? (el.value ?? '') : (el.textContent ?? '');
+      const s = String(raw).replace(/[^\d]/g,'');
+      const out = (s === '' || Number(s) === 0) ? '0' : String(weight);
+      return out;
+    };
+
+    // CAPTURE-PHASE: stop other handlers, apply immediately, then bubble a synthetic 'input'
+    const onInputCap = (e) => {
+      if (!e.isTrusted) return;           // ignore our synthetic event later
+      e.stopImmediatePropagation();       // prevent older wrong handlers (e.g., 2) from firing
+      const out = compute();
+      if (el.tagName === 'INPUT') { if (el.value !== out) el.value = out; }
+      else { if (el.textContent !== out) el.textContent = out; }
+      el.dispatchEvent(new Event('input', { bubbles:true })); // keep totals reactive
+    };
+
+    const onChangeCap = (e) => { if (!e.isTrusted) return; e.stopImmediatePropagation(); onInputCap(e); };
+    const onBlurCap   = (e) => { if (!e.isTrusted) return; onInputCap(e); };
+
+    el.addEventListener('input',  onInputCap,  true);
+    el.addEventListener('change', onChangeCap, true);
+    el.addEventListener('blur',   onBlurCap,   true);
+  }
+
+  function apply(){
+    const table = document.querySelector('table'); if (!table) return;
+    collectInputs(table, [11,12,13,14,15]).forEach(el => bindSnap(el, 3));
+    collectInputs(table, [16,17,18,19,20]).forEach(el => bindSnap(el, 4));
+  }
+
+  apply();
+  new MutationObserver(apply).observe(document.documentElement, { childList:true, subtree:true });
+})();
+// === end Q11–Q20 PRIORITY CAPTURE SNAP ===
