@@ -84,38 +84,8 @@
 
   <!-- App logic (classic script). Must rely on window.db created by the init above. -->
 
-<script id="final-neg-guard">
-(function(){
-  function isFinal(el){ return el && el.matches && el.matches("input.finalquestion-input"); }
-  function canon(el){
-    let s = String(el.value ?? "");
-    s = s.replace(/[^\d-]/g,"").replace(/(?!^)-/g,"");
-    if (s === "" || s === "-") return {pending:true};
-    el.value = String(Number(s));
-    return {pending:false};
-  }
-  // capture-phase so we beat other handlers; ignore our synthetic re-emits
-  document.addEventListener("input", function(e){
-    const t=e.target; if(!isFinal(t) || e.isTrusted===false) return;
-    e.stopImmediatePropagation();
-    Promise.resolve().then(function(){
-      const r = canon(t);
-      if(!r.pending){ t.dispatchEvent(new Event("input",{bubbles:true})); }
-    });
-  }, true);
-  ["change","blur"].forEach(function(ev){
-    document.addEventListener(ev,function(e){
-      const t=e.target; if(!isFinal(t) || e.isTrusted===false) return;
-      e.stopImmediatePropagation();
-      let s = String(t.value ?? "").replace(/[^\d-]/g," ").replace(/(?!^)-/g,"");
-      if (s === "" || s === "-") s = "0";
-      t.value = String(Number(s));
-      t.dispatchEvent(new Event("input",{bubbles:true}));
-    }, true);
-  });
-})();
-</script>
-  <script src="app.js?v=20251025163033" defer></script>
+<script src="final-neg-guard.js?v=20251025163244" defer></script>
+  <script src="app.js?v=20251025163244" defer></script>
 
   <!-- Small bindings file that only attaches event listeners and search helpers (no globals).
        Create this file alongside index.html to replace inline handlers. -->
