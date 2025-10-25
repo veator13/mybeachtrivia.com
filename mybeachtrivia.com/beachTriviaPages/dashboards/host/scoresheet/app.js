@@ -1267,3 +1267,101 @@ window.clearHighlights = clearHighlights;
   new MutationObserver(run).observe(document.documentElement, { childList:true, subtree:true });
 })();
 // === end Q-COLUMN NORMALIZER & STRICT SNAPPING ===
+// === [scoresheet][HOST] Q11–Q15 STRICT (0 or 3) — removes browser max clamp & blocks script-forced "1" ===
+(() => {
+  if (window.__HOST_Q11_15_STRICT__) return; window.__HOST_Q11_15_STRICT__ = 1;
+
+  function buildHeaderGrid(table){
+    const thead = table.tHead; if (!thead) return {cols:0, labels:[]};
+    const rows = Array.from(thead.rows); let max = 0;
+    rows.forEach(r => { let s=0; for (const c of r.cells) s += Number(c.colSpan||1); max=Math.max(max,s); });
+    const occ = Array(max).fill(0), grid = rows.map(()=>Array(max).fill(null));
+    rows.forEach((r,ri) => {
+      let c=0; for (const cell of r.cells){
+        while (occ[c]>0) c++; const cs=+cell.colSpan||1, rs=+cell.rowSpan||1;
+        for (let i=0;i<cs;i++){ grid[ri][c+i]=cell; occ[c+i]=rs; } c+=cs;
+      }
+      for (let i=0;i<max;i++) if (occ[i]>0) occ[i]--;
+    });
+    const labels = Array(max).fill(null);
+    for (let c=0;c<max;c++){ let t=''; for (let r=0;r<grid.length;r++){
+      const s=(grid[r][c]?.textContent||'').trim(); if (s) t=s;
+    } labels[c]=t; }
+    return { cols:max, labels };
+  }
+  function getCellAtCol(tr, colIndex){
+    let pos=0; for (const td of tr.cells){ const span=+td.colSpan||1; if (colIndex>=pos && colIndex<pos+span) return td; pos+=span; }
+    return null;
+  }
+
+  function collectQ11to15Inputs(table){
+    const {labels} = buildHeaderGrid(table);
+    const qToCol = {};
+    labels.forEach((L,i)=>{ const m = /\bQ\s*([0-9]{1,2})\b/i.exec(L||''); if (m) qToCol[+m[1]] = i; });
+    const out = [];
+    [11,12,13,14,15].forEach(q=>{
+      const col = qToCol[q]; if (col==null) return;
+      for (const tb of table.tBodies) for (const tr of tb.rows){
+        const td = getCellAtCol(tr,col); if (!td) continue;
+        const el = td.querySelector('input[type=number]'); if (el) out.push(el);
+      }
+    });
+    return out;
+  }
+
+  const bound = new WeakSet();
+  const unbinds = [];
+  function bind(el){
+    if (!el || bound.has(el)) return; bound.add(el);
+
+    // remove legacy clamps & keep numeric-only
+    el.removeAttribute('max'); el.min='0'; el.step='1'; el.inputMode='numeric'; el.setAttribute('pattern','[0-9]*');
+
+    // no e/E/+/. (do NOT block arrows)
+    const onKey = e => { if (['e','E','+','.'].includes(e.key)) e.preventDefault(); };
+    el.addEventListener('keydown', onKey, true); unbinds.push(()=>el.removeEventListener('keydown', onKey, true));
+
+    // snapper: non-zero => "3"
+    const snap = () => {
+      let s = String(el.value ?? '').replace(/[^\d]/g,'');
+      const out = (s === '' || Number(s) === 0) ? '0' : '3';
+      if (el.value !== out) { el.value = out; el.dispatchEvent(new Event('input', { bubbles:true })); }
+    };
+    const onInput  = e => { if (e.isTrusted) snap(); };
+    const onChange = e => { if (e.isTrusted) snap(); };
+    const onBlur   = e => { if (e.isTrusted) snap(); };
+    el.addEventListener('input', onInput, true);
+    el.addEventListener('change', onChange, true);
+    el.addEventListener('blur', onBlur, true);
+    unbinds.push(()=>{ el.removeEventListener('input',onInput,true); el.removeEventListener('change',onChange,true); el.removeEventListener('blur',onBlur,true); });
+
+    // hard guard: if any script tries to set "1", coerce to "3" (unless '', '0', '3')
+    const proto = Object.getPrototypeOf(el);
+    const d = Object.getOwnPropertyDescriptor(proto,'value');
+    if (d?.set && !el.__q315Hook) {
+      const get = d.get.bind(el), set = d.set.bind(el);
+      Object.defineProperty(el,'value',{ configurable:true,
+        get(){ return get(); },
+        set(v){
+          if (this.__q315Re) return set(v);
+          const str = String(v);
+          if (str !== '' && str !== '0' && str !== '3') { this.__q315Re = true; set('3'); this.__q315Re = false; return; }
+          set(v);
+        }
+      });
+      el.__q315Hook = true;
+    }
+  }
+
+  function apply(){
+    const table = document.querySelector('table'); if (!table) return;
+    collectQ11to15Inputs(table).forEach(bind);
+  }
+
+  apply();
+  const mo = new MutationObserver(apply);
+  mo.observe(document.documentElement, { childList:true, subtree:true });
+
+  window.__HOST_Q11_15_STRICT_CLEANUP__ = () => { mo.disconnect(); unbinds.forEach(fn=>fn()); };
+})();
+/// === end Q11–Q15 STRICT ===
