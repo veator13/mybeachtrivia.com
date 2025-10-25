@@ -1449,3 +1449,110 @@ window.clearHighlights = clearHighlights;
   new MutationObserver(apply).observe(document.documentElement, { childList:true, subtree:true });
 })();
 // === end Q11–Q20 PRIORITY CAPTURE SNAP ===
+// === Q16–Q20 HARD SNAP (0 or 4) — no flicker, blocks late writes ===
+(() => {
+  if (window.__q16_20_hardsnap__) { console.log('[q16–20 snap] already active'); return; }
+  window.__q16_20_hardsnap__ = 1;
+
+  const BOUND = new WeakSet();
+
+  function buildHeaderGrid(table){
+    const thead = table.tHead; if (!thead) return {labels:[]};
+    const rows=[...thead.rows]; let max=0;
+    rows.forEach(r=>{ let s=0; for (const c of r.cells) s += +c.colSpan||1; max=Math.max(max,s); });
+    const occ=Array(max).fill(0), grid=rows.map(()=>Array(max).fill(null));
+    rows.forEach((r,ri)=>{ let c=0; for (const cell of r.cells){
+      while (occ[c]>0) c++; const cs=+cell.colSpan||1, rs=+cell.rowSpan||1;
+      for (let i=0;i<cs;i++){ grid[ri][c+i]=cell; occ[c+i]=rs; } c+=cs;
+    } for (let i=0;i<max;i++) if (occ[i]>0) occ[i]--; });
+    const labels=Array(max).fill(null);
+    for (let c=0;c<max;c++){ let t=''; for (let r=0;r<grid.length;r++){
+      const s=(grid[r][c]?.textContent||'').trim(); if (s) t=s;
+    } labels[c]=t; }
+    return {labels};
+  }
+  function getCellAtCol(tr, colIndex){
+    let pos=0; for (const td of tr.cells){ const span=+td.colSpan||1; if (colIndex>=pos && colIndex<pos+span) return td; pos+=span; }
+    return null;
+  }
+  function collectQInputs(){
+    const table=document.querySelector('table'); if(!table) return [];
+    const {labels}=buildHeaderGrid(table);
+    const qToCol={}; labels.forEach((L,i)=>{ const m=/\bQ\s*([0-9]{1,2})\b/i.exec(L||''); if(m) qToCol[+m[1]]=i; });
+    const out=[];
+    [16,17,18,19,20].forEach(q=>{
+      const col=qToCol[q]; if(col==null) return;
+      for (const tb of table.tBodies) for (const tr of tb.rows){
+        const td=getCellAtCol(tr,col); if(!td) continue;
+        const el=td.querySelector('input[type=number]'); if(el) out.push(el);
+      }
+    });
+    return out;
+  }
+
+  function snapValue(el){
+    const s = String(el.value ?? '').replace(/[^\d]/g,'');
+    return (s === '' || Number(s) === 0) ? '0' : '4';
+  }
+
+  function bind(el){
+    if (!el || BOUND.has(el)) return; BOUND.add(el);
+
+    el.removeAttribute('max');
+    el.min = '0'; el.step = '1';
+    el.setAttribute('inputmode','numeric'); el.setAttribute('pattern','[0-9]*');
+
+    const proto = Object.getPrototypeOf(el);
+    if (!el.__origStepUp && proto.stepUp) {
+      el.__origStepUp = proto.stepUp.bind(el);
+      el.stepUp = function(){ this.value = snapValue(this); this.dispatchEvent(new Event('input',{bubbles:true})); };
+    }
+    if (!el.__origStepDown && proto.stepDown) {
+      el.__origStepDown = proto.stepDown.bind(el);
+      el.stepDown = function(){ this.value = snapValue(this); this.dispatchEvent(new Event('input',{bubbles:true})); };
+    }
+
+    const desc = Object.getOwnPropertyDescriptor(proto, 'value');
+    if (desc?.set && !el.__q1640SetterHook) {
+      const get = desc.get.bind(el), set = desc.set.bind(el);
+      Object.defineProperty(el, 'value', {
+        configurable: true,
+        get(){ return get(); },
+        set(v){
+          if (this.__q1640Re) return set(v);
+          const s = String(v);
+          const out = (s === '' || s === '0') ? '0' : '4';
+          this.__q1640Re = true; set(out); this.__q1640Re = false;
+        }
+      });
+      el.__q1640SetterHook = true;
+    }
+
+    const apply = () => {
+      const out = snapValue(el);
+      if (el.value !== out) { el.value = out; }
+      el.dispatchEvent(new Event('input', { bubbles:true }));
+    };
+    const onBefore = e => { if (!e.isTrusted) return; e.stopImmediatePropagation(); };
+    const onInput  = e => { if (!e.isTrusted) return; e.stopImmediatePropagation(); apply(); };
+    const onChange = e => { if (!e.isTrusted) return; e.stopImmediatePropagation(); apply(); };
+
+    el.addEventListener('beforeinput', onBefore, true);
+    el.addEventListener('input',      onInput,  true);
+    el.addEventListener('change',     onChange, true);
+
+    const fixAsync = () => { setTimeout(()=>{ const out = snapValue(el); if (el.value !== out) { el.value = out; el.dispatchEvent(new Event('input',{bubbles:true})); } }, 0); };
+    el.addEventListener('keyup',   fixAsync, true);
+    el.addEventListener('keydown', fixAsync, true);
+  }
+
+  function applyAll(){
+    const inputs = collectQInputs();
+    inputs.forEach(bind);
+    console.log(`[q16–20 snap] bound ${inputs.length} inputs`);
+  }
+
+  applyAll();
+  new MutationObserver(applyAll).observe(document.documentElement, { childList:true, subtree:true });
+  console.log('[q16–20 snap] ACTIVE — type “9” in Q18: should render 4 instantly (no 2 flicker).');
+})();
