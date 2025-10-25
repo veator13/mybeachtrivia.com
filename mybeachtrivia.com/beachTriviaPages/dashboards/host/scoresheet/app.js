@@ -892,3 +892,293 @@ window.clearHighlights = clearHighlights;
   new MutationObserver(run).observe(document.documentElement, { childList:true, subtree:true });
 })();
 // === end GRID ENFORCER ===
+// === [scoresheet][HOST] TABLE NAVIGATION V3 — capture-phase; prevents stepping; moves focus ===
+(() => {
+  if (window.__HOST_TABLE_NAV_V3__) return; window.__HOST_TABLE_NAV_V3__ = 1;
+
+  const isEditor = el => el && (el.matches?.('input, [contenteditable]') ||
+                                el.querySelector?.('input, [contenteditable]'));
+
+  function buildHeaderGrid(table){
+    const thead = table.tHead; if (!thead) return {cols:0, grid:[], labels:[]};
+    const rows = Array.from(thead.rows);
+    let maxCols = 0;
+    rows.forEach(r => { let s=0; for (const c of r.cells) s += Number(c.colSpan||1); maxCols = Math.max(maxCols, s); });
+    const occ = Array(maxCols).fill(0);
+    const grid = rows.map(()=>Array(maxCols).fill(null));
+    rows.forEach((r,ri) => {
+      let col = 0;
+      for (const cell of r.cells) {
+        while (occ[col] > 0) col++;
+        const cs = Number(cell.colSpan||1), rs = Number(cell.rowSpan||1);
+        for (let i=0;i<cs;i++){ grid[ri][col+i]=cell; occ[col+i]=rs; }
+        col += cs;
+      }
+      for (let i=0;i<maxCols;i++) if (occ[i]>0) occ[i]--;
+    });
+    const labels = Array(maxCols).fill(null);
+    for (let c=0;c<maxCols;c++){
+      let label = '';
+      for (let r=0;r<grid.length;r++){
+        const t = (grid[r][c]?.textContent || '').trim();
+        if (t) label = t;
+      }
+      labels[c] = label;
+    }
+    return { cols:maxCols, grid, labels };
+  }
+
+  function getCellAtCol(tr, colIndex){
+    let pos=0;
+    for (const td of tr.cells){
+      const span = Number(td.colSpan||1);
+      if (colIndex >= pos && colIndex < pos + span) return td;
+      pos += span;
+    }
+    return null;
+  }
+
+  function colIndexOf(tr, td){
+    let pos=0;
+    for (const c of tr.cells){
+      const span = Number(c.colSpan||1);
+      if (c === td) return pos;
+      pos += span;
+    }
+    return -1;
+  }
+
+  function findEditor(td){
+    return td?.querySelector('input, [contenteditable]') || null;
+  }
+
+  function indexTable(table){
+    const {cols, labels} = buildHeaderGrid(table);
+    const rows = [];
+    for (const tb of table.tBodies) for (const tr of tb.rows) rows.push(tr);
+
+    const navCols = Array(cols).fill(false);
+    const labelIsNav = (txt='') => {
+      const t = txt.toLowerCase();
+      return /\bq\s*\d+\b/.test(t) || /team(\s*name)?/.test(t) || /half[\s-]?time/.test(t) || /\bfinal\b/.test(t);
+    };
+    for (let c=0;c<cols;c++){
+      if (labelIsNav(labels[c])) { navCols[c] = true; continue; }
+      for (let r=0;r<rows.length; r++){
+        const td = getCellAtCol(rows[r], c);
+        if (td && isEditor(td)) { navCols[c] = true; break; }
+      }
+    }
+    return { rows, cols, navCols };
+  }
+
+  function moveFocus(fromEditor, dx, dy){
+    const table = fromEditor.closest('table'); if (!table) return;
+    const {rows, cols, navCols} = indexTable(table);
+    const fromTd = fromEditor.closest('td,th'); if (!fromTd) return;
+    const fromTr = fromTd.parentElement;
+    const rIdx = rows.indexOf(fromTr);
+    let cIdx = colIndexOf(fromTr, fromTd);
+    if (rIdx < 0 || cIdx < 0) return;
+
+    // Horizontal: prev/next navigable column (no wrap)
+    if (dx) {
+      let step = dx > 0 ? 1 : -1;
+      let c = cIdx + step;
+      while (c >= 0 && c < cols && !navCols[c]) c += step;
+      if (c >= 0 && c < cols && navCols[c]) cIdx = c;
+    }
+
+    // Vertical: same column, clamp to table
+    const rTarget = Math.max(0, Math.min(rows.length - 1, rIdx + (dy||0)));
+
+    const targetTr = rows[rTarget];
+    const targetTd = getCellAtCol(targetTr, cIdx);
+    const targetEl = findEditor(targetTd);
+    if (targetEl) { targetEl.focus(); targetEl.select?.(); }
+  }
+
+  const ARROWS = new Set(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight']);
+  function onKey(e){
+    if (!ARROWS.has(e.key)) return;
+    const t = e.target;
+    if (!t.closest('table') || !isEditor(t)) return;
+
+    // Kill native number-input stepping & caret moves
+    e.preventDefault();
+    e.stopImmediatePropagation();
+
+    const dx = (e.key==='ArrowRight') ? 1 : (e.key==='ArrowLeft') ? -1 : 0;
+    const dy = (e.key==='ArrowDown')  ? 1 : (e.key==='ArrowUp')    ? -1 : 0;
+    moveFocus(t, dx, dy);
+  }
+
+  // Capture-phase so we beat native stepping and any other handlers
+  document.addEventListener('keydown', onKey, true);
+})();
+// === end TABLE NAVIGATION V3 ===
+// === [scoresheet][HOST] FINAL column — allow negative numbers ===
+(() => {
+  if (window.__HOST_FINAL_NEG__) return; window.__HOST_FINAL_NEG__ = 1;
+
+  function buildHeaderGrid(table){
+    const thead = table.tHead; if (!thead) return {cols:0, labels:[]};
+    const rows = Array.from(thead.rows);
+    let maxCols = 0;
+    rows.forEach(r => { let s=0; for (const c of r.cells) s += Number(c.colSpan||1); maxCols = Math.max(maxCols, s); });
+
+    const occ = Array(maxCols).fill(0);
+    const grid = rows.map(()=>Array(maxCols).fill(null));
+    rows.forEach((r,ri) => {
+      let col = 0;
+      for (const cell of r.cells) {
+        while (occ[col] > 0) col++;
+        const cs = Number(cell.colSpan||1), rs = Number(cell.rowSpan||1);
+        for (let i=0;i<cs;i++){ grid[ri][col+i] = cell; occ[col+i] = rs; }
+        col += cs;
+      }
+      for (let i=0;i<maxCols;i++) if (occ[i]>0) occ[i]--;
+    });
+
+    const labels = Array(maxCols).fill(null);
+    for (let c=0;c<maxCols;c++){
+      let label = '';
+      for (let r=0;r<grid.length;r++){
+        const t = (grid[r][c]?.textContent || '').trim();
+        if (t) label = t;
+      }
+      labels[c] = label;
+    }
+    return { cols:maxCols, labels };
+  }
+
+  function getCellAtCol(tr, colIndex){
+    let pos=0;
+    for (const td of tr.cells){
+      const span = Number(td.colSpan||1);
+      if (colIndex >= pos && colIndex < pos + span) return td;
+      pos += span;
+    }
+    return null;
+  }
+  const findEditor = (td) => td?.querySelector('input, [contenteditable="true"], [contenteditable=""]') || null;
+
+  function bindFinalEditor(el){
+    if (el.__finalNegBound) return;
+    el.__finalNegBound = true;
+
+    const sanitize = () => {
+      let s = (el.tagName === 'INPUT' ? el.value : el.textContent) ?? '';
+      // keep only digits and a single leading '-'
+      s = String(s).replace(/[^\d-]/g, '').replace(/(?!^)-/g, '');
+      if (s === '' || s === '-') return;      // allow temp empty/just '-'
+      const n = Number(s);
+      if (el.tagName === 'INPUT') el.value = String(n);
+      else el.textContent = String(n);
+    };
+
+    if (el.tagName === 'INPUT') {
+      el.removeAttribute('min');              // allow negatives
+      el.setAttribute('step', '1');
+      el.setAttribute('inputmode', 'numeric');
+      el.setAttribute('pattern', '-?[0-9]*');
+      // block e/E/+/. but NOT '-'
+      el.addEventListener('keydown', (e)=>{ if (['e','E','+','.'].includes(e.key)) e.preventDefault(); }, true);
+      el.addEventListener('input', sanitize, { passive:true });
+      el.addEventListener('change', sanitize);
+      el.addEventListener('blur', () => { const v = el.value; if (v === '' || v === '-') el.value = '0'; });
+    } else {
+      el.setAttribute('contenteditable','true');
+      el.addEventListener('keydown', (e)=>{ if (['e','E','+','.'].includes(e.key)) e.preventDefault(); }, true);
+      el.addEventListener('input', sanitize);
+      el.addEventListener('blur', () => { const v = el.textContent||''; if (v === '' || v === '-') el.textContent = '0'; });
+    }
+    // normalize once
+    sanitize();
+  }
+
+  function run(){
+    document.querySelectorAll('table').forEach(table => {
+      const {cols, labels} = buildHeaderGrid(table);
+      if (!cols) return;
+
+      const isFinalCol = (lbl='') => /\bfinal\b/i.test(lbl);
+      for (const tb of table.tBodies) {
+        for (const tr of tb.rows) {
+          for (let c=0;c<cols;c++){
+            if (!isFinalCol(labels[c])) continue;
+            const td = getCellAtCol(tr, c);
+            const el = findEditor(td);
+            if (el) bindFinalEditor(el);
+          }
+        }
+      }
+    });
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run, { once:true });
+  else run();
+  new MutationObserver(run).observe(document.documentElement, { childList:true, subtree:true });
+})();
+// === end FINAL column negatives ===
+// === FINAL NEGATIVE (safe, instance hook) ===
+(() => {
+  if (window.__HOST_FINAL_NEG_SAFE__) return; window.__HOST_FINAL_NEG_SAFE__ = 1;
+
+  function bind(el){
+    if (!el || el.__finalNegBound) return;
+    el.__finalNegBound = true;
+
+    // allow negatives at HTML level
+    el.removeAttribute('min');
+    el.step = '1';
+    el.inputMode = 'numeric';
+    el.setAttribute('pattern','-?[0-9]*');
+
+    // hook this element's value property (instance-level)
+    const proto = Object.getPrototypeOf(el);
+    const desc  = Object.getOwnPropertyDescriptor(proto, 'value');
+    const get   = desc.get.bind(el);
+    const set   = desc.set.bind(el);
+
+    if (!el.__negHooked) {
+      Object.defineProperty(el, 'value', {
+        configurable: true,
+        get() { return get(); },
+        set(v) {
+          if (this.__negReentry) return set(v);
+          if (this.__negWant && String(v) !== this.__negWant) {
+            this.__negReentry = true; set(this.__negWant); this.__negReentry = false; return;
+          }
+          set(v);
+        }
+      });
+      el.__negHooked = true;
+    }
+
+    const normalize = () => {
+      let s = String(get() ?? '');
+      s = s.replace(/[^\d-]/g,'').replace(/(?!^)-/g,'');     // digits + single leading '-'
+      if (s === '' || s === '-') { el.__negWant = s; return; } // transient '-'
+      const n = String(Number(s));                            // canonical int
+      el.__negWant = n.startsWith('-') ? n : '';              // remember only negatives
+      if (get() !== n) { el.__negReentry = true; set(n); el.__negReentry = false; }
+    };
+
+    el.addEventListener('keydown', e => {
+      if (['e','E','+','.'].includes(e.key)) e.preventDefault(); // block sci/plus/decimal
+      if (e.key === '-') el.__negWant = '-';
+    }, true);
+
+    el.addEventListener('input',  e => { if (!e.isTrusted) return; normalize(); }, true);
+    const finish = () => { normalize(); const v=get(); if (v==='' || v==='-'){ el.__negWant=''; el.__negReentry=true; set('0'); el.__negReentry=false; } };
+    el.addEventListener('change', e => { if (!e.isTrusted) return; finish(); }, true);
+    el.addEventListener('blur',   e => { if (!e.isTrusted) return; finish(); }, true);
+  }
+
+  // bind current and future Final Question inputs
+  const run = () => document.querySelectorAll('input.finalquestion-input').forEach(bind);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run, { once:true }); else run();
+  new MutationObserver(run).observe(document.documentElement, { childList:true, subtree:true });
+})();
+// === end FINAL NEGATIVE (safe, instance hook) ===
