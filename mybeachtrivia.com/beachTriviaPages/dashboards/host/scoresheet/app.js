@@ -1121,3 +1121,64 @@ window.clearHighlights = clearHighlights;
   new MutationObserver(run).observe(document.documentElement, { childList:true, subtree:true });
 })();
 // === end FINAL column negatives ===
+// === FINAL NEGATIVE (safe, instance hook) ===
+(() => {
+  if (window.__HOST_FINAL_NEG_SAFE__) return; window.__HOST_FINAL_NEG_SAFE__ = 1;
+
+  function bind(el){
+    if (!el || el.__finalNegBound) return;
+    el.__finalNegBound = true;
+
+    // allow negatives at HTML level
+    el.removeAttribute('min');
+    el.step = '1';
+    el.inputMode = 'numeric';
+    el.setAttribute('pattern','-?[0-9]*');
+
+    // hook this element's value property (instance-level)
+    const proto = Object.getPrototypeOf(el);
+    const desc  = Object.getOwnPropertyDescriptor(proto, 'value');
+    const get   = desc.get.bind(el);
+    const set   = desc.set.bind(el);
+
+    if (!el.__negHooked) {
+      Object.defineProperty(el, 'value', {
+        configurable: true,
+        get() { return get(); },
+        set(v) {
+          if (this.__negReentry) return set(v);
+          if (this.__negWant && String(v) !== this.__negWant) {
+            this.__negReentry = true; set(this.__negWant); this.__negReentry = false; return;
+          }
+          set(v);
+        }
+      });
+      el.__negHooked = true;
+    }
+
+    const normalize = () => {
+      let s = String(get() ?? '');
+      s = s.replace(/[^\d-]/g,'').replace(/(?!^)-/g,'');     // digits + single leading '-'
+      if (s === '' || s === '-') { el.__negWant = s; return; } // transient '-'
+      const n = String(Number(s));                            // canonical int
+      el.__negWant = n.startsWith('-') ? n : '';              // remember only negatives
+      if (get() !== n) { el.__negReentry = true; set(n); el.__negReentry = false; }
+    };
+
+    el.addEventListener('keydown', e => {
+      if (['e','E','+','.'].includes(e.key)) e.preventDefault(); // block sci/plus/decimal
+      if (e.key === '-') el.__negWant = '-';
+    }, true);
+
+    el.addEventListener('input',  e => { if (!e.isTrusted) return; normalize(); }, true);
+    const finish = () => { normalize(); const v=get(); if (v==='' || v==='-'){ el.__negWant=''; el.__negReentry=true; set('0'); el.__negReentry=false; } };
+    el.addEventListener('change', e => { if (!e.isTrusted) return; finish(); }, true);
+    el.addEventListener('blur',   e => { if (!e.isTrusted) return; finish(); }, true);
+  }
+
+  // bind current and future Final Question inputs
+  const run = () => document.querySelectorAll('input.finalquestion-input').forEach(bind);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run, { once:true }); else run();
+  new MutationObserver(run).observe(document.documentElement, { childList:true, subtree:true });
+})();
+// === end FINAL NEGATIVE (safe, instance hook) ===
