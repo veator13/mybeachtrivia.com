@@ -763,3 +763,132 @@ window.showStandings = showStandings;
 window.closeModal = closeModal;
 window.searchTeams = searchTeams;
 window.clearHighlights = clearHighlights;
+// === [scoresheet][HOST] GRID ENFORCER: per-Q columns; non-zero => round value ===
+(() => {
+  if (window.__HOST_GRID_ENFORCER__) return; window.__HOST_GRID_ENFORCER__ = 1;
+
+  const roundForQ = (q) => (q>=1 && q<=20) ? Math.ceil(q/5) : null; // 1..4
+
+  // Build header grid honoring rowSpan/colSpan; returns {cols, qByCol[]}
+  function mapHeader(table){
+    const thead = table.tHead; if (!thead) return { cols:0, qByCol:[] };
+    const rows = Array.from(thead.rows);
+    // upper-bound columns: max colSpan sum of any row
+    let maxCols = 0;
+    rows.forEach(r => {
+      let sum = 0; for (const c of r.cells) sum += Number(c.colSpan||1);
+      maxCols = Math.max(maxCols, sum);
+    });
+
+    // grid placement with rowSpan accounting
+    const occ = Array(maxCols).fill(0);
+    const grid = rows.map(()=>Array(maxCols).fill(null));
+
+    rows.forEach((r, ri) => {
+      let col = 0;
+      for (const cell of r.cells) {
+        while (occ[col] > 0) col++;
+        const cs = Number(cell.colSpan||1);
+        const rs = Number(cell.rowSpan||1);
+        for (let i=0;i<cs;i++) {
+          grid[ri][col+i] = cell;
+          occ[col+i] = rs;   // mark occupied for rs rows (including this one)
+        }
+        col += cs;
+      }
+      for (let i=0;i<maxCols;i++) if (occ[i]>0) occ[i]--; // advance to next row
+    });
+
+    // choose the row with most Q labels
+    let bestRow = 0, bestScore = -1;
+    grid.forEach((arr, ri) => {
+      const score = arr.reduce((acc, cell) => {
+        const t = (cell?.textContent||'').trim();
+        return acc + (/\bQ\s*\d+\b/i.test(t) ? 1 : 0);
+      }, 0);
+      if (score > bestScore) { bestScore = score; bestRow = ri; }
+    });
+
+    const qByCol = Array(maxCols).fill(null);
+    for (let col=0; col<maxCols; col++) {
+      const cell = grid[bestRow][col];
+      const m = (cell?.textContent||'').match(/\bQ\s*([0-9]{1,2})\b/i);
+      if (m) qByCol[col] = Number(m[1]);
+    }
+    return { cols:maxCols, qByCol };
+  }
+
+  // Find the <td> that covers a given column index, respecting colSpan
+  function getCellAtCol(tr, colIndex){
+    let pos = 0;
+    for (const td of tr.cells) {
+      const span = Number(td.colSpan||1);
+      if (colIndex >= pos && colIndex < pos + span) return td;
+      pos += span;
+    }
+    return null;
+  }
+
+  function findEditor(td){
+    return td.querySelector('input, [contenteditable="true"], [contenteditable=""]')
+        || td.querySelector('input, div, span');
+  }
+
+  function bind(el, allowed){
+    if (el.__gridBound) return;
+    el.__gridBound = true;
+
+    const coerce = (raw) => {
+      const s = String(raw ?? '').replace(/[^\d]/g,'');
+      if (s === '') return '';           // allow temporary empty
+      const n = Number(s);
+      if (n === 0) return '0';
+      return String(allowed);            // any non-zero snaps to 1/2/3/4
+    };
+
+    const apply = () => {
+      if (el.tagName === 'INPUT') el.value = coerce(el.value);
+      else el.textContent = coerce(el.textContent);
+    };
+
+    if (el.tagName === 'INPUT') {
+      el.setAttribute('inputmode','numeric');
+      el.setAttribute('min','0'); el.setAttribute('max', String(allowed));
+      el.setAttribute('step', String(allowed));     // spinner toggles 0 <-> allowed
+      el.addEventListener('input', apply, { passive:true });
+      el.addEventListener('change', apply);
+      el.addEventListener('blur', () => { if (el.value === '') el.value = '0'; });
+      el.addEventListener('keydown', (e)=>{ if(['e','E','+','-','.'].includes(e.key)) e.preventDefault(); });
+    } else {
+      el.setAttribute('contenteditable','true');
+      el.addEventListener('input', apply);
+      el.addEventListener('blur', () => { if ((el.textContent||'') === '') el.textContent = '0'; });
+      el.addEventListener('keydown', (e)=>{ if(['e','E','+','-','.'].includes(e.key)) e.preventDefault(); });
+    }
+    apply(); // normalize immediately
+  }
+
+  function run(){
+    document.querySelectorAll('table').forEach(table => {
+      const { cols, qByCol } = mapHeader(table);
+      if (!cols) return;
+
+      for (const tbody of table.tBodies) {
+        for (const tr of tbody.rows) {
+          for (let col=0; col<cols; col++) {
+            const q = qByCol[col]; if (!q) continue;
+            const allowed = roundForQ(q); if (!allowed) continue;
+            const td = getCellAtCol(tr, col); if (!td) continue;
+            const el = findEditor(td); if (!el) continue;
+            bind(el, allowed);
+          }
+        }
+      }
+    });
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run, { once:true });
+  else run();
+  new MutationObserver(run).observe(document.documentElement, { childList:true, subtree:true });
+})();
+// === end GRID ENFORCER ===

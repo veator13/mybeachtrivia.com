@@ -76,3 +76,4 @@ node_modules/
 # Node deps
 functions/node_modules/
 functions-v2/node_modules/
+.DS_Store
