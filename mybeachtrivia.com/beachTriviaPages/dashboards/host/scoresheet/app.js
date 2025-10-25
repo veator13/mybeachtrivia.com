@@ -763,44 +763,87 @@ window.showStandings = showStandings;
 window.closeModal = closeModal;
 window.searchTeams = searchTeams;
 window.clearHighlights = clearHighlights;
-/// === BEGIN HOST SCORESHEET FINAL ENFORCER ===
+// === [scoresheet][HOST] GRID ENFORCER: per-Q columns; non-zero => round value ===
 (() => {
-  if (window.__HOST_SHEET_ENFORCER__) return; window.__HOST_SHEET_ENFORCER__ = 1;
+  if (window.__HOST_GRID_ENFORCER__) return; window.__HOST_GRID_ENFORCER__ = 1;
 
-  const allowedForQ = (q) => (q>=1 && q<=20) ? Math.ceil(q/5) : null; // 1..4
+  const roundForQ = (q) => (q>=1 && q<=20) ? Math.ceil(q/5) : null; // 1..4
 
-  function buildHeaderColMap(table) {
-    const colQ = [];
-    const thead = table.tHead; if (!thead) return colQ;
-    for (const row of thead.rows) {
+  // Build header grid honoring rowSpan/colSpan; returns {cols, qByCol[]}
+  function mapHeader(table){
+    const thead = table.tHead; if (!thead) return { cols:0, qByCol:[] };
+    const rows = Array.from(thead.rows);
+    // upper-bound columns: max colSpan sum of any row
+    let maxCols = 0;
+    rows.forEach(r => {
+      let sum = 0; for (const c of r.cells) sum += Number(c.colSpan||1);
+      maxCols = Math.max(maxCols, sum);
+    });
+
+    // grid placement with rowSpan accounting
+    const occ = Array(maxCols).fill(0);
+    const grid = rows.map(()=>Array(maxCols).fill(null));
+
+    rows.forEach((r, ri) => {
       let col = 0;
-      for (const cell of row.cells) {
-        const span = Number(cell.colSpan || 1);
-        const m = (cell.textContent || '').match(/\bQ\s*([0-9]{1,2})\b/i);
-        const q = m ? Number(m[1]) : null;
-        for (let i = 0; i < span; i++) { if (q) colQ[col + i] = q; }
-        col += span;
+      for (const cell of r.cells) {
+        while (occ[col] > 0) col++;
+        const cs = Number(cell.colSpan||1);
+        const rs = Number(cell.rowSpan||1);
+        for (let i=0;i<cs;i++) {
+          grid[ri][col+i] = cell;
+          occ[col+i] = rs;   // mark occupied for rs rows (including this one)
+        }
+        col += cs;
       }
+      for (let i=0;i<maxCols;i++) if (occ[i]>0) occ[i]--; // advance to next row
+    });
+
+    // choose the row with most Q labels
+    let bestRow = 0, bestScore = -1;
+    grid.forEach((arr, ri) => {
+      const score = arr.reduce((acc, cell) => {
+        const t = (cell?.textContent||'').trim();
+        return acc + (/\bQ\s*\d+\b/i.test(t) ? 1 : 0);
+      }, 0);
+      if (score > bestScore) { bestScore = score; bestRow = ri; }
+    });
+
+    const qByCol = Array(maxCols).fill(null);
+    for (let col=0; col<maxCols; col++) {
+      const cell = grid[bestRow][col];
+      const m = (cell?.textContent||'').match(/\bQ\s*([0-9]{1,2})\b/i);
+      if (m) qByCol[col] = Number(m[1]);
     }
-    return colQ; // absolute column -> Q#
+    return { cols:maxCols, qByCol };
   }
 
-  function findEditor(cell) {
-    return cell.querySelector('input, [contenteditable="true"], [contenteditable=""]') ||
-           cell.querySelector('input, div, span');
+  // Find the <td> that covers a given column index, respecting colSpan
+  function getCellAtCol(tr, colIndex){
+    let pos = 0;
+    for (const td of tr.cells) {
+      const span = Number(td.colSpan||1);
+      if (colIndex >= pos && colIndex < pos + span) return td;
+      pos += span;
+    }
+    return null;
   }
 
-  function bindEditor(el, allowed) {
-    if (el.__enforced) return;
-    el.__enforced = true;
+  function findEditor(td){
+    return td.querySelector('input, [contenteditable="true"], [contenteditable=""]')
+        || td.querySelector('input, div, span');
+  }
 
-    const coerce = (val) => {
-      const s = String(val ?? '');
-      const digits = s.replace(/[^\d]/g, '');
-      if (digits === '') return '';       // allow temp empty; will snap on blur
-      const n = Number(digits);
+  function bind(el, allowed){
+    if (el.__gridBound) return;
+    el.__gridBound = true;
+
+    const coerce = (raw) => {
+      const s = String(raw ?? '').replace(/[^\d]/g,'');
+      if (s === '') return '';           // allow temporary empty
+      const n = Number(s);
       if (n === 0) return '0';
-      return String(allowed);             // any non-zero -> round value
+      return String(allowed);            // any non-zero snaps to 1/2/3/4
     };
 
     const apply = () => {
@@ -809,48 +852,43 @@ window.clearHighlights = clearHighlights;
     };
 
     if (el.tagName === 'INPUT') {
-      el.setAttribute('inputmode', 'numeric');
-      el.setAttribute('min', '0');
-      el.setAttribute('max', String(allowed));
-      el.setAttribute('step', String(allowed));     // spinner: 0 <-> allowed
-      el.addEventListener('input', apply, { passive: true });
+      el.setAttribute('inputmode','numeric');
+      el.setAttribute('min','0'); el.setAttribute('max', String(allowed));
+      el.setAttribute('step', String(allowed));     // spinner toggles 0 <-> allowed
+      el.addEventListener('input', apply, { passive:true });
       el.addEventListener('change', apply);
       el.addEventListener('blur', () => { if (el.value === '') el.value = '0'; });
-      el.addEventListener('keydown', (e) => { if (['e','E','+','-','.'].includes(e.key)) e.preventDefault(); });
+      el.addEventListener('keydown', (e)=>{ if(['e','E','+','-','.'].includes(e.key)) e.preventDefault(); });
     } else {
-      el.setAttribute('contenteditable', 'true');
+      el.setAttribute('contenteditable','true');
       el.addEventListener('input', apply);
-      el.addEventListener('blur', () => { if ((el.textContent || '') === '') el.textContent = '0'; });
-      el.addEventListener('keydown', (e) => { if (['e','E','+','-','.'].includes(e.key)) e.preventDefault(); });
+      el.addEventListener('blur', () => { if ((el.textContent||'') === '') el.textContent = '0'; });
+      el.addEventListener('keydown', (e)=>{ if(['e','E','+','-','.'].includes(e.key)) e.preventDefault(); });
     }
-
-    apply(); // normalize any pre-filled values immediately
+    apply(); // normalize immediately
   }
 
-  function run() {
+  function run(){
     document.querySelectorAll('table').forEach(table => {
-      const colQ = buildHeaderColMap(table);
-      if (!colQ.length) return;
+      const { cols, qByCol } = mapHeader(table);
+      if (!cols) return;
 
       for (const tbody of table.tBodies) {
         for (const tr of tbody.rows) {
-          let col = 0;
-          for (const cell of tr.cells) {
-            const span = Number(cell.colSpan || 1);
-            const q = colQ[col];
-            const allowed = allowedForQ(q);
-            if (allowed) {
-              const el = findEditor(cell);
-              if (el) bindEditor(el, allowed);
-            }
-            col += span;
+          for (let col=0; col<cols; col++) {
+            const q = qByCol[col]; if (!q) continue;
+            const allowed = roundForQ(q); if (!allowed) continue;
+            const td = getCellAtCol(tr, col); if (!td) continue;
+            const el = findEditor(td); if (!el) continue;
+            bind(el, allowed);
           }
         }
       }
     });
   }
 
-  if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', run, { once: true }); } else { run(); }
-  new MutationObserver(run).observe(document.documentElement, { childList: true, subtree: true });
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run, { once:true });
+  else run();
+  new MutationObserver(run).observe(document.documentElement, { childList:true, subtree:true });
 })();
-/// === END HOST SCORESHEET FINAL ENFORCER ===
+// === end GRID ENFORCER ===
