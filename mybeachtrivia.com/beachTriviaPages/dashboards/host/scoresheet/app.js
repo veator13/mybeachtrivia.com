@@ -1182,3 +1182,88 @@ window.clearHighlights = clearHighlights;
   new MutationObserver(run).observe(document.documentElement, { childList:true, subtree:true });
 })();
 // === end FINAL NEGATIVE (safe, instance hook) ===
+// === [scoresheet][HOST] Q-COLUMN NORMALIZER & STRICT SNAPPING ===
+(() => {
+  if (window.__HOST_QCELL_STRICT__) return; window.__HOST_QCELL_STRICT__ = 1;
+
+  function buildHeaderGrid(table){
+    const thead = table.tHead; if (!thead) return {cols:0, labels:[]};
+    const rows=[...thead.rows]; let max=0;
+    rows.forEach(r => { let s=0; for (const c of r.cells) s += Number(c.colSpan||1); max=Math.max(max,s); });
+    const occ=Array(max).fill(0), grid=rows.map(()=>Array(max).fill(null));
+    rows.forEach((r,ri)=>{ let c=0; for (const cell of r.cells){
+      while (occ[c]>0) c++; const cs=+cell.colSpan||1, rs=+cell.rowSpan||1;
+      for (let i=0;i<cs;i++){ grid[ri][c+i]=cell; occ[c+i]=rs; } c+=cs;
+    } for (let i=0;i<max;i++) if (occ[i]>0) occ[i]--; });
+
+    const labels=Array(max).fill(null);
+    for (let c=0;c<max;c++){ let t=''; for (let r=0;r<grid.length;r++){
+      const s=(grid[r][c]?.textContent||'').trim(); if (s) t=s;
+    } labels[c]=t; }
+    return { cols:max, labels, grid };
+  }
+
+  function getCellColIndex(tr, td){
+    let pos=0; for (const c of tr.cells){ const span=+c.colSpan||1; if (c===td) return pos; pos+=span; } return -1;
+  }
+  function labelForCol(table, col){
+    const {labels} = buildHeaderGrid(table); return labels[col] || '';
+  }
+  function qNumberFromLabel(lbl){
+    const m = lbl.match(/\bQ\s*([0-9]{1,2})\b/i); return m ? +m[1] : null;
+  }
+  function weightForQ(q){
+    if (q>=1 && q<=5) return 1;
+    if (q>=6 && q<=10) return 2;
+    if (q>=11 && q<=15) return 3;
+    if (q>=16 && q<=20) return 4;
+    return null;
+  }
+
+  function bindIfQInput(el){
+    const td = el.closest('td,th'); if (!td) return;
+    const tr = td.parentElement; const table = tr?.closest('table'); if (!table) return;
+    const col = getCellColIndex(tr, td); if (col < 0) return;
+    const lbl = labelForCol(table, col);
+    const q   = qNumberFromLabel(lbl);
+    if (q == null) return;                  // skip non-Q columns (Final/Halftime/etc.)
+    const weight = weightForQ(q); if (weight == null) return;
+
+    // Normalize attributes so browser doesn't clamp (e.g., max="1")
+    el.removeAttribute('max');
+    el.setAttribute('min',  '0');
+    el.setAttribute('step', '1');
+    el.setAttribute('inputmode','numeric');
+    el.setAttribute('pattern','[0-9]*');
+
+    const snap = () => {
+      let s = String(el.value ?? '');
+      s = s.replace(/[^\d]/g,'');           // digits only for Q-cells
+      if (s === '') {                       // empty -> 0
+        if (el.value !== '0') el.value = '0';
+        return;
+      }
+      const n = Number(s);
+      const out = (n === 0) ? '0' : String(weight);
+      if (el.value !== out) {
+        el.value = out;
+        // bubble input so totals refresh even if value visually unchanged
+        el.dispatchEvent(new Event('input', { bubbles:true }));
+      }
+    };
+
+    // Capture-phase ensures we override any stray handlers
+    el.addEventListener('input',  e => { if (!e.isTrusted) return; snap(); }, true);
+    el.addEventListener('change', e => { if (!e.isTrusted) return; snap(); }, true);
+    el.addEventListener('blur',   e => { if (!e.isTrusted) return; snap(); }, true);
+  }
+
+  const run = () => {
+    document.querySelectorAll('table tbody input[type="number"]').forEach(bindIfQInput);
+  };
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run, { once:true });
+  else run();
+  new MutationObserver(run).observe(document.documentElement, { childList:true, subtree:true });
+})();
+// === end Q-COLUMN NORMALIZER & STRICT SNAPPING ===
