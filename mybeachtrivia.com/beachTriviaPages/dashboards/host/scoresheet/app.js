@@ -763,84 +763,94 @@ window.showStandings = showStandings;
 window.closeModal = closeModal;
 window.searchTeams = searchTeams;
 window.clearHighlights = clearHighlights;
-// === [scoresheet] column-walker: enforce 0 or round-value per Q column (host-only) ===
+/// === BEGIN HOST SCORESHEET FINAL ENFORCER ===
 (() => {
-  if (window.__SS_COL_ENFORCER__) return; window.__SS_COL_ENFORCER__ = 1;
-  const allowedForQ = (q) => (!q || q<1 || q>20) ? null : Math.ceil(q/5);
+  if (window.__HOST_SHEET_ENFORCER__) return; window.__HOST_SHEET_ENFORCER__ = 1;
 
-  function qHeaderRow(tbl){
-    const rows = Array.from(tbl.tHead?.rows || []);
-    return rows.find(r => Array.from(r.cells).some(c => /\bQ\s*\d+\b/i.test(c.textContent||'')))
-        || rows[rows.length-1] || null;
-  }
-  function mapQColumns(tbl){
-    const row = qHeaderRow(tbl);
-    const map = {};
-    if (!row) return map;
-    Array.from(row.cells).forEach(cell => {
-      const m = (cell.textContent||'').match(/\bQ\s*([0-9]{1,2})\b/i);
-      if (m) map[cell.cellIndex] = Number(m[1]);
-    });
-    return map; // { colIndex -> Q# }
+  const allowedForQ = (q) => (q>=1 && q<=20) ? Math.ceil(q/5) : null; // 1..4
+
+  function buildHeaderColMap(table) {
+    const colQ = [];
+    const thead = table.tHead; if (!thead) return colQ;
+    for (const row of thead.rows) {
+      let col = 0;
+      for (const cell of row.cells) {
+        const span = Number(cell.colSpan || 1);
+        const m = (cell.textContent || '').match(/\bQ\s*([0-9]{1,2})\b/i);
+        const q = m ? Number(m[1]) : null;
+        for (let i = 0; i < span; i++) { if (q) colQ[col + i] = q; }
+        col += span;
+      }
+    }
+    return colQ; // absolute column -> Q#
   }
 
-  function bindEditable(el, allowed){
-    if (el.__colBound) return;
-    el.__colBound = true;
+  function findEditor(cell) {
+    return cell.querySelector('input, [contenteditable="true"], [contenteditable=""]') ||
+           cell.querySelector('input, div, span');
+  }
+
+  function bindEditor(el, allowed) {
+    if (el.__enforced) return;
+    el.__enforced = true;
 
     const coerce = (val) => {
-      const n = Number(String(val||'').replace(/[^\d]/g,'').slice(0,2));
-      if (!n) return '0';
-      return (n === allowed) ? String(allowed) : '0';
+      const s = String(val ?? '');
+      const digits = s.replace(/[^\d]/g, '');
+      if (digits === '') return '';       // allow temp empty; will snap on blur
+      const n = Number(digits);
+      if (n === 0) return '0';
+      return String(allowed);             // any non-zero -> round value
     };
 
     const apply = () => {
-      if (el.tagName === 'INPUT') {
-        el.value = (el.value === '') ? '' : coerce(el.value);
-      } else {
-        const t = el.textContent || '';
-        el.textContent = (t === '') ? '' : coerce(t);
-      }
+      if (el.tagName === 'INPUT') el.value = coerce(el.value);
+      else el.textContent = coerce(el.textContent);
     };
 
     if (el.tagName === 'INPUT') {
-      el.setAttribute('inputmode','numeric');
-      el.setAttribute('min','0'); el.setAttribute('max', String(allowed));
-      el.setAttribute('step', String(allowed));
-      el.addEventListener('input', apply, { passive:true });
+      el.setAttribute('inputmode', 'numeric');
+      el.setAttribute('min', '0');
+      el.setAttribute('max', String(allowed));
+      el.setAttribute('step', String(allowed));     // spinner: 0 <-> allowed
+      el.addEventListener('input', apply, { passive: true });
       el.addEventListener('change', apply);
       el.addEventListener('blur', () => { if (el.value === '') el.value = '0'; });
-      el.addEventListener('keydown', (e)=>{ if(['e','E','+','-'].includes(e.key)) e.preventDefault(); });
+      el.addEventListener('keydown', (e) => { if (['e','E','+','-','.'].includes(e.key)) e.preventDefault(); });
     } else {
-      el.setAttribute('contenteditable','true');
+      el.setAttribute('contenteditable', 'true');
       el.addEventListener('input', apply);
-      el.addEventListener('blur', () => { if ((el.textContent||'') === '') el.textContent = '0'; });
-      el.addEventListener('keydown', (e)=>{ if(['e','E','+','-'].includes(e.key)) e.preventDefault(); });
+      el.addEventListener('blur', () => { if ((el.textContent || '') === '') el.textContent = '0'; });
+      el.addEventListener('keydown', (e) => { if (['e','E','+','-','.'].includes(e.key)) e.preventDefault(); });
     }
-    apply();
+
+    apply(); // normalize any pre-filled values immediately
   }
 
-  function run(){
-    document.querySelectorAll('table').forEach(tbl => {
-      const colMap = mapQColumns(tbl);
-      if (!Object.keys(colMap).length) return;
-      Array.from(tbl.tBodies || []).forEach(tbody => {
-        Array.from(tbody.rows || []).forEach(tr => {
-          Object.entries(colMap).forEach(([idx, qStr]) => {
-            const q = Number(qStr);
+  function run() {
+    document.querySelectorAll('table').forEach(table => {
+      const colQ = buildHeaderColMap(table);
+      if (!colQ.length) return;
+
+      for (const tbody of table.tBodies) {
+        for (const tr of tbody.rows) {
+          let col = 0;
+          for (const cell of tr.cells) {
+            const span = Number(cell.colSpan || 1);
+            const q = colQ[col];
             const allowed = allowedForQ(q);
-            const cell = tr.cells[Number(idx)];
-            if (!cell || !allowed) return;
-            const el = cell.querySelector('input, [contenteditable="true"], [contenteditable=""]') || cell.querySelector('input, div, span');
-            if (!el) return;
-            bindEditable(el, allowed);
-          });
-        });
-      });
+            if (allowed) {
+              const el = findEditor(cell);
+              if (el) bindEditor(el, allowed);
+            }
+            col += span;
+          }
+        }
+      }
     });
   }
 
-  if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', run, { once:true }); } else { run(); }
-  new MutationObserver(run).observe(document.documentElement, { childList:true, subtree:true });
+  if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', run, { once: true }); } else { run(); }
+  new MutationObserver(run).observe(document.documentElement, { childList: true, subtree: true });
 })();
-// === end column-walker ===
+/// === END HOST SCORESHEET FINAL ENFORCER ===
