@@ -892,3 +892,136 @@ window.clearHighlights = clearHighlights;
   new MutationObserver(run).observe(document.documentElement, { childList:true, subtree:true });
 })();
 // === end GRID ENFORCER ===
+// === [scoresheet][HOST] TABLE NAVIGATION — Arrow keys incl. Team/Halftime/Final ===
+(() => {
+  if (window.__HOST_TABLE_NAV__) return; window.__HOST_TABLE_NAV__ = 1;
+
+  // Build a header grid honoring rowSpan/colSpan
+  function buildHeaderGrid(table){
+    const thead = table.tHead; if (!thead) return {cols:0, grid:[], labels:[]};
+    const rows = Array.from(thead.rows);
+
+    let maxCols = 0;
+    rows.forEach(r => { let s=0; for (const c of r.cells) s += Number(c.colSpan||1); maxCols = Math.max(maxCols, s); });
+
+    const occ = Array(maxCols).fill(0);
+    const grid = rows.map(()=>Array(maxCols).fill(null));
+    rows.forEach((r,ri) => {
+      let col = 0;
+      for (const cell of r.cells) {
+        while (occ[col] > 0) col++;
+        const cs = Number(cell.colSpan||1), rs = Number(cell.rowSpan||1);
+        for (let i=0;i<cs;i++){ grid[ri][col+i] = cell; occ[col+i] = rs; }
+        col += cs;
+      }
+      for (let i=0;i<maxCols;i++) if (occ[i]>0) occ[i]--;
+    });
+
+    // Derive per-column label: last non-empty text across header rows
+    const labels = Array(maxCols).fill(null);
+    for (let c=0;c<maxCols;c++){
+      let label = '';
+      for (let r=0;r<grid.length;r++){
+        const t = (grid[r][c]?.textContent || '').trim();
+        if (t) label = t;
+      }
+      labels[c] = label;
+    }
+    return { cols: maxCols, grid, labels };
+  }
+
+  function getCellAtCol(tr, colIndex){
+    let pos=0;
+    for (const td of tr.cells){
+      const span = Number(td.colSpan||1);
+      if (colIndex >= pos && colIndex < pos + span) return td;
+      pos += span;
+    }
+    return null;
+  }
+
+  function findEditor(td){
+    return td?.querySelector('input, [contenteditable="true"], [contenteditable=""]')
+        || td?.querySelector('input, div, span') || null;
+  }
+
+  function indexTable(table){
+    const {cols, labels} = buildHeaderGrid(table);
+    const rows = [];
+    for (const tb of table.tBodies) for (const tr of tb.rows) rows.push(tr);
+
+    // Mark navigable columns:
+    // - Columns whose label suggests Team/Halftime/Final OR "Q##"
+    // - OR any column that actually has an editable element in any body row
+    const navCols = Array(cols).fill(false);
+    const labelIsNav = (txt) => {
+      const t = (txt || '').toLowerCase();
+      return /\bq\s*\d+\b/.test(t) || /team(\s*name)?/.test(t) || /half[\s-]?time/.test(t) || /\bfinal\b/.test(t);
+    };
+    for (let c=0;c<cols;c++){
+      if (labelIsNav(labels[c])) { navCols[c] = true; continue; }
+      // Fallback: scan first few rows to see if there is an editor
+      for (let r=0; r<Math.min(rows.length, 6); r++){
+        const td = getCellAtCol(rows[r], c);
+        if (td && findEditor(td)) { navCols[c] = true; break; }
+      }
+    }
+    return {rows, cols, navCols};
+  }
+
+  function currentColIndex(tr, td){
+    let pos=0;
+    for (const cell of tr.cells){
+      const span = Number(cell.colSpan||1);
+      if (cell === td) return pos;
+      pos += span;
+    }
+    return -1;
+  }
+
+  function moveFocus(fromInput, dx, dy){
+    const table = fromInput.closest('table'); if (!table) return;
+    const {rows, cols, navCols} = indexTable(table);
+
+    const fromTd = fromInput.closest('td,th'); if (!fromTd) return;
+    const fromTr = fromTd.parentElement;
+    const rIdx = rows.indexOf(fromTr);
+    let cIdx = currentColIndex(fromTr, fromTd);
+    if (cIdx < 0) return;
+
+    // Horizontal: move to previous/next navigable column (includes Team/Halftime/Final/Q)
+    if (dx) {
+      let step = dx > 0 ? 1 : -1;
+      let c = cIdx + step;
+      while (c >= 0 && c < cols && !navCols[c]) c += step; // skip non-editable cols
+      if (c >= 0 && c < cols && navCols[c]) cIdx = c; // clamp at edges if none
+    }
+
+    // Vertical: same column, different row
+    let rTarget = Math.max(0, Math.min(rows.length - 1, rIdx + (dy||0)));
+
+    const targetTr = rows[rTarget];
+    const targetTd = getCellAtCol(targetTr, cIdx);
+    const targetEl = findEditor(targetTd);
+    if (targetEl) {
+      targetEl.focus();
+      if (targetEl.select) targetEl.select();
+    }
+  }
+
+  function onKey(e){
+    const k = e.key;
+    if (!['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(k)) return;
+    const editor = e.target;
+    if (!editor || !editor.closest('table')) return;
+    e.preventDefault();
+    moveFocus(editor,
+      k==='ArrowRight'? 1 : k==='ArrowLeft'? -1 : 0,
+      k==='ArrowDown' ? 1 : k==='ArrowUp'   ? -1 : 0
+    );
+  }
+
+  // Capture early so we override the default caret moves in inputs/contenteditable
+  document.addEventListener('keydown', onKey, true);
+})();
+// === end TABLE NAVIGATION ===
