@@ -1182,3 +1182,377 @@ window.clearHighlights = clearHighlights;
   new MutationObserver(run).observe(document.documentElement, { childList:true, subtree:true });
 })();
 // === end FINAL NEGATIVE (safe, instance hook) ===
+// === [scoresheet][HOST] Q-COLUMN NORMALIZER & STRICT SNAPPING ===
+(() => {
+  if (window.__HOST_QCELL_STRICT__) return; window.__HOST_QCELL_STRICT__ = 1;
+
+  function buildHeaderGrid(table){
+    const thead = table.tHead; if (!thead) return {cols:0, labels:[]};
+    const rows=[...thead.rows]; let max=0;
+    rows.forEach(r => { let s=0; for (const c of r.cells) s += Number(c.colSpan||1); max=Math.max(max,s); });
+    const occ=Array(max).fill(0), grid=rows.map(()=>Array(max).fill(null));
+    rows.forEach((r,ri)=>{ let c=0; for (const cell of r.cells){
+      while (occ[c]>0) c++; const cs=+cell.colSpan||1, rs=+cell.rowSpan||1;
+      for (let i=0;i<cs;i++){ grid[ri][c+i]=cell; occ[c+i]=rs; } c+=cs;
+    } for (let i=0;i<max;i++) if (occ[i]>0) occ[i]--; });
+
+    const labels=Array(max).fill(null);
+    for (let c=0;c<max;c++){ let t=''; for (let r=0;r<grid.length;r++){
+      const s=(grid[r][c]?.textContent||'').trim(); if (s) t=s;
+    } labels[c]=t; }
+    return { cols:max, labels, grid };
+  }
+
+  function getCellColIndex(tr, td){
+    let pos=0; for (const c of tr.cells){ const span=+c.colSpan||1; if (c===td) return pos; pos+=span; } return -1;
+  }
+  function labelForCol(table, col){
+    const {labels} = buildHeaderGrid(table); return labels[col] || '';
+  }
+  function qNumberFromLabel(lbl){
+    const m = lbl.match(/\bQ\s*([0-9]{1,2})\b/i); return m ? +m[1] : null;
+  }
+  function weightForQ(q){
+    if (q>=1 && q<=5) return 1;
+    if (q>=6 && q<=10) return 2;
+    if (q>=11 && q<=15) return 3;
+    if (q>=16 && q<=20) return 4;
+    return null;
+  }
+
+  function bindIfQInput(el){
+    const td = el.closest('td,th'); if (!td) return;
+    const tr = td.parentElement; const table = tr?.closest('table'); if (!table) return;
+    const col = getCellColIndex(tr, td); if (col < 0) return;
+    const lbl = labelForCol(table, col);
+    const q   = qNumberFromLabel(lbl);
+    if (q == null) return;                  // skip non-Q columns (Final/Halftime/etc.)
+    const weight = weightForQ(q); if (weight == null) return;
+
+    // Normalize attributes so browser doesn't clamp (e.g., max="1")
+    el.removeAttribute('max');
+    el.setAttribute('min',  '0');
+    el.setAttribute('step', '1');
+    el.setAttribute('inputmode','numeric');
+    el.setAttribute('pattern','[0-9]*');
+
+    const snap = () => {
+      let s = String(el.value ?? '');
+      s = s.replace(/[^\d]/g,'');           // digits only for Q-cells
+      if (s === '') {                       // empty -> 0
+        if (el.value !== '0') el.value = '0';
+        return;
+      }
+      const n = Number(s);
+      const out = (n === 0) ? '0' : String(weight);
+      if (el.value !== out) {
+        el.value = out;
+        // bubble input so totals refresh even if value visually unchanged
+        el.dispatchEvent(new Event('input', { bubbles:true }));
+      }
+    };
+
+    // Capture-phase ensures we override any stray handlers
+    el.addEventListener('input',  e => { if (!e.isTrusted) return; snap(); }, true);
+    el.addEventListener('change', e => { if (!e.isTrusted) return; snap(); }, true);
+    el.addEventListener('blur',   e => { if (!e.isTrusted) return; snap(); }, true);
+  }
+
+  const run = () => {
+    document.querySelectorAll('table tbody input[type="number"]').forEach(bindIfQInput);
+  };
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run, { once:true });
+  else run();
+  new MutationObserver(run).observe(document.documentElement, { childList:true, subtree:true });
+})();
+// === end Q-COLUMN NORMALIZER & STRICT SNAPPING ===
+// === [scoresheet][HOST] Q11–Q15 STRICT (0 or 3) — removes browser max clamp & blocks script-forced "1" ===
+(() => {
+  if (window.__HOST_Q11_15_STRICT__) return; window.__HOST_Q11_15_STRICT__ = 1;
+
+  function buildHeaderGrid(table){
+    const thead = table.tHead; if (!thead) return {cols:0, labels:[]};
+    const rows = Array.from(thead.rows); let max = 0;
+    rows.forEach(r => { let s=0; for (const c of r.cells) s += Number(c.colSpan||1); max=Math.max(max,s); });
+    const occ = Array(max).fill(0), grid = rows.map(()=>Array(max).fill(null));
+    rows.forEach((r,ri) => {
+      let c=0; for (const cell of r.cells){
+        while (occ[c]>0) c++; const cs=+cell.colSpan||1, rs=+cell.rowSpan||1;
+        for (let i=0;i<cs;i++){ grid[ri][c+i]=cell; occ[c+i]=rs; } c+=cs;
+      }
+      for (let i=0;i<max;i++) if (occ[i]>0) occ[i]--;
+    });
+    const labels = Array(max).fill(null);
+    for (let c=0;c<max;c++){ let t=''; for (let r=0;r<grid.length;r++){
+      const s=(grid[r][c]?.textContent||'').trim(); if (s) t=s;
+    } labels[c]=t; }
+    return { cols:max, labels };
+  }
+  function getCellAtCol(tr, colIndex){
+    let pos=0; for (const td of tr.cells){ const span=+td.colSpan||1; if (colIndex>=pos && colIndex<pos+span) return td; pos+=span; }
+    return null;
+  }
+
+  function collectQ11to15Inputs(table){
+    const {labels} = buildHeaderGrid(table);
+    const qToCol = {};
+    labels.forEach((L,i)=>{ const m = /\bQ\s*([0-9]{1,2})\b/i.exec(L||''); if (m) qToCol[+m[1]] = i; });
+    const out = [];
+    [11,12,13,14,15].forEach(q=>{
+      const col = qToCol[q]; if (col==null) return;
+      for (const tb of table.tBodies) for (const tr of tb.rows){
+        const td = getCellAtCol(tr,col); if (!td) continue;
+        const el = td.querySelector('input[type=number]'); if (el) out.push(el);
+      }
+    });
+    return out;
+  }
+
+  const bound = new WeakSet();
+  const unbinds = [];
+  function bind(el){
+    if (!el || bound.has(el)) return; bound.add(el);
+
+    // remove legacy clamps & keep numeric-only
+    el.removeAttribute('max'); el.min='0'; el.step='1'; el.inputMode='numeric'; el.setAttribute('pattern','[0-9]*');
+
+    // no e/E/+/. (do NOT block arrows)
+    const onKey = e => { if (['e','E','+','.'].includes(e.key)) e.preventDefault(); };
+    el.addEventListener('keydown', onKey, true); unbinds.push(()=>el.removeEventListener('keydown', onKey, true));
+
+    // snapper: non-zero => "3"
+    const snap = () => {
+      let s = String(el.value ?? '').replace(/[^\d]/g,'');
+      const out = (s === '' || Number(s) === 0) ? '0' : '3';
+      if (el.value !== out) { el.value = out; el.dispatchEvent(new Event('input', { bubbles:true })); }
+    };
+    const onInput  = e => { if (e.isTrusted) snap(); };
+    const onChange = e => { if (e.isTrusted) snap(); };
+    const onBlur   = e => { if (e.isTrusted) snap(); };
+    el.addEventListener('input', onInput, true);
+    el.addEventListener('change', onChange, true);
+    el.addEventListener('blur', onBlur, true);
+    unbinds.push(()=>{ el.removeEventListener('input',onInput,true); el.removeEventListener('change',onChange,true); el.removeEventListener('blur',onBlur,true); });
+
+    // hard guard: if any script tries to set "1", coerce to "3" (unless '', '0', '3')
+    const proto = Object.getPrototypeOf(el);
+    const d = Object.getOwnPropertyDescriptor(proto,'value');
+    if (d?.set && !el.__q315Hook) {
+      const get = d.get.bind(el), set = d.set.bind(el);
+      Object.defineProperty(el,'value',{ configurable:true,
+        get(){ return get(); },
+        set(v){
+          if (this.__q315Re) return set(v);
+          const str = String(v);
+          if (str !== '' && str !== '0' && str !== '3') { this.__q315Re = true; set('3'); this.__q315Re = false; return; }
+          set(v);
+        }
+      });
+      el.__q315Hook = true;
+    }
+  }
+
+  function apply(){
+    const table = document.querySelector('table'); if (!table) return;
+    collectQ11to15Inputs(table).forEach(bind);
+  }
+
+  apply();
+  const mo = new MutationObserver(apply);
+  mo.observe(document.documentElement, { childList:true, subtree:true });
+
+  window.__HOST_Q11_15_STRICT_CLEANUP__ = () => { mo.disconnect(); unbinds.forEach(fn=>fn()); };
+})();
+/// === end Q11–Q15 STRICT ===
+// === [scoresheet][HOST] Q11–Q20 PRIORITY CAPTURE SNAP — no flicker, stops other handlers ===
+(() => {
+  if (window.__HOST_Q_PRIORITY_CAPTURE__) return; window.__HOST_Q_PRIORITY_CAPTURE__ = 1;
+
+  function buildHeaderGrid(table){
+    const thead = table.tHead; if (!thead) return {labels:[]};
+    const rows = Array.from(thead.rows); let max=0;
+    rows.forEach(r=>{ let s=0; for(const c of r.cells) s += Number(c.colSpan||1); max=Math.max(max,s); });
+    const occ = Array(max).fill(0), grid = rows.map(()=>Array(max).fill(null));
+    rows.forEach((r,ri)=>{ let c=0; for(const cell of r.cells){
+      while(occ[c]>0) c++; const cs=+cell.colSpan||1, rs=+cell.rowSpan||1;
+      for(let i=0;i<cs;i++){ grid[ri][c+i]=cell; occ[c+i]=rs; } c+=cs;
+    } for(let i=0;i<max;i++) if(occ[i]>0) occ[i]--; });
+    const labels = Array(max).fill(null);
+    for (let c=0;c<max;c++){ let t=''; for (let r=0;r<grid.length;r++){
+      const s=(grid[r][c]?.textContent||'').trim(); if (s) t=s;
+    } labels[c]=t; }
+    return {labels, grid};
+  }
+  function getCellAtCol(tr, colIndex){
+    let pos=0; for (const td of tr.cells){ const span=+td.colSpan||1; if (colIndex>=pos && colIndex<pos+span) return td; pos+=span; }
+    return null;
+  }
+  function collectInputs(table, qs){
+    const {labels} = buildHeaderGrid(table);
+    const qToCol={}; labels.forEach((L,i)=>{ const m=/\bQ\s*([0-9]{1,2})\b/i.exec(L||''); if(m) qToCol[+m[1]]=i; });
+    const out=[];
+    qs.forEach(q=>{
+      const col=qToCol[q]; if(col==null) return;
+      for (const tb of table.tBodies) for (const tr of tb.rows){
+        const td=getCellAtCol(tr,col); if(!td) continue;
+        const el=td.querySelector('input[type=number], [contenteditable]');
+        if (el) out.push(el);
+      }
+    });
+    return out;
+  }
+
+  function bindSnap(el, weight){
+    // normalize attributes so native number input doesn’t interfere
+    if (el.tagName === 'INPUT') {
+      el.removeAttribute('max');
+      el.setAttribute('min','0');
+      el.setAttribute('step','1');
+      el.setAttribute('inputmode','numeric');
+      el.setAttribute('pattern','[0-9]*');
+    }
+
+    // compute -> {0, weight}
+    const compute = () => {
+      const raw = el.tagName === 'INPUT' ? (el.value ?? '') : (el.textContent ?? '');
+      const s = String(raw).replace(/[^\d]/g,'');
+      const out = (s === '' || Number(s) === 0) ? '0' : String(weight);
+      return out;
+    };
+
+    // CAPTURE-PHASE: stop other handlers, apply immediately, then bubble a synthetic 'input'
+    const onInputCap = (e) => {
+      if (!e.isTrusted) return;           // ignore our synthetic event later
+      e.stopImmediatePropagation();       // prevent older wrong handlers (e.g., 2) from firing
+      const out = compute();
+      if (el.tagName === 'INPUT') { if (el.value !== out) el.value = out; }
+      else { if (el.textContent !== out) el.textContent = out; }
+      el.dispatchEvent(new Event('input', { bubbles:true })); // keep totals reactive
+    };
+
+    const onChangeCap = (e) => { if (!e.isTrusted) return; e.stopImmediatePropagation(); onInputCap(e); };
+    const onBlurCap   = (e) => { if (!e.isTrusted) return; onInputCap(e); };
+
+    el.addEventListener('input',  onInputCap,  true);
+    el.addEventListener('change', onChangeCap, true);
+    el.addEventListener('blur',   onBlurCap,   true);
+  }
+
+  function apply(){
+    const table = document.querySelector('table'); if (!table) return;
+    collectInputs(table, [11,12,13,14,15]).forEach(el => bindSnap(el, 3));
+    collectInputs(table, [16,17,18,19,20]).forEach(el => bindSnap(el, 4));
+  }
+
+  apply();
+  new MutationObserver(apply).observe(document.documentElement, { childList:true, subtree:true });
+})();
+// === end Q11–Q20 PRIORITY CAPTURE SNAP ===
+// === Q16–Q20 HARD SNAP (0 or 4) — no flicker, blocks late writes ===
+(() => {
+  if (window.__q16_20_hardsnap__) { console.log('[q16–20 snap] already active'); return; }
+  window.__q16_20_hardsnap__ = 1;
+
+  const BOUND = new WeakSet();
+
+  function buildHeaderGrid(table){
+    const thead = table.tHead; if (!thead) return {labels:[]};
+    const rows=[...thead.rows]; let max=0;
+    rows.forEach(r=>{ let s=0; for (const c of r.cells) s += +c.colSpan||1; max=Math.max(max,s); });
+    const occ=Array(max).fill(0), grid=rows.map(()=>Array(max).fill(null));
+    rows.forEach((r,ri)=>{ let c=0; for (const cell of r.cells){
+      while (occ[c]>0) c++; const cs=+cell.colSpan||1, rs=+cell.rowSpan||1;
+      for (let i=0;i<cs;i++){ grid[ri][c+i]=cell; occ[c+i]=rs; } c+=cs;
+    } for (let i=0;i<max;i++) if (occ[i]>0) occ[i]--; });
+    const labels=Array(max).fill(null);
+    for (let c=0;c<max;c++){ let t=''; for (let r=0;r<grid.length;r++){
+      const s=(grid[r][c]?.textContent||'').trim(); if (s) t=s;
+    } labels[c]=t; }
+    return {labels};
+  }
+  function getCellAtCol(tr, colIndex){
+    let pos=0; for (const td of tr.cells){ const span=+td.colSpan||1; if (colIndex>=pos && colIndex<pos+span) return td; pos+=span; }
+    return null;
+  }
+  function collectQInputs(){
+    const table=document.querySelector('table'); if(!table) return [];
+    const {labels}=buildHeaderGrid(table);
+    const qToCol={}; labels.forEach((L,i)=>{ const m=/\bQ\s*([0-9]{1,2})\b/i.exec(L||''); if(m) qToCol[+m[1]]=i; });
+    const out=[];
+    [16,17,18,19,20].forEach(q=>{
+      const col=qToCol[q]; if(col==null) return;
+      for (const tb of table.tBodies) for (const tr of tb.rows){
+        const td=getCellAtCol(tr,col); if(!td) continue;
+        const el=td.querySelector('input[type=number]'); if(el) out.push(el);
+      }
+    });
+    return out;
+  }
+
+  function snapValue(el){
+    const s = String(el.value ?? '').replace(/[^\d]/g,'');
+    return (s === '' || Number(s) === 0) ? '0' : '4';
+  }
+
+  function bind(el){
+    if (!el || BOUND.has(el)) return; BOUND.add(el);
+
+    el.removeAttribute('max');
+    el.min = '0'; el.step = '1';
+    el.setAttribute('inputmode','numeric'); el.setAttribute('pattern','[0-9]*');
+
+    const proto = Object.getPrototypeOf(el);
+    if (!el.__origStepUp && proto.stepUp) {
+      el.__origStepUp = proto.stepUp.bind(el);
+      el.stepUp = function(){ this.value = snapValue(this); this.dispatchEvent(new Event('input',{bubbles:true})); };
+    }
+    if (!el.__origStepDown && proto.stepDown) {
+      el.__origStepDown = proto.stepDown.bind(el);
+      el.stepDown = function(){ this.value = snapValue(this); this.dispatchEvent(new Event('input',{bubbles:true})); };
+    }
+
+    const desc = Object.getOwnPropertyDescriptor(proto, 'value');
+    if (desc?.set && !el.__q1640SetterHook) {
+      const get = desc.get.bind(el), set = desc.set.bind(el);
+      Object.defineProperty(el, 'value', {
+        configurable: true,
+        get(){ return get(); },
+        set(v){
+          if (this.__q1640Re) return set(v);
+          const s = String(v);
+          const out = (s === '' || s === '0') ? '0' : '4';
+          this.__q1640Re = true; set(out); this.__q1640Re = false;
+        }
+      });
+      el.__q1640SetterHook = true;
+    }
+
+    const apply = () => {
+      const out = snapValue(el);
+      if (el.value !== out) { el.value = out; }
+      el.dispatchEvent(new Event('input', { bubbles:true }));
+    };
+    const onBefore = e => { if (!e.isTrusted) return; e.stopImmediatePropagation(); };
+    const onInput  = e => { if (!e.isTrusted) return; e.stopImmediatePropagation(); apply(); };
+    const onChange = e => { if (!e.isTrusted) return; e.stopImmediatePropagation(); apply(); };
+
+    el.addEventListener('beforeinput', onBefore, true);
+    el.addEventListener('input',      onInput,  true);
+    el.addEventListener('change',     onChange, true);
+
+    const fixAsync = () => { setTimeout(()=>{ const out = snapValue(el); if (el.value !== out) { el.value = out; el.dispatchEvent(new Event('input',{bubbles:true})); } }, 0); };
+    el.addEventListener('keyup',   fixAsync, true);
+    el.addEventListener('keydown', fixAsync, true);
+  }
+
+  function applyAll(){
+    const inputs = collectQInputs();
+    inputs.forEach(bind);
+    console.log(`[q16–20 snap] bound ${inputs.length} inputs`);
+  }
+
+  applyAll();
+  new MutationObserver(applyAll).observe(document.documentElement, { childList:true, subtree:true });
+  console.log('[q16–20 snap] ACTIVE — type “9” in Q18: should render 4 instantly (no 2 flicker).');
+})();
