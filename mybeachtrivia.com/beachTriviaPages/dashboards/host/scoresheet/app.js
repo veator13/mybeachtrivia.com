@@ -1968,3 +1968,185 @@ window.clearHighlights = clearHighlights;
   new ResizeObserver(run).observe(document.documentElement);
 })();
 // === end sticky-right v2 ===
+// === [scoresheet][HOST] BONUS column: ensure body <td>, sticky, and add into Final Score ===
+(() => {
+  if (window.__HOST_BONUS_V1__) return; window.__HOST_BONUS_V1__ = 1;
+
+  function buildHeaderGrid(table){
+    const thead = table.tHead; if (!thead) return {labels:[],grid:[],max:0};
+    const rows=[...thead.rows]; let max=0;
+    rows.forEach(r=>{ let s=0; for (const c of r.cells) s += (+c.colSpan||1); max=Math.max(max,s); });
+    const occ=Array(max).fill(0), grid=rows.map(()=>Array(max).fill(null));
+    rows.forEach((r,ri)=>{ let c=0; for (const cell of r.cells){
+      while(occ[c]>0) c++; const cs=(+cell.colSpan||1), rs=(+cell.rowSpan||1);
+      for(let i=0;i<cs;i++){ grid[ri][c+i]=cell; occ[c+i]=rs; } c+=cs;
+    } for (let i=0;i<max;i++) if (occ[i]>0) occ[i]--; });
+    const labels=Array(max).fill(null);
+    for (let c=0;c<max;c++){
+      let t=''; for (let r=0;r<grid.length;r++){
+        const s=(grid[r][c]?.textContent||'').replace(/\s+/g,' ').trim(); if (s) t=s;
+      }
+      labels[c]=t;
+    }
+    return {labels, grid, max};
+  }
+  function getCellAtCol(tr, colIndex){
+    let pos=0; for (const td of tr.cells){ const span=(+td.colSpan||1); if (colIndex>=pos && colIndex<pos+span) return td; pos+=span; }
+    return null;
+  }
+  function findCol(labels, rx){ return labels.findIndex(L => rx.test((L||'').toUpperCase())); }
+
+  function ensureBonusCells(){
+    const table = document.querySelector('#teamTable, table'); if (!table) return null;
+    const {labels} = buildHeaderGrid(table);
+    const finalCol = findCol(labels, /^FINAL\s*SCORE$/);
+    const bonusCol = findCol(labels, /^BONUS$/);
+    if (finalCol < 0 || bonusCol < 0) return null;
+
+    // Insert a real bonus <td> (with input) before the Final cell where missing
+    for (const tb of table.tBodies){
+      for (const tr of tb.rows){
+        // already has a bonus?
+        const maybeBonus = getCellAtCol(tr, bonusCol);
+        const hasBonusInput = !!(maybeBonus && maybeBonus.querySelector('input.bonus-input'));
+        if (hasBonusInput) continue;
+
+        const finalTd = getCellAtCol(tr, finalCol);
+        if (!finalTd) continue;
+
+        // Create bonus cell and insert BEFORE final
+        const td = document.createElement('td');
+        td.className = 'bonus-td';
+        const inp = document.createElement('input');
+        inp.type = 'number';
+        inp.className = 'bonus-input';
+        // allow negatives for penalties; integers only
+        inp.setAttribute('step','1');
+        inp.setAttribute('inputmode','numeric');
+        inp.setAttribute('pattern','-?[0-9]*');
+        inp.value = inp.value || '0';
+        td.appendChild(inp);
+        tr.insertBefore(td, finalTd);
+
+        // trigger app recompute when bonus changes
+        const bump = () => { td.dispatchEvent(new Event('input', {bubbles:true})); recomputeFinalForRow(tr); };
+        inp.addEventListener('input',  bump, true);
+        inp.addEventListener('change', bump, true);
+      }
+    }
+    return { table, labels, finalCol, bonusCol };
+  }
+
+  // Sum Q1..Q20 + Final Question + Bonus for that row, then put into Final Score cell
+  function recomputeFinalForRow(tr){
+    const table = tr.closest('table'); if (!table) return;
+    const {labels} = buildHeaderGrid(table);
+    const qCols = [];
+    labels.forEach((L,i)=>{ const m = /^Q\s*([0-9]{1,2})$/i.exec((L||'').replace(/\s+/g,' ').trim()); if (m) qCols.push(i); });
+    const colFinalQuestion = labels.findIndex(L => /^FINAL\s*QUESTION$/i.test((L||'').replace(/\s+/g,' ').trim()));
+    const colFinalScore    = labels.findIndex(L => /^FINAL\s*SCORE$/i.test((L||'').replace(/\s+/g,' ').trim()));
+    const colBonus         = labels.findIndex(L => /^BONUS$/i.test((L||'').replace(/\s+/g,' ').trim()));
+    if (colFinalScore < 0) return;
+
+    const num = (v) => { const n = parseInt(String(v||'').replace(/[^\d-]/g,'')||'0',10); return isNaN(n)?0:n; };
+
+    let total = 0;
+    // Q1..Q20
+    for (const c of qCols){
+      const td = getCellAtCol(tr, c); if (!td) continue;
+      const el = td.querySelector('input, [contenteditable]');
+      total += num(el ? (el.tagName==='INPUT'? el.value : el.textContent) : td.textContent);
+    }
+    // Final Question
+    if (colFinalQuestion >= 0){
+      const tdFQ = getCellAtCol(tr, colFinalQuestion);
+      const elFQ = tdFQ?.querySelector('input, [contenteditable]');
+      total += num(elFQ ? (elFQ.tagName==='INPUT'? elFQ.value : elFQ.textContent) : tdFQ?.textContent);
+    }
+    // Bonus
+    if (colBonus >= 0){
+      const tdB = getCellAtCol(tr, colBonus);
+      const elB = tdB?.querySelector('input');
+      total += num(elB ? elB.value : tdB?.textContent);
+    }
+
+    // Write into Final Score cell
+    const tdFS = getCellAtCol(tr, colFinalScore);
+    if (tdFS){
+      const slot = tdFS.querySelector('.final-score, .value, .score') || tdFS;
+      slot.textContent = String(total);
+    }
+  }
+
+  // Recompute any time a row input changes
+  function bindRowRecalc(){
+    const table = document.querySelector('#teamTable, table'); if (!table) return;
+    table.addEventListener('input', e => {
+      const tr = e.target.closest('tr'); if (!tr) return;
+      // wait a tick so any internal normalizers run, then recompute
+      Promise.resolve().then(() => recomputeFinalForRow(tr));
+    }, true);
+  }
+
+  // Sticky: avoid double-tagging final as bonus
+  function applyStickyDistinct(){
+    const table = document.querySelector('#teamTable, table'); if (!table) return;
+    const {labels} = buildHeaderGrid(table);
+    const finalCol = labels.findIndex(L => /^FINAL\s*SCORE$/i.test((L||'').replace(/\s+/g,' ').trim()));
+    const bonusCol = labels.findIndex(L => /^BONUS$/i.test((L||'').replace(/\s+/g,' ').trim()));
+    if (finalCol < 0 || bonusCol < 0) return;
+
+    // measure final width for offset
+    const measure = () => {
+      const td = table.querySelector('tbody tr td.sticky-right-final') ||
+                 table.querySelector('tbody tr td:nth-last-child(1)');
+      const w = Math.ceil((td?.getBoundingClientRect().width || td?.offsetWidth || 120));
+      table.style.setProperty('--final-w', w + 'px');
+    };
+
+    // clear prior
+    table.querySelectorAll('.sticky-right-final, .sticky-right-bonus, .sticky-right')
+      .forEach(el => el.classList.remove('sticky-right-final','sticky-right-bonus','sticky-right'));
+
+    // tag headers
+    const thead = table.tHead;
+    if (thead){
+      for (const tr of thead.rows){
+        const thF = getCellAtCol(tr, finalCol);
+        const thB = getCellAtCol(tr, bonusCol);
+        thF && thF.classList.add('sticky-right','sticky-right-final');
+        // only tag Bonus if it's a different cell
+        if (thB && thB !== thF) thB.classList.add('sticky-right','sticky-right-bonus');
+      }
+    }
+    // tag body cells
+    for (const tb of table.tBodies) for (const tr of tb.rows){
+      const tdF = getCellAtCol(tr, finalCol);
+      const tdB = getCellAtCol(tr, bonusCol);
+      tdF && tdF.classList.add('sticky-right','sticky-right-final');
+      if (tdB && tdB !== tdF) tdB.classList.add('sticky-right','sticky-right-bonus');
+    }
+    measure();
+  }
+
+  // One-time CSS
+  (function injectCSS(){
+    if (document.getElementById('bonus-final-sticky-css')) return;
+    const st = document.createElement('style'); st.id = 'bonus-final-sticky-css';
+    st.textContent = `
+      th.sticky-right, td.sticky-right { position: sticky; background:#1e1e1e; }
+      th.sticky-right-final, td.sticky-right-final { right: 0; z-index: 10; }
+      th.sticky-right-bonus, td.sticky-right-bonus { right: var(--final-w,120px); z-index: 12; }
+      th.sticky-right-final { box-shadow: -6px 0 10px rgba(0,0,0,.35); }
+      th.sticky-right-bonus { box-shadow: -6px 0 10px rgba(0,0,0,.25); }
+      td.bonus-td input.bonus-input { width: 56px; text-align:center; }
+    `;
+    document.head.appendChild(st);
+  })();
+
+  const run = () => { const ctx = ensureBonusCells(); if (ctx) { bindRowRecalc(); applyStickyDistinct(); } };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run, {once:true}); else run();
+  new MutationObserver(run).observe(document.documentElement, {childList:true, subtree:true});
+  new ResizeObserver(run).observe(document.documentElement);
+})();
+// === end BONUS column integration ===
