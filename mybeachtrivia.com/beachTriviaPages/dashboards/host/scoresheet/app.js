@@ -1759,3 +1759,102 @@ window.clearHighlights = clearHighlights;
   new MutationObserver(() => run()).observe(document.documentElement, { childList:true, subtree:true });
 })();
 // === end BONUS COLUMN ===
+// === [scoresheet][HOST] BONUS/FINAL sticky-right fix — precise offsets & z-index ===
+(() => {
+  if (window.__HOST_STICKY_RIGHT_FIX__) return; window.__HOST_STICKY_RIGHT_FIX__ = 1;
+
+  function buildHeaderGrid(table){
+    const thead = table.tHead; if (!thead) return {labels:[], grid:[], max:0};
+    const rows=[...thead.rows]; let max=0;
+    rows.forEach(r=>{ let s=0; for (const c of r.cells) s += +c.colSpan||1; max=Math.max(max,s); });
+    const occ=Array(max).fill(0), grid=rows.map(()=>Array(max).fill(null));
+    rows.forEach((r,ri)=>{ let c=0; for (const cell of r.cells){
+      while (occ[c]>0) c++; const cs=+cell.colSpan||1, rs=+cell.rowSpan||1;
+      for (let i=0;i<cs;i++){ grid[ri][c+i]=cell; occ[c+i]=rs; } c+=cs;
+    } for (let i=0;i<max;i++) if(occ[i]>0) occ[i]--; });
+    const labels=Array(max).fill(null);
+    for (let c=0;c<max;c++){ let t=''; for (let r=0;r<grid.length;r++){ const s=(grid[r][c]?.textContent||'').trim(); if(s) t=s; } labels[c]=t; }
+    return {labels, grid, max};
+  }
+  function getCellAtCol(tr, colIndex){
+    let pos=0; for (const td of tr.cells){ const span=+td.colSpan||1; if (colIndex>=pos && colIndex<pos+span) return td; pos+=span; }
+    return null;
+  }
+  function findCol(labels, rx){ return labels.findIndex(L => rx.test(String(L||''))); }
+
+  // inject minimal CSS once
+  function injectCSS(){
+    if (document.getElementById('sticky-right-css')) return;
+    const st = document.createElement('style'); st.id='sticky-right-css';
+    st.textContent = `
+      /* generic sticky-right base */
+      th.sticky-right, td.sticky-right { position: sticky; background: #1e1e1e; }
+      th.sticky-right { z-index: 9; }
+      td.sticky-right { z-index: 8; }
+      /* precise offsets */
+      th.sticky-right-final, td.sticky-right-final { right: 0; }
+      th.sticky-right-bonus, td.sticky-right-bonus { right: var(--final-w, 120px); }
+      /* subtle divider lines for readability */
+      th.sticky-right-final, td.sticky-right-final { box-shadow: -6px 0 10px rgba(0,0,0,.35); }
+      th.sticky-right-bonus, td.sticky-right-bonus { box-shadow: -6px 0 10px rgba(0,0,0,.25); }
+    `;
+    document.head.appendChild(st);
+  }
+
+  function measureFinalWidth(table, finalCol){
+    // prefer a body cell for width (more accurate), else header cell
+    for (const tb of table.tBodies){
+      const tr = tb.rows[0]; if (!tr) continue;
+      const td = getCellAtCol(tr, finalCol);
+      if (td) { const w = Math.ceil(td.getBoundingClientRect().width); if (w) return w; }
+    }
+    const {grid} = buildHeaderGrid(table);
+    for (let r=0;r<grid.length;r++){
+      const th = grid[r][finalCol];
+      if (th) { const w = Math.ceil(th.getBoundingClientRect().width); if (w) return w; }
+    }
+    return 120; // fallback
+  }
+
+  function applySticky(table){
+    const {labels, grid} = buildHeaderGrid(table);
+    let finalCol = findCol(labels, /\bfinal\s*score\b/i);
+    if (finalCol < 0) finalCol = findCol(labels, /\bfinal\b/i);
+    const bonusCol = findCol(labels, /\bbonus\b/i);
+    if (finalCol < 0 || bonusCol < 0) return;
+
+    // set CSS var on table for bonus right offset
+    const w = measureFinalWidth(table, finalCol);
+    table.style.setProperty('--final-w', `${w}px`);
+
+    // tag header cells
+    for (const row of table.tHead.rows){
+      const b = getCellAtCol(row, bonusCol);
+      const f = getCellAtCol(row, finalCol);
+      if (b) b.classList.add('sticky-right','sticky-right-bonus');
+      if (f) f.classList.add('sticky-right','sticky-right-final');
+    }
+    // tag body cells
+    for (const tb of table.tBodies) for (const tr of tb.rows){
+      const b = getCellAtCol(tr, bonusCol);
+      const f = getCellAtCol(tr, finalCol);
+      if (b) b.classList.add('sticky-right','sticky-right-bonus');
+      if (f) f.classList.add('sticky-right','sticky-right-final');
+    }
+  }
+
+  function run(){
+    injectCSS();
+    const table = document.querySelector('table'); if (!table) return;
+    applySticky(table);
+
+    // keep offsets correct on resize / layout changes
+    const ro = new ResizeObserver(()=>applySticky(table));
+    ro.observe(table);
+    new MutationObserver(()=>applySticky(table)).observe(document.documentElement, { childList:true, subtree:true });
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run, { once:true });
+  else run();
+})();
+// === end sticky-right fix ===
