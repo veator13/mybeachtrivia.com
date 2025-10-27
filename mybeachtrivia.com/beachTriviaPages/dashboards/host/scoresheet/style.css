@@ -746,3 +746,32 @@ td.bonus-td input.bonus-input {
   text-align: center;
   font-weight: 700;
 }
+
+/* === [scoresheet][HOST] BONUS sticky column (left of Final) === */
+#teamTable { --final-w: 84px; --bonus-w: 84px; }
+
+.sticky-right-bonus {
+  position: sticky;
+  right: var(--final-w);  /* sits just left of Final Score */
+  z-index: 10;
+  background-color: #2a2a2a;
+  border-left: 3px solid #777;
+  min-width: var(--bonus-w);
+  box-shadow: -5px 0 12px rgba(0,0,0,0.5);
+}
+
+/* Header styling for BONUS */
+.top_row th.sticky-right-bonus {
+  background-color: #1e1e1e;
+  border-left: 3px solid #888;
+  color: #ffcc00;
+  text-shadow: 0 0 5px rgba(255,204,0,0.5);
+  font-size: 20px;
+}
+
+/* Ensure FINAL stays pinned at far right */
+.top_row th.sticky-col-right,
+td.sticky-col-right {
+  position: sticky;
+  right: 0;
+}

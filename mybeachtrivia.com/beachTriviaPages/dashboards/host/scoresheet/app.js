@@ -248,6 +248,20 @@ function addTeam() {
   // Final Score (right sticky col)
   {
     const td = document.createElement("td");
+    {
+      // --- Bonus (numeric) — sticky-right-bonus, sits left of FINAL ---
+      const td = document.createElement("td");
+      td.className = "bonus-td sticky-right-bonus";
+      const inp = document.createElement("input");
+      inp.type = "number";
+      inp.id = `bonus${teamCount}`;
+      inp.className = "bonus-input";
+      inp.step = "1";
+      inp.min = "0";
+      inp.value = "0";
+      td.appendChild(inp);
+      tr.appendChild(td);
+    }
     td.className = "sticky-col-right";
     const span = document.createElement("span");
     span.id = `finalScore${teamCount}`;
@@ -329,6 +343,9 @@ function updateScores(teamId) {
 
   // Final score (+5 if bonus checked)
   let finalScore = firstHalfTotal + secondHalfTotal;
+  const bonusInput = document.getElementById(`bonus${teamId}`);
+  if (bonusInput) finalScore += (parseInt(bonusInput.value || "0", 10) || 0);
+
   const bonus = document.getElementById(`checkbox${teamId}`);
   if (bonus && bonus.checked) finalScore += 5;
 
@@ -656,7 +673,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const teamId = parseInt(row.dataset.teamId || "0", 10);
     if (!teamId) return;
 
-    if (target.classList.contains("teamName")) {
+    
+    // Bonus input -> recompute
+    if (target.id === `bonus${teamId}`) { updateScores(teamId); return; }
+if (target.classList.contains("teamName")) {
       markAsModified();
       return;
     }
