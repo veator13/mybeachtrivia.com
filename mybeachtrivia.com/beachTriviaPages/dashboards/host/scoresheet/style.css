@@ -707,3 +707,42 @@ td.sticky-col-right span {
         right: auto;
     }
 }
+
+/* === sticky right lanes: BONUS (lane 1) + FINAL (lane 0) === */
+table#teamTable {
+  /* final width already exists in many builds; define if missing */
+  --final-w: 84px;
+  --bonus-w: 84px;   /* keep same width so offsets are exact */
+}
+
+/* Final (rightmost lane) */
+thead th.sticky-right-final,
+tbody td.sticky-right-final {
+  position: sticky;
+  right: 0;
+  width: var(--final-w);
+  min-width: var(--final-w);
+  max-width: var(--final-w);
+  z-index: 8; /* above bonus */
+}
+
+/* Bonus (second-right lane) */
+thead th.sticky-right-bonus,
+tbody td.sticky-right-bonus {
+  position: sticky;
+  right: var(--final-w); /* sits immediately to left of Final */
+  width: var(--bonus-w);
+  min-width: var(--bonus-w);
+  max-width: var(--bonus-w);
+  z-index: 7; /* below final, above scrollable grid */
+}
+
+/* Bonus cell look (feel free to tweak) */
+td.bonus-td {
+  background: #1b1b1b;
+}
+td.bonus-td input.bonus-input {
+  width: 64px;
+  text-align: center;
+  font-weight: 700;
+}

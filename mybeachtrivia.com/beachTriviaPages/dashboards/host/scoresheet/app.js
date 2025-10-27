@@ -2150,3 +2150,168 @@ window.clearHighlights = clearHighlights;
   new ResizeObserver(run).observe(document.documentElement);
 })();
 // === end BONUS column integration ===
+
+// === [scoresheet][HOST] BONUS COLUMN (sticky-right, left of FINAL) ===
+(() => {
+  if (window.__HOST_BONUS_COL__) return; window.__HOST_BONUS_COL__ = 1;
+
+  // --- header/col helpers (handles colspans) ---
+  function buildHeaderGrid(table){
+    const thead = table.tHead; if (!thead) return {cols:0, labels:[], grid:[]};
+    const rows = [...thead.rows];
+    let maxCols = 0;
+    rows.forEach(r => { let s=0; for (const c of r.cells) s += +c.colSpan||1; maxCols = Math.max(maxCols, s); });
+    const occ = Array(maxCols).fill(0);
+    const grid = rows.map(()=>Array(maxCols).fill(null));
+    rows.forEach((r,ri) => {
+      let col = 0;
+      for (const cell of r.cells) {
+        while (occ[col] > 0) col++;
+        const cs = +cell.colSpan||1, rs = +cell.rowSpan||1;
+        for (let i=0;i<cs;i++){ grid[ri][col+i] = cell; occ[col+i] = rs; }
+        col += cs;
+      }
+      for (let i=0;i<maxCols;i++) if (occ[i] > 0) occ[i]--;
+    });
+    const labels = Array(maxCols).fill(null);
+    for (let c=0;c<maxCols;c++){
+      let t=''; for (let r=0;r<grid.length;r++){
+        const s=(grid[r][c]?.textContent||'').trim(); if (s) t=s;
+      }
+      labels[c]=t;
+    }
+    return { cols:maxCols, labels, grid };
+  }
+  function getCellAtCol(tr, colIndex){
+    let pos=0; for (const td of tr.cells){ const span=+td.colSpan||1; if (colIndex>=pos && colIndex<pos+span) return td; pos+=span; }
+    return null;
+  }
+
+  function labelIndex(labels, re){ return labels.findIndex(L => re.test(L||'')); }
+
+  const table = document.querySelector('#teamTable') || document.querySelector('table');
+  if (!table) return;
+
+  // --- ensure header has BONUS immediately left of FINAL ---
+  (function ensureHeader(){
+    const {labels, grid} = buildHeaderGrid(table);
+    // find a representative header row (last row with the labels)
+    const headerRow = grid[grid.length-1];
+    const finalCol = labelIndex(labels, /\bfinal\s*score\b/i);
+    if (finalCol < 0) return;
+
+    let bonusTh = headerRow[finalCol-1];
+    // Find actual th elements by text (robust if multiple header rows)
+    const allTh = [...table.tHead.querySelectorAll('th')];
+    const finalTh = allTh.find(th => /\bfinal\s*score\b/i.test(th.textContent));
+    bonusTh = allTh.find(th => /\bbonus\b/i.test(th.textContent)) || bonusTh;
+
+    if (!bonusTh || !/\bbonus\b/i.test(bonusTh.textContent||'')) {
+      // create and insert before FINAL
+      const th = document.createElement('th');
+      th.textContent = 'BONUS';
+      th.className = 'sticky-right-bonus';
+      th.style.width = 'var(--bonus-w)';
+      if (finalTh && finalTh.parentNode) finalTh.parentNode.insertBefore(th, finalTh);
+    } else {
+      bonusTh.classList.add('sticky-right-bonus');
+    }
+    if (finalTh) finalTh.classList.add('sticky-right-final');
+  })();
+
+  // --- ensure every row has a BONUS td (left of FINAL td) with an <input> ---
+  function mapCols(){
+    const {labels} = buildHeaderGrid(table);
+    return {
+      COL_FIRST_HALF : labelIndex(labels, /\bfirst\s*half\s*total\b/i),
+      COL_SECOND_HALF: labelIndex(labels, /\bsecond\s*half\s*total\b/i),
+      COL_FINAL_Q    : labelIndex(labels, /\bfinal\s*question\b/i),
+      COL_FINAL_SCORE: labelIndex(labels, /\bfinal\s*score\b/i),
+      COL_BONUS      : labelIndex(labels, /\bbonus\b/i)
+    };
+  }
+
+  function coerceInt(s){ const n = Number(String(s).replace(/[^\d-]/g,'')); return Number.isFinite(n) ? n : 0; } // allows negatives if you ever decide to
+
+  function updateRowFinal(tr){
+    const cols = mapCols();
+    const vCol = (col) => {
+      if (col < 0) return 0;
+      const td = getCellAtCol(tr, col); if (!td) return 0;
+      const el = td.querySelector('input, [contenteditable]');
+      const txt = el ? (el.value ?? el.textContent) : td.textContent;
+      return coerceInt(txt);
+    };
+    const total = vCol(cols.COL_FIRST_HALF) + vCol(cols.COL_SECOND_HALF) + vCol(cols.COL_FINAL_Q) + vCol(cols.COL_BONUS);
+    const tdFinal = getCellAtCol(tr, cols.COL_FINAL_SCORE);
+    if (tdFinal) {
+      const slot = tdFinal.querySelector('.final-number, .score, .value') || tdFinal.firstElementChild || tdFinal;
+      slot.textContent = String(total);
+    }
+  }
+
+  function ensureRows(){
+    const cols = mapCols();
+    if (cols.COL_FINAL_SCORE < 0) return;
+
+    for (const tb of table.tBodies){
+      for (const tr of tb.rows){
+        // do we already have a BONUS td?
+        let bonusTd = getCellAtCol(tr, cols.COL_BONUS);
+        const finalTd = getCellAtCol(tr, cols.COL_FINAL_SCORE);
+        if (!finalTd) continue;
+
+        if (!bonusTd || !bonusTd.classList.contains('bonus-td')) {
+          // create a new BONUS cell and insert just before FINAL
+          const td = document.createElement('td');
+          td.className = 'bonus-td sticky-right-bonus';
+          td.style.width = 'var(--bonus-w)';
+          const input = document.createElement('input');
+          input.type = 'number';
+          input.className = 'bonus-input';
+          input.min = '0';          // change to -99 if you want negatives later
+          input.step = '1';
+          input.inputMode = 'numeric';
+          input.pattern = '[0-9]*';
+          input.value = '0';
+          td.appendChild(input);
+          finalTd.parentNode.insertBefore(td, finalTd);
+          bonusTd = td;
+
+          // listen to edits -> update final
+          input.addEventListener('input', () => updateRowFinal(tr), true);
+          input.addEventListener('change', () => updateRowFinal(tr), true);
+        } else {
+          bonusTd.classList.add('sticky-right-bonus');
+        }
+
+        // Always ensure final cell has sticky class
+        finalTd.classList.add('sticky-right-final');
+
+        // Keep the row's total up to date when other inputs change
+        tr.addEventListener('input', (e) => {
+          if (tr.contains(e.target)) updateRowFinal(tr);
+        }, true);
+
+        // initial compute for the row
+        updateRowFinal(tr);
+      }
+    }
+  }
+
+  // run now + on DOM changes
+  function run(){ ensureRows(); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run, { once:true });
+  run();
+  new MutationObserver(run).observe(document.documentElement, { childList:true, subtree:true });
+
+  // enforce sticky offsets each time (in case CSS vars change)
+  function setOffsets(){
+    const finalW = getComputedStyle(table).getPropertyValue('--final-w').trim() || '84px';
+    table.querySelectorAll('th.sticky-right-final, td.sticky-right-final').forEach(el => el.style.right = '0px');
+    table.querySelectorAll('th.sticky-right-bonus, td.sticky-right-bonus').forEach(el => el.style.right = finalW);
+  }
+  setOffsets();
+  window.addEventListener('resize', setOffsets);
+})();
+// === end BONUS COLUMN ===
