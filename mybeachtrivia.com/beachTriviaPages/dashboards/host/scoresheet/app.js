@@ -1556,3 +1556,206 @@ window.clearHighlights = clearHighlights;
   new MutationObserver(applyAll).observe(document.documentElement, { childList:true, subtree:true });
   console.log('[q16–20 snap] ACTIVE — type “9” in Q18: should render 4 instantly (no 2 flicker).');
 })();
+// === [scoresheet][HOST] BONUS COLUMN — sticky left of Final, adds into Final Score ===
+(() => {
+  if (window.__HOST_BONUS_COL__) return; window.__HOST_BONUS_COL__ = 1;
+
+  // Helpers to map the header grid and find specific columns
+  function buildHeaderGrid(table){
+    const thead = table.tHead; if (!thead) return {labels:[], grid:[], max:0};
+    const rows=[...thead.rows]; let max=0;
+    rows.forEach(r=>{ let s=0; for(const c of r.cells) s += +c.colSpan||1; max=Math.max(max,s); });
+    const occ=Array(max).fill(0), grid=rows.map(()=>Array(max).fill(null));
+    rows.forEach((r,ri)=>{ let c=0; for(const cell of r.cells){
+      while(occ[c]>0) c++; const cs=+cell.colSpan||1, rs=+cell.rowSpan||1;
+      for(let i=0;i<cs;i++){ grid[ri][c+i]=cell; occ[c+i]=rs; } c+=cs;
+    } for(let i=0;i<max;i++) if(occ[i]>0) occ[i]--; });
+    const labels=Array(max).fill(null);
+    for(let c=0;c<max;c++){ let t=''; for(let r=0;r<grid.length;r++){ const s=(grid[r][c]?.textContent||'').trim(); if(s) t=s; } labels[c]=t; }
+    return {labels, grid, max};
+  }
+  function getCellAtCol(tr, colIndex){
+    let pos=0; for(const td of tr.cells){ const span=+td.colSpan||1; if(colIndex>=pos && colIndex<pos+span) return td; pos+=span; }
+    return null;
+  }
+  function findCol(labels, rx){ return labels.findIndex(L => rx.test(String(L||''))); }
+
+  // Create the Bonus column just left of Final Score
+  function ensureBonusColumn(){
+    const table = document.querySelector('table'); if(!table) return {table, finalCol:-1, bonusCol:-1};
+    const {labels, grid} = buildHeaderGrid(table);
+    const finalCol = findCol(labels, /\bfinal\s*score\b/i) >= 0
+      ? findCol(labels, /\bfinal\s*score\b/i)
+      : findCol(labels, /\bfinal\b/i);
+
+    if (finalCol < 0) return {table, finalCol:-1, bonusCol:-1};
+
+    // If Bonus already present, get its col index and return
+    let bonusCol = findCol(labels, /\bbonus\b/i);
+    if (bonusCol >= 0) return {table, finalCol, bonusCol};
+
+    // Insert <th> "Bonus" before the Final header cell (in that same header row)
+    // Choose the header row that actually contains the Final header cell
+    let headerRowIndex = 0;
+    for (let r=0; r<grid.length; r++) {
+      if (grid[r][finalCol]) { headerRowIndex = r; break; }
+    }
+    const finalHeaderCell = grid[headerRowIndex][finalCol];
+    const bonusTH = document.createElement('th');
+    bonusTH.textContent = 'Bonus';
+    // Insert before the final header cell
+    finalHeaderCell.parentElement.insertBefore(bonusTH, finalHeaderCell);
+
+    // For each body row, insert a Bonus cell before the Final cell
+    for (const tb of table.tBodies) for (const tr of tb.rows){
+      const finalTD = getCellAtCol(tr, finalCol + (bonusCol >= 0 ? 0 : 0));
+      const bonusTD = document.createElement('td');
+      // Create bonus input (allow signed integers)
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.className = 'bonus-input';
+      input.value = '0';
+      input.step = '1';
+      input.setAttribute('inputmode','numeric');
+      input.setAttribute('pattern','-?[0-9]*');
+      input.removeAttribute('min'); // allow negatives
+      bonusTD.appendChild(input);
+      tr.insertBefore(bonusTD, finalTD);
+    }
+
+    // After mutating THEAD, recompute labels to get Bonus col index
+    const mapped = buildHeaderGrid(table);
+    bonusCol = findCol(mapped.labels, /\bbonus\b/i);
+
+    // Make Bonus & Final sticky on the right (Bonus sits left of Final)
+    stickBonusAndFinal(table, bonusCol, finalCol);
+
+    // Hook value changes to add Bonus into Final Score
+    wireBonusIntoFinal(table, bonusCol, finalCol);
+
+    return {table, finalCol, bonusCol};
+  }
+
+  // Sticky positioning for two rightmost columns
+  function stickBonusAndFinal(table, bonusCol, finalCol){
+    if (bonusCol < 0 || finalCol < 0) return;
+
+    // Measure final-col width from its header cell for a precise offset
+    const {grid} = buildHeaderGrid(table);
+    let finalHeaderCell = null;
+    for (let r=0; r<grid.length; r++) { if (grid[r][finalCol]) { finalHeaderCell = grid[r][finalCol]; break; } }
+    const finalWidth = (finalHeaderCell ? finalHeaderCell.getBoundingClientRect().width : 120) || 120;
+
+    const setSticky = (cell, rightPx) => {
+      if (!cell) return;
+      cell.style.position = 'sticky';
+      cell.style.right = `${rightPx}px`;
+      cell.style.zIndex = '2';
+      // preserve background so sticky cells don't look transparent
+      const bg = getComputedStyle(cell).backgroundColor || 'white';
+      cell.style.background = bg;
+    };
+
+    // Apply to header cells
+    for (const row of table.tHead.rows) {
+      const b = getCellAtCol(row, bonusCol);
+      const f = getCellAtCol(row, finalCol);
+      setSticky(b, finalWidth);
+      setSticky(f, 0);
+    }
+    // Apply to each body row
+    for (const tb of table.tBodies) for (const tr of tb.rows){
+      const b = getCellAtCol(tr, bonusCol);
+      const f = getCellAtCol(tr, finalCol);
+      setSticky(b, finalWidth);
+      setSticky(f, 0);
+    }
+
+    // Re-apply on resize (in case columns resize)
+    let t;
+    window.addEventListener('resize', () => {
+      clearTimeout(t);
+      t = setTimeout(() => stickBonusAndFinal(table, bonusCol, finalCol), 100);
+    });
+  }
+
+  // Safely parse numbers from cells (td may contain input or text)
+  function readCellNumber(td){
+    if (!td) return 0;
+    const el = td.querySelector('input, [contenteditable]');
+    const s = el ? (el.value ?? el.textContent ?? '') : td.textContent ?? '';
+    const n = Number(String(s).replace(/[^\-0-9]/g, ''));
+    return Number.isFinite(n) ? n : 0;
+  }
+  function writeCellNumber(td, val){
+    if (!td) return;
+    const el = td.querySelector('input, [contenteditable]');
+    const s = String(val);
+    if (el) { 
+      if (el.value !== s) {
+        el.value = s;
+        el.dispatchEvent(new Event('input', { bubbles:true })); // keep existing totals reactive
+      }
+    } else {
+      td.textContent = s;
+    }
+  }
+
+  // Wire bonus to final: final = baseFinal + bonus
+  // We compute baseFinal as (current final) - (previous bonus), stored per-row.
+  function wireBonusIntoFinal(table, bonusCol, finalCol){
+    const rows = [];
+    for (const tb of table.tBodies) for (const tr of tb.rows) rows.push(tr);
+
+    rows.forEach(tr => {
+      tr.dataset.bonusPrev = String(0);
+      const bonusTD = getCellAtCol(tr, bonusCol);
+      const finalTD = getCellAtCol(tr, finalCol);
+      if (!bonusTD || !finalTD) return;
+
+      const input = bonusTD.querySelector('input');
+      if (!input) return;
+
+      // sanitize to signed int on input
+      const sanitize = () => {
+        let s = String(input.value ?? '');
+        s = s.replace(/[^\d-]/g,'').replace(/(?!^)-/g,'');
+        if (s === '' || s === '-') { input.value = '0'; }
+        else { input.value = String(Number(s)); }
+      };
+
+      const recalc = () => {
+        // run after the app finishes its own calc for this keystroke
+        Promise.resolve().then(() => {
+          const prev = Number(tr.dataset.bonusPrev || 0);
+          const cur  = Number(input.value || 0);
+          const currentFinal = readCellNumber(finalTD);
+          const base = currentFinal - prev;
+          const next = base + cur;
+          if (next !== currentFinal) writeCellNumber(finalTD, next);
+          tr.dataset.bonusPrev = String(cur);
+        });
+      };
+
+      input.addEventListener('input',  () => { sanitize(); recalc(); }, true);
+      input.addEventListener('change', () => { sanitize(); recalc(); }, true);
+      input.addEventListener('blur',   () => { sanitize(); recalc(); }, true);
+
+      // Also recalc when other cells in the same row change (so Final stays synced)
+      tr.addEventListener('input', (e) => {
+        if (bonusTD.contains(e.target)) return; // bonus handler already took care
+        recalc();
+      }, true);
+    });
+  }
+
+  // Run now and on DOM changes
+  function run(){
+    const {table, finalCol, bonusCol} = ensureBonusColumn();
+    if (!table || finalCol < 0) return;
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run, { once:true });
+  else run();
+  new MutationObserver(() => run()).observe(document.documentElement, { childList:true, subtree:true });
+})();
+// === end BONUS COLUMN ===
