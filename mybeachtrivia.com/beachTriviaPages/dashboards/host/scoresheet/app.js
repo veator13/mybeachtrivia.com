@@ -1858,3 +1858,113 @@ window.clearHighlights = clearHighlights;
   else run();
 })();
 // === end sticky-right fix ===
+// === [scoresheet][HOST] Sticky-right: Bonus + Final (exact headers, no overlap) ===
+(() => {
+  if (window.__HOST_STICKY_RIGHT_FIX_V2__) return; window.__HOST_STICKY_RIGHT_FIX_V2__ = 1;
+
+  function buildHeaderGrid(table){
+    const thead = table.tHead; if (!thead) return {labels:[], grid:[], max:0};
+    const rows=[...thead.rows]; let max=0;
+    rows.forEach(r=>{ let s=0; for (const c of r.cells) s += (+c.colSpan||1); max=Math.max(max,s); });
+    const occ=Array(max).fill(0), grid=rows.map(()=>Array(max).fill(null));
+    rows.forEach((r,ri)=>{ let c=0; for (const cell of r.cells){
+      while (occ[c]>0) c++; const cs=(+cell.colSpan||1), rs=(+cell.rowSpan||1);
+      for(let i=0;i<cs;i++){ grid[ri][c+i]=cell; occ[c+i]=rs; } c+=cs;
+    } for (let i=0;i<max;i++) if (occ[i]>0) occ[i]--; });
+    const labels=Array(max).fill(null);
+    for (let c=0;c<max;c++){
+      let t=''; for (let r=0;r<grid.length;r++){ const s=(grid[r][c]?.textContent||'').replace(/\s+/g,' ').trim(); if (s) t=s; }
+      labels[c]=t;
+    }
+    return {labels, grid, max};
+  }
+  function getCellAtCol(tr, colIndex){
+    let pos=0; for (const td of tr.cells){ const span=(+td.colSpan||1); if (colIndex>=pos && colIndex<pos+span) return td; pos+=span; }
+    return null;
+  }
+  function findCol(labels, rx){ return labels.findIndex(L => rx.test((L||'').toUpperCase())); }
+
+  function injectCSSOnce(){
+    if (document.getElementById('sticky-right-css-v2')) return;
+    const st=document.createElement('style'); st.id='sticky-right-css-v2';
+    st.textContent = `
+      th.sticky-right, td.sticky-right { position: sticky; background:#1e1e1e; }
+      /* Keep header above body cells */
+      th.sticky-right { z-index: 11; }
+      /* Bonus above Final so it never hides */
+      th.sticky-right-bonus, td.sticky-right-bonus { z-index: 12; }
+      th.sticky-right-final, td.sticky-right-final { z-index: 10; }
+      th.sticky-right-final, td.sticky-right-final { right: 0; }
+      th.sticky-right-bonus, td.sticky-right-bonus { right: var(--final-w, 120px); }
+      th.sticky-right-final, td.sticky-right-final { box-shadow: -6px 0 10px rgba(0,0,0,.35); }
+      th.sticky-right-bonus, td.sticky-right-bonus { box-shadow: -6px 0 10px rgba(0,0,0,.25); }
+    `;
+    document.head.appendChild(st);
+  }
+
+  function measureFinalW(table, finalCol){
+    // prefer a body cell width (includes borders)
+    for (const tb of table.tBodies){
+      const tr = tb.rows[0]; if (!tr) continue;
+      const td = getCellAtCol(tr, finalCol);
+      if (td) { const w = Math.ceil(td.getBoundingClientRect().width || td.offsetWidth); if (w) return w; }
+    }
+    // fallback to header
+    const {grid} = buildHeaderGrid(table);
+    for (let r=0;r<grid.length;r++){
+      const th = grid[r][finalCol];
+      if (th) { const w = Math.ceil(th.getBoundingClientRect().width || th.offsetWidth); if (w) return w; }
+    }
+    return 120;
+  }
+
+  function clearSticky(table){
+    table.querySelectorAll('.sticky-right, .sticky-right-final, .sticky-right-bonus')
+      .forEach(el => el.classList.remove('sticky-right','sticky-right-final','sticky-right-bonus'));
+  }
+
+  function apply(){
+    const table = document.querySelector('#teamTable, table'); if (!table) return;
+    injectCSSOnce();
+
+    const {labels} = buildHeaderGrid(table);
+
+    // Match EXACT headers (whitespace-insensitive)
+    const up = s => (s||'').toUpperCase().replace(/\s+/g,' ').trim();
+    const finalCol = findCol(labels, /^FINAL\s*SCORE$/);
+    const bonusCol = findCol(labels, /^BONUS$/);
+
+    if (finalCol < 0 || bonusCol < 0) return;
+
+    // Clean any old classes first to avoid misalignment
+    clearSticky(table);
+
+    // Set offset based on actual final column width
+    const w = measureFinalW(table, finalCol);
+    table.style.setProperty('--final-w', `${w}px`);
+
+    // Tag header cells
+    const thead = table.tHead;
+    if (thead){
+      for (const tr of thead.rows){
+        const b = getCellAtCol(tr, bonusCol);
+        const f = getCellAtCol(tr, finalCol);
+        if (b) b.classList.add('sticky-right','sticky-right-bonus');
+        if (f) f.classList.add('sticky-right','sticky-right-final');
+      }
+    }
+    // Tag body cells
+    for (const tb of table.tBodies) for (const tr of tb.rows){
+      const b = getCellAtCol(tr, bonusCol);
+      const f = getCellAtCol(tr, finalCol);
+      if (b) b.classList.add('sticky-right','sticky-right-bonus');
+      if (f) f.classList.add('sticky-right','sticky-right-final');
+    }
+  }
+
+  const run = () => { try { apply(); } catch(e){ console.warn('[sticky-right v2]', e); } };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run, {once:true}); else run();
+  new MutationObserver(run).observe(document.documentElement, {childList:true, subtree:true});
+  new ResizeObserver(run).observe(document.documentElement);
+})();
+// === end sticky-right v2 ===
