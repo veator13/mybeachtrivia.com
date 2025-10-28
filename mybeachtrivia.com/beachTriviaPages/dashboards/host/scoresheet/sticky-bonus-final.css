@@ -1,4 +1,3 @@
-/* Final pinned at far-right */
 th.sticky-right-final, td.sticky-right-final,
 th.sticky-col-right,  td.sticky-col-right {
   position: sticky !important;
@@ -6,8 +5,6 @@ th.sticky-col-right,  td.sticky-col-right {
   z-index: 60;
   background-clip: padding-box;
 }
-
-/* Bonus immediately left of Final */
 th.sticky-right-bonus, td.sticky-right-bonus, td.bonus-td {
   position: sticky !important;
   right: var(--finalW,116px) !important;
@@ -15,14 +12,13 @@ th.sticky-right-bonus, td.sticky-right-bonus, td.bonus-td {
   background: var(--bonus-bg,#111);
   background-clip: padding-box;
 }
-
 /* Opaque controls inside sticky cells */
-th.sticky-right-final input,  td.sticky-right-final input,
-th.sticky-right-bonus input,  td.sticky-right-bonus input,
-th.sticky-right-final select, td.sticky-right-final select,
-th.sticky-right-bonus select, td.sticky-right-bonus select,
-th.sticky-right-final textarea, td.sticky-right-final textarea,
-th.sticky-right-bonus textarea, td.sticky-right-bonus textarea {
+th.sticky-right-final input,td.sticky-right-final input,
+th.sticky-right-bonus input,td.sticky-right-bonus input,
+th.sticky-right-final select,td.sticky-right-final select,
+th.sticky-right-bonus select,td.sticky-right-bonus select,
+th.sticky-right-final textarea,td.sticky-right-final textarea,
+th.sticky-right-bonus textarea,td.sticky-right-bonus textarea {
   background: inherit !important;
   backdrop-filter: none !important;
 }
