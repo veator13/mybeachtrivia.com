@@ -1256,3 +1256,21 @@ window.clearHighlights = clearHighlights;
   // Initial pass
   table.querySelectorAll('tbody tr').forEach(applyBonus);
 })();
+
+// === BONUS column: ensure header/cells; style via CSS vars; keep Final = base + bonus ===
+// (same code you just pasted in DevTools)
+(function bonusPolish(){ try {
+  const tbl = document.querySelector('#teamTable') || document.querySelector('table');
+  if (!tbl) return;
+  function ensureHeader(){ const thF = tbl.querySelector('thead th.sticky-right-final'); if (!thF) return;
+    if (!tbl.querySelector('thead th.sticky-right-bonus')){ const th=document.createElement('th'); th.className='sticky-right-bonus'; th.textContent='BONUS'; thF.parentElement.insertBefore(th, thF); } }
+  function ensureCells(){ tbl.querySelectorAll('tbody tr').forEach(tr=>{ if (!tr.querySelector('td.bonus-td')){ const td=document.createElement('td'); td.className='bonus-td sticky-right-bonus'; td.innerHTML='<input type="number" class="bonus-input" inputmode="numeric" min="0" step="1" value="0">'; const f=tr.querySelector('td.sticky-right-final'); if (f) tr.insertBefore(td,f); else tr.appendChild(td); } }); }
+  const toNum=v=>{ const m=String(v??'').match(/-?\d+/); return m?parseInt(m[0],10):0; };
+  const finalCell=tr=> tr.querySelector('td.sticky-right-final .final-value') || tr.querySelector('td.sticky-right-final');
+  function captureBase(tr){ const fc=finalCell(tr); if (!fc) return 0; fc.dataset.baseFinal=String(toNum(fc.textContent)); return toNum(fc.dataset.baseFinal); }
+  function recalc(tr){ const fc=finalCell(tr); if (!fc) return; if (fc.dataset.baseFinal==null) captureBase(tr); const base=toNum(fc.dataset.baseFinal); const bonus=toNum(tr.querySelector('td.bonus-td input')?.value||0); const out=base+bonus; if (toNum(fc.textContent)!==out) fc.textContent=String(out); }
+  ensureHeader(); ensureCells(); tbl.querySelectorAll('tbody tr').forEach(tr=>{ captureBase(tr); recalc(tr); });
+  tbl.addEventListener('input', e=>{ if (e.target.closest('td.bonus-td')) recalc(e.target.closest('tr')); }, true);
+  const mo=new MutationObserver(muts=>{ let structure=false; for(const m of muts){ if(m.addedNodes.length||m.removedNodes.length) structure=true; const td=m.target?.closest?.('td.sticky-right-final'); if (td){ const tr=td.closest('tr'); captureBase(tr); recalc(tr);} } if (structure){ ensureHeader(); ensureCells(); }});
+  mo.observe(tbl,{subtree:true,childList:true,characterData:true});
+} catch(e){ console.warn('[bonus] error', e); } })();

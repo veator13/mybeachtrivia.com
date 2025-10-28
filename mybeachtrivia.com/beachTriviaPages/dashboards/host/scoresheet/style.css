@@ -721,3 +721,12 @@ td.sticky-right-bonus input {
   width: 100%; box-sizing: border-box; background:#2a2a2a; color:#eee;
   border:1px solid #444; border-radius:8px; padding:6px 10px; text-align:center;
 }
+/* === BONUS polish (left of Final, matched height) === */
+#teamTable { --row-h: 64px; --final-w:116px; --bonus-w:96px; --gutter:0px; }
+#teamTable th.sticky-right-final, #teamTable td.sticky-right-final{ position:sticky; right:0; width:var(--final-w); z-index:60; background:#171717; box-shadow:-6px 0 12px rgba(0,0,0,.55); border-left:1px solid #2e2e2e; }
+#teamTable th.sticky-right-bonus, #teamTable td.sticky-right-bonus{ position:sticky; right:calc(var(--final-w) + var(--gutter)); width:var(--bonus-w); z-index:59; background:#171717; box-shadow:-6px 0 10px rgba(0,0,0,.45); }
+#teamTable .sticky-right-bonus.sticky-col-right{ right:calc(var(--final-w) + var(--gutter)) !important; }
+#teamTable thead th.sticky-right-bonus{ padding:14px 12px; font-weight:800; letter-spacing:.8px; color:#ddd; text-transform:uppercase; border-left:1px solid #2e2e2e; }
+#teamTable tbody td.bonus-td{ padding:0 10px; height:var(--row-h); }
+#teamTable tbody td.bonus-td input{ height:calc(var(--row-h) - 18px); width:100%; box-sizing:border-box; text-align:center; background:#242424; color:#eceff1; border:1px solid #3a3a3a; border-radius:12px; font-size:20px; line-height:1; outline:none; box-shadow: inset 0 0 0 1px rgba(255,255,255,.05); }
+#teamTable tbody td.sticky-right-final{ height:var(--row-h); }
