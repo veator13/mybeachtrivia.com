@@ -730,3 +730,8 @@ td.sticky-right-bonus input {
 #teamTable tbody td.bonus-td{ padding:0 10px; height:var(--row-h); }
 #teamTable tbody td.bonus-td input{ height:calc(var(--row-h) - 18px); width:100%; box-sizing:border-box; text-align:center; background:#242424; color:#eceff1; border:1px solid #3a3a3a; border-radius:12px; font-size:20px; line-height:1; outline:none; box-shadow: inset 0 0 0 1px rgba(255,255,255,.05); }
 #teamTable tbody td.sticky-right-final{ height:var(--row-h); }
+/* === BONUS x FINAL sticky layout v2 === */
+#teamTable, table { --final-w: 116px; --bonus-w: 96px; --gutter: 0px; }
+th.sticky-right-final, td.sticky-right-final { position: sticky; right: 0; width: var(--final-w); z-index: 60; }
+th.sticky-right-bonus, td.sticky-right-bonus { position: sticky; right: var(--final-w); width: var(--bonus-w); z-index: 59; }
+td.bonus-td input { width: 100%; box-sizing: border-box; width: 100%; font: inherit; }

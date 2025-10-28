@@ -1274,3 +1274,55 @@ window.clearHighlights = clearHighlights;
   const mo=new MutationObserver(muts=>{ let structure=false; for(const m of muts){ if(m.addedNodes.length||m.removedNodes.length) structure=true; const td=m.target?.closest?.('td.sticky-right-final'); if (td){ const tr=td.closest('tr'); captureBase(tr); recalc(tr);} } if (structure){ ensureHeader(); ensureCells(); }});
   mo.observe(tbl,{subtree:true,childList:true,characterData:true});
 } catch(e){ console.warn('[bonus] error', e); } })();
+/* === BONUS column (left of FINAL); inputs + live sum === */
+(() => {
+  const tbl = document.querySelector('#teamTable') || document.querySelector('table');
+  if (!tbl) return;
+  const q =(s,r=tbl)=>r.querySelector(s);
+  const qa=(s,r=tbl)=>Array.from(r.querySelectorAll(s));
+  const finalCell = tr => q('td.sticky-right-final', tr);
+  const toNum = v => { const n=parseInt(v,10); return Number.isFinite(n)?n:0; };
+
+  function ensureHeader(){
+    const head = tbl.tHead?.rows?.[0]; if (!head) return;
+    const thFinal = q('th.sticky-right-final', head);
+    let   thBonus = q('th.sticky-right-bonus', head);
+    if (thFinal && !thBonus){
+      thFinal.insertAdjacentHTML('beforebegin', `<th class="sticky-right-bonus">BONUS</th>`);
+    }
+  }
+  function ensureCells(){
+    qa('tbody tr').forEach(tr=>{
+      const tdFinal = finalCell(tr); if (!tdFinal) return;
+      let tdBonus = q('td.bonus-td', tr);
+      if (!tdBonus){
+        tdBonus = document.createElement('td');
+        tdBonus.className = 'bonus-td sticky-right-bonus';
+        tdBonus.innerHTML = `<input type="number" class="bonus-input" min="0" step="1" inputmode="numeric" value="0">`;
+        tdFinal.insertAdjacentElement('beforebegin', tdBonus);
+      }
+    });
+  }
+  function captureBase(tr){
+    const fc = finalCell(tr); if(!fc) return;
+    if (fc.dataset.baseFinal == null) fc.dataset.baseFinal = String(toNum(fc.textContent));
+  }
+  function recalc(tr){
+    const fc = finalCell(tr); if(!fc) return;
+    captureBase(tr);
+    const base  = toNum(fc.dataset.baseFinal);
+    const bonus = toNum(q('td.bonus-td input', tr)?.value || 0);
+    const out   = base + bonus;
+    if (toNum(fc.textContent) !== out) fc.textContent = String(out);
+  }
+
+  ensureHeader(); ensureCells(); qa('tbody tr').forEach(recalc);
+
+  tbl.addEventListener('input', e=>{
+    const inp = e.target;
+    if (inp.closest && inp.closest('td.bonus-td')) recalc(inp.closest('tr'));
+  }, true);
+
+  new MutationObserver(()=>{ ensureHeader(); ensureCells(); })
+    .observe(tbl, { childList:true, subtree:true });
+})();
