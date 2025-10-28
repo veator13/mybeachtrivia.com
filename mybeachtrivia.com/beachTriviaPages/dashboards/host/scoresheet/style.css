@@ -707,3 +707,17 @@ td.sticky-col-right span {
         right: auto;
     }
 }
+/* === sticky right columns (BONUS + FINAL) === */
+#teamTable, table { --final-w:116px; --bonus-w:96px; --gutter:0px; }
+th.sticky-right-final, td.sticky-right-final {
+  position: sticky; right: 0; width: var(--final-w);
+  z-index: 60; background:#171717; box-shadow:-6px 0 12px rgba(0,0,0,.55);
+}
+th.sticky-right-bonus, td.sticky-right-bonus {
+  position: sticky; right: calc(var(--final-w) + var(--gutter)); width: var(--bonus-w);
+  z-index: 59; background:#171717; box-shadow:-6px 0 10px rgba(0,0,0,.45);
+}
+td.sticky-right-bonus input {
+  width: 100%; box-sizing: border-box; background:#2a2a2a; color:#eee;
+  border:1px solid #444; border-radius:8px; padding:6px 10px; text-align:center;
+}

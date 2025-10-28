@@ -1182,3 +1182,77 @@ window.clearHighlights = clearHighlights;
   new MutationObserver(run).observe(document.documentElement, { childList:true, subtree:true });
 })();
 // === end FINAL NEGATIVE (safe, instance hook) ===
+
+// === BONUS COLUMN (sticky, left of FINAL) + add to Final ===
+(() => {
+  const table = document.querySelector('#teamTable') || document.querySelector('table');
+  if (!table) return;
+
+  // Insert BONUS <th> just left of FINAL header if missing
+  const theadRow = table.tHead?.rows?.[0];
+  if (theadRow && !table.querySelector('th.sticky-right-bonus')) {
+    const thBonus = document.createElement('th');
+    thBonus.className = 'sticky-right-bonus';
+    thBonus.textContent = 'BONUS';
+    const thFinal = table.querySelector('th.sticky-right-final');
+    if (thFinal) theadRow.insertBefore(thBonus, thFinal); else theadRow.appendChild(thBonus);
+  }
+
+  // Ensure each body row has a BONUS cell left of FINAL (with input)
+  table.querySelectorAll('tbody tr').forEach(tr => {
+    if (tr.querySelector('td.bonus-td')) return;
+    const td = document.createElement('td');
+    td.className = 'bonus-td sticky-right-bonus';
+    td.innerHTML = '<input type="number" class="bonus-input" inputmode="numeric" min="0" step="1" value="0">';
+    const tdFinal = tr.querySelector('td.sticky-right-final');
+    if (tdFinal) tr.insertBefore(td, tdFinal); else tr.appendChild(td);
+  });
+
+  const toNum = v => {
+    const m = String(v ?? '').match(/-?\d+/); return m ? parseInt(m[0],10) : 0;
+  };
+
+  function getBonus(tr){
+    const el = tr.querySelector('td.bonus-td input');
+    if (!el) return 0;
+    const n = toNum(el.value);
+    // clamp bonus if you want only non-negative
+    return n;
+  }
+
+  // Apply bonus by treating existing Final text as the base
+  function applyBonus(tr){
+    const tdFinal = tr.querySelector('td.sticky-right-final');
+    if (!tdFinal) return;
+    const target = tdFinal.querySelector('.final-value') || tdFinal;
+    // Capture the base once (original total without bonus)
+    if (target.dataset.baseFinal == null) target.dataset.baseFinal = String(toNum(target.textContent));
+    const base = toNum(target.dataset.baseFinal);
+    const out  = base + getBonus(tr);
+    // write without causing layout shift/flicker
+    if (toNum(target.textContent) !== out) target.textContent = String(out);
+  }
+
+  // Reapply when BONUS changes, or when anything in the row changes
+  table.addEventListener('input', (e)=>{
+    const tr = e.target.closest('tr'); if (!tr) return;
+    applyBonus(tr);
+  }, true);
+
+  // If other code recomputes Final, capture the new base and re-add bonus
+  const mo = new MutationObserver(muts => {
+    for (const m of muts) {
+      const td = m.target.closest?.('td.sticky-right-final');
+      if (td) {
+        const target = td.querySelector('.final-value') || td;
+        // update base from whatever upstream wrote, then add bonus
+        target.dataset.baseFinal = String(toNum(target.textContent));
+        applyBonus(td.parentElement);
+      }
+    }
+  });
+  mo.observe(table, { subtree:true, characterData:true, childList:true });
+
+  // Initial pass
+  table.querySelectorAll('tbody tr').forEach(applyBonus);
+})();
