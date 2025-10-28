@@ -1,0 +1,55 @@
+/* Keep Final locked at far right; Bonus immediately to its left */
+th.sticky-right-final, td.sticky-right-final,
+th.sticky-col-right,  td.sticky-col-right {
+  position: sticky !important;
+  right: 0 !important;
+  z-index: 60;
+  background-clip: padding-box;
+}
+
+th.sticky-right-bonus, td.sticky-right-bonus, td.bonus-td {
+  position: sticky !important;
+  right: var(--finalW, 116px) !important;
+  z-index: 59;
+  background: var(--bonus-bg, #111);
+  background-clip: padding-box;
+}
+
+/* Inputs in sticky cells should be opaque (no see-through while scrolling) */
+th.sticky-right-final input,  td.sticky-right-final input,
+th.sticky-right-bonus input,  td.sticky-right-bonus input,
+th.sticky-right-final select, td.sticky-right-final select,
+th.sticky-right-bonus select, td.sticky-right-bonus select,
+th.sticky-right-final textarea, td.sticky-right-final textarea,
+th.sticky-right-bonus textarea, td.sticky-right-bonus textarea {
+  background: inherit !important;
+  backdrop-filter: none !important;
+}
+
+/* Visually “rowspan” the BONUS header down to the bottom of THEAD (no layout change) */
+thead th.bonus-header-extend {
+  position: sticky !important;
+  right: var(--finalW, 116px) !important;
+  z-index: 62;
+  background: var(--bonus-bg, #111);
+  background-clip: padding-box;
+  overflow: visible;              /* lets ::after paint below */
+}
+
+/* Extender that fills just the gap below BONUS header to THEAD bottom */
+thead th.bonus-header-extend::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0;
+  top: 100%;                      /* start at bottom edge of header */
+  height: var(--bonus-gap, 0px);  /* computed in JS */
+  background: var(--bonus-bg, #111);
+  z-index: 61;                    /* under header text, above body grid */
+  pointer-events: none;
+
+  /* light separators to match your grid edges (tweak if needed) */
+  box-shadow:
+    inset  1px  0 0 rgba(0,0,0,.35),   /* left */
+    inset -1px  0 0 rgba(255,255,255,.08), /* right */
+    inset  0 -1px 0 rgba(0,0,0,.35);   /* bottom of THEAD */
+}
