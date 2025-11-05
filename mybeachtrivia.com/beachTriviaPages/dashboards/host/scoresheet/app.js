@@ -572,7 +572,7 @@ function showStandings() {
     li.textContent = `${idx + 1}. ${t.name} - Score: ${t.score} (First Half: ${t.firstHalf}, Second Half: ${t.secondHalf})`;
     if (idx === 0) {
       li.style.borderLeft = "6px solid gold";
-      li.style.background = "linear-gradient(to right, #3a3a3a, #4a4a3a)";
+      li.style.background = "linear-gradient(to right, #3a3a3a, #4a3a3a)";
     } else if (idx === 1) {
       li.style.borderLeft = "6px solid silver";
     } else if (idx === 2) {
@@ -1127,7 +1127,7 @@ window.clearHighlights = clearHighlights;
 })();
 // === end GRID ENFORCER ===
 
-// === [scoresheet][HOST] TABLE NAVIGATION V3 — capture-phase; prevents stepping; moves focus ===
+// === [scoresheet][HOST] TABLE NAVIGATION V3 — capture-phase; prevents stepping; moves focus + auto-scroll ===
 (() => {
   if (window.__HOST_TABLE_NAV_V3__) return; window.__HOST_TABLE_NAV_V3__ = 1;
 
@@ -1210,6 +1210,41 @@ window.clearHighlights = clearHighlights;
     return { rows, cols, navCols };
   }
 
+  // Ensure the newly focused editor is visible inside .table-wrapper
+  function ensureEditorVisible(editor) {
+    if (!editor) return;
+    const cell = editor.closest('td,th') || editor;
+    const wrapper =
+      editor.closest('.table-wrapper') ||
+      cell.closest('.table-wrapper') ||
+      document.querySelector('.table-wrapper');
+    if (!wrapper) return;
+
+    const wrapperRect = wrapper.getBoundingClientRect();
+    const cellRect = cell.getBoundingClientRect();
+
+    const marginX = 16;  // small padding so it appears just inside view
+    const marginY = 8;
+
+    // Horizontal
+    if (cellRect.right > wrapperRect.right - marginX) {
+      const delta = cellRect.right - (wrapperRect.right - marginX);
+      wrapper.scrollLeft += delta;
+    } else if (cellRect.left < wrapperRect.left + marginX) {
+      const delta = (wrapperRect.left + marginX) - cellRect.left;
+      wrapper.scrollLeft -= delta;
+    }
+
+    // Vertical
+    if (cellRect.bottom > wrapperRect.bottom - marginY) {
+      const deltaY = cellRect.bottom - (wrapperRect.bottom - marginY);
+      wrapper.scrollTop += deltaY;
+    } else if (cellRect.top < wrapperRect.top + marginY) {
+      const deltaY = (wrapperRect.top + marginY) - cellRect.top;
+      wrapper.scrollTop -= deltaY;
+    }
+  }
+
   function moveFocus(fromEditor, dx, dy){
     const table = fromEditor.closest('table'); if (!table) return;
     const {rows, cols, navCols} = indexTable(table);
@@ -1233,7 +1268,11 @@ window.clearHighlights = clearHighlights;
     const targetTr = rows[rTarget];
     const targetTd = getCellAtCol(targetTr, cIdx);
     const targetEl = findEditor(targetTd);
-    if (targetEl) { targetEl.focus(); targetEl.select?.(); }
+    if (targetEl) {
+      ensureEditorVisible(targetEl);
+      targetEl.focus();
+      targetEl.select?.();
+    }
   }
 
   const ARROWS = new Set(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight']);
