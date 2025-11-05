@@ -1210,7 +1210,7 @@ window.clearHighlights = clearHighlights;
     return { rows, cols, navCols };
   }
 
-  // NEW: edge-aware scroll that accounts for sticky Team / Bonus / Final columns
+  // edge-aware scroll that accounts for sticky Team / Bonus / Final columns + sticky header
   function ensureEditorVisible(editor) {
     if (!editor) return;
 
@@ -1323,8 +1323,20 @@ window.clearHighlights = clearHighlights;
     moveFocus(t, dx, dy);
   }
 
+  // NEW: whenever any table editor gets focus (click / tab / touch),
+  // make sure it is fully visible horizontally & vertically.
+  function onFocusIn(e) {
+    const t = e.target;
+    if (!(t instanceof HTMLElement)) return;
+    if (!t.closest('table')) return;
+    const editor = t.closest('input, [contenteditable]');
+    if (!editor) return;
+    ensureEditorVisible(editor);
+  }
+
   // Capture-phase so we beat native stepping and any other handlers
   document.addEventListener('keydown', onKey, true);
+  document.addEventListener('focusin', onFocusIn, true);
 })();
 // === end TABLE NAVIGATION V3 ===
 
