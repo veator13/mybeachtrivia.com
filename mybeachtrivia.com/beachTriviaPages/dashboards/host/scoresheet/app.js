@@ -572,7 +572,7 @@ function showStandings() {
     li.textContent = `${idx + 1}. ${t.name} - Score: ${t.score} (First Half: ${t.firstHalf}, Second Half: ${t.secondHalf})`;
     if (idx === 0) {
       li.style.borderLeft = "6px solid gold";
-      li.style.background = "linear-gradient(to right, #3a3a3a, #4a3a3a)";
+      li.style.background = "linear-gradient(to right, #3a3a3a, #4a4a3a)";
     } else if (idx === 1) {
       li.style.borderLeft = "6px solid silver";
     } else if (idx === 2) {
@@ -994,7 +994,7 @@ window.clearHighlights = clearHighlights;
 
 /* =======================================================
    GRID ENFORCER / NAV / Q-SNAPS / FINAL NEG
-   (your existing helper IIFEs – unchanged except bugfix)
+   (your existing helper IIFEs – plus updated nav)
 ======================================================= */
 
 // === [scoresheet][HOST] GRID ENFORCER: per-Q columns; non-zero => round value ===
@@ -1127,7 +1127,7 @@ window.clearHighlights = clearHighlights;
 })();
 // === end GRID ENFORCER ===
 
-// === [scoresheet][HOST] TABLE NAVIGATION V3 — capture-phase; prevents stepping; moves focus + auto-scroll ===
+// === [scoresheet][HOST] TABLE NAVIGATION V3 — capture-phase; prevents stepping; moves focus + edge-aware scroll ===
 (() => {
   if (window.__HOST_TABLE_NAV_V3__) return; window.__HOST_TABLE_NAV_V3__ = 1;
 
@@ -1210,37 +1210,70 @@ window.clearHighlights = clearHighlights;
     return { rows, cols, navCols };
   }
 
-  // Ensure the newly focused editor is visible inside .table-wrapper
+  // NEW: edge-aware scroll that accounts for sticky Team / Bonus / Final columns
   function ensureEditorVisible(editor) {
     if (!editor) return;
+
     const cell = editor.closest('td,th') || editor;
     const wrapper =
-      editor.closest('.table-wrapper') ||
       cell.closest('.table-wrapper') ||
       document.querySelector('.table-wrapper');
     if (!wrapper) return;
 
     const wrapperRect = wrapper.getBoundingClientRect();
+    const table = wrapper.querySelector('table');
+
+    // Sticky left (Team Name)
+    let leftStickyWidth = 0;
+    if (table) {
+      const leftSticky = table.querySelector('thead .sticky-col');
+      if (leftSticky) {
+        leftStickyWidth = leftSticky.getBoundingClientRect().width;
+      }
+    }
+
+    // Sticky right (Bonus + Final Score)
+    let rightStickyWidth = 0;
+    if (table) {
+      const finalSticky = table.querySelector('thead .sticky-col-right');
+      const bonusSticky = table.querySelector('thead .bonus-col-right');
+      if (bonusSticky) rightStickyWidth += bonusSticky.getBoundingClientRect().width;
+      if (finalSticky) rightStickyWidth += finalSticky.getBoundingClientRect().width;
+    }
+
+    // Sticky header height
+    let headerHeight = 0;
+    if (table && table.tHead) {
+      const theadRect = table.tHead.getBoundingClientRect();
+      headerHeight = theadRect.height || 0;
+    }
+
     const cellRect = cell.getBoundingClientRect();
 
-    const marginX = 16;  // small padding so it appears just inside view
-    const marginY = 8;
+    // “About to leave” margins so we scroll a bit *before* the cell disappears
+    const marginX = 32;
+    const marginY = 12;
 
-    // Horizontal
-    if (cellRect.right > wrapperRect.right - marginX) {
-      const delta = cellRect.right - (wrapperRect.right - marginX);
+    const effectiveLeft   = wrapperRect.left + leftStickyWidth  + marginX;
+    const effectiveRight  = wrapperRect.right - rightStickyWidth - marginX;
+    const effectiveTop    = wrapperRect.top + headerHeight + marginY;
+    const effectiveBottom = wrapperRect.bottom - marginY;
+
+    // Horizontal: keep cell between sticky Team and sticky Bonus/Final
+    if (cellRect.right > effectiveRight) {
+      const delta = cellRect.right - effectiveRight;
       wrapper.scrollLeft += delta;
-    } else if (cellRect.left < wrapperRect.left + marginX) {
-      const delta = (wrapperRect.left + marginX) - cellRect.left;
+    } else if (cellRect.left < effectiveLeft) {
+      const delta = effectiveLeft - cellRect.left;
       wrapper.scrollLeft -= delta;
     }
 
-    // Vertical
-    if (cellRect.bottom > wrapperRect.bottom - marginY) {
-      const deltaY = cellRect.bottom - (wrapperRect.bottom - marginY);
+    // Vertical: keep cell below sticky header and above bottom edge
+    if (cellRect.bottom > effectiveBottom) {
+      const deltaY = cellRect.bottom - effectiveBottom;
       wrapper.scrollTop += deltaY;
-    } else if (cellRect.top < wrapperRect.top + marginY) {
-      const deltaY = (wrapperRect.top + marginY) - cellRect.top;
+    } else if (cellRect.top < effectiveTop) {
+      const deltaY = effectiveTop - cellRect.top;
       wrapper.scrollTop -= deltaY;
     }
   }
