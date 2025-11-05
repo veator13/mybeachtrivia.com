@@ -51,6 +51,156 @@ async function ensureSignedIn() {
 }
 
 /* =======================================================
+   BONUS input helper (first-click behavior)
+======================================================= */
+function bindBonusInput(inp) {
+  if (!inp || inp.__bonusBound) return;
+  inp.__bonusBound = true;
+
+  // Default value
+  if (!inp.value) inp.value = "0";
+  if (!inp.dataset.touched) inp.dataset.touched = "0";
+
+  // First mouse click: prevent caret from landing inside the "0", select it instead
+  inp.addEventListener("mousedown", (e) => {
+    if (inp.dataset.touched === "1") return; // already edited, normal behavior
+    e.preventDefault();
+    inp.focus();
+    inp.select();
+  });
+
+  // First focus via keyboard/tab: also select the "0"
+  inp.addEventListener("focus", () => {
+    if (inp.dataset.touched === "1") return;
+    setTimeout(() => {
+      try { inp.select(); } catch (_) {}
+    }, 0);
+  });
+
+  // Once the user types anything, mark as touched
+  inp.addEventListener("input", () => {
+    inp.dataset.touched = "1";
+  });
+}
+
+/* =======================================================
+   Sticky right columns (Bonus + Final Score) width & offset
+======================================================= */
+function updateStickyRightWidths() {
+  const table = document.getElementById("teamTable");
+  if (!table) {
+    console.warn("[bonus+final-width] No #teamTable found");
+    return;
+  }
+
+  // Representative cells
+  const finalCell =
+    table.querySelector("tbody td.sticky-col-right") ||
+    table.querySelector("thead th.sticky-col-right");
+
+  const bonusCell =
+    table.querySelector("tbody td.bonus-col-right") ||
+    table.querySelector("thead th.bonus-col-right");
+
+  if (!finalCell || !bonusCell) {
+    console.warn("[bonus+final-width] Missing .sticky-col-right or .bonus-col-right");
+    return;
+  }
+
+  const finalRect = finalCell.getBoundingClientRect();
+  const bonusRect = bonusCell.getBoundingClientRect();
+
+  // Final score: a bit thinner
+  const newFinalWidth = Math.max(50, Math.round(finalRect.width * 0.6));
+  // Bonus: keep the narrower width we liked
+  const newBonusWidth = Math.max(32, Math.round(bonusRect.width * 0.5));
+
+  // 1) Apply column widths
+  let widthStyle = document.getElementById("bonus-final-width-style");
+  if (!widthStyle) {
+    widthStyle = document.createElement("style");
+    widthStyle.id = "bonus-final-width-style";
+    document.head.appendChild(widthStyle);
+  }
+
+  widthStyle.textContent = `
+    td.sticky-col-right,
+    th.sticky-col-right {
+      min-width: ${newFinalWidth}px;
+      width: ${newFinalWidth}px;
+    }
+
+    td.bonus-col-right,
+    th.bonus-col-right {
+      min-width: ${newBonusWidth}px;
+      width: ${newBonusWidth}px;
+    }
+  `;
+
+  // 2) Make bonus inputs slightly narrower than Q1–Q20 inputs
+  const sampleQInput =
+    table.querySelector("tbody input[id^='num']") ||
+    table.querySelector("tbody input[type='number']");
+  let bonusInputWidth = 30;
+  if (sampleQInput) {
+    const sampleRect = sampleQInput.getBoundingClientRect();
+    if (sampleRect.width) {
+      // About 75% of the regular input width, but not tiny
+      bonusInputWidth = Math.max(26, Math.round(sampleRect.width * 0.75));
+    }
+  }
+
+  let bonusInputStyle = document.getElementById("bonus-input-tight-style");
+  if (!bonusInputStyle) {
+    bonusInputStyle = document.createElement("style");
+    bonusInputStyle.id = "bonus-input-tight-style";
+    document.head.appendChild(bonusInputStyle);
+  }
+
+  bonusInputStyle.textContent = `
+    td.bonus-col-right input.bonus-input {
+      width: ${bonusInputWidth}px;
+    }
+  `;
+
+  // 3) Re-measure and adjust BONUS offset so it snugly touches FINAL
+  requestAnimationFrame(() => {
+    const finalRect2 = finalCell.getBoundingClientRect();
+    const bonusRect2 = bonusCell.getBoundingClientRect();
+
+    const gap = finalRect2.left - bonusRect2.right; // +gap = space, -gap = overlap
+
+    const cs = getComputedStyle(bonusCell);
+    let currentRight = parseFloat(cs.right);
+    if (Number.isNaN(currentRight)) currentRight = 0;
+
+    const newRight = Math.max(0, Math.round(currentRight - gap));
+
+    let offsetStyle = document.getElementById("bonus-offset-style");
+    if (!offsetStyle) {
+      offsetStyle = document.createElement("style");
+      offsetStyle.id = "bonus-offset-style";
+      document.head.appendChild(offsetStyle);
+    }
+
+    offsetStyle.textContent = `
+      td.bonus-col-right,
+      th.bonus-col-right {
+        right: ${newRight}px;
+      }
+    `;
+
+    console.log(
+      "[bonus+final-width] finalWidth:", newFinalWidth,
+      "bonusWidth:", newBonusWidth,
+      "gap:", gap,
+      "→ bonus right:", newRight, "px",
+      "bonusInputWidth:", bonusInputWidth
+    );
+  });
+}
+
+/* =======================================================
    Row creation (no inline handlers)
 ======================================================= */
 function addTeam() {
@@ -78,12 +228,12 @@ function addTeam() {
   nameInput.className = "teamName";
   nameInput.placeholder = `Team ${teamCount}`;
 
-  const bonus = document.createElement("input");
-  bonus.type = "checkbox";
-  bonus.id = `checkbox${teamCount}`;
-  bonus.className = "teamCheckbox";
+  const bonusCheckbox = document.createElement("input");
+  bonusCheckbox.type = "checkbox";
+  bonusCheckbox.id = `checkbox${teamCount}`;
+  bonusCheckbox.className = "teamCheckbox";
 
-  tdTeam.append(nameInput, bonus);
+  tdTeam.append(nameInput, bonusCheckbox);
   tr.appendChild(tdTeam);
 
   // --- Round 1 (Q1-Q5): only 0 or 1 ---
@@ -245,6 +395,21 @@ function addTeam() {
     tr.appendChild(td);
   }
 
+  // BONUS column (numeric, right side just left of Final Score)
+  {
+    const td = document.createElement("td");
+    td.className = "bonus-col-right";
+    const inp = document.createElement("input");
+    inp.type = "number";
+    inp.min = "0";
+    inp.step = "1";
+    inp.className = "bonus-input";
+    inp.value = "0";
+    td.appendChild(inp);
+    tr.appendChild(td);
+    bindBonusInput(inp);
+  }
+
   // Final Score (right sticky col)
   {
     const td = document.createElement("td");
@@ -257,6 +422,9 @@ function addTeam() {
   }
 
   tbody.appendChild(tr);
+
+  // Re-sync sticky widths after layout changes
+  updateStickyRightWidths();
 }
 
 /* =======================================================
@@ -307,6 +475,9 @@ function validateInput(input, teamId) {
 function updateScores(teamId) {
   const valOrZero = (el) => (el?.value === "" ? 0 : parseInt(el?.value, 10) || 0);
 
+  // Row (for BONUS cell lookup)
+  const row = document.querySelector(`tr[data-team-id="${teamId}"]`);
+
   // Collect Q1..Q20
   const values = [];
   for (let j = 1; j <= 20; j++) {
@@ -327,13 +498,31 @@ function updateScores(teamId) {
   const firstHalfTotal = r1Total + r2Total + halfTimeValue;
   const secondHalfTotal = r3Total + r4Total + finalQuestionValue;
 
-  // Final score (+5 if bonus checked)
-  let finalScore = firstHalfTotal + secondHalfTotal;
-  const bonus = document.getElementById(`checkbox${teamId}`);
-  if (bonus && bonus.checked) finalScore += 5;
+  // Numeric BONUS column value (>=0, blank treated as 0)
+  let bonusValue = 0;
+  if (row) {
+    const bonusInput =
+      row.querySelector("td.bonus-col-right input") ||
+      row.querySelector("td.bonus-col-right input.bonus-input");
+    if (bonusInput && bonusInput.value !== "") {
+      const n = parseInt(bonusInput.value, 10);
+      if (!isNaN(n) && n >= 0) {
+        bonusValue = n;
+      } else {
+        bonusInput.value = "0";
+        bonusValue = 0;
+      }
+    }
+  }
+
+  // Final score (FH + SH + BONUS)
+  const finalScore = firstHalfTotal + secondHalfTotal + bonusValue;
 
   // Update DOM
-  const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = String(v); };
+  const setText = (id, v) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = String(v);
+  };
   setText(`r1Total${teamId}`, r1Total);
   setText(`r2Total${teamId}`, r2Total);
   setText(`r3Total${teamId}`, r3Total);
@@ -383,7 +572,7 @@ function showStandings() {
     li.textContent = `${idx + 1}. ${t.name} - Score: ${t.score} (First Half: ${t.firstHalf}, Second Half: ${t.secondHalf})`;
     if (idx === 0) {
       li.style.borderLeft = "6px solid gold";
-      li.style.background = "linear-gradient(to right, #3a3a3a, #4a4a4a)";
+      li.style.background = "linear-gradient(to right, #3a3a3a, #4a4a3a)";
     } else if (idx === 1) {
       li.style.borderLeft = "6px solid silver";
     } else if (idx === 2) {
@@ -538,6 +727,19 @@ function collectTeamData() {
     const finalQRaw = document.getElementById(`finalQuestion${i}`)?.value;
     const finalQuestionScore = finalQRaw === "" ? null : (parseInt(finalQRaw || "0", 10) || 0);
 
+    // BONUS numeric value
+    let bonusScore = 0;
+    const row = document.querySelector(`tr[data-team-id="${i}"]`);
+    if (row) {
+      const bonusInput =
+        row.querySelector("td.bonus-col-right input") ||
+        row.querySelector("td.bonus-col-right input.bonus-input");
+      if (bonusInput && bonusInput.value !== "") {
+        const n = parseInt(bonusInput.value, 10);
+        bonusScore = (!isNaN(n) && n >= 0) ? n : 0;
+      }
+    }
+
     const r1Total = parseInt(document.getElementById(`r1Total${i}`)?.textContent || "0", 10);
     const r2Total = parseInt(document.getElementById(`r2Total${i}`)?.textContent || "0", 10);
     const r3Total = parseInt(document.getElementById(`r3Total${i}`)?.textContent || "0", 10);
@@ -550,6 +752,7 @@ function collectTeamData() {
       teamId: i,
       teamName,
       bonusApplied,
+      bonusScore,
       questionScores,
       halfTimeScore,
       finalQuestionScore,
@@ -645,6 +848,18 @@ document.addEventListener("DOMContentLoaded", () => {
   for (let i = 1; i <= 5; i++) addTeam();
   dataModified = false;
 
+  // Also bind any BONUS inputs that may exist in static HTML (safety)
+  $all("td.bonus-col-right input", table).forEach(bindBonusInput);
+
+  // Initial sync of sticky widths
+  updateStickyRightWidths();
+
+  // Re-sync on resize/orientation changes (debounced)
+  const recalcSticky = debounce(updateStickyRightWidths, 100);
+  window.addEventListener("resize", recalcSticky);
+  window.addEventListener("orientationchange", recalcSticky);
+  window.addEventListener("load", recalcSticky);
+
   // Delegate input events for all score inputs (CSP friendly)
   table?.addEventListener("input", (e) => {
     const target = e.target;
@@ -661,6 +876,19 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    // BONUS numeric column
+    if (target.classList.contains("bonus-input")) {
+      dataModified = true;
+      if (
+        target.value !== "" &&
+        (isNaN(parseInt(target.value, 10)) || parseInt(target.value, 10) < 0)
+      ) {
+        target.value = "0";
+      }
+      updateScores(teamId);
+      return;
+    }
+
     // Only validate score-ish inputs
     if (
       target.id === `halfTime${teamId}` ||
@@ -671,7 +899,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Checkbox change → recompute final score
+  // Checkbox change → recompute final score (no longer adds +5, just refresh)
   table?.addEventListener("change", (e) => {
     const target = e.target;
     if (!(target instanceof HTMLInputElement)) return;
@@ -763,6 +991,12 @@ window.showStandings = showStandings;
 window.closeModal = closeModal;
 window.searchTeams = searchTeams;
 window.clearHighlights = clearHighlights;
+
+/* =======================================================
+   GRID ENFORCER / NAV / Q-SNAPS / FINAL NEG
+   (your existing helper IIFEs – plus updated nav)
+======================================================= */
+
 // === [scoresheet][HOST] GRID ENFORCER: per-Q columns; non-zero => round value ===
 (() => {
   if (window.__HOST_GRID_ENFORCER__) return; window.__HOST_GRID_ENFORCER__ = 1;
@@ -892,7 +1126,8 @@ window.clearHighlights = clearHighlights;
   new MutationObserver(run).observe(document.documentElement, { childList:true, subtree:true });
 })();
 // === end GRID ENFORCER ===
-// === [scoresheet][HOST] TABLE NAVIGATION V3 — capture-phase; prevents stepping; moves focus ===
+
+// === [scoresheet][HOST] TABLE NAVIGATION V3 — capture-phase; prevents stepping; moves focus + edge-aware scroll ===
 (() => {
   if (window.__HOST_TABLE_NAV_V3__) return; window.__HOST_TABLE_NAV_V3__ = 1;
 
@@ -911,7 +1146,10 @@ window.clearHighlights = clearHighlights;
       for (const cell of r.cells) {
         while (occ[col] > 0) col++;
         const cs = Number(cell.colSpan||1), rs = Number(cell.rowSpan||1);
-        for (let i=0;i<cs;i++){ grid[ri][col+i]=cell; occ[col+i]=rs; }
+        for (let i=0;i<cs;i++){
+          grid[ri][col+i] = cell;
+          occ[col+i] = rs;
+        }
         col += cs;
       }
       for (let i=0;i<maxCols;i++) if (occ[i]>0) occ[i]--;
@@ -972,6 +1210,74 @@ window.clearHighlights = clearHighlights;
     return { rows, cols, navCols };
   }
 
+  // NEW: edge-aware scroll that accounts for sticky Team / Bonus / Final columns
+  function ensureEditorVisible(editor) {
+    if (!editor) return;
+
+    const cell = editor.closest('td,th') || editor;
+    const wrapper =
+      cell.closest('.table-wrapper') ||
+      document.querySelector('.table-wrapper');
+    if (!wrapper) return;
+
+    const wrapperRect = wrapper.getBoundingClientRect();
+    const table = wrapper.querySelector('table');
+
+    // Sticky left (Team Name)
+    let leftStickyWidth = 0;
+    if (table) {
+      const leftSticky = table.querySelector('thead .sticky-col');
+      if (leftSticky) {
+        leftStickyWidth = leftSticky.getBoundingClientRect().width;
+      }
+    }
+
+    // Sticky right (Bonus + Final Score)
+    let rightStickyWidth = 0;
+    if (table) {
+      const finalSticky = table.querySelector('thead .sticky-col-right');
+      const bonusSticky = table.querySelector('thead .bonus-col-right');
+      if (bonusSticky) rightStickyWidth += bonusSticky.getBoundingClientRect().width;
+      if (finalSticky) rightStickyWidth += finalSticky.getBoundingClientRect().width;
+    }
+
+    // Sticky header height
+    let headerHeight = 0;
+    if (table && table.tHead) {
+      const theadRect = table.tHead.getBoundingClientRect();
+      headerHeight = theadRect.height || 0;
+    }
+
+    const cellRect = cell.getBoundingClientRect();
+
+    // “About to leave” margins so we scroll a bit *before* the cell disappears
+    const marginX = 32;
+    const marginY = 12;
+
+    const effectiveLeft   = wrapperRect.left + leftStickyWidth  + marginX;
+    const effectiveRight  = wrapperRect.right - rightStickyWidth - marginX;
+    const effectiveTop    = wrapperRect.top + headerHeight + marginY;
+    const effectiveBottom = wrapperRect.bottom - marginY;
+
+    // Horizontal: keep cell between sticky Team and sticky Bonus/Final
+    if (cellRect.right > effectiveRight) {
+      const delta = cellRect.right - effectiveRight;
+      wrapper.scrollLeft += delta;
+    } else if (cellRect.left < effectiveLeft) {
+      const delta = effectiveLeft - cellRect.left;
+      wrapper.scrollLeft -= delta;
+    }
+
+    // Vertical: keep cell below sticky header and above bottom edge
+    if (cellRect.bottom > effectiveBottom) {
+      const deltaY = cellRect.bottom - effectiveBottom;
+      wrapper.scrollTop += deltaY;
+    } else if (cellRect.top < effectiveTop) {
+      const deltaY = effectiveTop - cellRect.top;
+      wrapper.scrollTop -= deltaY;
+    }
+  }
+
   function moveFocus(fromEditor, dx, dy){
     const table = fromEditor.closest('table'); if (!table) return;
     const {rows, cols, navCols} = indexTable(table);
@@ -995,7 +1301,11 @@ window.clearHighlights = clearHighlights;
     const targetTr = rows[rTarget];
     const targetTd = getCellAtCol(targetTr, cIdx);
     const targetEl = findEditor(targetTd);
-    if (targetEl) { targetEl.focus(); targetEl.select?.(); }
+    if (targetEl) {
+      ensureEditorVisible(targetEl);
+      targetEl.focus();
+      targetEl.select?.();
+    }
   }
 
   const ARROWS = new Set(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight']);
@@ -1017,6 +1327,7 @@ window.clearHighlights = clearHighlights;
   document.addEventListener('keydown', onKey, true);
 })();
 // === end TABLE NAVIGATION V3 ===
+
 // === [scoresheet][HOST] FINAL column — allow negative numbers ===
 (() => {
   if (window.__HOST_FINAL_NEG__) return; window.__HOST_FINAL_NEG__ = 1;
@@ -1034,7 +1345,10 @@ window.clearHighlights = clearHighlights;
       for (const cell of r.cells) {
         while (occ[col] > 0) col++;
         const cs = Number(cell.colSpan||1), rs = Number(cell.rowSpan||1);
-        for (let i=0;i<cs;i++){ grid[ri][col+i] = cell; occ[col+i] = rs; }
+        for (let i=0;i<cs;i++){
+          grid[ri][col+i] = cell;
+          occ[col+i] = rs;
+        }
         col += cs;
       }
       for (let i=0;i<maxCols;i++) if (occ[i]>0) occ[i]--;
@@ -1121,6 +1435,7 @@ window.clearHighlights = clearHighlights;
   new MutationObserver(run).observe(document.documentElement, { childList:true, subtree:true });
 })();
 // === end FINAL column negatives ===
+
 // === FINAL NEGATIVE (safe, instance hook) ===
 (() => {
   if (window.__HOST_FINAL_NEG_SAFE__) return; window.__HOST_FINAL_NEG_SAFE__ = 1;
@@ -1182,6 +1497,7 @@ window.clearHighlights = clearHighlights;
   new MutationObserver(run).observe(document.documentElement, { childList:true, subtree:true });
 })();
 // === end FINAL NEGATIVE (safe, instance hook) ===
+
 // === [scoresheet][HOST] Q-COLUMN NORMALIZER & STRICT SNAPPING ===
 (() => {
   if (window.__HOST_QCELL_STRICT__) return; window.__HOST_QCELL_STRICT__ = 1;
@@ -1194,7 +1510,7 @@ window.clearHighlights = clearHighlights;
     rows.forEach((r,ri)=>{ let c=0; for (const cell of r.cells){
       while (occ[c]>0) c++; const cs=+cell.colSpan||1, rs=+cell.rowSpan||1;
       for (let i=0;i<cs;i++){ grid[ri][c+i]=cell; occ[c+i]=rs; } c+=cs;
-    } for (let i=0;i<max;i++) if (occ[i]>0) occ[i]--; });
+    } for (let i=0;i<max;i++) if(occ[i]>0) occ[i]--; });
 
     const labels=Array(max).fill(null);
     for (let c=0;c<max;c++){ let t=''; for (let r=0;r<grid.length;r++){
@@ -1267,6 +1583,7 @@ window.clearHighlights = clearHighlights;
   new MutationObserver(run).observe(document.documentElement, { childList:true, subtree:true });
 })();
 // === end Q-COLUMN NORMALIZER & STRICT SNAPPING ===
+
 // === [scoresheet][HOST] Q11–Q15 STRICT (0 or 3) — removes browser max clamp & blocks script-forced "1" ===
 (() => {
   if (window.__HOST_Q11_15_STRICT__) return; window.__HOST_Q11_15_STRICT__ = 1;
@@ -1281,7 +1598,7 @@ window.clearHighlights = clearHighlights;
         while (occ[c]>0) c++; const cs=+cell.colSpan||1, rs=+cell.rowSpan||1;
         for (let i=0;i<cs;i++){ grid[ri][c+i]=cell; occ[c+i]=rs; } c+=cs;
       }
-      for (let i=0;i<max;i++) if (occ[i]>0) occ[i]--;
+      for (let i=0;i<max;i++) if(occ[i]>0) occ[i]--;
     });
     const labels = Array(max).fill(null);
     for (let c=0;c<max;c++){ let t=''; for (let r=0;r<grid.length;r++){
@@ -1364,7 +1681,8 @@ window.clearHighlights = clearHighlights;
 
   window.__HOST_Q11_15_STRICT_CLEANUP__ = () => { mo.disconnect(); unbinds.forEach(fn=>fn()); };
 })();
-/// === end Q11–Q15 STRICT ===
+// === end Q11–Q15 STRICT ===
+
 // === [scoresheet][HOST] Q11–Q20 PRIORITY CAPTURE SNAP — no flicker, stops other handlers ===
 (() => {
   if (window.__HOST_Q_PRIORITY_CAPTURE__) return; window.__HOST_Q_PRIORITY_CAPTURE__ = 1;
@@ -1374,7 +1692,7 @@ window.clearHighlights = clearHighlights;
     const rows = Array.from(thead.rows); let max=0;
     rows.forEach(r=>{ let s=0; for(const c of r.cells) s += Number(c.colSpan||1); max=Math.max(max,s); });
     const occ = Array(max).fill(0), grid = rows.map(()=>Array(max).fill(null));
-    rows.forEach((r,ri)=>{ let c=0; for(const cell of r.cells){
+    rows.forEach((r,ri)=>{ let c=0; for (const cell of r.cells){
       while(occ[c]>0) c++; const cs=+cell.colSpan||1, rs=+cell.rowSpan||1;
       for(let i=0;i<cs;i++){ grid[ri][c+i]=cell; occ[c+i]=rs; } c+=cs;
     } for(let i=0;i<max;i++) if(occ[i]>0) occ[i]--; });
@@ -1449,6 +1767,7 @@ window.clearHighlights = clearHighlights;
   new MutationObserver(apply).observe(document.documentElement, { childList:true, subtree:true });
 })();
 // === end Q11–Q20 PRIORITY CAPTURE SNAP ===
+
 // === Q16–Q20 HARD SNAP (0 or 4) — no flicker, blocks late writes ===
 (() => {
   if (window.__q16_20_hardsnap__) { console.log('[q16–20 snap] already active'); return; }
@@ -1464,7 +1783,7 @@ window.clearHighlights = clearHighlights;
     rows.forEach((r,ri)=>{ let c=0; for (const cell of r.cells){
       while (occ[c]>0) c++; const cs=+cell.colSpan||1, rs=+cell.rowSpan||1;
       for (let i=0;i<cs;i++){ grid[ri][c+i]=cell; occ[c+i]=rs; } c+=cs;
-    } for (let i=0;i<max;i++) if (occ[i]>0) occ[i]--; });
+    } for(let i=0;i<max;i++) if(occ[i]>0) occ[i]--; });
     const labels=Array(max).fill(null);
     for (let c=0;c<max;c++){ let t=''; for (let r=0;r<grid.length;r++){
       const s=(grid[r][c]?.textContent||'').trim(); if (s) t=s;

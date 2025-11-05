@@ -8,6 +8,12 @@ body {
     padding: 0;
 }
 
+/* Custom properties for sticky right columns */
+:root {
+    --final-col-width: 80px;  /* default; JS/inline styles will effectively override */
+    --bonus-col-width: 35px;  /* roughly half of the normal cell width */
+}
+
 /* Header */
 header {
     background: linear-gradient(135deg, #000000, #292929);
@@ -247,8 +253,7 @@ th {
     letter-spacing: 1px;
 }
 
-/* Make header sticky - NEW APPROACH */
-/* This makes the entire thead sticky rather than individual rows */
+/* Make header sticky */
 thead {
     position: sticky;
     top: 0;
@@ -312,7 +317,7 @@ thead::after {
     color: #00ffcc;
     text-shadow: 0px 0px 5px rgba(0, 255, 204, 0.5);
     font-size: 20px;
-    vertical-align: middle; /* Center vertically within the cell */
+    vertical-align: middle;
 }
 
 /* FINAL SCORE COLUMN - RIGHT SIDE */
@@ -322,7 +327,7 @@ thead::after {
     z-index: 10;
     background-color: #2a2a2a;
     border-left: 3px solid #777;
-    min-width: 80px;
+    min-width: var(--final-col-width);
     box-shadow: -5px 0 12px rgba(0, 0, 0, 0.5);
 }
 
@@ -349,37 +354,37 @@ th[colspan="5"] {
 
 /* Round Total columns */
 td:nth-child(7), td:nth-child(13), td:nth-child(21), td:nth-child(27) {
-    background: linear-gradient(135deg, #1e3a5a, #264b73); /* Blue gradient background */
-    color: #66ccff; /* Light blue text */
+    background: linear-gradient(135deg, #1e3a5a, #264b73);
+    color: #66ccff;
     font-weight: bold;
     font-size: 18px;
     white-space: nowrap;
-    padding: 8px 6px; /* Reduced from 12px 8px */
-    min-width: 55px; /* Reduced from 60px */
-    border: 1px solid #3d6999; /* Blue border */
-    box-shadow: inset 0 0 8px rgba(102, 204, 255, 0.2); /* Inner blue glow */
+    padding: 8px 6px;
+    min-width: 55px;
+    border: 1px solid #3d6999;
+    box-shadow: inset 0 0 8px rgba(102, 204, 255, 0.2);
 }
 
 /* Half-time and Final Question input styling */
 .halftime-input, .finalquestion-input {
     background-color: #2a2a2a;
-    width: 45px; /* Reduced from 50px */
-    color: #ffcc00; /* Gold color */
+    width: 45px;
+    color: #ffcc00;
     font-weight: bold;
     border: 2px solid #666;
 }
 
 .finalquestion-input {
-    color: #ff9900; /* Orange color */
+    color: #ff9900;
 }
 
-/* Round total span styling - enhance the values shown in round total cells */
+/* Round total span styling */
 #r1Total1, #r1Total2, #r1Total3, #r1Total4, #r1Total5,
 #r2Total1, #r2Total2, #r2Total3, #r2Total4, #r2Total5,
 #r3Total1, #r3Total2, #r3Total3, #r3Total4, #r3Total5,
 #r4Total1, #r4Total2, #r4Total3, #r4Total4, #r4Total5 {
-    font-size: 18px; /* Reduced from 20px */
-    color: #80d4ff; /* Light blue for the numbers */
+    font-size: 18px;
+    color: #80d4ff;
     text-shadow: 0px 0px 6px rgba(128, 212, 255, 0.5);
     font-weight: bold;
 }
@@ -389,16 +394,16 @@ td:nth-child(7), td:nth-child(13), td:nth-child(21), td:nth-child(27) {
     color: #ffee99;
     text-shadow: 0px 0px 5px rgba(255, 238, 153, 0.8);
     font-weight: bold;
-    font-size: 18px; /* Reduced from 20px */
+    font-size: 18px;
 }
 
 /* Input Fields */
 input {
-    width: 38px; /* Reduced from 40px */
-    height: 30px; /* Reduced from 35px */
+    width: 38px;
+    height: 30px;
     text-align: center;
-    padding: 4px; /* Reduced from 6px */
-    font-size: 16px; /* Reduced from 18px */
+    padding: 4px;
+    font-size: 16px;
     background-color: #555;
     color: #ffffff;
     border: 1px solid #777;
@@ -406,14 +411,12 @@ input {
 }
 
 /* Remove spinner buttons from number inputs */
-/* For Chrome, Safari, Edge, Opera */
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {
     -webkit-appearance: none;
     margin: 0;
 }
 
-/* For Firefox */
 input[type="number"] {
     -moz-appearance: textfield;
 }
@@ -426,19 +429,19 @@ input:focus {
 
 /* Enhanced Team Name Input */
 .teamName {
-    width: 115px; /* Reduced from 120px */
-    background-color: #444; /* Slightly lighter */
-    padding: 6px; /* Reduced from 8px */
+    width: 115px;
+    background-color: #444;
+    padding: 6px;
     color: white;
-    border: 2px solid #888; /* Enhanced border */
+    border: 2px solid #888;
     border-radius: 4px;
     display: inline-block;
     vertical-align: middle;
     margin-right: 10px;
-    font-weight: bold; /* Make text bolder */
-    font-size: 14px; /* Reduced from 16px */
-    box-shadow: 0px 0px 6px rgba(255, 255, 255, 0.2); /* Subtle glow */
-    height: 28px; /* New explicit height */
+    font-weight: bold;
+    font-size: 14px;
+    box-shadow: 0px 0px 6px rgba(255, 255, 255, 0.2);
+    height: 28px;
 }
 
 /* Checkbox styling */
@@ -450,49 +453,49 @@ input[type="checkbox"] {
     margin: 0;
     vertical-align: middle;
     display: inline-block;
-    accent-color: #00ffcc; /* Match the header color */
+    accent-color: #00ffcc;
 }
 
 /* Round-specific input styling */
 input[id^="num"][id$="1"], input[id^="num"][id$="2"], 
 input[id^="num"][id$="3"], input[id^="num"][id$="4"], 
 input[id^="num"][id$="5"] {
-    background-color: #4a4a4a; /* Round 1 */
+    background-color: #4a4a4a;
 }
 
 input[id^="num"][id$="6"], input[id^="num"][id$="7"], 
 input[id^="num"][id$="8"], input[id^="num"][id$="9"], 
 input[id^="num"][id$="10"] {
-    background-color: #3a3a3a; /* Round 2 */
+    background-color: #3a3a3a;
 }
 
 input[id^="num"][id$="11"], input[id^="num"][id$="12"], 
 input[id^="num"][id$="13"], input[id^="num"][id$="14"], 
 input[id^="num"][id$="15"] {
-    background-color: #3a3a3a; /* Round 3 */
+    background-color: #3a3a3a;
 }
 
 input[id^="num"][id$="16"], input[id^="num"][id$="17"], 
 input[id^="num"][id$="18"], input[id^="num"][id$="19"], 
 input[id^="num"][id$="20"] {
-    background-color: #3a3a3a; /* Round 4 */
+    background-color: #3a3a3a;
 }
 
 /* Score Display */
 span {
     font-weight: bold;
     font-size: 20px;
-    color: #00ff88; /* Green for scores */
+    color: #00ff88;
     text-shadow: 0px 0px 5px rgba(0, 255, 136, 0.8);
 }
 
 /* Enhanced Final Score Column */
 td.sticky-col-right span {
-    font-size: 22px; /* Reduced from 24px */
-    color: #00ffff; /* Cyan for final score */
-    text-shadow: 0px 0px 10px rgba(0, 255, 255, 0.9); /* Enhanced glow */
-    font-weight: 800; /* Extra bold */
-    letter-spacing: 1px; /* Spaced out slightly */
+    font-size: 22px;
+    color: #00ffff;
+    text-shadow: 0px 0px 10px rgba(0, 255, 255, 0.9);
+    font-weight: 800;
+    letter-spacing: 1px;
 }
 
 /* Modal Styles */
@@ -507,11 +510,6 @@ td.sticky-col-right span {
     overflow: auto;
     background-color: rgba(0, 0, 0, 0.8);
     animation: fadeIn 0.3s ease-in-out;
-}
-
-@keyframes fadeIn {
-    from {opacity: 0;}
-    to {opacity: 1;}
 }
 
 .modal-content {
@@ -595,7 +593,7 @@ td.sticky-col-right span {
     }
     
     td, th {
-        padding: 8px 6px; /* Further reduced for smaller screens */
+        padding: 8px 6px;
         font-size: 16px;
     }
     
@@ -611,7 +609,6 @@ td.sticky-col-right span {
         width: 70%;
     }
     
-    /* Round total values responsive */
     #r1Total1, #r1Total2, #r2Total1, #r2Total2, #r3Total1, #r3Total2, #r4Total1, #r4Total2 {
         font-size: 18px;
     }
@@ -620,7 +617,6 @@ td.sticky-col-right span {
         font-size: 18px;
     }
     
-    /* Button responsive styling */
     .button-container {
         gap: 15px;
     }
@@ -648,7 +644,7 @@ td.sticky-col-right span {
     }
     
     td, th {
-        padding: 6px 4px; /* Further reduced for mobile */
+        padding: 6px 4px;
         font-size: 14px;
     }
     
@@ -657,9 +653,9 @@ td.sticky-col-right span {
     }
     
     .teamName {
-        width: 80px; /* Reduced width for smaller screens */
+        width: 80px;
         font-size: 14px;
-        height: 24px; /* Reduced height for smaller screens */
+        height: 24px;
     }
     
     .sticky-col {
@@ -688,7 +684,6 @@ td.sticky-col-right span {
         padding: 12px;
     }
     
-    /* Search container responsive adjustments */
     .search-container {
         flex: 1 0 100%;
         margin-top: 15px;
@@ -706,4 +701,45 @@ td.sticky-col-right span {
         left: 0;
         right: auto;
     }
+}
+
+/* =========================
+   BONUS COLUMN (right side)
+   ========================= */
+
+/* Sticky BONUS column just left of Final Score */
+.bonus-col-right {
+    position: sticky;
+    right: var(--final-col-width); /* initial offset; JS will tighten this */
+    z-index: 9;  /* lower than final score (10) so it tucks underneath at edges */
+    background-color: #2a2a2a;
+    border-left: 3px solid #777;
+    min-width: var(--bonus-col-width);
+    box-shadow: -5px 0 12px rgba(0, 0, 0, 0.5);
+}
+
+/* Tighter padding so the column really shrinks */
+td.bonus-col-right,
+th.bonus-col-right {
+    padding-left: 4px;
+    padding-right: 4px;
+}
+
+/* Header styling for BONUS column */
+.top_row th.bonus-col-right {
+    background-color: #1e1e1e;
+    border-left: 3px solid #888;
+    color: #00ffcc;
+    text-shadow: 0px 0px 5px rgba(0, 255, 204, 0.5);
+    font-size: 18px;
+}
+
+/* BONUS input styling – baseline; JS will make it ~75% of Q input width */
+td.bonus-col-right input {
+    width: 24px;
+    background-color: #444;
+    color: #ffcc00;
+    font-weight: bold;
+    border: 2px solid #666;
+    border-radius: 4px;
 }
