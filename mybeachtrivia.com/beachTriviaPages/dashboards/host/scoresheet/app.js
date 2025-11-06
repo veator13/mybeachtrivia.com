@@ -5,6 +5,7 @@
 ======================================================= */
 let teamCount = 0;         // number of teams
 let dataModified = false;  // unsaved changes guard
+let standingsAscending = false; // false = 1st→last (default), true = last→1st
 
 /* =======================================================
    Tiny utils
@@ -555,7 +556,7 @@ function showStandings() {
   if (!modalList) return;
   modalList.innerHTML = "";
 
-  // Build ranking
+  // Build ranking base data
   const teams = [];
   for (let i = 1; i <= teamCount; i++) {
     const name = (document.getElementById(`teamName${i}`)?.value || `Team ${i}`);
@@ -565,6 +566,7 @@ function showStandings() {
     teams.push({ name, score: finalScore, firstHalf, secondHalf });
   }
 
+  // Sort by score descending (true ranking)
   teams.sort((a, b) => b.score - a.score);
 
   // Tie-aware ranking: same score => same place
@@ -576,19 +578,25 @@ function showStandings() {
       currentRank = idx + 1;   // only advance rank when score drops
       lastScore = t.score;
     }
+    t.rank = currentRank;
+  });
 
+  // Decide display order: default 1st→last, inverted last→1st
+  const orderedTeams = standingsAscending ? [...teams].reverse() : teams;
+
+  orderedTeams.forEach((t) => {
     const li = document.createElement("li");
     li.textContent =
-      `${currentRank}. ${t.name} - Score: ${t.score} ` +
+      `${t.rank}) ${t.name} - Score: ${t.score} ` +
       `(First Half: ${t.firstHalf}, Second Half: ${t.secondHalf})`;
 
-    // Medal styling based on rank
-    if (currentRank === 1) {
+    // Medal styling based on rank (not list position)
+    if (t.rank === 1) {
       li.style.borderLeft = "6px solid gold";
       li.style.background = "linear-gradient(to right, #3a3a3a, #4a4a3a)";
-    } else if (currentRank === 2) {
+    } else if (t.rank === 2) {
       li.style.borderLeft = "6px solid silver";
-    } else if (currentRank === 3) {
+    } else if (t.rank === 3) {
       li.style.borderLeft = "6px solid #cd7f32";
     }
 
@@ -946,6 +954,17 @@ document.addEventListener("DOMContentLoaded", () => {
     btnCloseModal.dataset.bound = "1";
   }
 
+  // NEW: click on dark overlay closes modal (but not clicks inside modal-content)
+  const modal = $("#standingsModal");
+  if (modal && !modal.dataset.boundOverlay) {
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) {
+        closeModal();
+      }
+    });
+    modal.dataset.boundOverlay = "1";
+  }
+
   const btnSubmit = $("#btnSubmitScores");
   if (btnSubmit && !btnSubmit.dataset.bound) {
     btnSubmit.addEventListener("click", async () => {
@@ -994,6 +1013,17 @@ document.addEventListener("DOMContentLoaded", () => {
   if (btnSearch && !btnSearch.dataset.bound) {
     btnSearch.addEventListener("click", () => searchTeams());
     btnSearch.dataset.bound = "1";
+  }
+
+  // Invert standings button (inside modal)
+  const btnInvert = $("#btnInvertStandings");
+  if (btnInvert && !btnInvert.dataset.bound) {
+    btnInvert.addEventListener("click", () => {
+      standingsAscending = !standingsAscending;
+      btnInvert.setAttribute("aria-pressed", standingsAscending ? "true" : "false");
+      showStandings();
+    });
+    btnInvert.dataset.bound = "1";
   }
 });
 
@@ -1360,10 +1390,8 @@ window.clearHighlights = clearHighlights;
 
   function buildHeaderGrid(table){
     const thead = table.tHead; if (!thead) return {cols:0, labels:[]};
-    const rows = Array.from(thead.rows);
-    let maxCols = 0;
+    const rows = Array.from(thead.rows); let maxCols = 0;
     rows.forEach(r => { let s=0; for (const c of r.cells) s += Number(c.colSpan||1); maxCols = Math.max(maxCols, s); });
-
     const occ = Array(maxCols).fill(0);
     const grid = rows.map(()=>Array(maxCols).fill(null));
     rows.forEach((r,ri) => {
@@ -1716,7 +1744,7 @@ window.clearHighlights = clearHighlights;
   function buildHeaderGrid(table){
     const thead = table.tHead; if (!thead) return {labels:[]};
     const rows = Array.from(thead.rows); let max=0;
-    rows.forEach(r=>{ let s=0; for(const c of r.cells) s += Number(c.colSpan||1); max=Math.max(max,s); });
+    rows.forEach(r=>{ let s=0; for (const c of r.cells) s += Number(c.colSpan||1); max=Math.max(max,s); });
     const occ = Array(max).fill(0), grid = rows.map(()=>Array(max).fill(null));
     rows.forEach((r,ri)=>{ let c=0; for (const cell of r.cells){
       while(occ[c]>0) c++; const cs=+cell.colSpan||1, rs=+cell.rowSpan||1;

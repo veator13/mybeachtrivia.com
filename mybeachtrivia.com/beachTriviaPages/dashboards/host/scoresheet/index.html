@@ -84,8 +84,8 @@
 
   <!-- Extra guard + main app -->
   <script src="final-neg-guard.js?v=20251025163459" defer></script>
-  <!-- Bumped version so browsers pull the new app.js with nav+scroll logic -->
-  <script src="app.js?v=20251105-2" defer></script>
+  <!-- Bumped version so browsers pull the new app.js with standings invert logic -->
+  <script src="app.js?v=20251106-invert-standings" defer></script>
 </head>
 <body>
   <noscript>This app requires JavaScript enabled.</noscript>
@@ -133,7 +133,7 @@
               <th rowspan="2">R4 Total</th>
               <th rowspan="2">Final Question</th>
               <th rowspan="2">Second Half Total</th>
-              <!-- NEW: Bonus column header to match bonus-col-right cells -->
+              <!-- Bonus column header to match bonus-col-right cells -->
               <th class="bonus-col-right" rowspan="2">Bonus</th>
               <th class="sticky-col-right" rowspan="2">Final Score</th>
             </tr>
@@ -169,6 +169,18 @@
         aria-label="Close standings"
       >&times;</button>
       <h2 id="standingsTitle">Team Standings</h2>
+
+      <!-- Icon-only pill; arrows drawn via CSS ::before/::after -->
+      <button
+        type="button"
+        id="btnInvertStandings"
+        aria-pressed="false"
+      >
+        <span class="sr-only">
+          Invert standings order (show last place first)
+        </span>
+      </button>
+
       <ul id="modalRankingList"></ul>
     </div>
   </div>
