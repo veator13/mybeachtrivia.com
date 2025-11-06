@@ -118,3 +118,4 @@ functions_gcfv1/firestore.rules
 # macOS
 .DS_Store
 **/.DS_Store
+../.backups/
