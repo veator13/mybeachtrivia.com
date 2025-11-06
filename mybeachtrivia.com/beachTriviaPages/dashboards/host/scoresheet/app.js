@@ -567,17 +567,31 @@ function showStandings() {
 
   teams.sort((a, b) => b.score - a.score);
 
+  // Tie-aware ranking: same score => same place
+  let currentRank = 0;
+  let lastScore = null;
+
   teams.forEach((t, idx) => {
+    if (lastScore === null || t.score < lastScore) {
+      currentRank = idx + 1;   // only advance rank when score drops
+      lastScore = t.score;
+    }
+
     const li = document.createElement("li");
-    li.textContent = `${idx + 1}. ${t.name} - Score: ${t.score} (First Half: ${t.firstHalf}, Second Half: ${t.secondHalf})`;
-    if (idx === 0) {
+    li.textContent =
+      `${currentRank}. ${t.name} - Score: ${t.score} ` +
+      `(First Half: ${t.firstHalf}, Second Half: ${t.secondHalf})`;
+
+    // Medal styling based on rank
+    if (currentRank === 1) {
       li.style.borderLeft = "6px solid gold";
       li.style.background = "linear-gradient(to right, #3a3a3a, #4a4a3a)";
-    } else if (idx === 1) {
+    } else if (currentRank === 2) {
       li.style.borderLeft = "6px solid silver";
-    } else if (idx === 2) {
+    } else if (currentRank === 3) {
       li.style.borderLeft = "6px solid #cd7f32";
     }
+
     modalList.appendChild(li);
   });
 }
