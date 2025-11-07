@@ -45,6 +45,7 @@
     const raw = (radio?.value || els.role?.value || 'host');
     return String(raw).toLowerCase();
   }
+
   function syncUserType() {
     const r = currentRole();
     if (els.userType) els.userType.value = r === 'admin' ? 'admin' : 'employee';
@@ -67,7 +68,6 @@
     } catch {}
 
     const url = `/start-google.html?role=${encodeURIComponent(role)}&return=${encodeURIComponent(ret)}`;
-    console.log('[login] Google sign-in →', { role, return: ret, url });
     location.assign(url);
   });
 
@@ -85,7 +85,10 @@
 
       const email = els.email?.value?.trim();
       const pass  = els.pass?.value || '';
-      if (!email || !pass) { alert('Enter email and password.'); return; }
+      if (!email || !pass) {
+        alert('Enter email and password.');
+        return;
+      }
 
       els.btn && (els.btn.disabled = true);
       const { user } = await auth.signInWithEmailAndPassword(email, pass);
@@ -96,19 +99,29 @@
       const emp  = snap.exists ? (snap.data() || {}) : {};
       if (emp.active === false) throw new Error('Your account is not active yet.');
 
-      const required = ['firstName','lastName','phone','emergencyContact','emergencyContactPhone','dob'];
+      const required = [
+        'firstName',
+        'lastName',
+        'phone',
+        'emergencyContact',
+        'emergencyContactPhone',
+        'dob'
+      ];
       const missing  = required.filter(k => !emp[k]);
       const mustSetup = emp.setupCompleted === true ? false : (missing.length > 0);
 
       if (mustSetup) {
-        console.log('[login] first login → account-setup');
         location.assign('/beachTriviaPages/onboarding/account-setup/');
         return;
       }
 
       // Honor selection (don't force Admin)
       const role = currentRole();
-      const dest = DEST[role] || (Array.isArray(emp.roles) && emp.roles.includes('admin') ? DEST.admin : DEST.host);
+      const dest = DEST[role] ||
+        (Array.isArray(emp.roles) && emp.roles.includes('admin')
+          ? DEST.admin
+          : DEST.host);
+
       location.assign(dest);
     } catch (err) {
       console.error('[login] sign-in error:', err);
@@ -123,10 +136,10 @@
     if (!els.form) return;
     els.form.addEventListener('submit', handleLogin);
     els.btn?.addEventListener('click', handleLogin);
-    els.pass?.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleLogin(e); });
-    console.log('✅ login handler attached');
+    els.pass?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') handleLogin(e);
+    });
   }
-  attach();
 
-  console.table({ role: currentRole(), hasForm: !!els.form, hasBtn: !!els.btn, hasEmail: !!els.email, hasPass: !!els.pass });
+  attach();
 })();
