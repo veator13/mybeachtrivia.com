@@ -1,79 +1,46 @@
-// /start-google.js  (compat SDKs)
-// Loads on /start-google.html. Handles:
-//  - Google sign-in via signInWithRedirect
-//  - Email-link sign-in completion
-//  - Creating employees/{uid} from employeeInvites
-//  - Redirecting back to the correct dashboard
+// /start-google.js  (compat SDKs, CSP-safe Google sign-in helper)
 (function () {
   if (typeof firebase === "undefined" || !firebase.auth) {
     console.error("[start-google] Firebase compat SDKs not found on window");
     return;
   }
 
-  const auth   = firebase.auth();
-  const db     = firebase.firestore();
-  const origin = window.location.origin;
-  const params = new URLSearchParams(window.location.search);
+  const auth = firebase.auth();
+  const db   = firebase.firestore();
+  const params = new URLSearchParams(location.search);
 
-  // ---- Role & destination handling ----------------------------------------
-  const DEST_BY_ROLE = {
-    host:     "/beachTriviaPages/dashboards/host/",
-    social:   "/beachTriviaPages/dashboards/social-media-manager/",
-    writer:   "/beachTriviaPages/dashboards/writer/",
-    supply:   "/beachTriviaPages/dashboards/supply-manager/",
-    regional: "/beachTriviaPages/dashboards/regional-manager/",
-    admin:    "/beachTriviaPages/dashboards/admin/",
+  // ----- Role + return URL handling ----------------------------------------
+
+  const rawRole = (params.get("role") || "").toLowerCase();
+  const FALLBACK_RETURN = params.get("return") || "/login.html";
+
+  const ROLE_DEST = {
+    host:  "/beachTriviaPages/dashboards/host/",
+    admin: "/beachTriviaPages/dashboards/admin/",
   };
 
-  const role = (params.get("role") || "").toLowerCase();
+  // Path we want to end up on
+  const ROLE_REDIRECT_PATH = ROLE_DEST[rawRole] || FALLBACK_RETURN;
+  const ROLE_REDIRECT = new URL(ROLE_REDIRECT_PATH, window.location.origin).href;
+  const RETURN_ORIGIN = new URL(ROLE_REDIRECT).origin;
 
-  // Base "return" URL from query (?return=/some/path)
-  const RETURN_URL = (() => {
-    const raw = params.get("return");
-    const fallback = DEST_BY_ROLE[role] || "/login.html";
-    if (!raw) return new URL(fallback, origin).href;
-    try {
-      return new URL(raw, origin).href;
-    } catch {
-      return new URL(fallback, origin).href;
-    }
-  })();
-
-  // Final dashboard we want to end up on for this role
-  const ROLE_REDIRECT = (() => {
-    if (role && DEST_BY_ROLE[role]) {
-      return new URL(DEST_BY_ROLE[role], origin).href;
-    }
-    return RETURN_URL;
-  })();
-
-  // Origin used for postMessage back to an opener (if any)
-  const RETURN_ORIGIN = (() => {
-    try {
-      return new URL(ROLE_REDIRECT).origin;
-    } catch {
-      return origin;
-    }
-  })();
-
-  // Persist selected role so other code can read it if needed
   try {
-    window.localStorage.setItem("postLoginRole", role || "host");
-    window.sessionStorage.setItem("postLoginRole", role || "host");
-  } catch {}
+    localStorage.setItem("postLoginRole", rawRole || "host");
+  } catch (_) {}
 
-  // ---- Loop guards for redirect flow --------------------------------------
+  // Loop flags to avoid infinite redirect cycles
   const LOOP_FLAG = "bt_google_redirect_started_v3";
   const DONE_FLAG = "bt_google_redirect_done_v3";
 
-  // ---- 1) Email-link sign-in completion -----------------------------------
+  // ----- Email-link sign-in support ----------------------------------------
+
   (async () => {
     try {
       if (auth.isSignInWithEmailLink(window.location.href)) {
         let email = null;
         try {
           email = window.localStorage.getItem("emailForSignIn");
-        } catch {}
+        } catch (_) {}
 
         if (!email) {
           email = window.prompt("Please confirm your email to finish sign-in:");
@@ -83,27 +50,29 @@
         await auth.signInWithEmailLink(email, window.location.href);
         try {
           window.localStorage.removeItem("emailForSignIn");
-        } catch {}
+        } catch (_) {}
 
-        // Clean ugly oobCode params but preserve ?return=
+        // Clean URL (preserve ?return= if present)
         try {
-          const qs = new URLSearchParams(window.location.search);
+          const qs  = new URLSearchParams(location.search);
           const ret = qs.get("return");
-          const clean =
-            window.location.pathname +
-            (ret ? `?return=${encodeURIComponent(ret)}` : "");
-          window.history.replaceState({}, document.title, clean);
-        } catch {}
+          history.replaceState(
+            {},
+            document.title,
+            location.pathname + (ret ? `?return=${encodeURIComponent(ret)}` : "")
+          );
+        } catch (_) {}
 
         console.log("[start-google] email-link sign-in completed");
       }
     } catch (e) {
       console.error("[start-google] email-link sign-in failed:", e);
-      // Non-fatal; we can still attempt Google later.
+      // non-fatal; we can still use Google
     }
   })();
 
-  // ---- 2) Ensure employees/{uid} from employeeInvites ---------------------
+  // ----- Provision employees/{uid} from employeeInvites --------------------
+
   async function ensureEmployeeProfile(user) {
     try {
       if (!user) return;
@@ -112,6 +81,7 @@
       const existing = await db.collection("employees").doc(uid).get();
       if (existing.exists) return;
 
+      // Look up invite by email
       const inviteSnap = await db
         .collection("employeeInvites")
         .where("email", "==", user.email)
@@ -140,18 +110,21 @@
         phone: "",
         active: invite.active !== false,
         role: invite.role || "host",
-        inviteId: inviteDoc.id, // satisfies your Firestore rule
+        inviteId: inviteDoc.id, // required by your Firestore rules
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       });
 
+      // Let invited user clean up their invite
       await db.collection("employeeInvites").doc(inviteDoc.id).delete();
       console.log("[start-google] employee profile created and invite consumed");
     } catch (err) {
       console.error("[start-google] ensureEmployeeProfile error:", err);
+      // best-effort only
     }
   }
 
-  // ---- 3) Helper: post result to opener, if this was a popup --------------
+  // ----- Helpers -----------------------------------------------------------
+
   function postToOpener(payload) {
     try {
       if (window.opener && !window.opener.closed) {
@@ -166,14 +139,9 @@
     return false;
   }
 
-  // ---- 4) Finish flow for a signed-in user --------------------------------
   async function finish(user) {
-    try {
-      window.sessionStorage.removeItem(LOOP_FLAG);
-    } catch {}
-    try {
-      window.sessionStorage.setItem(DONE_FLAG, "1");
-    } catch {}
+    try { sessionStorage.removeItem(LOOP_FLAG); } catch (_) {}
+    try { sessionStorage.setItem(DONE_FLAG, "1"); } catch (_) {}
 
     await ensureEmployeeProfile(user);
 
@@ -187,132 +155,75 @@
 
     const u = new URL(ROLE_REDIRECT);
     u.hash = "authStatus=ok";
-    window.location.replace(u.toString());
+    location.replace(u.href);
   }
 
-  // If we've already finished once, just bounce back
+  // If we already finished once, just bounce back
   try {
-    if (window.sessionStorage.getItem(DONE_FLAG) === "1") {
+    if (sessionStorage.getItem(DONE_FLAG) === "1") {
       console.log("[start-google] already finished once; returning");
-      window.location.replace(ROLE_REDIRECT);
+      location.replace(ROLE_REDIRECT);
       return;
     }
-  } catch {}
+  } catch (_) {}
 
-  // ---- 5) Provision-only mode (?provision=1) ------------------------------
+  // Optional: provision-only mode (used by tools if ever needed)
   const PROVISION_ONLY = params.get("provision") === "1";
   if (PROVISION_ONLY) {
     console.log("[start-google] provision-only mode");
     if (auth.currentUser) {
-      console.log(
-        "[start-google] user already signed in → finishing (provision-only)"
-      );
+      console.log("[start-google] user already signed in → finishing (provision-only)");
       finish(auth.currentUser);
       return;
     }
 
-    console.log(
-      "[start-google] waiting for auth state (provision-only) …"
-    );
-
     let resolved = false;
-    const unsubProvision = auth.onAuthStateChanged((u) => {
+    const unsub = auth.onAuthStateChanged((u) => {
       if (!u || resolved) return;
       resolved = true;
-      unsubProvision && unsubProvision();
-      console.log(
-        "[start-google] user detected → finishing (provision-only)"
-      );
+      unsub && unsub();
+      console.log("[start-google] user detected → finishing (provision-only)");
       finish(u);
     });
 
     setTimeout(() => {
       if (resolved) return;
-      console.log(
-        "[start-google] no session → starting Google (provision fallback)"
-      );
-      try {
-        window.sessionStorage.setItem(LOOP_FLAG, "1");
-      } catch {}
+      console.log("[start-google] no session → starting Google (provision fallback)");
+      unsub && unsub();
 
+      try { sessionStorage.setItem(LOOP_FLAG, "1"); } catch (_) {}
       const provider = new firebase.auth.GoogleAuthProvider();
       provider.addScope("profile");
       provider.addScope("email");
       provider.setCustomParameters({ prompt: "select_account" });
 
       auth.signInWithRedirect(provider).catch((err) => {
-        console.error(
-          "[start-google] redirect begin error (provision fallback):",
-          err
-        );
+        console.error("[start-google] redirect begin error (provision fallback):", err);
         const u = new URL(ROLE_REDIRECT);
-        u.searchParams.set(
-          "authError",
-          err.code || "auth/redirect-begin-failed"
-        );
-        window.location.replace(u.toString());
+        u.searchParams.set("authError", err.code || "auth/redirect-begin-failed");
+        location.replace(u.href);
       });
     }, 1500);
 
     return;
   }
 
-  // ---- 6) Already signed-in from earlier? ---------------------------------
+  // Already signed-in? Just finish.
   if (auth.currentUser) {
     console.log("[start-google] user already signed in → finishing");
     finish(auth.currentUser);
     return;
   }
 
-  // If this URL *is* an email-link sign-in, we already handled that above.
-  try {
-    if (auth.isSignInWithEmailLink(window.location.href)) {
-      console.log(
-        "[start-google] waiting for auth state after email-link…"
-      );
-      let resolved = false;
-
-      const unsubscribe = auth.onAuthStateChanged(async (user) => {
-        if (resolved) return;
-        if (user) {
-          resolved = true;
-          unsubscribe && unsubscribe();
-          console.log(
-            "[start-google] user detected from email-link → finishing"
-          );
-          await finish(user);
-        }
-      });
-
-      setTimeout(() => {
-        if (resolved) return;
-        unsubscribe && unsubscribe();
-        console.warn(
-          "[start-google] timeout after email-link; returning with soft error"
-        );
-        const u = new URL(ROLE_REDIRECT);
-        u.searchParams.set("authStatus", "cancelled");
-        window.location.replace(u.toString());
-      }, 15000);
-
-      return;
-    }
-  } catch {}
-
-  // ---- 7) Main Google redirect flow ---------------------------------------
   const started = (() => {
-    try {
-      return window.sessionStorage.getItem(LOOP_FLAG) === "1";
-    } catch {
-      return false;
-    }
+    try { return sessionStorage.getItem(LOOP_FLAG) === "1"; }
+    catch { return false; }
   })();
 
+  // ----- First visit: kick off Google redirect ----------------------------
+
   if (!started) {
-    // First visit: start redirect
-    try {
-      window.sessionStorage.setItem(LOOP_FLAG, "1");
-    } catch {}
+    try { sessionStorage.setItem(LOOP_FLAG, "1"); } catch (_) {}
 
     const provider = new firebase.auth.GoogleAuthProvider();
     provider.addScope("profile");
@@ -323,63 +234,59 @@
     auth.signInWithRedirect(provider).catch((err) => {
       console.error("[start-google] redirect begin error:", err);
       const u = new URL(ROLE_REDIRECT);
-      u.searchParams.set(
-        "authError",
-        err.code || "auth/redirect-begin-failed"
-      );
-      window.location.replace(u.toString());
+      u.searchParams.set("authError", err.code || "auth/redirect-begin-failed");
+      location.replace(u.href);
     });
     return;
   }
 
-  // Second pass: returned from Google. Use BOTH getRedirectResult
-  // and onAuthStateChanged so we don't miss anything.
+  // ----- Returned from Google: complete the redirect ----------------------
+
   console.log("[start-google] waiting for auth state after redirect…");
 
   let resolved = false;
 
+  // 1) Try getRedirectResult explicitly (some browsers need this)
   auth
     .getRedirectResult()
-    .then((result) => {
-      if (resolved) return;
+    .then(async (result) => {
       if (result && result.user) {
+        console.log("[start-google] getRedirectResult → user found, finishing");
         resolved = true;
-        console.log(
-          "[start-google] getRedirectResult provided user → finishing"
-        );
-        finish(result.user);
+        await finish(result.user);
+        return;
       }
+
+      console.log("[start-google] getRedirectResult returned no user; listening for auth changes…");
+      wireAuthListener();
     })
     .catch((err) => {
-      if (resolved) return;
       console.error("[start-google] getRedirectResult error:", err);
       const u = new URL(ROLE_REDIRECT);
-      u.searchParams.set(
-        "authError",
-        err.code || "auth/redirect-result-failed"
-      );
-      window.location.replace(u.toString());
+      u.searchParams.set("authError", err.code || "auth/redirect-result-error");
+      location.replace(u.href);
     });
 
-  const unsubscribe = auth.onAuthStateChanged(async (user) => {
-    if (resolved || !user) return;
-    resolved = true;
-    unsubscribe && unsubscribe();
-    console.log("[start-google] user detected via onAuthStateChanged → finishing");
-    await finish(user);
-  });
-
-  setTimeout(() => {
+  function wireAuthListener() {
     if (resolved) return;
-    unsubscribe && unsubscribe();
-    console.warn(
-      "[start-google] no user after redirect; returning with soft error"
-    );
-    try {
-      window.sessionStorage.removeItem(LOOP_FLAG);
-    } catch {}
-    const u = new URL(ROLE_REDIRECT);
-    u.searchParams.set("authStatus", "cancelled");
-    window.location.replace(u.toString());
-  }, 15000);
+
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+      if (resolved || !user) return;
+      resolved = true;
+      unsubscribe && unsubscribe();
+      console.log("[start-google] user detected → finishing");
+      await finish(user);
+    });
+
+    // Safety timeout
+    setTimeout(() => {
+      if (resolved) return;
+      unsubscribe && unsubscribe();
+      console.warn("[start-google] no user after redirect; returning with soft error");
+      try { sessionStorage.removeItem(LOOP_FLAG); } catch (_) {}
+      const u = new URL(ROLE_REDIRECT);
+      u.searchParams.set("authStatus", "cancelled");
+      location.replace(u.href);
+    }, 15000);
+  }
 })();
