@@ -6,23 +6,38 @@
     return;
   }
 
-  const auth = firebase.auth();
-  const db   = firebase.firestore();
+  const auth   = firebase.auth();
+  const db     = firebase.firestore();
   const params = new URLSearchParams(location.search);
 
   // Where to return after Google or email-link
   const RETURN_URL = (() => {
     const raw = params.get("return");
     if (!raw) return "/login.html";
-    try { return new URL(raw, location.origin).href; }
-    catch { return "/login.html"; }
+    try {
+      return new URL(raw, location.origin).href;
+    } catch {
+      return "/login.html";
+    }
   })();
+
   // --- role-aware return (inserted) ---
-  const __role = (new URLSearchParams(location.search).get("role")||"").toLowerCase();
-  const ROLE_REDIRECT = (__role==="host")  ? (location.origin+"/beachTriviaPages/dashboards/host/") :
-                         (__role==="admin") ? (location.origin+"/beachTriviaPages/dashboards/admin/") : RETURN_URL;
-  try { localStorage.setItem("postLoginRole", __role); } catch(e) {}
-  const RETURN_ORIGIN = new URL(ROLE_REDIRECT), location.origin).origin;
+  const __role = (new URLSearchParams(location.search).get("role") || "").toLowerCase();
+
+  const ROLE_REDIRECT =
+    __role === "host"
+      ? location.origin + "/beachTriviaPages/dashboards/host/"
+      : __role === "admin"
+        ? location.origin + "/beachTriviaPages/dashboards/admin/"
+        : RETURN_URL;
+
+  try {
+    localStorage.setItem("postLoginRole", __role);
+  } catch (e) {
+    // ignore
+  }
+
+  const RETURN_ORIGIN = new URL(ROLE_REDIRECT, location.origin).origin;
 
   // Loop guards (for Google redirect flow only)
   const LOOP_FLAG = "bt_google_redirect_started_v3";
@@ -34,13 +49,17 @@
     try {
       if (auth.isSignInWithEmailLink(window.location.href)) {
         let email = null;
-        try { email = window.localStorage.getItem("emailForSignIn"); } catch {}
+        try {
+          email = window.localStorage.getItem("emailForSignIn");
+        } catch {}
         if (!email) {
           email = window.prompt("Please confirm your email to finish sign-in:");
           if (!email) throw new Error("Email confirmation cancelled");
         }
         await auth.signInWithEmailLink(email, window.location.href);
-        try { window.localStorage.removeItem("emailForSignIn"); } catch {}
+        try {
+          window.localStorage.removeItem("emailForSignIn");
+        } catch {}
 
         // Clean URL to remove the long oobCode parameters (preserve ?return=)
         try {
@@ -89,7 +108,7 @@
       const display = user.displayName || "";
       const parts = display.trim().split(/\s+/);
       const firstName = parts[0] || "";
-      const lastName  = parts.slice(1).join(" ") || "";
+      const lastName = parts.slice(1).join(" ") || "";
 
       // IMPORTANT: include inviteId to satisfy your Firestore "create" rule
       await db.collection("employees").doc(uid).set({
@@ -99,9 +118,9 @@
         lastName,
         nickname: "",
         phone: "",
-        active: invite.active !== false,           // default true
+        active: invite.active !== false, // default true
         role: invite.role || "host",
-        inviteId: inviteDoc.id,                    // <-- REQUIRED by your rules
+        inviteId: inviteDoc.id, // <-- REQUIRED by your rules
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       });
 
@@ -130,18 +149,26 @@
   }
 
   async function finish(user) {
-    try { sessionStorage.removeItem(LOOP_FLAG); } catch {}
-    try { sessionStorage.setItem(DONE_FLAG, "1"); } catch {}
+    try {
+      sessionStorage.removeItem(LOOP_FLAG);
+    } catch {}
+    try {
+      sessionStorage.setItem(DONE_FLAG, "1");
+    } catch {}
 
     // Provision employee record (best effort)
     await ensureEmployeeProfile(user);
 
     // We’re not using OAuth credentials (to avoid gapi), so send nulls
-    const payload = { type: "bt-google-auth", googleIdToken: null, accessToken: null };
+    const payload = {
+      type: "bt-google-auth",
+      googleIdToken: null,
+      accessToken: null,
+    };
 
     if (postToOpener(payload)) return;
 
-    const u = new URL(ROLE_REDIRECT), location.origin);
+    const u = new URL(ROLE_REDIRECT, location.origin);
     u.hash = "authStatus=ok";
     location.replace(u.href);
   }
@@ -163,7 +190,9 @@
   if (PROVISION_ONLY) {
     console.log("[start-google] provision-only mode");
     if (auth.currentUser) {
-      console.log("[start-google] user already signed in → finishing (provision-only)");
+      console.log(
+        "[start-google] user already signed in → finishing (provision-only)"
+      );
       finish(auth.currentUser);
       return;
     }
@@ -180,16 +209,26 @@
     // Fallback: if no auth after 1.5s, start Google redirect
     setTimeout(() => {
       if (resolved) return;
-      console.log("[start-google] no session → starting Google (provision fallback)");
-      try { sessionStorage.setItem(LOOP_FLAG, "1"); } catch {}
+      console.log(
+        "[start-google] no session → starting Google (provision fallback)"
+      );
+      try {
+        sessionStorage.setItem(LOOP_FLAG, "1");
+      } catch {}
       const provider = new firebase.auth.GoogleAuthProvider();
       provider.addScope("profile");
       provider.addScope("email");
       provider.setCustomParameters({ prompt: "select_account" });
-      auth.signInWithRedirect(provider).catch(err => {
-        console.error("[start-google] redirect begin error (provision fallback):", err);
-        const u = new URL(ROLE_REDIRECT), location.origin);
-        u.searchParams.set("authError", err.code || "auth/redirect-begin-failed");
+      auth.signInWithRedirect(provider).catch((err) => {
+        console.error(
+          "[start-google] redirect begin error (provision fallback):",
+          err
+        );
+        const u = new URL(ROLE_REDIRECT, location.origin);
+        u.searchParams.set(
+          "authError",
+          err.code || "auth/redirect-begin-failed"
+        );
         location.replace(u.href);
       });
     }, 1500);
@@ -214,7 +253,9 @@
         if (user) {
           resolved = true;
           unsubscribe && unsubscribe();
-          console.log("[start-google] user detected from email-link → finishing");
+          console.log(
+            "[start-google] user detected from email-link → finishing"
+          );
           await finish(user);
         }
       });
@@ -222,8 +263,10 @@
       setTimeout(() => {
         if (resolved) return;
         unsubscribe && unsubscribe();
-        console.warn("[start-google] timeout after email-link; returning with soft error");
-        const u = new URL(ROLE_REDIRECT), location.origin);
+        console.warn(
+          "[start-google] timeout after email-link; returning with soft error"
+        );
+        const u = new URL(ROLE_REDIRECT, location.origin);
         u.searchParams.set("authStatus", "cancelled");
         location.replace(u.href);
       }, 15000);
@@ -233,22 +276,31 @@
 
   // Otherwise, proceed with Google redirect flow
   const started = (() => {
-    try { return sessionStorage.getItem(LOOP_FLAG) === "1"; } catch { return false; }
+    try {
+      return sessionStorage.getItem(LOOP_FLAG) === "1";
+    } catch {
+      return false;
+    }
   })();
 
   if (!started) {
     // First visit: kick off Google redirect
-    try { sessionStorage.setItem(LOOP_FLAG, "1"); } catch {}
+    try {
+      sessionStorage.setItem(LOOP_FLAG, "1");
+    } catch {}
     const provider = new firebase.auth.GoogleAuthProvider();
     provider.addScope("profile");
     provider.addScope("email");
     provider.setCustomParameters({ prompt: "select_account" });
 
     console.log("[start-google] starting signInWithRedirect");
-    auth.signInWithRedirect(provider).catch(err => {
+    auth.signInWithRedirect(provider).catch((err) => {
       console.error("[start-google] redirect begin error:", err);
-      const u = new URL(ROLE_REDIRECT), location.origin);
-      u.searchParams.set("authError", err.code || "auth/redirect-begin-failed");
+      const u = new URL(ROLE_REDIRECT, location.origin);
+      u.searchParams.set(
+        "authError",
+        err.code || "auth/redirect-begin-failed"
+      );
       location.replace(u.href);
     });
     return;
@@ -272,9 +324,13 @@
   setTimeout(() => {
     if (resolved) return;
     unsubscribe && unsubscribe();
-    console.warn("[start-google] no user after redirect; returning with soft error");
-    try { sessionStorage.removeItem(LOOP_FLAG); } catch {}
-    const u = new URL(ROLE_REDIRECT), location.origin);
+    console.warn(
+      "[start-google] no user after redirect; returning with soft error"
+    );
+    try {
+      sessionStorage.removeItem(LOOP_FLAG);
+    } catch {}
+    const u = new URL(ROLE_REDIRECT, location.origin);
     u.searchParams.set("authStatus", "cancelled");
     location.replace(u.href);
   }, 15000);
