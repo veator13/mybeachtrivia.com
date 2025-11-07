@@ -1,16 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<link rel="icon" href="/favicon.ico" sizes="any">
-<link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png">
-<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
-<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
-<link rel="apple-touch-icon" href="/apple-touch-icon.png">
-<link rel="manifest" href="/site.webmanifest">
-<meta name="theme-color" content="#101317">
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta name="theme-color" content="#101317">
+
   <!-- perf-probe: lightweight timing logs -->
   <script src="perf-probe.js"></script>
   <script src="perf-login-metrics.js"></script>
+
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Admin Portal Dashboard</title>
@@ -19,7 +21,7 @@
   <link href="vendor/fontawesome/css/all.min.css" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 
-  <!-- Firebase SDKs (compat) -->
+  <!-- Firebase SDKs (compat, v9.22 – used by firebase-init.js & existing admin code) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js" defer></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js" defer></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js" defer></script>
@@ -35,9 +37,16 @@
 
   <!-- Main dashboard logic (your existing file) -->
   <script src="script.js?v=1" defer></script>
-<script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-app-compat.js" defer></script>\n<script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore-compat.js" defer></script>\n<script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-auth-compat.js" defer></script>\n<script src="/beachTriviaPages/js/firebase-modular-shims.js" defer></script>."
-<script src="/play-music-bingo/player/preauth.js" defer></script>
-</head>"
+
+  <!-- Newer Firebase compat + shims used by modular guards (auth-route-guard.v2, preauth, etc.) -->
+  <script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-app-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-auth-compat.js" defer></script>
+  <script src="/beachTriviaPages/js/firebase-modular-shims.js" defer></script>
+
+  <!-- Music Bingo preauth (if needed) -->
+  <script src="/play-music-bingo/player/preauth.js" defer></script>
+</head>
 <body>
   <!-- Authentication Loading Overlay -->
   <div id="auth-loading">
@@ -67,7 +76,9 @@
       </div>
       <div class="user-profile">
         <span id="user-display-name">Admin User</span>
-        <button id="logout-btn" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</button>
+        <button id="logout-btn" class="logout-btn">
+          <i class="fas fa-sign-out-alt"></i> Logout
+        </button>
       </div>
     </div>
 
@@ -148,7 +159,10 @@
       border-top: 4px solid var(--secondary-blue);
       width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 20px;
     }
-    @keyframes spin { 0%{transform:rotate(0)} 100%{transform:rotate(360deg)} }
+    @keyframes spin {
+      0% { transform: rotate(0); }
+      100% { transform: rotate(360deg); }
+    }
     .user-profile { display: flex; align-items: center; gap: 10px; }
     .logout-btn {
       background-color: rgba(255,255,255,0.1); color: white; border: none;
@@ -156,6 +170,8 @@
     }
     .logout-btn:hover { background-color: rgba(255,255,255,0.2); }
   </style>
+
+  <!-- New route guard that uses the modular-style APIs via shims -->
   <script src="/beachTriviaPages/js/auth-route-guard.v2.js?v=2025-10-14a"></script>
 </body>
 </html>

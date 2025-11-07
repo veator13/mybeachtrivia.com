@@ -2,22 +2,30 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Music Bingo — Host Console</title>
 
   <!-- ✅ CSP to allow RTDB + Firebase while keeping the page locked down -->
-  <meta http-equiv="Content-Security-Policy" content="
-    default-src 'self';
-    script-src 'self' 'unsafe-eval' https://www.gstatic.com https://www.googleapis.com https://*.firebaseio.com;
-    connect-src 'self' https://*.googleapis.com https://www.googleapis.com https://*.gstatic.com wss://*.firebaseio.com https://*.firebaseio.com;
-    img-src 'self' data: https:;
-    style-src 'self' 'unsafe-inline';
-  ">
+  <meta
+    http-equiv="Content-Security-Policy"
+    content="
+      default-src 'self';
+      script-src 'self' 'unsafe-eval' https://www.gstatic.com https://www.googleapis.com https://*.firebaseio.com;
+      connect-src 'self' https://*.googleapis.com https://www.googleapis.com https://*.gstatic.com wss://*.firebaseio.com https://*.firebaseio.com;
+      img-src 'self' data: https:;
+      style-src 'self' 'unsafe-inline';
+    "
+  >
 
   <!-- Your site styles -->
   <link rel="stylesheet" href="host-music-bingo.css" />
-<script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-app-compat.js" defer></script>\n<script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore-compat.js" defer></script>\n<script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-auth-compat.js" defer></script>\n<script src="/beachTriviaPages/js/firebase-modular-shims.js" defer></script>."
-</head>"
+
+  <!-- Firebase compat + shims -->
+  <script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-app-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-auth-compat.js" defer></script>
+  <script src="/beachTriviaPages/js/firebase-modular-shims.js" defer></script>
+</head>
 <body>
   <div class="app-shell">
     <!-- Topbar -->
@@ -48,16 +56,30 @@
 
           <div class="form-row">
             <label for="game-name">Game Name</label>
-            <input id="game-name" class="input" type="text" placeholder="e.g., Friday Night @ Sandbar"/>
+            <input
+              id="game-name"
+              class="input"
+              type="text"
+              placeholder="e.g., Friday Night @ Sandbar"
+            />
           </div>
 
           <div class="form-row">
             <label for="player-limit">Player Limit</label>
-            <input id="player-limit" class="input" type="number" min="1" step="1" placeholder="e.g., 150"/>
+            <input
+              id="player-limit"
+              class="input"
+              type="number"
+              min="1"
+              step="1"
+              placeholder="e.g., 150"
+            />
           </div>
 
           <div class="actions">
-            <button id="start-game-btn" type="button" class="btn btn-primary">Start Game</button>
+            <button id="start-game-btn" type="button" class="btn btn-primary">
+              Start Game
+            </button>
           </div>
         </div>
 
@@ -69,7 +91,13 @@
           <div id="qr-code-container"></div>
 
           <div class="join-actions">
-            <button id="copy-join-link-btn" type="button" class="btn btn-ghost">Copy Join Link</button>
+            <button
+              id="copy-join-link-btn"
+              type="button"
+              class="btn btn-ghost"
+            >
+              Copy Join Link
+            </button>
             <span id="join-link-display" class="muted"></span>
           </div>
 
@@ -86,9 +114,20 @@
         </div>
 
         <div class="pill-group" style="margin-bottom:10px">
-          <span class="pill"><span class="pill-label">Name</span><span class="pill-value" id="current-game-name">—</span></span>
-          <span class="pill"><span class="pill-label">Playlist</span><span class="pill-value" id="current-playlist">—</span></span>
-          <span class="pill"><span class="pill-label">Game ID</span><span class="pill-value"><code id="game-id">—</code></span></span>
+          <span class="pill">
+            <span class="pill-label">Name</span>
+            <span class="pill-value" id="current-game-name">—</span>
+          </span>
+          <span class="pill">
+            <span class="pill-label">Playlist</span>
+            <span class="pill-value" id="current-playlist">—</span>
+          </span>
+          <span class="pill">
+            <span class="pill-label">Game ID</span>
+            <span class="pill-value">
+              <code id="game-id">—</code>
+            </span>
+          </span>
         </div>
 
         <div class="control-grid">
@@ -96,7 +135,13 @@
             <div class="control-head">
               <h4 class="control-title">Player Count</h4>
             </div>
-            <div id="player-count" class="pill-value" style="font-size:1.4rem">0</div>
+            <div
+              id="player-count"
+              class="pill-value"
+              style="font-size:1.4rem"
+            >
+              0
+            </div>
           </div>
 
           <div class="control-card">
@@ -108,11 +153,21 @@
         </div>
 
         <div class="btn-row" style="margin-top:12px">
-          <button id="play-song-btn"   type="button" class="btn btn-primary">Start</button>
-          <button id="next-song-btn"   type="button" class="btn btn-primary">Next</button>
-          <button id="pause-game-btn"  type="button" class="btn btn-ghost">Pause</button>
-          <button id="resume-game-btn" type="button" class="btn btn-ghost">Resume</button>
-          <button id="end-game-btn"    type="button" class="btn btn-danger">End Game</button>
+          <button id="play-song-btn" type="button" class="btn btn-primary">
+            Start
+          </button>
+          <button id="next-song-btn" type="button" class="btn btn-primary">
+            Next
+          </button>
+          <button id="pause-game-btn" type="button" class="btn btn-ghost">
+            Pause
+          </button>
+          <button id="resume-game-btn" type="button" class="btn btn-ghost">
+            Resume
+          </button>
+          <button id="end-game-btn" type="button" class="btn btn-danger">
+            End Game
+          </button>
         </div>
 
         <div id="now-playing" class="now-playing"></div>
@@ -133,6 +188,7 @@
       JavaScript is required to run the Music Bingo host console.
     </p>
   </noscript>
+
   <script src="/beachTriviaPages/js/auth-route-guard.v2.js?v=2025-10-14a"></script>
 </body>
 </html>
