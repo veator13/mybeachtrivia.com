@@ -1,6 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin Portal Dashboard</title>
+
   <link rel="icon" href="/favicon.ico" sizes="any">
   <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
@@ -9,24 +13,15 @@
   <link rel="manifest" href="/site.webmanifest">
   <meta name="theme-color" content="#101317">
 
-  <!-- perf-probe: lightweight timing logs -->
-  <script src="perf-probe.js"></script>
-  <script src="perf-login-metrics.js"></script>
-
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Admin Portal Dashboard</title>
-
-  <!-- Icons & Styles -->
-  <link href="vendor/fontawesome/css/all.min.css" rel="stylesheet">
+  <!-- Main styles for the admin dashboard -->
   <link rel="stylesheet" href="style.css">
 
-  <!-- Firebase SDKs (compat, v9.22 – used by firebase-init.js & existing admin code) -->
+  <!-- Firebase SDKs (compat, v9.22 – used by firebase-init.js & admin guards) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js" defer></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js" defer></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js" defer></script>
 
-  <!-- Your project init (MUST call firebase.initializeApp(...) exactly once) -->
+  <!-- Your project init (calls firebase.initializeApp(...) exactly once) -->
   <script src="/firebase-init.js?v=1" defer></script>
 
   <!-- Shared guard: checks login + active employee -->
@@ -35,17 +30,8 @@
   <!-- Admin-only guard: checks roles.includes('admin') -->
   <script src="guard-admin.js?v=1" defer></script>
 
-  <!-- Main dashboard logic (your existing file) -->
+  <!-- Main dashboard logic -->
   <script src="script.js?v=1" defer></script>
-
-  <!-- Newer Firebase compat + shims used by modular guards (auth-route-guard.v2, preauth, etc.) -->
-  <script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-app-compat.js" defer></script>
-  <script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore-compat.js" defer></script>
-  <script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-auth-compat.js" defer></script>
-  <script src="/beachTriviaPages/js/firebase-modular-shims.js" defer></script>
-
-  <!-- Music Bingo preauth (if needed) -->
-  <script src="/play-music-bingo/player/preauth.js" defer></script>
 </head>
 <body>
   <!-- Authentication Loading Overlay -->
@@ -77,7 +63,7 @@
       <div class="user-profile">
         <span id="user-display-name">Admin User</span>
         <button id="logout-btn" class="logout-btn">
-          <i class="fas fa-sign-out-alt"></i> Logout
+          Logout
         </button>
       </div>
     </div>
@@ -129,7 +115,7 @@
     </div>
   </div>
 
-  <!-- (Inline CSS is OK; CSP mainly blocks inline JS) -->
+  <!-- Inline CSS for overlays/spinner -->
   <style>
     #auth-loading {
       position: fixed; inset: 0;
@@ -170,8 +156,5 @@
     }
     .logout-btn:hover { background-color: rgba(255,255,255,0.2); }
   </style>
-
-  <!-- New route guard that uses the modular-style APIs via shims -->
-  <script src="/beachTriviaPages/js/auth-route-guard.v2.js?v=2025-10-14a"></script>
 </body>
 </html>
