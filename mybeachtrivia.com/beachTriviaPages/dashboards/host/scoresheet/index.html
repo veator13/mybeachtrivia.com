@@ -7,67 +7,12 @@
     content="width=device-width, initial-scale=1.0"
   />
   <title>Team Score Calculator</title>
+
+  <!-- Main stylesheet with all updated styles (including LIKE checkbox) -->
   <link rel="stylesheet" href="style.css" />
 
-  <!-- Inline styles are OK with your current CSP since it only restricts script-src -->
-  <style>
-    /* Search Bar Styling */
-    .search-container {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-left: auto;
-    }
-    .search-input {
-      width: 220px;
-      height: 42px;
-      padding: 8px 16px;
-      background-color: #2a2a2a;
-      color: white;
-      border: 2px solid #777;
-      border-radius: 6px;
-      font-size: 16px;
-      transition: all 0.3s ease;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-    }
-    .search-input:focus {
-      border-color: #00ffcc;
-      box-shadow: 0 0 10px rgba(0, 255, 204, 0.4);
-      outline: none;
-    }
-    .search-input::placeholder { color: #888; }
-
-    /* Highlight animation for found teams */
-    @keyframes highlight-pulse {
-      0% { background-color: rgba(0, 255, 204, 0.1); }
-      50% { background-color: rgba(0, 255, 204, 0.3); }
-      100% { background-color: rgba(0, 255, 204, 0.1); }
-    }
-    .highlighted-row { animation: highlight-pulse 1.5s ease-in-out infinite; }
-
-    /* Adjust button container for search bar */
-    .button-container {
-      display: flex;
-      justify-content: flex-start;
-      align-items: center;
-      gap: 20px;
-      margin: 25px 20px 15px;
-      flex-wrap: wrap;
-    }
-
-    /* Responsive design for search container */
-    @media (max-width: 1000px) {
-      .search-container {
-        flex: 1 0 100%;
-        margin-top: 15px;
-        justify-content: flex-start;
-      }
-      .search-input {
-        width: 100%;
-        max-width: 300px;
-      }
-    }
-  </style>
+  <!-- Optional: normal favicon for the page itself -->
+  <link rel="icon" href="/favicon.ico" />
 
   <!-- Firebase (compat builds) - loaded as external scripts to satisfy CSP (no inline JS). -->
   <script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-app-compat.js" defer></script>
@@ -75,8 +20,7 @@
   <script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-auth-compat.js" defer></script>
 
   <!-- Your initializer must exist at this path; it should call firebase.initializeApp(...)
-       and set window.db = firebase.firestore() plus any helpers your app.js expects.
-       Keeping it external avoids 'unsafe-inline' requirements. -->
+       and set window.db = firebase.firestore() plus any helpers your app.js expects. -->
   <script src="/beachTriviaPages/js/firebase-init-compat.js" defer></script>
 
   <!-- Route guard (external) -->
@@ -84,8 +28,8 @@
 
   <!-- Extra guard + main app -->
   <script src="final-neg-guard.js?v=20251025163459" defer></script>
-  <!-- Bumped version so browsers pull the new app.js with standings invert logic -->
-  <script src="app.js?v=20251106-invert-standings" defer></script>
+  <!-- Bumped version so browsers pull the new app.js with standings invert + LIKE checkbox -->
+  <script src="app.js?v=20251106-invert-standings-likebox" defer></script>
 </head>
 <body>
   <noscript>This app requires JavaScript enabled.</noscript>
@@ -133,8 +77,9 @@
               <th rowspan="2">R4 Total</th>
               <th rowspan="2">Final Question</th>
               <th rowspan="2">Second Half Total</th>
-              <!-- Bonus column header to match bonus-col-right cells -->
+              <!-- Sticky BONUS column (numeric) just left of Final Score -->
               <th class="bonus-col-right" rowspan="2">Bonus</th>
+              <!-- Sticky Final Score column -->
               <th class="sticky-col-right" rowspan="2">Final Score</th>
             </tr>
             <tr class="top_row">
@@ -145,7 +90,7 @@
             </tr>
           </thead>
           <tbody>
-            <!-- Team rows will be added here by JavaScript -->
+            <!-- Team rows are added dynamically by app.js (addTeam()) -->
           </tbody>
         </table>
       </div>
@@ -168,9 +113,10 @@
         class="close"
         aria-label="Close standings"
       >&times;</button>
+
       <h2 id="standingsTitle">Team Standings</h2>
 
-      <!-- Icon-only pill; arrows drawn via CSS ::before/::after -->
+      <!-- Icon-only pill; arrows are drawn via CSS ::before/::after -->
       <button
         type="button"
         id="btnInvertStandings"

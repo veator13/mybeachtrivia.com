@@ -219,7 +219,7 @@ function addTeam() {
   const tr = document.createElement("tr");
   tr.dataset.teamId = String(teamCount); // reliable teamId source
 
-  // --- Team name + bonus checkbox (left sticky col) ---
+  // --- Team name + LIKE bonus checkbox (left sticky col) ---
   const tdTeam = document.createElement("td");
   tdTeam.className = "sticky-col";
 
@@ -229,12 +229,38 @@ function addTeam() {
   nameInput.className = "teamName";
   nameInput.placeholder = `Team ${teamCount}`;
 
+  // Wrapper for checkbox + icon + LIKE label
+  const bonusCheckboxWrapper = document.createElement("label");
+  bonusCheckboxWrapper.className = "teamCheckboxWrapper";
+
   const bonusCheckbox = document.createElement("input");
   bonusCheckbox.type = "checkbox";
   bonusCheckbox.id = `checkbox${teamCount}`;
   bonusCheckbox.className = "teamCheckbox";
 
-  tdTeam.append(nameInput, bonusCheckbox);
+  // Icon span (favicon background handled in CSS)
+  const bonusIcon = document.createElement("span");
+  bonusIcon.className = "teamCheckboxIcon";
+  bonusIcon.setAttribute("aria-hidden", "true");
+
+  // "LIKE" label under the icon
+  const bonusLike = document.createElement("span");
+  bonusLike.className = "teamCheckboxLike";
+  bonusLike.textContent = "LIKE";
+
+  // Screen-reader only text
+  const bonusCheckboxText = document.createElement("span");
+  bonusCheckboxText.className = "sr-only";
+  bonusCheckboxText.textContent = "Apply five point bonus";
+
+  bonusCheckboxWrapper.append(
+    bonusCheckbox,
+    bonusIcon,
+    bonusLike,
+    bonusCheckboxText
+  );
+
+  tdTeam.append(nameInput, bonusCheckboxWrapper);
   tr.appendChild(tdTeam);
 
   // --- Round 1 (Q1-Q5): only 0 or 1 ---
@@ -373,7 +399,7 @@ function addTeam() {
     tr.appendChild(td);
   }
 
-  // Final Question (free integer >= 0)
+  // Final Question (free integer >= 0, can be negative via later helpers)
   {
     const td = document.createElement("td");
     const inp = document.createElement("input");
@@ -476,7 +502,7 @@ function validateInput(input, teamId) {
 function updateScores(teamId) {
   const valOrZero = (el) => (el?.value === "" ? 0 : parseInt(el?.value, 10) || 0);
 
-  // Row (for BONUS cell lookup)
+  // Row (for BONUS & checkbox lookup)
   const row = document.querySelector(`tr[data-team-id="${teamId}"]`);
 
   // Collect Q1..Q20
@@ -501,6 +527,9 @@ function updateScores(teamId) {
 
   // Numeric BONUS column value (>=0, blank treated as 0)
   let bonusValue = 0;
+  // Checkbox 5-point bonus
+  let checkboxBonus = 0;
+
   if (row) {
     const bonusInput =
       row.querySelector("td.bonus-col-right input") ||
@@ -514,10 +543,15 @@ function updateScores(teamId) {
         bonusValue = 0;
       }
     }
+
+    const cb = row.querySelector("input.teamCheckbox");
+    if (cb && cb.checked) {
+      checkboxBonus = 5;
+    }
   }
 
-  // Final score (FH + SH + BONUS)
-  const finalScore = firstHalfTotal + secondHalfTotal + bonusValue;
+  // Final score (FH + SH + BONUS column + checkbox 5-pt bonus)
+  const finalScore = firstHalfTotal + secondHalfTotal + bonusValue + checkboxBonus;
 
   // Update DOM
   const setText = (id, v) => {
@@ -921,7 +955,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Checkbox change → recompute final score (no longer adds +5, just refresh)
+  // Checkbox change → recompute final score (+5 if checked)
   table?.addEventListener("change", (e) => {
     const target = e.target;
     if (!(target instanceof HTMLInputElement)) return;
@@ -954,7 +988,7 @@ document.addEventListener("DOMContentLoaded", () => {
     btnCloseModal.dataset.bound = "1";
   }
 
-  // NEW: click on dark overlay closes modal (but not clicks inside modal-content)
+  // Click on dark overlay closes modal (but not clicks inside modal-content)
   const modal = $("#standingsModal");
   if (modal && !modal.dataset.boundOverlay) {
     modal.addEventListener("click", (e) => {
@@ -1367,7 +1401,7 @@ window.clearHighlights = clearHighlights;
     moveFocus(t, dx, dy);
   }
 
-  // NEW: whenever any table editor gets focus (click / tab / touch),
+  // Whenever any table editor gets focus (click / tab / touch),
   // make sure it is fully visible horizontally & vertically.
   function onFocusIn(e) {
     const t = e.target;
@@ -1380,6 +1414,7 @@ window.clearHighlights = clearHighlights;
 
   // Capture-phase so we beat native stepping and any other handlers
   document.addEventListener('keydown', onKey, true);
+  document.addElementListener?.('focusin', onFocusIn, true) ||
   document.addEventListener('focusin', onFocusIn, true);
 })();
 // === end TABLE NAVIGATION V3 ===
