@@ -1,6 +1,7 @@
 /* login.js – Beach Trivia (CSP-safe)
-   - Email/password + Google flows
-   - First-login → account-setup
+   - Handles email/password + Google sign-in
+   - Respects dashboard selector (Host vs Admin, etc.)
+   - First-login → account-setup onboarding
 */
 (() => {
   const $ = (s, r = document) => r.querySelector(s);
@@ -18,12 +19,12 @@
     brandLogo: $('#brandLogo'),
   };
 
-  // Hide broken logos without inline handlers (CSP-friendly)
+  // Hide broken logos without inline handlers (CSP-safe)
   els.brandLogo?.addEventListener('error', () => {
     els.brandLogo.hidden = true;
   });
 
-  // Role → destination
+  // Destination map for each role
   const DEST = {
     host:     '/beachTriviaPages/dashboards/host/',
     social:   '/beachTriviaPages/dashboards/social-media-manager/',
@@ -33,22 +34,6 @@
     admin:    '/beachTriviaPages/dashboards/admin/',
   };
 
-  function currentRole() {
-    const radio = document.querySelector('input[name="role"]:checked');
-    const raw = (radio?.value || els.role?.value || 'host');
-    return String(raw).toLowerCase();
-  }
-
-  function syncUserType() {
-    const r = currentRole();
-    if (els.userType) {
-      els.userType.value = r === 'admin' ? 'admin' : 'employee';
-    }
-  }
-
-  els.role?.addEventListener('change', syncUserType);
-  syncUserType();
-
   async function waitForAuth(ms = 150, tries = 40) {
     for (let i = 0; i < tries; i++) {
       if (window.firebase?.auth) return firebase.auth();
@@ -57,67 +42,58 @@
     throw new Error('Auth not ready yet.');
   }
 
-  function getDb() {
-    if (!window.firebase?.firestore) {
-      throw new Error('Firestore SDK not loaded');
-    }
-    return firebase.firestore();
+  function currentRole() {
+    const radio = document.querySelector('input[name="role"]:checked');
+    const raw   = (radio?.value || els.role?.value || 'host');
+    return String(raw).toLowerCase();
   }
 
-  // Best-effort: ensure employees/{uid} exists from employeeInvites
-  async function ensureEmployeeProfile(user) {
-    try {
-      if (!user) return;
-      const db = getDb();
-      const uid = user.uid;
+  function syncUserType() {
+    const role = currentRole();
+    if (els.userType) {
+      els.userType.value = (role === 'admin') ? 'admin' : 'employee';
+    }
+  }
+  els.role?.addEventListener('change', syncUserType);
+  // In case you ever switch to radio buttons:
+  document.querySelectorAll('input[name="role"]').forEach(radio => {
+    radio.addEventListener('change', syncUserType);
+  });
+  syncUserType();
 
-      const existing = await db.collection('employees').doc(uid).get();
-      if (existing.exists) return;
+  /**
+   * Determine where to send the user after successful auth,
+   * based on:
+   *  - requestedRole (dropdown/radio)
+   *  - employee Firestore doc (roles / role)
+   */
+  function resolveDestination(emp, requestedRole) {
+    const role = (requestedRole || 'host').toLowerCase();
 
-      const inviteSnap = await db
-        .collection('employeeInvites')
-        .where('email', '==', user.email)
-        .limit(1)
-        .get();
+    const empRoles = Array.isArray(emp.roles)
+      ? emp.roles
+      : (emp.role ? [emp.role] : []);
+    const hasAdmin = empRoles.includes('admin');
 
-      if (inviteSnap.empty) {
-        console.log('[login] no invite found for', user.email);
-        return;
+    // If they explicitly chose Admin, check permission.
+    if (role === 'admin') {
+      if (hasAdmin) {
+        return DEST.admin;
       }
-
-      const inviteDoc = inviteSnap.docs[0];
-      const invite = inviteDoc.data();
-
-      const display = user.displayName || '';
-      const parts = display.trim().split(/\s+/);
-      const firstName = parts[0] || '';
-      const lastName  = parts.slice(1).join(' ') || '';
-
-      await db.collection('employees').doc(uid).set({
-        uid,
-        email: user.email,
-        firstName,
-        lastName,
-        nickname: '',
-        phone: '',
-        active: invite.active !== false,
-        role: invite.role || 'host',
-        inviteId: inviteDoc.id,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-      });
-
-      await db.collection('employeeInvites').doc(inviteDoc.id).delete();
-      console.log('[login] employee profile created from invite');
-    } catch (err) {
-      console.error('[login] ensureEmployeeProfile error:', err);
+      alert("You don't have admin access. Redirecting to the Host dashboard.");
+      return DEST.host;
     }
+
+    // For any non-admin selection, honor exactly what they picked.
+    return DEST[role] || DEST.host;
   }
 
-  async function afterSignIn(user) {
-    const db = getDb();
-
-    await ensureEmployeeProfile(user);
-
+  /**
+   * Check onboarding requirements and redirect appropriately.
+   * Shared by email/password and Google flows.
+   */
+  async function handlePostSignIn(user, requestedRole) {
+    const db = firebase.firestore();
     const snap = await db.collection('employees').doc(user.uid).get();
     const emp  = snap.exists ? (snap.data() || {}) : {};
 
@@ -131,27 +107,23 @@
       'phone',
       'emergencyContact',
       'emergencyContactPhone',
-      'dob',
+      'dob'
     ];
-    const missing  = required.filter(k => !emp[k]);
+    const missing = required.filter(k => !emp[k]);
     const mustSetup = emp.setupCompleted === true ? false : (missing.length > 0);
 
     if (mustSetup) {
+      // Onboarding flow
       location.assign('/beachTriviaPages/onboarding/account-setup/');
       return;
     }
 
-    const role = currentRole();
-    const dest =
-      DEST[role] ||
-      (Array.isArray(emp.roles) && emp.roles.includes('admin')
-        ? DEST.admin
-        : DEST.host);
-
+    const dest = resolveDestination(emp, requestedRole);
     location.assign(dest);
   }
 
-  // --- Email/Password login ---
+  // ------------- Email/Password login -----------------
+
   async function handleLogin(ev) {
     ev?.preventDefault();
     try {
@@ -173,18 +145,20 @@
       if (els.btn) els.btn.disabled = true;
 
       const { user } = await auth.signInWithEmailAndPassword(email, pass);
-      await afterSignIn(user);
+      const role = currentRole();
+      await handlePostSignIn(user, role);
     } catch (err) {
-      console.error('[login] sign-in error:', err);
+      console.error('[login] email/password sign-in error:', err);
       alert(err?.message || String(err));
     } finally {
       if (els.btn) els.btn.disabled = false;
     }
   }
 
-  // --- Google sign-in (popup flow) ---
-  els.googleBtn?.addEventListener('click', async (e) => {
-    e.preventDefault();
+  // ------------- Google sign-in (popup) -----------------
+
+  async function handleGoogleLogin(ev) {
+    ev?.preventDefault();
     try {
       const auth = await waitForAuth();
 
@@ -199,31 +173,35 @@
       provider.addScope('email');
       provider.setCustomParameters({ prompt: 'select_account' });
 
-      const { user } = await auth.signInWithPopup(provider);
+      const credential = await auth.signInWithPopup(provider);
+      const user = credential.user;
+      const role = currentRole();
 
+      // Let other code know what was requested (if you ever use it elsewhere)
       try {
-        localStorage.setItem('postLoginRole', currentRole());
+        localStorage.setItem('postLoginRole', role);
+        sessionStorage.setItem('postLoginRole', role);
       } catch (_) {}
 
-      await afterSignIn(user);
+      await handlePostSignIn(user, role);
     } catch (err) {
       console.error('[login] Google sign-in error:', err);
-      if (err && err.code === 'auth/popup-closed-by-user') {
-        // Silent fail if user just closes the popup.
-        return;
-      }
-      alert(err?.message || 'Google sign-in failed.');
+      alert(err?.message || String(err));
     }
-  });
+  }
 
-  // Wire up form handlers
+  // ------------- Wire up events -----------------
+
   function attach() {
     if (!els.form) return;
+
     els.form.addEventListener('submit', handleLogin);
     els.btn?.addEventListener('click', handleLogin);
     els.pass?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') handleLogin(e);
     });
+
+    els.googleBtn?.addEventListener('click', handleGoogleLogin);
   }
 
   attach();
