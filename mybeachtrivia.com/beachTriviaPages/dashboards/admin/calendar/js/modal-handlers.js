@@ -1,6 +1,14 @@
 // modal-handlers.js
 // Functions for handling modals and form submissions
 
+// Small helper to safely get a shared calendar state object
+function ensureCalendarState() {
+    if (!window.CalendarState) {
+        window.CalendarState = {};
+    }
+    return window.CalendarState;
+}
+
 // Modal and form handling functions
 function openShiftModal(dateStr = null) {
     // Reset editing mode for new shifts
@@ -60,6 +68,7 @@ function closeShiftModal() {
 /**
  * Centralized closer for the double-book warning modal.
  * - Clears any pending forced save from the form path
+ * - Clears any pending drag/drop move operation
  * - Hides the warning modal with ARIA updates
  * - Re-enables and returns focus to the form submit button (if present)
  * - Keeps scroll position stable
@@ -71,20 +80,25 @@ function closeWarningModal() {
         y: window.scrollY
     };
 
-    // Clear pending override state (form conflict path)
+    // Clear pending override state (form conflict path + drag-move path)
     try {
-        if (window.CalendarState) {
-            window.CalendarState.pendingShiftData = null;
-            window.CalendarState.forceBooking = false;
-        } else {
-            // Fallback to local state if exposed here
-            if (typeof state !== 'undefined') {
-                state.pendingShiftData = null;
-                state.forceBooking = false;
-            }
-        }
+        const cs = ensureCalendarState();
+        cs.pendingShiftData = null;
+        cs.forceBooking = false;
+        cs.pendingMoveOperation = null; // new: clear any stored drag/drop move
     } catch (e) {
         console.warn('[calendar] Could not clear pending override state:', e);
+    }
+
+    // Fallback to local state if exposed here
+    try {
+        if (typeof state !== 'undefined') {
+            state.pendingShiftData = null;
+            state.forceBooking = false;
+            state.pendingMoveOperation = null;
+        }
+    } catch (e) {
+        console.warn('[calendar] Could not clear local state override:', e);
     }
 
     // Hide the warning modal (with ARIA)
@@ -116,9 +130,100 @@ function closeWarningModal() {
 // Expose globally so all modules use the same closer
 window.closeWarningModal = closeWarningModal;
 
-// A simplified warning message function - MODIFIED to use getEmployeeName for safety
-function showSimplifiedWarning(employeeId) {
-    console.log(`Showing warning for employee ${employeeId} with move operation:`, globalMoveOperation);
+/**
+ * Handler for the "Proceed anyway" button in the warning modal.
+ *
+ * Two paths:
+ *  1) Drag/drop move conflict:
+ *     - CalendarState.pendingMoveOperation = { type: 'drag-move', shiftId, targetDateYMD }
+ *     - Calls moveSingleShiftToDate(..., { ignoreConflicts: true })
+ *
+ *  2) Existing form conflict path:
+ *     - Leaves your prior logic intact by just setting forceBooking = true.
+ *     - The form submission logic (in your other code) should look at forceBooking
+ *       and pendingShiftData and do the actual save.
+ */
+async function proceedWithWarningModal() {
+    const cs = ensureCalendarState();
+
+    // Copy the move operation locally before anything clears it
+    const moveOp = cs.pendingMoveOperation;
+
+    // === 1) Drag/drop move override path ===
+    if (moveOp && moveOp.type === 'drag-move' && moveOp.shiftId && moveOp.targetDateYMD) {
+        console.log('[calendar] Proceeding with drag-move override:', moveOp);
+
+        // Clear it so we don't accidentally reuse
+        cs.pendingMoveOperation = null;
+        if (typeof state !== 'undefined') {
+            state.pendingMoveOperation = null;
+        }
+
+        try {
+            if (typeof moveSingleShiftToDate !== 'function') {
+                console.error('moveSingleShiftToDate is not defined; cannot complete override move.');
+            } else {
+                const result = await moveSingleShiftToDate(
+                    moveOp.shiftId,
+                    moveOp.targetDateYMD,
+                    { ignoreConflicts: true }
+                );
+
+                if (!result || !result.ok) {
+                    console.error('Override move failed:', result);
+                    alert('Could not move the event even after override. Please try again.');
+                }
+            }
+        } catch (err) {
+            console.error('Error during override move:', err);
+            alert('An error occurred while moving the event. Please try again.');
+        }
+
+        // Finally close the warning modal
+        closeWarningModal();
+        return;
+    }
+
+    // === 2) Fallback to existing form conflict override path ===
+    console.log('[calendar] Proceeding with form-based override booking');
+
+    // Mark that we want to force the booking; your existing save logic
+    // should check CalendarState.forceBooking / state.forceBooking.
+    cs.forceBooking = true;
+    if (typeof state !== 'undefined') {
+        state.forceBooking = true;
+    }
+
+    // Do not clear pendingShiftData here; the form handler should use it.
+    // Just close the warning modal, then your submit logic can re-run.
+    if (elements.warningModal) {
+        elements.warningModal.style.display = 'none';
+        elements.warningModal.setAttribute('aria-hidden', 'true');
+    }
+
+    hideMonthNavigationDropzones();
+}
+// Expose globally so the button can call it (onclick or via addEventListener)
+window.proceedWithWarningModal = proceedWithWarningModal;
+
+// A simplified warning message function - MODIFIED to support optional move context
+// moveContext is optional and can be something like:
+//   { type: 'drag-move', shiftId, targetDateYMD }
+function showSimplifiedWarning(employeeId, moveContext) {
+    console.log(`Showing warning for employee ${employeeId} with move operation:`, globalMoveOperation, moveContext);
+
+    // Stash any drag/drop move operation so the proceed button can see it
+    try {
+        const cs = ensureCalendarState();
+        if (moveContext && typeof moveContext === 'object') {
+            cs.pendingMoveOperation = moveContext;
+        } else {
+            // If no context provided, clear any stale one
+            cs.pendingMoveOperation = null;
+        }
+    } catch (e) {
+        console.warn('[calendar] Could not store pendingMoveOperation:', e);
+    }
 
     // Use the safe helper function instead of direct access to employees object
     const hostName = getEmployeeName(employeeId);

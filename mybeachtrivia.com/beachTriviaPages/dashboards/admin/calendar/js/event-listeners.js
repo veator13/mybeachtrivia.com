@@ -471,3 +471,170 @@ function populateTimeDropdowns() {
     elements.startTimeSelect.appendChild(startFragment);
     elements.endTimeSelect.appendChild(endFragment);
 }
+
+/* =========================
+ *  DRAG & DROP HANDLERS
+ * ========================= */
+
+// Helper: handle the actual move when a shift is dropped onto a date cell
+async function handleShiftDropOnDate(shiftId, targetDateYMD) {
+    if (!shiftId || !targetDateYMD) {
+        console.warn('[calendar] Missing shiftId or targetDateYMD in handleShiftDropOnDate');
+        return;
+    }
+
+    const shift = shifts.find(s => String(s.id) === String(shiftId));
+    if (!shift) {
+        console.error('[calendar] Shift not found for drag/drop:', shiftId);
+        return;
+    }
+
+    try {
+        // Preferred path: use shift-service helper, which handles Firebase + conflicts
+        if (typeof moveSingleShiftToDate === 'function') {
+            const result = await moveSingleShiftToDate(shiftId, targetDateYMD, {
+                ignoreConflicts: false
+            });
+
+            // Success path – just re-render
+            if (result && result.ok) {
+                renderCalendar();
+                return;
+            }
+
+            // Conflict path – show warning and stash move context
+            if (result && result.reason === 'conflict') {
+                const employeeId = result.employeeId || shift.employeeId;
+                const moveContext = {
+                    type: 'drag-move',
+                    shiftId: shiftId,
+                    targetDateYMD: targetDateYMD
+                };
+
+                // Save on CalendarState so proceedWithWarningModal can see it
+                const cs = window.CalendarState || (window.CalendarState = {});
+                cs.pendingMoveOperation = moveContext;
+
+                // Also optional debug global
+                window.globalMoveOperation = moveContext;
+
+                showSimplifiedWarning(employeeId, moveContext);
+                return;
+            }
+
+            // Unknown error / shape
+            console.error('[calendar] Unexpected result from moveSingleShiftToDate:', result);
+            alert('Could not move this event. Please try again.');
+            return;
+        }
+
+        // Fallback path if moveSingleShiftToDate is not defined:
+        console.warn('[calendar] moveSingleShiftToDate is not defined; using fallback move.');
+
+        shift.date = targetDateYMD;
+        if (typeof updateShiftInFirebase === 'function') {
+            await updateShiftInFirebase(String(shiftId), shift);
+        }
+        renderCalendar();
+    } catch (err) {
+        console.error('[calendar] Error in handleShiftDropOnDate:', err);
+        alert('An error occurred while moving the event. Please try again.');
+    }
+}
+
+// Drag start: begin dragging a single shift
+function handleDragStart(e) {
+    const shiftEl = e.target.closest('.shift');
+    if (!shiftEl) return;
+
+    const shiftId = shiftEl.getAttribute('data-id');
+    if (!shiftId) return;
+
+    state.draggedShiftId = shiftId;
+
+    if (e.dataTransfer) {
+        e.dataTransfer.effectAllowed = 'move';
+        // In case we need it on drop
+        try {
+            e.dataTransfer.setData('text/plain', shiftId);
+        } catch (err) {
+            console.warn('[calendar] Could not set dataTransfer text:', err);
+        }
+    }
+
+    // Show month navigation dropzones if available
+    try {
+        if (typeof showMonthNavigationDropzones === 'function') {
+            showMonthNavigationDropzones();
+        }
+    } catch (err) {
+        console.warn('[calendar] Could not show month navigation dropzones:', err);
+    }
+
+    shiftEl.classList.add('dragging');
+}
+
+// Drag end: clear drag state and hide dropzones
+function handleDragEnd(e) {
+    const shiftEl = e.target.closest('.shift');
+    if (shiftEl) {
+        shiftEl.classList.remove('dragging');
+    }
+
+    state.draggedShiftId = null;
+
+    // Hide navigation dropzones
+    hideMonthNavigationDropzones();
+}
+
+// Drag over: allow dropping on valid date cells
+function handleDragOver(e) {
+    e.preventDefault(); // Necessary so drop will fire
+    if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = 'move';
+    }
+
+    const cell = e.target.closest('td[data-date]');
+    if (!cell) return;
+
+    // Optional visual feedback
+    cell.classList.add('drag-over');
+}
+
+// Drop: move the shift to the target date (with conflict handling)
+function handleDrop(e) {
+    e.preventDefault();
+
+    const cell = e.target.closest('td[data-date]');
+    if (!cell) return;
+
+    const targetDateYMD = cell.getAttribute('data-date');
+    if (!targetDateYMD) return;
+
+    // Clear drag-over styles
+    cell.classList.remove('drag-over');
+
+    // Determine which shift is being dragged
+    let shiftId = state.draggedShiftId;
+    if (!shiftId && e.dataTransfer) {
+        try {
+            shiftId = e.dataTransfer.getData('text/plain') || shiftId;
+        } catch (err) {
+            console.warn('[calendar] Could not read dataTransfer on drop:', err);
+        }
+    }
+
+    if (!shiftId) {
+        console.warn('[calendar] No dragged shiftId found on drop');
+        return;
+    }
+
+    // Actually handle the move (with conflict detection)
+    handleShiftDropOnDate(shiftId, targetDateYMD);
+
+    // Reset drag state
+    state.draggedShiftId = null;
+
+    // Hide navigation dropzones after drop
+    hideMonthNavigationDropzones();
+}
