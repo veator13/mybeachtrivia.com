@@ -172,6 +172,34 @@ async function proceedWithWarningModal() {
                 if (!result || !result.ok) {
                     console.error('Override move failed:', result);
                     alert('Could not move the event even after override. Please try again.');
+                } else {
+                    // ✅ Keep local calendar state in sync on successful override
+                    const idStr = String(moveOp.shiftId);
+                    const updated = result.updatedShift || null;
+
+                    if (Array.isArray(shifts)) {
+                        if (updated) {
+                            const idx = shifts.findIndex(s => String(s.id) === idStr);
+                            if (idx !== -1) {
+                                shifts[idx] = updated;
+                            } else {
+                                shifts.push(updated);
+                            }
+                        } else {
+                            // Fallback: just bump the date locally
+                            const idx = shifts.findIndex(s => String(s.id) === idStr);
+                            if (idx !== -1) {
+                                shifts[idx] = {
+                                    ...shifts[idx],
+                                    date: moveOp.targetDateYMD
+                                };
+                            }
+                        }
+
+                        if (typeof renderCalendar === 'function') {
+                            renderCalendar();
+                        }
+                    }
                 }
             }
         } catch (err) {

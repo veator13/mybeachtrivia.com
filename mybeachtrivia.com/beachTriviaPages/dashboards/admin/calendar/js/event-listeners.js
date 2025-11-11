@@ -34,9 +34,10 @@ function attachEventListeners() {
         }, 50);
     });
     
-    // Add global dragend handler to ensure dropzones always get hidden
+    // Add global dragend handler to ensure dropzones and highlights always get hidden
     document.addEventListener('dragend', function() {
         hideMonthNavigationDropzones();
+        clearDragOverHighlights();
     });
     
     // Add global click handler to hide dropzones when clicking elsewhere
@@ -476,6 +477,13 @@ function populateTimeDropdowns() {
  *  DRAG & DROP HANDLERS
  * ========================= */
 
+// Helper: clear all drag-over highlights from calendar cells
+function clearDragOverHighlights() {
+    if (!elements || !elements.calendarBody) return;
+    const highlighted = elements.calendarBody.querySelectorAll('td.drag-over');
+    highlighted.forEach(cell => cell.classList.remove('drag-over'));
+}
+
 // Helper: handle the actual move when a shift is dropped onto a date cell
 async function handleShiftDropOnDate(shiftId, targetDateYMD) {
     if (!shiftId || !targetDateYMD) {
@@ -496,8 +504,24 @@ async function handleShiftDropOnDate(shiftId, targetDateYMD) {
                 ignoreConflicts: false
             });
 
-            // Success path – just re-render
+            // Success path – update local state + re-render
             if (result && result.ok) {
+                // If shiftService returned the updated shift, use it;
+                // otherwise just bump the date on the local copy.
+                const updatedShift = result.updatedShift || { ...shift, date: targetDateYMD };
+
+                if (Array.isArray(shifts)) {
+                    const idx = shifts.findIndex(s => String(s.id) === String(shiftId));
+                    if (idx !== -1) {
+                        shifts[idx] = updatedShift;
+                    } else {
+                        shifts.push(updatedShift);
+                    }
+                } else {
+                    // Fallback: keep the original object but update date
+                    shift.date = targetDateYMD;
+                }
+
                 renderCalendar();
                 return;
             }
@@ -583,8 +607,9 @@ function handleDragEnd(e) {
 
     state.draggedShiftId = null;
 
-    // Hide navigation dropzones
+    // Hide navigation dropzones and clear highlights
     hideMonthNavigationDropzones();
+    clearDragOverHighlights();
 }
 
 // Drag over: allow dropping on valid date cells
@@ -593,6 +618,9 @@ function handleDragOver(e) {
     if (e.dataTransfer) {
         e.dataTransfer.dropEffect = 'move';
     }
+
+    // Clear any previous highlights before setting the new one
+    clearDragOverHighlights();
 
     const cell = e.target.closest('td[data-date]');
     if (!cell) return;
@@ -611,8 +639,8 @@ function handleDrop(e) {
     const targetDateYMD = cell.getAttribute('data-date');
     if (!targetDateYMD) return;
 
-    // Clear drag-over styles
-    cell.classList.remove('drag-over');
+    // Clear drag-over styles from all cells
+    clearDragOverHighlights();
 
     // Determine which shift is being dragged
     let shiftId = state.draggedShiftId;
