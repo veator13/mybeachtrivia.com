@@ -59,7 +59,34 @@ function attachEventListeners() {
     
     // Modal buttons
     elements.cancelShiftBtn.addEventListener('click', closeShiftModal);
-    elements.cancelBookingBtn.addEventListener('click', closeWarningModal);
+    elements.cancelBookingBtn.addEventListener('click', () => {
+        // prevent focus-in-hidden warning
+        if (document.activeElement && typeof document.activeElement.blur === 'function') {
+            document.activeElement.blur();
+        }
+        closeWarningModal();
+    });
+
+    // "Proceed Anyway" button in the double-book warning modal
+    const proceedBookingBtn = document.getElementById('proceed-booking');
+    if (proceedBookingBtn) {
+        proceedBookingBtn.addEventListener('click', async function (e) {
+            e.preventDefault();
+            console.log('🟢 Proceed Anyway clicked – calling proceedWithWarningModal()');
+            if (typeof proceedWithWarningModal === 'function') {
+                try {
+                    await proceedWithWarningModal();
+                    console.log('✅ proceedWithWarningModal completed from click handler');
+                } catch (err) {
+                    console.error('❌ Error in proceedWithWarningModal:', err);
+                }
+            } else {
+                console.warn('⚠️ proceedWithWarningModal is not defined');
+            }
+        });
+    } else {
+        console.warn('⚠️ Proceed button #proceed-booking not found when attaching listeners');
+    }
     
     // Clear Day Modal Buttons
     const confirmClearDayBtn = document.getElementById('confirm-clear-day');
@@ -501,7 +528,9 @@ async function handleShiftDropOnDate(shiftId, targetDateYMD) {
         // Preferred path: use shift-service helper, which handles Firebase + conflicts
         if (typeof moveSingleShiftToDate === 'function') {
             const result = await moveSingleShiftToDate(shiftId, targetDateYMD, {
-                ignoreConflicts: false
+                ignoreConflicts: false,
+                // IMPORTANT: force conflict checks even if host isn't recognized in window.employees
+                ignoreUnknownHosts: false
             });
 
             // Success path – update local state + re-render
@@ -632,6 +661,7 @@ function handleDragOver(e) {
 // Drop: move the shift to the target date (with conflict handling)
 function handleDrop(e) {
     e.preventDefault();
+    e.stopPropagation();
 
     const cell = e.target.closest('td[data-date]');
     if (!cell) return;

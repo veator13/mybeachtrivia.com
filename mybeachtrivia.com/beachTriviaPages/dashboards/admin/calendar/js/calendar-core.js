@@ -1,622 +1,758 @@
-// Initialize calendar with error handling
-function initCalendar() {
-    try {
-        populateTimeDropdowns();
-        setupAccessibilitySupport();
-        renderCalendar();
-        attachEventListeners();
-        setupMonthNavigationDropzones();
-    } catch (error) {
-        console.error('Error initializing calendar:', error);
-        // Basic fallback rendering if advanced features fail
-        if (elements.calendarBody) {
-            elements.calendarBody.innerHTML = '<tr><td colspan="7">Calendar could not be loaded. Please refresh the page.</td></tr>';
-        }
+// calendar-core.js
+// Core calendar state, data loading, rendering helpers, filters & week utilities
+// v2025-11-13 — robust date normalization, safe init, and glue for UI/events.
+
+(function () {
+    /* =========================
+       Global state & handles
+    ========================= */
+    const elements = (window.elements ||= {});
+  
+    // Try a few likely IDs for resilience with older markup
+    function q(idOrSel) {
+      return (
+        document.getElementById(idOrSel) ||
+        document.querySelector(idOrSel) ||
+        null
+      );
     }
-}
-
-// Render the calendar - optimized to use fragments and avoid excessive DOM manipulation
-function renderCalendar() {
-    const firstDay = new Date(state.currentYear, state.currentMonth, 1);
-    const lastDay = new Date(state.currentYear, state.currentMonth + 1, 0);
-    const daysInMonth = lastDay.getDate();
-    const startingDayOfWeek = firstDay.getDay();
-
-    // Update month display
-    elements.currentMonthDisplay.textContent = getMonthYearString(state.currentYear, state.currentMonth);
-
-    // Create document fragment for better performance
-    const fragment = document.createDocumentFragment();
-    
-    // Variables for building the calendar
-    let date = 1;
-    
-    // Create the calendar rows and cells
-    for (let weekIndex = 0; weekIndex < 6; weekIndex++) {
-        // Create a table row
-        const row = document.createElement('tr');
-        
-        // Make rows keyboard navigable
-        row.setAttribute('role', 'row');
-        row.setAttribute('data-week-index', weekIndex);
-        
-        // Create week copy button cell
-        const weekCopyCell = document.createElement('td');
-        weekCopyCell.classList.add('week-copy-cell');
-        
-        // Create copy button for the week
-        const weekStartDate = new Date(state.currentYear, state.currentMonth, date - (weekIndex === 0 ? startingDayOfWeek : 0));
-        const weekCopyButton = document.createElement('span');
-        weekCopyButton.classList.add('week-copy-button');
-        weekCopyButton.setAttribute('tabindex', '0');
-        weekCopyButton.setAttribute('role', 'button');
-        weekCopyButton.setAttribute('aria-label', `Copy week starting ${getReadableDateString(weekStartDate)}`);
-        weekCopyButton.setAttribute('draggable', 'true');
-        weekCopyButton.setAttribute('data-week-index', weekIndex);
-        weekCopyButton.innerHTML = '⧉';
-        
-        weekCopyCell.appendChild(weekCopyButton);
-        
-        // NEW: Add week move button
-        const weekMoveButton = document.createElement('span');
-        weekMoveButton.classList.add('week-move-button');
-        weekMoveButton.setAttribute('tabindex', '0');
-        weekMoveButton.setAttribute('role', 'button');
-        weekMoveButton.setAttribute('aria-label', `Move week starting ${getReadableDateString(weekStartDate)}`);
-        weekMoveButton.setAttribute('draggable', 'true');
-        weekMoveButton.setAttribute('data-week-index', weekIndex);
-        weekMoveButton.innerHTML = '✥';
-        
-        weekCopyCell.appendChild(weekMoveButton);
-        
-        // Add week toggle button for collapsing/expanding all events in the week
-        const weekToggleButton = document.createElement('span');
-        weekToggleButton.classList.add('week-toggle-button');
-        weekToggleButton.setAttribute('tabindex', '0');
-        weekToggleButton.setAttribute('role', 'button');
-        weekToggleButton.setAttribute('aria-label', `Toggle all events for week starting ${getReadableDateString(weekStartDate)}`);
-        weekToggleButton.setAttribute('data-week-index', weekIndex);
-
-        // Determine if the week is fully collapsed
-        const isWeekCollapsed = isWeekFullyCollapsed(weekIndex);
-
-        // Create the triangle indicator based on current state
-        const weekTriangle = document.createElement('div');
-        weekTriangle.className = isWeekCollapsed ? 'triangle-right' : 'triangle-down';
-        weekToggleButton.appendChild(weekTriangle);
-
-        weekCopyCell.appendChild(weekToggleButton);
-        
-        // ADD NEW CODE: Week clear button
-        const weekClearButton = document.createElement('span');
-        weekClearButton.classList.add('week-clear-button');
-        weekClearButton.setAttribute('tabindex', '0');
-        weekClearButton.setAttribute('role', 'button');
-        weekClearButton.setAttribute('aria-label', `Clear all events for week starting ${getReadableDateString(weekStartDate)}`);
-        weekClearButton.setAttribute('data-week-index', weekIndex);
-        weekClearButton.innerHTML = '×';
-        
-        weekCopyCell.appendChild(weekClearButton);
-        
-        row.appendChild(weekCopyCell);
-        
-        // Create cells for each day of the week
-        for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
-            const cell = document.createElement('td');
-            cell.setAttribute('role', 'gridcell');
-            
-            if (weekIndex === 0 && dayIndex < startingDayOfWeek) {
-                // Previous month's days
-                renderPreviousMonthDay(cell, startingDayOfWeek, dayIndex);
-            } else if (date > daysInMonth) {
-                // Next month's days
-                renderNextMonthDay(cell, date, daysInMonth);
-                date++;
-            } else {
-                // Current month's days
-                renderCurrentMonthDay(cell, date);
-                date++;
-            }
-            
-            row.appendChild(cell);
-        }
-
-        // Create right week copy button cell (RIGHT SIDE - NEW CODE)
-        const rightWeekCopyCell = document.createElement('td');
-        rightWeekCopyCell.classList.add('week-copy-cell');
-        
-        // Create copy button for the week (right side)
-        const rightWeekCopyButton = document.createElement('span');
-        rightWeekCopyButton.classList.add('week-copy-button');
-        rightWeekCopyButton.setAttribute('tabindex', '0');
-        rightWeekCopyButton.setAttribute('role', 'button');
-        rightWeekCopyButton.setAttribute('aria-label', `Copy week starting ${getReadableDateString(weekStartDate)}`);
-        rightWeekCopyButton.setAttribute('draggable', 'true');
-        rightWeekCopyButton.setAttribute('data-week-index', weekIndex);
-        rightWeekCopyButton.innerHTML = '⧉';
-        
-        rightWeekCopyCell.appendChild(rightWeekCopyButton);
-        
-        // NEW: Add week move button for right side
-        const rightWeekMoveButton = document.createElement('span');
-        rightWeekMoveButton.classList.add('week-move-button');
-        rightWeekMoveButton.setAttribute('tabindex', '0');
-        rightWeekMoveButton.setAttribute('role', 'button');
-        rightWeekMoveButton.setAttribute('aria-label', `Move week starting ${getReadableDateString(weekStartDate)}`);
-        rightWeekMoveButton.setAttribute('draggable', 'true');
-        rightWeekMoveButton.setAttribute('data-week-index', weekIndex);
-        rightWeekMoveButton.innerHTML = '✥';
-        
-        rightWeekCopyCell.appendChild(rightWeekMoveButton);
-        
-        // Add week toggle button for right side
-        const rightWeekToggleButton = document.createElement('span');
-        rightWeekToggleButton.classList.add('week-toggle-button');
-        rightWeekToggleButton.setAttribute('tabindex', '0');
-        rightWeekToggleButton.setAttribute('role', 'button');
-        rightWeekToggleButton.setAttribute('aria-label', `Toggle all events for week starting ${getReadableDateString(weekStartDate)}`);
-        rightWeekToggleButton.setAttribute('data-week-index', weekIndex);
-
-        // Use the same collapsed state as the left button
-        const rightWeekTriangle = document.createElement('div');
-        rightWeekTriangle.className = isWeekCollapsed ? 'triangle-right' : 'triangle-down';
-        rightWeekToggleButton.appendChild(rightWeekTriangle);
-
-        rightWeekCopyCell.appendChild(rightWeekToggleButton);
-        
-        // ADD NEW CODE: Week clear button for right side
-        const rightWeekClearButton = document.createElement('span');
-        rightWeekClearButton.classList.add('week-clear-button');
-        rightWeekClearButton.setAttribute('tabindex', '0');
-        rightWeekClearButton.setAttribute('role', 'button');
-        rightWeekClearButton.setAttribute('aria-label', `Clear all events for week starting ${getReadableDateString(weekStartDate)}`);
-        rightWeekClearButton.setAttribute('data-week-index', weekIndex);
-        rightWeekClearButton.innerHTML = '×';
-        
-        rightWeekCopyCell.appendChild(rightWeekClearButton);
-        
-        row.appendChild(rightWeekCopyCell);
-
-        fragment.appendChild(row);
-        
-        // Stop if we've reached the end of the month
-        if (date > daysInMonth) {
-            break;
-        }
+  
+    function ensureElements() {
+      // Calendar table bits
+      elements.calendar = elements.calendar || q("calendar");
+      elements.calendarBody =
+        elements.calendarBody || q("calendar-body") || q("#calendar tbody");
+      elements.currentMonthDisplay =
+        elements.currentMonthDisplay || q("current-month");
+  
+      // Filters
+      elements.employeeSelect =
+        elements.employeeSelect ||
+        q("employee-select") ||
+        q("host-filter") ||
+        q('select[name="employee"]');
+      elements.eventSelect =
+        elements.eventSelect ||
+        q("event-select") ||
+        q("event-filter") ||
+        q('select[name="event-type"]');
+      elements.locationSelect =
+        elements.locationSelect ||
+        q("location-select") ||
+        q("location-filter") ||
+        q('select[name="location"]');
+  
+      // View buttons
+      elements.expandAllBtn =
+        elements.expandAllBtn || q("expand-all") || q('[data-action="expand"]');
+      elements.collapseAllBtn =
+        elements.collapseAllBtn ||
+        q("collapse-all") ||
+        q('[data-action="collapse"]');
+  
+      // Month nav buttons
+      elements.prevBtn =
+        elements.prevBtn ||
+        q("prev-month") ||
+        q("prevBtn") ||
+        q('[data-action="prev-month"]');
+      elements.nextBtn =
+        elements.nextBtn ||
+        q("next-month") ||
+        q("nextBtn") ||
+        q('[data-action="next-month"]');
+  
+      // Optional cross-month dropzones (owned by calendar-ui.js)
+      elements.prevMonthDropzone =
+        elements.prevMonthDropzone || q("prev-month-dropzone");
+      elements.nextMonthDropzone =
+        elements.nextMonthDropzone || q("next-month-dropzone");
+  
+      return elements;
     }
-
-    // Save scroll position before updating
-    const scrollPosition = {
-        x: window.scrollX,
-        y: window.scrollY
+  
+    // Calendar state
+    const state = (window.state ||= {
+      // Month being shown
+      currentYear: new Date().getFullYear(),
+      currentMonth: new Date().getMonth(),
+      initialLoad: true,
+  
+      // Filters
+      filters: { employee: "all", eventType: "all", location: "all" },
+  
+      // Expand/Collapse tracking
+      collapsedShifts: new Set(),
+  
+      // Drag state (calendar-ui.js also uses/extends these)
+      draggedShiftId: null,
+      isDragCopy: false,
+      isDragWeekCopy: false,
+      isDragWeekMove: false,
+      copyingDayShifts: [],
+      copyingWeekShifts: [],
+      movingWeekShifts: [],
+      sourceWeekIndex: null,
+      monthNavigationTimer: null,
+      isHoveringPrevMonth: false,
+      isHoveringNextMonth: false,
+      pendingCrossMonthDrag: null,
+    });
+  
+    // Data caches
+    window.employees ||= {}; // { id: "Display Name" }
+    window.employeesData ||= {}; // { id: {..., displayName, shortDisplayName} }
+    window.locationsData ||= {}; // { name: {...} }
+    window.shifts ||= []; // [{ id, date:'YYYY-MM-DD', startTime, endTime, ... }]
+  
+    // Event type labels (fallbacks)
+    window.eventTypes ||= {
+      "trivia": "Trivia",
+      "music-bingo": "Music Bingo",
+      "themed-trivia": "Themed Trivia",
+      "special-event": "Special Event",
     };
-
-    // Clear table and add new content
-    elements.calendarBody.innerHTML = '';
-    elements.calendarBody.appendChild(fragment);
-    
-    // Only focus today's cell on initial load, not on updates
-    if (state.initialLoad) {
-        setTimeout(() => {
-            focusTodayCell();
-            state.initialLoad = false;
-        }, 100);
-    } else {
-        // Restore scroll position
-        setTimeout(() => {
-            window.scrollTo(scrollPosition.x, scrollPosition.y);
-        }, 10);
+  
+    /* =========================
+       Date/Time helpers
+    ========================= */
+    function pad2(n) {
+      return String(n).padStart(2, "0");
     }
-    
-    // Announce month change for screen readers
-    announceForScreenReader(`Calendar showing ${getMonthYearString(state.currentYear, state.currentMonth)}`);
-    
-    // Ensure dropzones are hidden after rendering
-    hideMonthNavigationDropzones();
-}
-
-// Split rendering logic for different cell types
-function renderPreviousMonthDay(cell, startingDayOfWeek, dayIndex) {
-    cell.classList.add('other-month');
-    const prevMonthLastDay = new Date(state.currentYear, state.currentMonth, 0).getDate();
-    const prevDate = prevMonthLastDay - (startingDayOfWeek - dayIndex - 1);
-    
-    cell.innerHTML = `<div class="date">${prevDate}</div>`;
-}
-
-function renderNextMonthDay(cell, date, daysInMonth) {
-    cell.classList.add('other-month');
-    const nextDate = date - daysInMonth;
-    
-    cell.innerHTML = `<div class="date">${nextDate}</div>`;
-}
-
-function renderCurrentMonthDay(cell, date) {
-    const dateObj = new Date(state.currentYear, state.currentMonth, date);
-    const dateStr = formatDate(dateObj);
-    const isToday = isDateToday(dateObj);
-    
-    // Add today class if it's today
-    const dateClass = isToday ? 'date today' : 'date';
-    
-    // Create the cell content with ARIA attributes for accessibility
-    cell.innerHTML = `
+  
+    function formatDate(d) {
+      if (!(d instanceof Date)) d = new Date(d);
+      return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+    }
+    window.formatDate = window.formatDate || formatDate;
+  
+    function getReadableDateString(d) {
+      try {
+        if (!(d instanceof Date)) d = new Date(d);
+        return d.toLocaleDateString(undefined, {
+          weekday: "long",
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+        });
+      } catch {
+        return String(d);
+      }
+    }
+    window.getReadableDateString =
+      window.getReadableDateString || getReadableDateString;
+  
+    function isDateToday(d) {
+      const now = new Date();
+      return (
+        d.getFullYear() === now.getFullYear() &&
+        d.getMonth() === now.getMonth() &&
+        d.getDate() === now.getDate()
+      );
+    }
+    window.isDateToday = window.isDateToday || isDateToday;
+  
+    function getMonthYearString(year, monthIdx) {
+      const d = new Date(year, monthIdx, 1);
+      return d.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+    }
+    window.getMonthYearString =
+      window.getMonthYearString || getMonthYearString;
+  
+    // Normalize any stored date into 'YYYY-MM-DD'
+    function normalizeDateField(v) {
+      try {
+        if (!v) return "";
+        if (typeof v === "string") {
+          if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+          const d = new Date(v);
+          if (!isNaN(d)) return formatDate(d);
+          return "";
+        }
+        if (v && typeof v.toDate === "function") return formatDate(v.toDate()); // Firestore Timestamp
+        if (v instanceof Date) return formatDate(v);
+        return "";
+      } catch {
+        return "";
+      }
+    }
+  
+    function minutesFromTimeLabel(timeStr) {
+      if (!timeStr || typeof timeStr !== "string") return null;
+      let s = timeStr.trim().toUpperCase();
+  
+      // h[:mm] AM/PM
+      let m = s.match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/);
+      if (m) {
+        let h = parseInt(m[1], 10);
+        let min = m[2] ? parseInt(m[2], 10) : 0;
+        const mer = m[3];
+        if (mer === "PM" && h !== 12) h += 12;
+        if (mer === "AM" && h === 12) h = 0;
+        if (h >= 0 && h < 24 && min >= 0 && min < 60) return h * 60 + min;
+        return null;
+      }
+  
+      // 24h "HH:MM" or "HH"
+      m = s.match(/^(\d{1,2})(?::(\d{2}))?$/);
+      if (m) {
+        let h = parseInt(m[1], 10);
+        let min = m[2] ? parseInt(m[2], 10) : 0;
+        if (h >= 0 && h < 24 && min >= 0 && min < 60) return h * 60 + min;
+      }
+  
+      return null;
+    }
+  
+    /* =========================
+       Data loading (Firestore)
+    ========================= */
+    async function loadEmployeesFromFirebase() {
+      console.log("[calendar] Fetching employees...");
+      try {
+        const qs = await firebase.firestore().collection("employees").get();
+        let count = 0;
+        qs.forEach((doc) => {
+          const d = doc.data() || {};
+          const id = doc.id;
+          const firstName = (d.firstName || "").trim();
+          const lastName = (d.lastName || "").trim();
+          const nickname = (d.nickname || "").trim();
+          const shortDisplayName = nickname || firstName || "Unknown";
+          const fullDisplayName = nickname
+            ? `${nickname} (${firstName} ${lastName})`
+            : `${firstName} ${lastName}`.trim() || "Unknown";
+  
+          window.employees[id] = shortDisplayName;
+          window.employeesData[id] = {
+            ...d,
+            id,
+            displayName: fullDisplayName,
+            shortDisplayName,
+          };
+          count++;
+        });
+  
+        // Fill the host filter if present
+        if (elements.employeeSelect) {
+          // Preserve current selection
+          const prev = elements.employeeSelect.value;
+          elements.employeeSelect.innerHTML = "";
+          const optAll = document.createElement("option");
+          optAll.value = "all";
+          optAll.textContent = "All Hosts";
+          elements.employeeSelect.appendChild(optAll);
+          Object.entries(window.employeesData).forEach(([id, info]) => {
+            const o = document.createElement("option");
+            o.value = id;
+            o.textContent = info.displayName || window.employees[id] || id;
+            elements.employeeSelect.appendChild(o);
+          });
+          elements.employeeSelect.value = prev || "all";
+        }
+  
+        console.log("[calendar] Employees loaded:", count);
+      } catch (err) {
+        console.error("[calendar] Employees load error:", err);
+      }
+    }
+  
+    async function loadLocationsFromFirebase() {
+      console.log("[calendar] Fetching locations...");
+      try {
+        const qs = await firebase.firestore().collection("locations").get();
+        let count = 0;
+        window.locationsData = {};
+        qs.forEach((doc) => {
+          const d = doc.data() || {};
+          const id = doc.id;
+          const name = d.name || id;
+          window.locationsData[name] = { ...d, id };
+          count++;
+        });
+  
+        // Fill the location filter if present
+        if (elements.locationSelect) {
+          const prev = elements.locationSelect.value;
+          elements.locationSelect.innerHTML = "";
+          const optAll = document.createElement("option");
+          optAll.value = "all";
+          optAll.textContent = "All Locations";
+          elements.locationSelect.appendChild(optAll);
+          Object.keys(window.locationsData)
+            .sort()
+            .forEach((name) => {
+              const o = document.createElement("option");
+              o.value = name;
+              o.textContent = name;
+              elements.locationSelect.appendChild(o);
+            });
+          elements.locationSelect.value = prev || "all";
+        }
+  
+        console.log(
+          "[calendar] Locations loaded:",
+          Object.keys(window.locationsData).length
+        );
+      } catch (err) {
+        console.error("[calendar] Locations load error:", err);
+      }
+    }
+  
+    async function loadShiftsFromFirebase() {
+      console.log("[calendar] Fetching shifts...");
+      try {
+        const qs = await firebase.firestore().collection("shifts").get();
+        window.shifts = qs.docs.map((doc) => {
+          const d = doc.data() || {};
+  
+          // Normalize date immediately so downstream is simple
+          const dateStr = normalizeDateField(d.date);
+  
+          return {
+            id: doc.id,
+            ...d,
+            date: dateStr,
+          };
+        });
+  
+        // Sort once; day-level render will be relatively stable
+        window.shifts.sort((a, b) => {
+          if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+          const am = minutesFromTimeLabel(a.startTime) ?? -1;
+          const bm = minutesFromTimeLabel(b.startTime) ?? -1;
+          return am - bm;
+        });
+  
+        console.log("[calendar] Shifts loaded:", window.shifts.length);
+      } catch (err) {
+        console.error("[calendar] Shifts load error:", err);
+      }
+    }
+  
+    async function loadAllBaseData() {
+      ensureElements();
+      await loadEmployeesFromFirebase();
+      await loadLocationsFromFirebase();
+      await loadShiftsFromFirebase();
+      console.log("[calendar] All base data loaded, initializing UI...");
+    }
+  
+    /* =========================
+       Rendering (month grid)
+    ========================= */
+  
+    // --- API used by calendar-ui.js's renderCurrentMonthDay ---
+    function getShiftsForDate(dateStr) {
+      return (window.shifts || []).filter(
+        (shift) => normalizeDateField(shift.date) === dateStr
+      );
+    }
+    window.getShiftsForDate = getShiftsForDate;
+  
+    // The following functions are referenced in the user’s calendar-ui.js
+    function renderPreviousMonthDay(cell, startingDayOfWeek, dayIndex) {
+      cell.classList.add("other-month");
+      const prevMonthLastDay = new Date(
+        state.currentYear,
+        state.currentMonth,
+        0
+      ).getDate();
+      const prevDate = prevMonthLastDay - (startingDayOfWeek - dayIndex - 1);
+      cell.innerHTML = `<div class="date">${prevDate}</div>`;
+    }
+    window.renderPreviousMonthDay =
+      window.renderPreviousMonthDay || renderPreviousMonthDay;
+  
+    function renderNextMonthDay(cell, date, daysInMonth) {
+      cell.classList.add("other-month");
+      const nextDate = date - daysInMonth;
+      cell.innerHTML = `<div class="date">${nextDate}</div>`;
+    }
+    window.renderNextMonthDay =
+      window.renderNextMonthDay || renderNextMonthDay;
+  
+    function populateShifts(container, dateStr) {
+      if (!container) return;
+      try {
+        const dayShifts = getShiftsForDate(dateStr);
+        if (dayShifts.length === 0) return;
+  
+        // Apply filters and append
+        const frag = document.createDocumentFragment();
+        for (const shift of dayShifts) {
+          const passEmployee =
+            state.filters.employee === "all" ||
+            state.filters.employee === shift.employeeId;
+          const passType =
+            state.filters.eventType === "all" ||
+            state.filters.eventType === shift.type;
+          const passLoc =
+            state.filters.location === "all" ||
+            state.filters.location === shift.location;
+  
+          if (!(passEmployee && passType && passLoc)) continue;
+  
+          const node =
+            typeof window.createShiftElement === "function"
+              ? window.createShiftElement(shift)
+              : null;
+          if (node) frag.appendChild(node);
+        }
+        container.appendChild(frag);
+      } catch (err) {
+        console.error("Error populating shifts:", err);
+      }
+    }
+    window.populateShifts = window.populateShifts || populateShifts;
+  
+    function renderCurrentMonthDay(cell, date) {
+      const dateObj = new Date(state.currentYear, state.currentMonth, date);
+      const dateStr = formatDate(dateObj);
+      const today = isDateToday(dateObj);
+      const dateClass = today ? "date today" : "date";
+  
+      cell.innerHTML = `
         <div class="${dateClass}" aria-label="${getReadableDateString(dateObj)}">
-            ${date}
-            <span class="cell-copy-button" data-date="${dateStr}" tabindex="0" role="button" aria-label="Copy button for ${getReadableDateString(dateObj)}" draggable="true">⧉</span>
-            <span class="clear-day-button" data-date="${dateStr}" tabindex="0" role="button" aria-label="Clear all events on ${getReadableDateString(dateObj)}">×</span>
-            <span class="drag-day-button" data-date="${dateStr}" tabindex="0" role="button" aria-label="Drag all events on ${getReadableDateString(dateObj)}" draggable="true">✥</span>
-            <span class="add-button" data-date="${dateStr}" tabindex="0" role="button" aria-label="Add event on ${getReadableDateString(dateObj)}">+</span>
+          ${date}
+          <span class="cell-copy-button" data-date="${dateStr}" tabindex="0" role="button" aria-label="Copy button for ${getReadableDateString(
+        dateObj
+      )}" draggable="true">⧉</span>
+          <span class="clear-day-button" data-date="${dateStr}" tabindex="0" role="button" aria-label="Clear all events on ${getReadableDateString(
+        dateObj
+      )}">×</span>
+          <span class="drag-day-button" data-date="${dateStr}" tabindex="0" role="button" aria-label="Drag all events on ${getReadableDateString(
+        dateObj
+      )}" draggable="true">✥</span>
+          <span class="add-button" data-date="${dateStr}" tabindex="0" role="button" aria-label="Add event on ${getReadableDateString(
+        dateObj
+      )}">+</span>
         </div>
         <div class="shift-container" id="shifts-${dateStr}" data-date="${dateStr}"></div>
-    `;
-    
-    // Set date attribute for identifying the cell
-    cell.setAttribute('data-date', dateStr);
-    
-    // Add today highlight to the cell itself
-    if (isToday) {
-        cell.classList.add('today-cell');
-        cell.setAttribute('tabindex', '0');
+      `;
+  
+      cell.setAttribute("data-date", dateStr);
+      if (today) {
+        cell.classList.add("today-cell");
+        cell.setAttribute("tabindex", "0");
+      }
+      populateShifts(cell.querySelector(".shift-container"), dateStr);
     }
-    
-    // Populate shifts for this date
-    populateShifts(cell.querySelector('.shift-container'), dateStr);
-}
-
-// Navigation and filtering - with debouncing
-function goToPrevMonth(preserveDragState = false) {
-    // Force-hide dropzones at start when not preserving drag state
-    if (!preserveDragState) {
-        hideMonthNavigationDropzones();
+    window.renderCurrentMonthDay =
+      window.renderCurrentMonthDay || renderCurrentMonthDay;
+  
+    function handleFilterChange() {
+      ensureElements();
+      state.filters.employee = elements.employeeSelect?.value || "all";
+      state.filters.eventType = elements.eventSelect?.value || "all";
+      state.filters.location = elements.locationSelect?.value || "all";
+      // calendar-ui.js supplies renderCalendar()
+      if (typeof window.renderCalendar === "function") {
+        window.renderCalendar();
+      }
     }
-    
-    // Only reset drag state if not preserving it
-    if (!preserveDragState) {
-        // First, forcibly reset ANY lingering drag state
+    window.handleFilterChange = window.handleFilterChange || handleFilterChange;
+  
+    /* =========================
+       Week helpers (used by UI)
+    ========================= */
+    function getShiftsForWeek(weekIndex) {
+      const row = document.querySelector(`tr[data-week-index="${weekIndex}"]`);
+      if (!row) return [];
+      const dateCells = Array.from(
+        row.querySelectorAll("td:not(.week-copy-cell)")
+      );
+      const weekDates = dateCells
+        .map((c) => c.getAttribute("data-date"))
+        .filter(Boolean);
+  
+      const out = [];
+      for (const dateStr of weekDates) {
+        const day = getShiftsForDate(dateStr).filter((shift) => {
+          const passEmployee =
+            state.filters.employee === "all" ||
+            state.filters.employee === shift.employeeId;
+          const passType =
+            state.filters.eventType === "all" ||
+            state.filters.eventType === shift.type;
+          const passLoc =
+            state.filters.location === "all" ||
+            state.filters.location === shift.location;
+          return passEmployee && passType && passLoc;
+        });
+        out.push(...day);
+      }
+      return out;
+    }
+    window.getShiftsForWeek = window.getShiftsForWeek || getShiftsForWeek;
+  
+    function isWeekFullyCollapsed(weekIndex) {
+      const weekShifts = getShiftsForWeek(weekIndex);
+      if (weekShifts.length === 0) return false;
+      return weekShifts.every((s) => state.collapsedShifts.has(String(s.id)));
+    }
+    window.isWeekFullyCollapsed =
+      window.isWeekFullyCollapsed || isWeekFullyCollapsed;
+  
+    function isWeekEmpty(weekIndex) {
+      return getShiftsForWeek(weekIndex).length === 0;
+    }
+    window.isWeekEmpty = window.isWeekEmpty || isWeekEmpty;
+  
+    function getWeekDateMapping(sourceWeekIndex, targetWeekIndex) {
+      const sRow = document.querySelector(`tr[data-week-index="${sourceWeekIndex}"]`);
+      const tRow = document.querySelector(`tr[data-week-index="${targetWeekIndex}"]`);
+      if (!sRow || !tRow) return null;
+      const sCells = Array.from(sRow.querySelectorAll("td:not(.week-copy-cell)"));
+      const tCells = Array.from(tRow.querySelectorAll("td:not(.week-copy-cell)"));
+      if (sCells.length !== 7 || tCells.length !== 7) return null;
+  
+      const map = {};
+      for (let i = 0; i < 7; i++) {
+        const sDate = sCells[i].getAttribute("data-date");
+        const tDate = tCells[i].getAttribute("data-date");
+        if (sDate && tDate) map[sDate] = tDate;
+      }
+      return map;
+    }
+    window.getWeekDateMapping =
+      window.getWeekDateMapping || getWeekDateMapping;
+  
+    function getCrossMonthWeekDateMapping(targetWeekIndex) {
+      const tRow = document.querySelector(`tr[data-week-index="${targetWeekIndex}"]`);
+      if (!tRow) return null;
+  
+      const tCells = Array.from(tRow.querySelectorAll("td:not(.week-copy-cell)"));
+      if (tCells.length !== 7) return null;
+  
+      const sourceShifts = state.isDragWeekMove
+        ? state.movingWeekShifts
+        : state.copyingWeekShifts;
+      if (!sourceShifts || sourceShifts.length === 0) return null;
+  
+      const targetDates = tCells
+        .map((c) => c.getAttribute("data-date"))
+        .filter(Boolean)
+        .map((dateStr) => ({
+          dateStr,
+          dow: new Date(dateStr).getDay(),
+        }));
+  
+      const map = {};
+      for (const s of sourceShifts) {
+        const d = new Date(s.date);
+        const dow = d.getDay();
+        const match = targetDates.find((x) => x.dow === dow);
+        if (match) map[s.date] = match.dateStr;
+      }
+      return map;
+    }
+    window.getCrossMonthWeekDateMapping =
+      window.getCrossMonthWeekDateMapping || getCrossMonthWeekDateMapping;
+  
+    /* =========================
+       Month navigation (delegates)
+    ========================= */
+    function goToPrevMonth(preserveDragState = false) {
+      if (typeof window.hideMonthNavigationDropzones === "function" && !preserveDragState) {
+        window.hideMonthNavigationDropzones();
+      }
+      if (!preserveDragState) {
         state.draggedShiftId = null;
         state.isDragCopy = false;
         state.isDragWeekCopy = false;
-        state.isDragWeekMove = false; // NEW: Reset week move state
+        state.isDragWeekMove = false;
         state.copyingDayShifts = [];
         state.copyingWeekShifts = [];
-        state.movingWeekShifts = []; // NEW: Reset moving week shifts array
+        state.movingWeekShifts = [];
         state.sourceWeekIndex = null;
         state.pendingCrossMonthDrag = null;
         clearTimeout(state.monthNavigationTimer);
         state.isHoveringPrevMonth = false;
         state.isHoveringNextMonth = false;
-    }
-    
-    // Then proceed with normal month navigation
-    state.currentMonth--;
-    if (state.currentMonth < 0) {
+      }
+  
+      state.currentMonth--;
+      if (state.currentMonth < 0) {
         state.currentMonth = 11;
         state.currentYear--;
+      }
+  
+      if (typeof window.renderCalendar === "function") {
+        window.renderCalendar();
+        if (!preserveDragState && typeof window.hideMonthNavigationDropzones === "function") {
+          setTimeout(window.hideMonthNavigationDropzones, 100);
+        }
+      }
     }
-    
-    // Different behavior if we're in the middle of a drag operation
-    // This condition should include preserveDragState to determine if we're handling cross-month drag
-    if (preserveDragState || state.draggedShiftId || state.copyingDayShifts.length > 0 || 
-        state.copyingWeekShifts.length > 0 || state.movingWeekShifts.length > 0) { // Added check for movingWeekShifts
-        // Immediate render for drag operations to maintain context
-        renderCalendar();
-        
-        // Re-display dropzones if we're dragging
-        setTimeout(() => {
-            if (elements.prevMonthDropzone && elements.nextMonthDropzone) {
-                elements.prevMonthDropzone.style.display = 'flex';
-                elements.nextMonthDropzone.style.display = 'flex';
-                elements.prevMonthDropzone.style.opacity = '0.3';
-                elements.nextMonthDropzone.style.opacity = '0.3';
-            }
-        }, 50);
-    } else {
-        // Use renderCalendar directly
-        renderCalendar();
-        // Explicitly force hide dropzones with a slight delay
-        setTimeout(hideMonthNavigationDropzones, 100);
-    }
-}
-
-function goToNextMonth(preserveDragState = false) {
-    // Force-hide dropzones at start when not preserving drag state
-    if (!preserveDragState) {
-        hideMonthNavigationDropzones();
-    }
-    
-    // Only reset drag state if not preserving it
-    if (!preserveDragState) {
-        // First, forcibly reset ANY lingering drag state
+    window.goToPrevMonth = window.goToPrevMonth || goToPrevMonth;
+  
+    function goToNextMonth(preserveDragState = false) {
+      if (typeof window.hideMonthNavigationDropzones === "function" && !preserveDragState) {
+        window.hideMonthNavigationDropzones();
+      }
+      if (!preserveDragState) {
         state.draggedShiftId = null;
         state.isDragCopy = false;
         state.isDragWeekCopy = false;
-        state.isDragWeekMove = false; // NEW: Reset week move state
+        state.isDragWeekMove = false;
         state.copyingDayShifts = [];
         state.copyingWeekShifts = [];
-        state.movingWeekShifts = []; // NEW: Reset moving week shifts array
+        state.movingWeekShifts = [];
         state.sourceWeekIndex = null;
         state.pendingCrossMonthDrag = null;
         clearTimeout(state.monthNavigationTimer);
         state.isHoveringPrevMonth = false;
         state.isHoveringNextMonth = false;
-    }
-    
-    // Then proceed with normal month navigation
-    state.currentMonth++;
-    if (state.currentMonth > 11) {
+      }
+  
+      state.currentMonth++;
+      if (state.currentMonth > 11) {
         state.currentMonth = 0;
         state.currentYear++;
+      }
+  
+      if (typeof window.renderCalendar === "function") {
+        window.renderCalendar();
+        if (!preserveDragState && typeof window.hideMonthNavigationDropzones === "function") {
+          setTimeout(window.hideMonthNavigationDropzones, 100);
+        }
+      }
     }
-    
-    // Different behavior if we're in the middle of a drag operation
-    // This condition should include preserveDragState to determine if we're handling cross-month drag
-    if (preserveDragState || state.draggedShiftId || state.copyingDayShifts.length > 0 || 
-        state.copyingWeekShifts.length > 0 || state.movingWeekShifts.length > 0) { // Added check for movingWeekShifts
-        // Immediate render for drag operations to maintain context
-        renderCalendar();
-        
-        // Re-display dropzones if we're dragging
-        setTimeout(() => {
-            if (elements.prevMonthDropzone && elements.nextMonthDropzone) {
-                elements.prevMonthDropzone.style.display = 'flex';
-                elements.nextMonthDropzone.style.display = 'flex'; 
-                elements.prevMonthDropzone.style.opacity = '0.3';
-                elements.nextMonthDropzone.style.opacity = '0.3';
-            }
-        }, 50);
-    } else {
-        // Use renderCalendar directly
-        renderCalendar();
-        // Explicitly force hide dropzones with a slight delay
-        setTimeout(hideMonthNavigationDropzones, 100);
-    }
-}
-
-function handleFilterChange() {
-    state.filters.employee = elements.employeeSelect.value;
-    state.filters.eventType = elements.eventSelect.value;
-    state.filters.location = elements.locationSelect.value;
-    // Use renderCalendar directly
-    renderCalendar();
-}
-
-// Populate shifts for a specific date - with error handling
-// MODIFIED: Added better error handling for non-existent employee data
-function populateShifts(container, dateStr) {
-    if (!container) return;
-    
-    try {
-        const dayShifts = getShiftsForDate(dateStr);
-        
-        if (dayShifts.length === 0) return;
-        
-        const fragment = document.createDocumentFragment();
-        
-        dayShifts.forEach(shift => {
-            // Verify employee exists - ADDED CHECK
-            const employeeExists = employees[shift.employeeId] || 
-                                  (window.employeesData && window.employeesData[shift.employeeId]);
-                
-            // Apply filters
-            if ((state.filters.employee === 'all' || state.filters.employee === shift.employeeId) && 
-                (state.filters.eventType === 'all' || state.filters.eventType === shift.type) &&
-                (state.filters.location === 'all' || state.filters.location === shift.location)) {
-                
-                const shiftDiv = createShiftElement(shift);
-                if (shiftDiv) {
-                    fragment.appendChild(shiftDiv);
-                }
-            }
-        });
-        
-        container.appendChild(fragment);
-    } catch (error) {
-        console.error('Error populating shifts:', error);
-    }
-}
-
-// Get shifts for a specific date
-function getShiftsForDate(dateStr) {
-    return shifts.filter(shift => shift.date === dateStr);
-}
-
-// Handle cross-month drag navigation
-function handleCrossMonthDragNavigation(direction) {
-    console.log(`Navigating to ${direction} month during drag operation`);
-    
-    // Save the current drag operation state
-    const pendingDrag = {
+    window.goToNextMonth = window.goToNextMonth || goToNextMonth;
+  
+    function handleCrossMonthDragNavigation(direction) {
+      console.log(`Navigating to ${direction} month during drag operation`);
+      const pending = {
         draggedShiftId: state.draggedShiftId,
         isDragCopy: state.isDragCopy,
         isDragWeekCopy: state.isDragWeekCopy,
-        isDragWeekMove: state.isDragWeekMove, // NEW: Save week move state
+        isDragWeekMove: state.isDragWeekMove,
         copyingDayShifts: [...state.copyingDayShifts],
         copyingWeekShifts: [...state.copyingWeekShifts],
-        movingWeekShifts: [...state.movingWeekShifts], // NEW: Save moving week shifts
+        movingWeekShifts: [...state.movingWeekShifts],
         sourceWeekIndex: state.sourceWeekIndex,
-        // Store the current month/year so we can navigate back if needed
         sourceMonth: state.currentMonth,
-        sourceYear: state.currentYear
-    };
-    
-    // Store in state for after the month changes
-    state.pendingCrossMonthDrag = pendingDrag;
-    
-    // For week copies or moves, we need to preserve the source dates for mapping
-    if ((state.isDragWeekCopy || state.isDragWeekMove) && 
-        (state.copyingWeekShifts.length > 0 || state.movingWeekShifts.length > 0)) {
-        // Store all shift dates from source week for proper mapping later
-        const sourceDates = state.isDragWeekCopy ? 
-            state.copyingWeekShifts.map(shift => shift.date) : 
-            state.movingWeekShifts.map(shift => shift.date);
+        sourceYear: state.currentYear,
+      };
+      state.pendingCrossMonthDrag = pending;
+  
+      if ((state.isDragWeekCopy || state.isDragWeekMove) &&
+          (state.copyingWeekShifts.length > 0 || state.movingWeekShifts.length > 0)) {
+        const sourceDates = state.isDragWeekCopy
+          ? state.copyingWeekShifts.map((s) => s.date)
+          : state.movingWeekShifts.map((s) => s.date);
         state.pendingCrossMonthDrag.sourceDates = sourceDates;
-        console.log("Preserving source week dates for cross-month mapping:", sourceDates);
-    }
-    
-    // Hide the dropzones during transition
-    elements.prevMonthDropzone.classList.remove('active');
-    elements.nextMonthDropzone.classList.remove('active');
-    
-    // Navigate to the target month - pass true to preserve drag state
-    if (direction === 'prev') {
-        goToPrevMonth(true);
-    } else {
-        goToNextMonth(true);
-    }
-    
-    // Announce for screen readers
-    announceForScreenReader(`Moved to ${direction === 'prev' ? 'previous' : 'next'} month while dragging. Continue to drag to desired date.`);
-    
-    // After a short delay, restore the drag state in the new month
-    setTimeout(() => {
-        // Make sure we restore all the necessary drag state
-        state.draggedShiftId = pendingDrag.draggedShiftId;
-        state.isDragCopy = pendingDrag.isDragCopy;
-        state.isDragWeekCopy = pendingDrag.isDragWeekCopy;
-        state.isDragWeekMove = pendingDrag.isDragWeekMove; // NEW: Restore week move state
-        state.copyingDayShifts = pendingDrag.copyingDayShifts;
-        state.copyingWeekShifts = pendingDrag.copyingWeekShifts;
-        state.movingWeekShifts = pendingDrag.movingWeekShifts; // NEW: Restore moving week shifts
-        state.sourceWeekIndex = pendingDrag.sourceWeekIndex;
-        
-        // Reset hover states
+      }
+  
+      elements.prevMonthDropzone?.classList.remove("active");
+      elements.nextMonthDropzone?.classList.remove("active");
+  
+      if (direction === "prev") goToPrevMonth(true);
+      else goToNextMonth(true);
+  
+      if (typeof window.announceForScreenReader === "function") {
+        window.announceForScreenReader(
+          `Moved to ${direction === "prev" ? "previous" : "next"} month while dragging. Continue to drag to desired date.`
+        );
+      }
+  
+      setTimeout(() => {
+        state.draggedShiftId = pending.draggedShiftId;
+        state.isDragCopy = pending.isDragCopy;
+        state.isDragWeekCopy = pending.isDragWeekCopy;
+        state.isDragWeekMove = pending.isDragWeekMove;
+        state.copyingDayShifts = pending.copyingDayShifts;
+        state.copyingWeekShifts = pending.copyingWeekShifts;
+        state.movingWeekShifts = pending.movingWeekShifts;
+        state.sourceWeekIndex = pending.sourceWeekIndex;
         state.isHoveringPrevMonth = false;
         state.isHoveringNextMonth = false;
-    }, 50);
-}
-
-// Helper function to get all shifts for a specific week
-function getShiftsForWeek(weekIndex) {
-    // Get all calendar cells for this week
-    const weekRow = document.querySelector(`tr[data-week-index="${weekIndex}"]`);
-    if (!weekRow) return [];
-    
-    // Get all date cells (excluding the week copy cell)
-    const dateCells = Array.from(weekRow.querySelectorAll('td:not(.week-copy-cell)'));
-    
-    // Get unique dates from these cells
-    const weekDates = dateCells
-        .map(cell => cell.getAttribute('data-date'))
-        .filter(date => date !== null);
-    
-    // Get all shifts for these dates that match current filters
-    const weekShifts = [];
-    
-    weekDates.forEach(dateStr => {
-        if (!dateStr) return;
-        
-        const dayShifts = getShiftsForDate(dateStr).filter(shift => 
-            (state.filters.employee === 'all' || state.filters.employee === shift.employeeId) && 
-            (state.filters.eventType === 'all' || state.filters.eventType === shift.type) &&
-            (state.filters.location === 'all' || state.filters.location === shift.location)
+      }, 50);
+    }
+    window.handleCrossMonthDragNavigation =
+      window.handleCrossMonthDragNavigation || handleCrossMonthDragNavigation;
+  
+    /* =========================
+       Attach events (light)
+    ========================= */
+    function attachEventListeners() {
+      ensureElements();
+  
+      // Filters
+      elements.employeeSelect?.addEventListener("change", handleFilterChange);
+      elements.eventSelect?.addEventListener("change", handleFilterChange);
+      elements.locationSelect?.addEventListener("change", handleFilterChange);
+  
+      // Expand/collapse
+      elements.expandAllBtn?.addEventListener("click", () => {
+        if (typeof window.expandAllShifts === "function") window.expandAllShifts();
+      });
+      elements.collapseAllBtn?.addEventListener("click", () => {
+        if (typeof window.collapseAllShifts === "function")
+          window.collapseAllShifts();
+      });
+  
+      // Month nav
+      elements.prevBtn?.addEventListener("click", () => goToPrevMonth(false));
+      elements.nextBtn?.addEventListener("click", () => goToNextMonth(false));
+    }
+    window.attachEventListeners =
+      window.attachEventListeners || attachEventListeners;
+  
+    /* =========================
+       Init (safe)
+    ========================= */
+    function initCalendar() {
+      ensureElements();
+      try {
+        // UI helpers from calendar-ui.js (guard if not present)
+        if (typeof window.populateTimeDropdowns === "function")
+          window.populateTimeDropdowns();
+        if (typeof window.setupAccessibilitySupport === "function")
+          window.setupAccessibilitySupport();
+  
+        if (typeof window.renderCalendar === "function") window.renderCalendar();
+        attachEventListeners();
+  
+        if (typeof window.setupMonthNavigationDropzones === "function")
+          window.setupMonthNavigationDropzones();
+      } catch (error) {
+        console.error("Error initializing calendar:", error);
+        if (elements.calendarBody) {
+          elements.calendarBody.innerHTML =
+            '<tr><td colspan="7">Calendar could not be loaded. Please refresh the page.</td></tr>';
+        }
+      }
+    }
+    window.initCalendar = window.initCalendar || initCalendar;
+  
+    async function boot() {
+      // Wait for Firebase auth elsewhere; here we just fetch once DOM is ready
+      await loadAllBaseData();
+  
+      // Month caption
+      if (elements.currentMonthDisplay) {
+        elements.currentMonthDisplay.textContent = getMonthYearString(
+          state.currentYear,
+          state.currentMonth
         );
-        
-        weekShifts.push(...dayShifts);
-    });
-    
-    return weekShifts;
-}
-
-// Helper function to check if a week is fully collapsed
-function isWeekFullyCollapsed(weekIndex) {
-    // Get all shifts for this week
-    const weekShifts = getShiftsForWeek(weekIndex);
-    
-    // If no shifts, consider it expanded
-    if (weekShifts.length === 0) return false;
-    
-    // Check if all shifts are in the collapsed state
-    return weekShifts.every(shift => state.collapsedShifts.has(shift.id));
-}
-
-// Helper function to check if a week is empty
-function isWeekEmpty(weekIndex) {
-    const weekShifts = getShiftsForWeek(weekIndex);
-    return weekShifts.length === 0;
-}
-
-// Function to get date mapping for week to week copying
-function getWeekDateMapping(sourceWeekIndex, targetWeekIndex) {
-    const sourceRow = document.querySelector(`tr[data-week-index="${sourceWeekIndex}"]`);
-    const targetRow = document.querySelector(`tr[data-week-index="${targetWeekIndex}"]`);
-    
-    if (!sourceRow || !targetRow) return null;
-    
-    // Get all date cells (excluding week copy cell)
-    const sourceCells = Array.from(sourceRow.querySelectorAll('td:not(.week-copy-cell)'));
-    const targetCells = Array.from(targetRow.querySelectorAll('td:not(.week-copy-cell)'));
-    
-    // Skip if any row doesn't have 7 day cells
-    if (sourceCells.length !== 7 || targetCells.length !== 7) return null;
-    
-    // Create a mapping from source dates to target dates
-    const dateMapping = {};
-    
-    // Match by day of week (cell index)
-    for (let i = 0; i < 7; i++) {
-        const sourceDate = sourceCells[i].getAttribute('data-date');
-        const targetDate = targetCells[i].getAttribute('data-date');
-        
-        if (sourceDate && targetDate) {
-            dateMapping[sourceDate] = targetDate;
-        }
+      }
+  
+      initCalendar();
+  
+      // After first render, focus today
+      if (state.initialLoad && typeof window.focusTodayCell === "function") {
+        setTimeout(() => {
+          window.focusTodayCell?.();
+          state.initialLoad = false;
+        }, 100);
+      }
     }
-    
-    return dateMapping;
-}
-
-// Function to handle cross-month week date mapping
-function getCrossMonthWeekDateMapping(targetWeekIndex) {
-    // Find the target week row
-    const targetRow = document.querySelector(`tr[data-week-index="${targetWeekIndex}"]`);
-    if (!targetRow) {
-        console.error("Target week row not found");
-        return null;
+  
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", boot);
+    } else {
+      boot();
     }
-    
-    // Get all date cells in the target week (excluding week copy cell)
-    const targetCells = Array.from(targetRow.querySelectorAll('td:not(.week-copy-cell)'));
-    
-    // Skip if target week doesn't have 7 day cells
-    if (targetCells.length !== 7) {
-        console.error("Target week doesn't have 7 day cells");
-        return null;
-    }
-    
-    // Create a mapping from source dates to target dates
-    const dateMapping = {};
-    
-    // Get the source shifts and their dates
-    const sourceShifts = state.isDragWeekMove ? state.movingWeekShifts : state.copyingWeekShifts;
-    if (!sourceShifts || sourceShifts.length === 0) {
-        console.error("No source shifts found for mapping");
-        return null;
-    }
-    
-    // Get the dates from the target week cells
-    const targetDatesWithDayOfWeek = targetCells.map(cell => {
-        const dateStr = cell.getAttribute('data-date');
-        if (!dateStr) return null;
-        
-        return {
-            dateStr: dateStr,
-            dayOfWeek: new Date(dateStr).getDay() // 0-6
-        };
-    }).filter(Boolean);
-    
-    // For each source shift, find which day of week it was on
-    sourceShifts.forEach(shift => {
-        const shiftDate = new Date(shift.date);
-        const dayOfWeek = shiftDate.getDay(); // 0-6
-        
-        // Find the target date with matching day of week
-        const targetInfo = targetDatesWithDayOfWeek.find(t => t.dayOfWeek === dayOfWeek);
-        if (targetInfo) {
-            dateMapping[shift.date] = targetInfo.dateStr;
-        }
-    });
-    
-    console.log("Created cross-month date mapping:", dateMapping);
-    return dateMapping;
-}
+  })();

@@ -1,24 +1,67 @@
 /**
  * Beach Trivia – Admin Calendar
- * main.js (v2025-10-21)
- * Handles Firebase loads (employees, locations, shifts) + initialization
- * Also manages cross-month dropzone visibility for drag/copy/move flows.
+ * main.js (v2025-11-13)
+ * Loads employees, locations, and shifts from Firestore, wires auth + UI,
+ * and keeps globals (window.*) in sync with calendar-ui.js / calendar-core.js.
  */
 
-/* ===== REQUIRED GLOBALS (used by utilities.js and calendar-ui.js) ===== */
+/* ===== Globals / Defaults ===== */
 window.cache = window.cache || { dateStrings: {}, timeMinutes: {} };
 window.eventTypes = window.eventTypes || {
   'classic-trivia': 'Classic Trivia',
-  'themed-trivia':  'Themed Trivia',
-  'classic-bingo':  'Classic Bingo',
-  'music-bingo':    'Music Bingo',
-  'beach-feud':     'Beach Feud'
+  'themed-trivia' : 'Themed Trivia',
+  'classic-bingo' : 'Classic Bingo',
+  'music-bingo'   : 'Music Bingo',
+  'beach-feud'    : 'Beach Feud'
 };
 
+// Shared app state (calendar-core / calendar-ui read these)
+const state = (window.state ||= {
+  currentDate: new Date(),
+  currentMonth: new Date().getMonth(),
+  currentYear: new Date().getFullYear(),
+  filters: { employee: 'all', eventType: 'all', location: 'all' },
+
+  dataLoaded: false,
+  isLoadingData: false,
+
+  // edit flow
+  editingShiftId: null,
+  isEditing: false,
+  pendingShiftData: null,
+  forceBooking: false,
+
+  // collapse
+  collapsedShifts: new Set(),
+
+  // drag / copy / move (used by dropzones visibility logic)
+  draggedShiftId: null,
+  isDragCopy: false,
+  isDragDayMove: false,
+  isDragWeekCopy: false,
+  isDragWeekMove: false,
+
+  copyingDayShifts: [],
+  copyingWeekShifts: [],
+  movingDayShifts: [],
+  movingWeekShifts: [],
+
+  sourceWeekIndex: null,
+
+  currentHoveredCell: null,
+  currentHoveredRow: null,
+
+  // cross-month drag helpers
+  pendingCrossMonthDrag: null,
+  monthNavigationTimer: null,
+  isHoveringPrevMonth: false,
+  isHoveringNextMonth: false
+});
+
 /* ------------------------------
- * Global Move Operation (drag/copy flows)
+ * Global Move Operation (legacy alias some code still reads)
  * ------------------------------ */
-let globalMoveOperation = {
+window.globalMoveOperation = window.globalMoveOperation || {
   shiftId: null,
   targetDate: null,
   active: false,
@@ -28,116 +71,102 @@ let globalMoveOperation = {
 };
 
 /* ------------------------------
- * Cached DOM Elements
+ * Elements (keep in window.elements so other files share refs)
  * ------------------------------ */
-const elements = {
-  calendarBody: document.getElementById('calendar-body'),
-  currentMonthDisplay: document.getElementById('current-month'),
-  prevMonthBtn: document.getElementById('prev-month'),
-  nextMonthBtn: document.getElementById('next-month'),
-  employeeSelect: document.getElementById('employee-select'),
-  eventSelect: document.getElementById('event-select'),
-  locationSelect: document.getElementById('location-select'),
-  expandAllBtn: document.getElementById('expand-all-btn'),
-  collapseAllBtn: document.getElementById('collapse-all-btn'),
+const elements = (window.elements ||= {});
+function refreshElementRefs() {
+  elements.calendarBody       = elements.calendarBody       || document.getElementById('calendar-body');
+  elements.currentMonthDisplay= elements.currentMonthDisplay|| document.getElementById('current-month');
+  elements.prevMonthBtn       = elements.prevMonthBtn       || document.getElementById('prev-month');
+  elements.nextMonthBtn       = elements.nextMonthBtn       || document.getElementById('next-month');
+  elements.employeeSelect     = elements.employeeSelect     || document.getElementById('employee-select');
+  elements.eventSelect        = elements.eventSelect        || document.getElementById('event-select');
+  elements.locationSelect     = elements.locationSelect     || document.getElementById('location-select');
+  elements.expandAllBtn       = elements.expandAllBtn       || document.getElementById('expand-all-btn');
+  elements.collapseAllBtn     = elements.collapseAllBtn     || document.getElementById('collapse-all-btn');
 
-  shiftModal: document.getElementById('shift-modal'),
-  shiftForm: document.getElementById('shift-form'),
-  shiftDateInput: document.getElementById('shift-date'),
-  startTimeSelect: document.getElementById('start-time'),
-  endTimeSelect: document.getElementById('end-time'),
-  shiftTypeSelect: document.getElementById('shift-type'),
-  themeField: document.getElementById('theme-field'),
-  shiftThemeInput: document.getElementById('shift-theme'),
-  shiftEmployeeSelect: document.getElementById('shift-employee'),
-  shiftLocationSelect: document.getElementById('shift-location'),
-  shiftNotesInput: document.getElementById('shift-notes'),
+  elements.shiftModal         = elements.shiftModal         || document.getElementById('shift-modal');
+  elements.shiftForm          = elements.shiftForm          || document.getElementById('shift-form');
+  elements.shiftDateInput     = elements.shiftDateInput     || document.getElementById('shift-date');
+  elements.startTimeSelect    = elements.startTimeSelect    || document.getElementById('start-time');
+  elements.endTimeSelect      = elements.endTimeSelect      || document.getElementById('end-time');
+  elements.shiftTypeSelect    = elements.shiftTypeSelect    || document.getElementById('shift-type');
+  elements.themeField         = elements.themeField         || document.getElementById('theme-field');
+  elements.shiftThemeInput    = elements.shiftThemeInput    || document.getElementById('shift-theme');
+  elements.shiftEmployeeSelect= elements.shiftEmployeeSelect|| document.getElementById('shift-employee');
+  elements.shiftLocationSelect= elements.shiftLocationSelect|| document.getElementById('shift-location');
+  elements.shiftNotesInput    = elements.shiftNotesInput    || document.getElementById('shift-notes');
 
-  cancelShiftBtn: document.getElementById('cancel-shift'),
-  modalTitle: document.querySelector('.modal-content h2'),
-  submitButton: document.querySelector('.button-group button[type="submit"]'),
+  elements.cancelShiftBtn     = elements.cancelShiftBtn     || document.getElementById('cancel-shift');
+  elements.modalTitle         = elements.modalTitle         || document.querySelector('.modal-content h2');
+  elements.submitButton       = elements.submitButton       || document.querySelector('.button-group button[type="submit"]');
 
-  warningModal: document.getElementById('warning-modal'),
-  warningText: document.getElementById('warning-text'),
-  conflictDetails: document.getElementById('conflict-details'),
-  cancelBookingBtn: document.getElementById('cancel-booking'),
-  proceedBookingBtn: document.getElementById('proceed-booking'),
+  elements.warningModal       = elements.warningModal       || document.getElementById('warning-modal');
+  elements.warningText        = elements.warningText        || document.getElementById('warning-text');
+  elements.conflictDetails    = elements.conflictDetails    || document.getElementById('conflict-details');
+  elements.cancelBookingBtn   = elements.cancelBookingBtn   || document.getElementById('cancel-booking');
+  elements.proceedBookingBtn  = elements.proceedBookingBtn  || document.getElementById('proceed-booking');
 
-  addNewHostBtn: document.getElementById('add-new-host-btn'),
-  newHostModal: document.getElementById('new-host-modal'),
-  newHostForm: document.getElementById('new-host-form'),
-  cancelNewHostBtn: document.getElementById('cancel-new-host'),
+  elements.addNewHostBtn      = elements.addNewHostBtn      || document.getElementById('add-new-host-btn');
+  elements.newHostModal       = elements.newHostModal       || document.getElementById('new-host-modal');
+  elements.newHostForm        = elements.newHostForm        || document.getElementById('new-host-form');
+  elements.cancelNewHostBtn   = elements.cancelNewHostBtn   || document.getElementById('cancel-new-host');
 
-  addNewLocationBtn: document.getElementById('add-new-location-btn'),
-  newLocationModal: document.getElementById('new-location-modal'),
-  newLocationForm: document.getElementById('new-location-form'),
-  cancelNewLocationBtn: document.getElementById('cancel-new-location'),
+  elements.addNewLocationBtn  = elements.addNewLocationBtn  || document.getElementById('add-new-location-btn');
+  elements.newLocationModal   = elements.newLocationModal   || document.getElementById('new-location-modal');
+  elements.newLocationForm    = elements.newLocationForm    || document.getElementById('new-location-form');
+  elements.cancelNewLocationBtn=elements.cancelNewLocationBtn|| document.getElementById('cancel-new-location');
 
-  // Cross-month dropzones
-  prevMonthDropzone: document.getElementById('prev-month-dropzone'),
-  nextMonthDropzone: document.getElementById('next-month-dropzone')
-};
+  // Cross-month dropzones (used by calendar-ui.js too)
+  elements.prevMonthDropzone  = elements.prevMonthDropzone  || document.getElementById('prev-month-dropzone');
+  elements.nextMonthDropzone  = elements.nextMonthDropzone  || document.getElementById('next-month-dropzone');
+}
+refreshElementRefs();
 
 /* ------------------------------
- * State Management
+ * Global Data Stores (use window.* so every file sees the same arrays)
  * ------------------------------ */
-const state = {
-  currentDate: new Date(),
-  currentMonth: new Date().getMonth(),
-  currentYear: new Date().getFullYear(),
-  filters: { employee: 'all', eventType: 'all', location: 'all' },
-
-  dataLoaded: false,
-  isLoadingData: false,
-
-  // Edit flow
-  editingShiftId: null,
-  isEditing: false,
-  pendingShiftData: null,
-  forceBooking: false,
-
-  // Collapse state
-  collapsedShifts: new Set(),
-
-  // Drag/copy/move flags used to decide whether cross-month dropzones should stay visible
-  draggedShiftId: null,
-  isDragCopy: false,
-  isDragDayMove: false,
-  isDragWeekCopy: false,
-  isDragWeekMove: false,         // week move flow
-
-  copyingDayShifts: [],
-  copyingWeekShifts: [],
-  movingDayShifts: [],
-  movingWeekShifts: [],          // week move flow
-
-  sourceWeekIndex: null,
-
-  // Hover state used by drag handlers (optional)
-  currentHoveredCell: null,
-  currentHoveredRow: null,
-
-  // Cross-month drag helpers
-  pendingCrossMonthDrag: null,
-  monthNavigationTimer: null,
-  isHoveringPrevMonth: false,
-  isHoveringNextMonth: false
-};
+window.employees     = window.employees     || {};  // {id: shortDisplayName}
+window.employeesData = window.employeesData || {};  // {id, displayName, shortDisplayName, ...}
+window.locationsData = window.locationsData || {};  // {name: {...}}
+window.shifts        = window.shifts        || [];  // [{ id, date:'YYYY-MM-DD', ... }]
 
 /* ------------------------------
- * Global Data Caches
+ * Utilities
  * ------------------------------ */
-const employees = {};
-window.employeesData = {};
-window.locationsData = {};
-let shifts = [];
+function toYMD(input) {
+  if (!input) return '';
+  if (typeof input === 'string') {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(input)) return input;
+    const d = new Date(input);
+    if (!isNaN(d)) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const da = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${da}`;
+    }
+    return '';
+  }
+  if (input && typeof input.toDate === 'function') {
+    const d = input.toDate();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const da = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${da}`;
+  }
+  if (input instanceof Date) {
+    const y = input.getFullYear();
+    const m = String(input.getMonth() + 1).padStart(2, '0');
+    const da = String(input.getDate()).padStart(2, '0');
+    return `${y}-${m}-${da}`;
+  }
+  return '';
+}
 
-/* ------------------------------
- * Dropdown Helpers
- * ------------------------------ */
 function addEmployeeToDropdowns(id, name) {
-  const opts = [elements.employeeSelect, elements.shiftEmployeeSelect];
-  opts.forEach(sel => {
+  const targets = [elements.employeeSelect, elements.shiftEmployeeSelect];
+  targets.forEach((sel) => {
+    if (!sel) return;
     if (!sel.querySelector(`option[value="${id}"]`)) {
       const o = document.createElement('option');
       o.value = id;
@@ -148,8 +177,9 @@ function addEmployeeToDropdowns(id, name) {
 }
 
 function addLocationToDropdowns(name) {
-  const opts = [elements.locationSelect, elements.shiftLocationSelect];
-  opts.forEach(sel => {
+  const targets = [elements.locationSelect, elements.shiftLocationSelect];
+  targets.forEach((sel) => {
+    if (!sel) return;
     if (!sel.querySelector(`option[value="${name}"]`)) {
       const o = document.createElement('option');
       o.value = name;
@@ -160,7 +190,7 @@ function addLocationToDropdowns(name) {
 }
 
 /* ------------------------------
- * Helpers for Dropzones
+ * Dropzone helpers (exposed)
  * ------------------------------ */
 function hideMonthDropzones() {
   if (!elements.prevMonthDropzone || !elements.nextMonthDropzone) return;
@@ -171,7 +201,6 @@ function hideMonthDropzones() {
   elements.prevMonthDropzone.classList.remove('active');
   elements.nextMonthDropzone.classList.remove('active');
 }
-
 function showMonthDropzones() {
   if (!elements.prevMonthDropzone || !elements.nextMonthDropzone) return;
   elements.prevMonthDropzone.style.display = 'flex';
@@ -183,44 +212,50 @@ function showMonthDropzones() {
     elements.nextMonthDropzone.classList.add('active');
   });
 }
-
-// Used by a MutationObserver to decide if dropzones should remain visible
 function isValidDragOperation() {
   return (
     state.draggedShiftId !== null ||
     state.copyingDayShifts.length > 0 ||
     state.copyingWeekShifts.length > 0 ||
     state.movingDayShifts.length > 0 ||
+    state.movingWeekShifts.length > 0 ||
     state.isDragCopy ||
-    state.isDragWeekCopy ||
     state.isDragDayMove ||
-    state.isDragWeekMove ||
-    state.movingWeekShifts.length > 0
+    state.isDragWeekCopy ||
+    state.isDragWeekMove
   );
 }
+// make them available if other files want them
+window.hideMonthDropzones = window.hideMonthDropzones || hideMonthDropzones;
+window.showMonthDropzones = window.showMonthDropzones || showMonthDropzones;
 
 /* ------------------------------
- * Firestore Data Loads
+ * Firestore Loads
  * ------------------------------ */
 async function fetchEmployeesFromFirebase() {
   console.log('[calendar] Fetching employees...');
   const db = firebase.firestore();
   const qs = await db.collection('employees').get();
 
-  while (elements.employeeSelect.options.length > 1) elements.employeeSelect.remove(1);
-  while (elements.shiftEmployeeSelect.options.length > 1) elements.shiftEmployeeSelect.remove(1);
+  // clear dropdowns (keep "All" option at index 0 if present)
+  if (elements.employeeSelect) {
+    while (elements.employeeSelect.options.length > 1) elements.employeeSelect.remove(1);
+  }
+  if (elements.shiftEmployeeSelect) {
+    while (elements.shiftEmployeeSelect.options.length > 1) elements.shiftEmployeeSelect.remove(1);
+  }
 
-  qs.forEach(doc => {
-    const d = doc.data();
+  qs.forEach((doc) => {
+    const d = doc.data() || {};
     const id = doc.id;
     const display = d.nickname
       ? `${d.nickname} (${d.firstName} ${d.lastName})`
-      : `${d.firstName} ${d.lastName}`;
+      : `${d.firstName} ${d.lastName}`.trim();
     const short = d.nickname || `${d.firstName} ${d.lastName?.charAt(0) ?? ''}.`;
 
-    employees[id] = short;
+    window.employees[id] = short;
     window.employeesData[id] = { ...d, id, displayName: display, shortDisplayName: short };
-    addEmployeeToDropdowns(id, display);
+    addEmployeeToDropdowns(id, display || short || id);
   });
   console.log(`[calendar] Employees loaded: ${qs.size}`);
 }
@@ -232,11 +267,15 @@ async function fetchLocationsFromFirebase() {
     const qs = await db.collection('locations').get();
     window.locationsData = {};
 
-    while (elements.locationSelect.options.length > 1) elements.locationSelect.remove(1);
-    while (elements.shiftLocationSelect.options.length > 1) elements.shiftLocationSelect.remove(1);
+    if (elements.locationSelect) {
+      while (elements.locationSelect.options.length > 1) elements.locationSelect.remove(1);
+    }
+    if (elements.shiftLocationSelect) {
+      while (elements.shiftLocationSelect.options.length > 1) elements.shiftLocationSelect.remove(1);
+    }
 
-    qs.forEach(doc => {
-      const d = doc.data();
+    qs.forEach((doc) => {
+      const d = doc.data() || {};
       if (!d.name) return;
       window.locationsData[d.name] = { ...d, id: doc.id };
       addLocationToDropdowns(d.name);
@@ -252,17 +291,59 @@ async function loadShiftsFromFirebase() {
   const db = firebase.firestore();
   try {
     const qs = await db.collection('shifts').get();
-    shifts = qs.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    console.log(`[calendar] Shifts loaded: ${shifts.length}`);
+
+    // IMPORTANT: write to window.shifts so calendar-ui/core see the data
+    window.shifts = qs.docs.map((doc) => {
+      const d = doc.data() || {};
+      return {
+        id: doc.id,
+        ...d,
+        // normalize date field for strict equality matches
+        date: toYMD(d.date)
+      };
+    });
+
+    // Stable sort: by date then startTime minutes
+    window.shifts.sort((a, b) => {
+      if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+
+      const tm = (s) => {
+        if (!s || typeof s !== 'string') return -1;
+        let t = s.trim().toUpperCase();
+        // "h[:mm] AM/PM"
+        let m = t.match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/);
+        if (m) {
+          let h = parseInt(m[1], 10);
+          let min = m[2] ? parseInt(m[2], 10) : 0;
+          const mer = m[3];
+          if (mer === 'PM' && h !== 12) h += 12;
+          if (mer === 'AM' && h === 12) h = 0;
+          return h * 60 + min;
+        }
+        // "HH:MM" 24h
+        m = t.match(/^(\d{1,2})(?::(\d{2}))?$/);
+        if (m) {
+          let h = parseInt(m[1], 10);
+          let min = m[2] ? parseInt(m[2], 10) : 0;
+          return h * 60 + min;
+        }
+        return -1;
+      };
+
+      return tm(a.startTime) - tm(b.startTime);
+    });
+
+    console.log(`[calendar] Shifts loaded: ${window.shifts.length}`);
   } catch (err) {
     console.error('[calendar] Missing or insufficient permissions for shifts:', err);
   }
 }
 
 /* ------------------------------
- * Initialization
+ * Init flow (auth → loads → initCalendar)
  * ------------------------------ */
 document.addEventListener('DOMContentLoaded', () => {
+  refreshElementRefs();
   console.log('DOM ready – waiting for Firebase Auth');
 
   firebase.auth().onAuthStateChanged(async (user) => {
@@ -275,24 +356,35 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('[calendar] Auth ready for', user.email);
 
     try {
-      // Load employees + locations + shifts (admin-only)
+      // Load employees + locations + shifts
       await fetchEmployeesFromFirebase();
       await fetchLocationsFromFirebase();
       await loadShiftsFromFirebase();
 
       console.log('[calendar] All base data loaded, initializing UI...');
-      if (typeof initCalendar === 'function') initCalendar();
+      // Initialize calendar (calendar-core provides initCalendar)
+      if (typeof window.initCalendar === 'function') {
+        window.initCalendar();
+      }
 
-      // Post-init: ensure dropzones get cleared after month nav button clicks
+      // Keep month label synced on first paint if element exists
+      if (elements.currentMonthDisplay && window.getMonthYearString) {
+        elements.currentMonthDisplay.textContent = window.getMonthYearString(
+          state.currentYear,
+          state.currentMonth
+        );
+      }
+
+      // Ensure dropzones get cleared after month nav clicks
       setTimeout(() => {
         if (elements.prevMonthBtn) {
           elements.prevMonthBtn.addEventListener('click', () => {
-            setTimeout(() => hideMonthDropzones(), 100);
+            setTimeout(hideMonthDropzones, 100);
           });
         }
         if (elements.nextMonthBtn) {
           elements.nextMonthBtn.addEventListener('click', () => {
-            setTimeout(() => hideMonthDropzones(), 100);
+            setTimeout(hideMonthDropzones, 100);
           });
         }
       }, 300);
@@ -302,7 +394,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
           if (elements.prevMonthDropzone && elements.nextMonthDropzone) {
             const observePrev = new MutationObserver((mutations) => {
-              mutations.forEach((m) => {
+              for (const m of mutations) {
                 if (
                   m.attributeName === 'style' &&
                   elements.prevMonthDropzone.style.display === 'flex' &&
@@ -310,11 +402,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 ) {
                   hideMonthDropzones();
                 }
-              });
+              }
             });
-
             const observeNext = new MutationObserver((mutations) => {
-              mutations.forEach((m) => {
+              for (const m of mutations) {
                 if (
                   m.attributeName === 'style' &&
                   elements.nextMonthDropzone.style.display === 'flex' &&
@@ -322,9 +413,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 ) {
                   hideMonthDropzones();
                 }
-              });
+              }
             });
-
             observePrev.observe(elements.prevMonthDropzone, { attributes: true });
             observeNext.observe(elements.nextMonthDropzone, { attributes: true });
             console.log('Dropzone visibility observers initialized');

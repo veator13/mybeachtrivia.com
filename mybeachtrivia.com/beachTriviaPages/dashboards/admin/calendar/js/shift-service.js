@@ -1,8 +1,11 @@
-// shift-service.js
+// js/shift-service.js
 // Shared service for consistent shift data handling between dashboard and calendar
-// v2025-10-21
+// v2025-11-13 (adds same-day double-book conflicts; syncs dateYMD/start/end/startTimestamp/endTimestamp on save/update/move;
+// populates numeric start/end in read models for UI sorting)
 
 (function () {
+  const LOG = '[ShiftService]';
+
   /**
    * Small utilities (local fallback if global DateUtils isn't present)
    */
@@ -10,7 +13,6 @@
     toYMD(input) {
       if (!input) return '';
       if (typeof input === 'string') {
-        // Assume already YYYY-MM-DD or parseable
         const m = input.match(/^(\d{4})-(\d{2})-(\d{2})$/);
         if (m) return input;
         const d = new Date(input);
@@ -26,13 +28,77 @@
       return String(input);
     },
     std(input) {
-      // Prefer global DateUtils.standardizeDate if available
       if (typeof window.DateUtils?.standardizeDate === 'function') {
         try { return window.DateUtils.standardizeDate(input); } catch (_) {}
       }
       return this.toYMD(input);
     }
   };
+
+  // Normalize to a comparable string id
+  function _normalizeId(val) {
+    return String(val ?? '').trim();
+  }
+
+  // ---------------- Time helpers ----------------
+
+  // "7 PM" / "7:00 PM" / "19:15" / "19" -> {h, m} or null
+  function _parseTimeHM(timeStr) {
+    if (!timeStr || typeof timeStr !== 'string') return null;
+    let s = timeStr.trim().toUpperCase();
+
+    // h[:mm] AM/PM
+    let m = s.match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/);
+    if (m) {
+      let h = parseInt(m[1], 10);
+      let min = m[2] ? parseInt(m[2], 10) : 0;
+      const mer = m[3];
+      if (mer === 'PM' && h !== 12) h += 12;
+      if (mer === 'AM' && h === 12) h = 0;
+      if (h >= 0 && h < 24 && min >= 0 && min < 60) return { h, m: min };
+      return null;
+    }
+
+    // 24h "HH:MM" or "HH"
+    m = s.match(/^(\d{1,2})(?::(\d{2}))?$/);
+    if (m) {
+      let h = parseInt(m[1], 10);
+      let min = m[2] ? parseInt(m[2], 10) : 0;
+      if (h >= 0 && h < 24 && min >= 0 && min < 60) return { h, m: min };
+    }
+
+    return null;
+  }
+
+  function _toMinutes(timeStr) {
+    const hm = _parseTimeHM(timeStr);
+    if (!hm) return null;
+    return hm.h * 60 + hm.m;
+  }
+
+  function _dateFromYMDAndTime(ymd, timeStr) {
+    const hm = _parseTimeHM(timeStr);
+    if (!hm) return null;
+    const [Y, M, D] = ymd.split('-').map(n => parseInt(n, 10));
+    return new Date(Y, M - 1, D, hm.h, hm.m, 0, 0);
+  }
+
+  function _fsTsFromDate(d) {
+    return firebase.firestore.Timestamp.fromDate(d);
+  }
+
+  function _withNumericTimes(obj) {
+    // Attach numeric minutes for UI sorting if times present
+    if (obj) {
+      const startMin = _toMinutes(obj.startTime);
+      const endMin = _toMinutes(obj.endTime);
+      if (startMin != null) obj.start = startMin;
+      if (endMin != null) obj.end = endMin;
+    }
+    return obj;
+  }
+
+  // ---------------- Service ----------------
 
   class ShiftService {
     constructor() {
@@ -44,7 +110,7 @@
       this.lastPermissionError = null;
     }
 
-    // Initialize the service with Firestore (compat SDK)
+    // Initialize Firestore (compat)
     init() {
       if (this.initialized) return Promise.resolve();
       if (this.initPromise) return this.initPromise;
@@ -54,20 +120,18 @@
           try {
             this.db = firebase.firestore();
             this.initialized = true;
-            console.log('[ShiftService] Initialized with Firestore');
+            console.log(`${LOG} Initialized with Firestore`);
             resolve();
           } catch (err) {
             reject(err);
           }
         };
 
-        // If Firebase exists, attach immediately
         if (typeof window.firebase !== 'undefined' && firebase?.firestore) {
           attach();
           return;
         }
 
-        // Otherwise poll briefly for firebase-init.js to finish
         const start = Date.now();
         const poll = setInterval(() => {
           if (typeof window.firebase !== 'undefined' && firebase?.firestore) {
@@ -77,54 +141,50 @@
           } else if (Date.now() - start > 5000) {
             clearInterval(poll);
             clearTimeout(timeout);
-            reject(new Error('[ShiftService] Firebase not initialized after timeout'));
+            reject(new Error(`${LOG} Firebase not initialized after timeout`));
           }
         }, 100);
 
         const timeout = setTimeout(() => {
           clearInterval(poll);
-          reject(new Error('[ShiftService] Firebase init wait timed out'));
+          reject(new Error(`${LOG} Firebase init wait timed out`));
         }, 6000);
       });
 
       return this.initPromise;
     }
 
-    // Add a listener for data changes
+    // Listeners
     addDataChangeListener(callback) {
       if (typeof callback === 'function') this.dataChangeListeners.push(callback);
     }
-
-    // Notify all listeners of data change
     notifyDataChange() {
       this.lastSyncTimestamp = null;
       for (const fn of this.dataChangeListeners) {
-        try { fn(); } catch (e) { console.error('[ShiftService] Listener error:', e); }
+        try { fn(); } catch (e) { console.error(`${LOG} Listener error:`, e); }
       }
     }
 
-    // Wrap Firestore ops with common error handling
+    // Error wrapper
     async _safe(call, context) {
       try {
         const res = await call();
         this.lastPermissionError = null;
         return res;
       } catch (err) {
-        // Normalize compat error codes
         const code = err?.code || err?.name || 'unknown';
         if (String(code).includes('permission-denied')) {
           this.lastPermissionError = { at: context, error: err };
-          console.error(`[ShiftService] Permission denied at ${context}:`, err);
+          console.error(`${LOG} Permission denied at ${context}:`, err);
         } else {
-          console.error(`[ShiftService] Error at ${context}:`, err);
+          console.error(`${LOG} Error at ${context}:`, err);
         }
         throw err;
       }
     }
 
-    // ---------- READS ----------
+    // ---------------- READS ----------------
 
-    // Get all shifts for a host (employeeId)
     async getHostShifts(hostId) {
       await this.init();
       if (!hostId) return [];
@@ -139,7 +199,7 @@
         qs.forEach(doc => {
           const d = doc.data();
           const date = DateHelpers.std(d.date);
-          out.push({
+          const item = _withNumericTimes({
             id: doc.id,
             title: d.type || 'Event',
             time: d.startTime && d.endTime ? `${d.startTime} - ${d.endTime}` : (d.startTime || d.endTime || 'TBD'),
@@ -149,23 +209,23 @@
             employeeId: d.employeeId,
             notes: d.notes || '',
             date,
+            dateYMD: date,
             startTime: d.startTime,
             endTime: d.endTime
           });
+          out.push(item);
         });
         this.lastSyncTimestamp = Date.now();
-        console.log('[ShiftService] Host shifts loaded:', out.length);
+        console.log(`${LOG} Host shifts loaded:`, out.length);
         return out;
       }, 'getHostShifts').catch(() => []);
     }
 
-    // Get shifts filtered by date range (inclusive). Uses indexed range on 'date' (YYYY-MM-DD).
     async getShiftsByDateRange(startDate, endDate) {
       await this.init();
       const start = DateHelpers.std(startDate);
       const end = DateHelpers.std(endDate);
 
-      // If either bound is missing, fall back to all
       if (!start || !end) return this.getAllShifts();
 
       return this._safe(async () => {
@@ -179,7 +239,7 @@
         qs.forEach(doc => {
           const d = doc.data();
           const date = DateHelpers.std(d.date);
-          out.push({
+          const item = _withNumericTimes({
             id: doc.id,
             title: d.type || 'Event',
             time: d.startTime && d.endTime ? `${d.startTime} - ${d.endTime}` : (d.startTime || d.endTime || 'TBD'),
@@ -189,30 +249,29 @@
             employeeId: d.employeeId,
             notes: d.notes || '',
             date,
+            dateYMD: date,
             startTime: d.startTime,
             endTime: d.endTime
           });
+          out.push(item);
         });
         this.lastSyncTimestamp = Date.now();
-        console.log('[ShiftService] Range shifts loaded:', out.length, `(${start} → ${end})`);
+        console.log(`${LOG} Range shifts loaded:`, out.length, `(${start} → ${end})`);
         return out;
-      }, 'getShiftsByDateRange').catch(err => {
-        // If index missing or rules block, fall back to full scan (best-effort)
+      }, 'getShiftsByDateRange').catch(async (err) => {
         if (String(err?.code).includes('failed-precondition')) {
-          console.warn('[ShiftService] Missing index for date range; falling back to client filter.');
+          console.warn(`${LOG} Missing index for date range; falling back to client filter.`);
           return this._fallbackFilterByDate(start, end);
         }
         return [];
       });
     }
 
-    // Fallback: scan all and filter by date (used if index missing)
     async _fallbackFilterByDate(start, end) {
       const all = await this.getAllShifts();
       return all.filter(s => s.date >= start && s.date <= end);
     }
 
-    // Get shifts for a specific date
     async getShiftsForDate(dateStr) {
       await this.init();
       const day = DateHelpers.std(dateStr);
@@ -227,7 +286,7 @@
         const out = [];
         qs.forEach(doc => {
           const d = doc.data();
-          out.push({
+          const item = _withNumericTimes({
             id: doc.id,
             title: d.type || 'Event',
             time: d.startTime && d.endTime ? `${d.startTime} - ${d.endTime}` : (d.startTime || d.endTime || 'TBD'),
@@ -237,16 +296,17 @@
             employeeId: d.employeeId,
             notes: d.notes || '',
             date: day,
+            dateYMD: day,
             startTime: d.startTime,
             endTime: d.endTime
           });
+          out.push(item);
         });
-        console.log(`[ShiftService] Shifts for ${day}:`, out.length);
+        console.log(`${LOG} Shifts for ${day}:`, out.length);
         return out;
       }, 'getShiftsForDate').catch(() => []);
     }
 
-    // Get ALL shifts (use sparingly)
     async getAllShifts() {
       await this.init();
       return this._safe(async () => {
@@ -254,7 +314,8 @@
         const out = [];
         qs.forEach(doc => {
           const d = doc.data();
-          out.push({
+          const date = DateHelpers.std(d.date);
+          const item = _withNumericTimes({
             id: doc.id,
             title: d.type || 'Event',
             time: d.startTime && d.endTime ? `${d.startTime} - ${d.endTime}` : (d.startTime || d.endTime || 'TBD'),
@@ -263,134 +324,174 @@
             theme: d.theme || '',
             employeeId: d.employeeId,
             notes: d.notes || '',
-            date: DateHelpers.std(d.date),
+            date,
+            dateYMD: date,
             startTime: d.startTime,
             endTime: d.endTime
           });
+          out.push(item);
         });
         this.lastSyncTimestamp = Date.now();
-        console.log('[ShiftService] All shifts loaded:', out.length);
+        console.log(`${LOG} All shifts loaded:`, out.length);
         return out;
       }, 'getAllShifts').catch(() => []);
     }
 
-    // ---------- WRITES ----------
+    // ---------------- WRITES ----------------
 
-    // Save a new shift
+    /**
+     * Compute timestamp fields for the given payload.
+     * Also computes numeric start/end, and sets dateYMD alias.
+     */
+    _withSyncedTimestamps(baseData, existingDocData = null) {
+      const data = { ...baseData };
+      const ymd = data.date ? DateHelpers.std(data.date) : null;
+      const startTime = data.startTime ?? existingDocData?.startTime ?? null;
+      const endTime   = data.endTime   ?? existingDocData?.endTime   ?? null;
+
+      if (ymd) {
+        // Keep alias
+        data.date = ymd;
+        data.dateYMD = ymd;
+
+        // Only set timestamps if we can build them
+        const sDate = startTime ? _dateFromYMDAndTime(ymd, startTime) : null;
+        const eDate = endTime   ? _dateFromYMDAndTime(ymd, endTime)   : null;
+
+        if (sDate) data.startTimestamp = _fsTsFromDate(sDate);
+        if (eDate) data.endTimestamp   = _fsTsFromDate(eDate);
+      }
+
+      // Numeric minutes for sort/overlap
+      const sMin = _toMinutes(startTime);
+      const eMin = _toMinutes(endTime);
+      if (sMin != null) data.start = sMin;
+      if (eMin != null) data.end = eMin;
+
+      return data;
+    }
+
     async saveShift(shiftData) {
       await this.init();
-      const data = { ...shiftData };
-      data.date = DateHelpers.std(data.date);
-      data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+
+      const prepared = { ...shiftData };
+      prepared.date = DateHelpers.std(prepared.date);
+      prepared.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+
+      // Ensure timestamps/dateYMD are set on create
+      const withTs = this._withSyncedTimestamps(prepared);
 
       return this._safe(async () => {
-        const docRef = await this.db.collection('shifts').add(data);
-        console.log('[ShiftService] Shift saved:', docRef.id);
+        const docRef = await this.db.collection('shifts').add(withTs);
+        console.log(`${LOG} Shift saved:`, docRef.id);
         this.notifyDataChange();
         return docRef.id;
       }, 'saveShift');
     }
 
-    // Update an existing shift
     async updateShift(shiftId, shiftData) {
       await this.init();
-      const data = { ...shiftData };
-      data.date = DateHelpers.std(data.date);
-      data.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+      const incoming = { ...shiftData };
+      incoming.date = incoming.date ? DateHelpers.std(incoming.date) : incoming.date;
+      incoming.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
 
       return this._safe(async () => {
-        await this.db.collection('shifts').doc(String(shiftId)).update(data);
-        console.log('[ShiftService] Shift updated:', shiftId);
+        // If we need to compute timestamps (date provided or times changed),
+        // pull the existing doc so we can use its times when not provided.
+        let existing = null;
+        if ('date' in incoming || 'startTime' in incoming || 'endTime' in incoming) {
+          try {
+            const snap = await this.db.collection('shifts').doc(String(shiftId)).get();
+            existing = snap.exists ? snap.data() : null;
+          } catch (_) {}
+        }
+
+        const patch = this._withSyncedTimestamps(incoming, existing);
+
+        await this.db.collection('shifts').doc(String(shiftId)).update(patch);
+        console.log(`${LOG} Shift updated:`, shiftId);
+
+        // Try to keep local cache consistent
+        try {
+          if (Array.isArray(window.shifts)) {
+            const idx = window.shifts.findIndex(s => String(s.id) === String(shiftId));
+            if (idx !== -1) window.shifts[idx] = { ...window.shifts[idx], ...patch };
+          }
+        } catch (e) {
+          console.warn(`${LOG} Could not patch window.shifts after update:`, e);
+        }
+
         this.notifyDataChange();
         return shiftId;
       }, 'updateShift');
     }
 
-    // Delete a shift
     async deleteShift(shiftId) {
       await this.init();
       return this._safe(async () => {
         await this.db.collection('shifts').doc(String(shiftId)).delete();
-        console.log('[ShiftService] Shift deleted:', shiftId);
+        console.log(`${LOG} Shift deleted:`, shiftId);
         this.notifyDataChange();
         return true;
       }, 'deleteShift');
     }
 
-    // ---------- MOVE / CONFLICT LOGIC ----------
+    // ---------------- MOVE / CONFLICT LOGIC ----------------
 
     /**
-     * Internal: parse "h:mm AM/PM" or "HH:MM" into minutes since midnight.
-     * Returns null if it can't parse.
+     * Returns conflicts for moving `shift` to `targetDateYMD`.
+     * Rules:
+     *  - Any other shift for the SAME EMPLOYEE on the same day is a conflict (same-day double-book),
+     *    even if times do not overlap.
+     *  - Overlapping times are also conflicts.
+     *  - If times are unparseable, be conservative and report a conflict.
      */
-    _parseTimeToMinutes(timeStr) {
-      if (!timeStr || typeof timeStr !== 'string') return null;
-      let str = timeStr.trim().toUpperCase();
-
-      // Check AM/PM format
-      const ampmMatch = str.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/);
-      if (ampmMatch) {
-        let h = parseInt(ampmMatch[1], 10);
-        const m = parseInt(ampmMatch[2], 10);
-        const mer = ampmMatch[3];
-        if (mer === 'PM' && h !== 12) h += 12;
-        if (mer === 'AM' && h === 12) h = 0;
-        return h * 60 + m;
-      }
-
-      // Try 24h "HH:MM"
-      const h24 = str.match(/^(\d{1,2}):(\d{2})$/);
-      if (h24) {
-        const h = parseInt(h24[1], 10);
-        const m = parseInt(h24[2], 10);
-        if (h >= 0 && h < 24 && m >= 0 && m < 60) {
-          return h * 60 + m;
-        }
-      }
-
-      return null;
-    }
-
-    /**
-     * Internal: find conflicting shifts on the target date for this shift.
-     * Conflicts = same employeeId AND overlapping time window.
-     */
-    async _getConflictsForMove(shift, targetDateYMD) {
+    async _getConflictsForMove(shift, targetDateYMD, debug = true) {
       const date = DateHelpers.std(targetDateYMD);
-      const employeeId = shift.employeeId;
-      const thisId = String(shift.id);
+      const employeeId = _normalizeId(shift.employeeId);
+      const thisId = _normalizeId(shift.id);
 
       const dayShifts = await this.getShiftsForDate(date);
-      const start = this._parseTimeToMinutes(shift.startTime);
-      const end = this._parseTimeToMinutes(shift.endTime);
+      const start = _toMinutes(shift.startTime);
+      const end = _toMinutes(shift.endTime);
 
-      const conflicts = dayShifts.filter(s => {
-        if (String(s.id) === thisId) return false;
-        if (s.employeeId !== employeeId) return false;
+      const conflicts = [];
+      for (const s of dayShifts) {
+        const sId = _normalizeId(s.id);
+        if (sId === thisId) continue;
 
-        const sStart = this._parseTimeToMinutes(s.startTime);
-        const sEnd = this._parseTimeToMinutes(s.endTime);
+        const sEmp = _normalizeId(s.employeeId);
+        if (sEmp !== employeeId) continue;
 
-        // If we can't parse times, be conservative: treat as conflict
-        if (start == null || end == null || sStart == null || sEnd == null) {
-          return true;
+        // Same-day double-book baseline conflict
+        let already = false;
+        if (!conflicts.some(c => _normalizeId(c.id) === sId)) {
+          conflicts.push(s);
+          already = true;
+          if (debug) console.debug(`${LOG} Conflict (same-day double-book) with`, s);
         }
 
-        // Overlap if NOT (ends before or starts after)
+        // If we can parse times, add explicit overlap note (kept for logs)
+        const sStart = _toMinutes(s.startTime);
+        const sEnd = _toMinutes(s.endTime);
+        if (start == null || end == null || sStart == null || sEnd == null) {
+          if (!already && debug) console.debug(`${LOG} Conflict (unparseable time) with`, s);
+          continue;
+        }
         const noOverlap = (end <= sStart) || (start >= sEnd);
-        return !noOverlap;
-      });
+        if (!noOverlap && debug) {
+          console.debug(`${LOG} Conflict (overlap) with`, s);
+        }
+      }
 
+      if (debug) console.debug(`${LOG} Conflict check for`, { thisId, employeeId, date, start, end, conflicts: conflicts.length });
       return conflicts;
     }
 
     /**
      * Move a single shift to a new date with optional conflict checking.
      *
-     * options = {
-     *   ignoreConflicts: false,
-     *   ignoreUnknownHosts: true
-     * }
+     * options = { ignoreConflicts: false, ignoreUnknownHosts: false }
      *
      * Returns:
      *   { ok: true, updatedShift }
@@ -402,65 +503,46 @@
       await this.init();
       const opts = {
         ignoreConflicts: false,
-        ignoreUnknownHosts: true,
+        ignoreUnknownHosts: false,
         ...options
       };
 
       const targetDate = DateHelpers.std(targetDateYMD);
       if (!shiftId || !targetDate) {
-        return {
-          ok: false,
-          reason: 'error',
-          message: 'Missing shiftId or targetDate'
-        };
+        return { ok: false, reason: 'error', message: 'Missing shiftId or targetDate' };
       }
 
       try {
-        // Load current shift
+        // Load current shift (we need its times to rebuild timestamps)
         const doc = await this._safe(
           () => this.db.collection('shifts').doc(String(shiftId)).get(),
           'moveSingleShiftToDate.getShift'
         );
 
         if (!doc.exists) {
-          console.warn('[ShiftService] moveSingleShiftToDate: shift not found', shiftId);
+          console.warn(`${LOG} moveSingleShiftToDate: shift not found`, shiftId);
           return { ok: false, reason: 'not-found' };
         }
 
-        const raw = doc.data() || {};
-        const shift = {
-          id: doc.id,
-          ...raw
-        };
+        const raw = { id: doc.id, ...doc.data() };
+        const employeeId = _normalizeId(raw.employeeId);
 
-        const employeeId = shift.employeeId;
-
-        // Decide if this host is "unknown"
+        // Optional "unknown host" skip (hinted by global employees map)
         let isUnknownHost = false;
         try {
           const emps = window.employees;
           if (!employeeId || !emps || typeof emps !== 'object' || !emps[employeeId]) {
             isUnknownHost = true;
           }
-        } catch (_) {
-          // If employees map isn't available at all, treat as unknown
-          isUnknownHost = true;
-        }
+        } catch (_) { isUnknownHost = true; }
 
-        // Only check conflicts if requested AND host is not "unknown" (when ignoreUnknownHosts is true)
+        // Conflict check unless explicitly overridden
         if (!opts.ignoreConflicts) {
-          const shouldSkipForUnknown =
-            opts.ignoreUnknownHosts && isUnknownHost;
-
-          if (!shouldSkipForUnknown) {
-            const conflicts = await this._getConflictsForMove(shift, targetDate);
+          const shouldSkip = opts.ignoreUnknownHosts && isUnknownHost;
+          if (!shouldSkip) {
+            const conflicts = await this._getConflictsForMove(raw, targetDate, true);
             if (conflicts && conflicts.length > 0) {
-              console.log('[ShiftService] Conflict detected for move:', {
-                shiftId,
-                targetDate,
-                employeeId,
-                conflicts
-              });
+              console.log(`${LOG} Conflict detected for move:`, { shiftId, targetDate, employeeId, conflicts });
               return {
                 ok: false,
                 reason: 'conflict',
@@ -469,55 +551,54 @@
                 conflictingShifts: conflicts
               };
             }
+          } else {
+            console.debug(`${LOG} Skipping conflict check due to unknown host and ignoreUnknownHosts=true`);
           }
         }
 
-        // No conflicts (or we're ignoring them) → perform the update
-        const updatedData = {
-          ...raw,
-          date: targetDate
-        };
+        // Build minimal patch: change date, and recompute timestamps/dateYMD + numeric times
+        const patch = this._withSyncedTimestamps(
+          { date: targetDate, updatedAt: firebase.firestore.FieldValue.serverTimestamp() },
+          { startTime: raw.startTime, endTime: raw.endTime }
+        );
 
-        // Persist update
-        await this.updateShift(shiftId, updatedData);
+        await this._safe(
+          () => this.db.collection('shifts').doc(String(shiftId)).update(patch),
+          'moveSingleShiftToDate.update'
+        );
+        console.log(`${LOG} Shift moved:`, { shiftId, targetDate });
 
-        // Patch in-memory shifts array if present
+        // Update local cache if present for instant re-render
         try {
           if (Array.isArray(window.shifts)) {
             const idx = window.shifts.findIndex(s => String(s.id) === String(shiftId));
-            if (idx !== -1) {
-              window.shifts[idx] = {
-                ...window.shifts[idx],
-                ...updatedData,
-                id: shiftId,
-                date: targetDate
-              };
-            }
+            const updatedLocal = _withNumericTimes({
+              ...(idx !== -1 ? window.shifts[idx] : raw),
+              ...patch,
+              id: shiftId,
+              // helpful for UI that reads Date objects off timestamps
+              startTimestamp: patch.startTimestamp ? patch.startTimestamp.toDate?.() ?? patch.startTimestamp : (raw.startTimestamp?.toDate?.() ?? raw.startTimestamp),
+              endTimestamp: patch.endTimestamp ? patch.endTimestamp.toDate?.() ?? patch.endTimestamp : (raw.endTimestamp?.toDate?.() ?? raw.endTimestamp)
+            });
+            if (idx !== -1) window.shifts[idx] = updatedLocal;
+            else window.shifts.push(updatedLocal);
           }
         } catch (e) {
-          console.warn('[ShiftService] Could not patch window.shifts after move:', e);
+          console.warn(`${LOG} Could not patch window.shifts after move:`, e);
         }
 
-        const resultShift = { id: shiftId, ...updatedData };
-        console.log('[ShiftService] Shift moved:', { shiftId, targetDate });
+        this.notifyDataChange();
 
-        return {
-          ok: true,
-          updatedShift: resultShift
-        };
+        const resultShift = _withNumericTimes({ id: shiftId, ...raw, ...patch });
+        return { ok: true, updatedShift: resultShift };
       } catch (err) {
-        console.error('[ShiftService] moveSingleShiftToDate error:', err);
-        return {
-          ok: false,
-          reason: 'error',
-          message: err?.message || String(err)
-        };
+        console.error(`${LOG} moveSingleShiftToDate error:`, err);
+        return { ok: false, reason: 'error', message: err?.message || String(err) };
       }
     }
 
-    // ---------- REALTIME (optional) ----------
-    // Subscribe to all shifts in a range (YYYY-MM-DD) and stream updates to a callback
-    // Returns an unsubscribe function.
+    // ---------------- REALTIME (optional) ----------------
+
     async subscribeRange(startDate, endDate, onUpdate) {
       await this.init();
       const start = DateHelpers.std(startDate);
@@ -535,7 +616,8 @@
             const list = [];
             snap.forEach(doc => {
               const d = doc.data();
-              list.push({
+              const date = DateHelpers.std(d.date);
+              const item = _withNumericTimes({
                 id: doc.id,
                 title: d.type || 'Event',
                 time: d.startTime && d.endTime ? `${d.startTime} - ${d.endTime}` : (d.startTime || d.endTime || 'TBD'),
@@ -544,32 +626,33 @@
                 theme: d.theme || '',
                 employeeId: d.employeeId,
                 notes: d.notes || '',
-                date: DateHelpers.std(d.date),
+                date,
+                dateYMD: date,
                 startTime: d.startTime,
                 endTime: d.endTime
               });
+              list.push(item);
             });
             onUpdate(list);
           },
           (err) => {
-            console.error('[ShiftService] Realtime range error:', err);
+            console.error(`${LOG} Realtime range error:`, err);
           }
         );
         return unsub;
       } catch (err) {
-        console.error('[ShiftService] subscribeRange error:', err);
+        console.error(`${LOG} subscribeRange error:`, err);
         return () => {};
       }
     }
 
-    // ---------- Misc ----------
+    // ---------------- Misc ----------------
     needsRefresh() {
-      // Refresh if we've never synced or it's been more than 60s
       return !this.lastSyncTimestamp || (Date.now() - this.lastSyncTimestamp > 60_000);
     }
 
     debug() {
-      console.group('[ShiftService] Debug');
+      console.group(LOG + ' Debug');
       console.log('Initialized:', this.initialized);
       console.log('Last sync:', this.lastSyncTimestamp ? new Date(this.lastSyncTimestamp).toLocaleTimeString() : 'never');
       console.log('Listeners:', this.dataChangeListeners.length);
@@ -588,6 +671,6 @@
 
   // Kick initialization (non-blocking)
   window.shiftService.init().catch(err => {
-    console.error('[ShiftService] Failed to initialize:', err);
+    console.error(`${LOG} Failed to initialize:`, err);
   });
 })();
