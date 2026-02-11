@@ -21,6 +21,7 @@
   <!-- Auth guard (keeps page hidden until authorized) -->
   <script src="./auth-guard.js" defer></script>
 </head>
+
 <body data-page="employees-admin">
   <!-- Authentication Loading Overlay -->
   <div id="auth-loading" class="auth-overlay" aria-live="polite">
@@ -61,12 +62,14 @@
 
           <div class="actions">
             <button id="provision-btn" class="btn btn-primary">
-              Create &amp; Send
+              Create Employee
             </button>
           </div>
         </div>
 
+        <!-- Status + where provision.js can inject "Open link" and "Copy link" -->
         <div id="provision-status" class="muted" aria-live="polite"></div>
+        <div id="provision-actions" class="form-actions" style="justify-content:flex-start; margin-top:10px;"></div>
 
         <details class="help">
           <summary>What this does</summary>
@@ -149,10 +152,30 @@
 
     <!-- Employees Table -->
     <section class="card card-table">
-      <div class="card-head">
-        <h2 class="card-title">Employees</h2>
+      <div class="card-head" style="display:flex; align-items:flex-end; justify-content:space-between; gap:12px;">
+        <div>
+          <h2 class="card-title" style="margin-bottom:2px;">Employees</h2>
+          <div class="muted" id="employees-count" aria-live="polite"></div>
+        </div>
+
+        <!-- Search Employees -->
+        <div class="field table-search" style="min-width:min(420px, 100%); max-width:520px;">
+          <label for="employeeSearch" class="label">Search employees</label>
+          <input
+            id="employeeSearch"
+            type="text"
+            class="input"
+            placeholder="Search name, email, phone, ID…"
+            autocomplete="off"
+            aria-label="Search employees"
+          />
+          <div class="muted" id="employeeSearchHint" style="margin-top:-2px;">Type to filter the table.</div>
+        </div>
       </div>
+
       <div class="card-body">
+        <div id="employees-no-results" class="muted" style="display:none; margin: 0 0 10px 0;" aria-live="polite"></div>
+
         <div class="table-wrapper">
           <table id="employeesTable" class="table">
             <thead>
