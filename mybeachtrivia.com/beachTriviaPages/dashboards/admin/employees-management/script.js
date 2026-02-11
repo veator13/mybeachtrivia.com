@@ -50,6 +50,11 @@ function formatPhoneDisplay(v = '') {
   return String(v);
 }
 
+// Normalize any value into a searchable string (safe, no "undefined"/"null")
+function norm(v) {
+  return String(v ?? '').toLowerCase().trim();
+}
+
 /////////////////////////
 // DOM Elements
 /////////////////////////
@@ -59,6 +64,11 @@ const tableBody     = document.getElementById('employeesTableBody');
 const saveButton    = document.getElementById('saveEmployee');
 const cancelButton  = document.getElementById('cancelEdit');
 const closeModalBtn = document.querySelector('.close-modal');
+
+// Search UI (added in updated index.html)
+const employeeSearchInput = document.getElementById('employeeSearch');
+const employeesCountEl    = document.getElementById('employees-count');
+const noResultsEl         = document.getElementById('employees-no-results');
 
 /////////////////////////
 // Modal helpers (ARIA-friendly)
@@ -196,6 +206,67 @@ document.addEventListener('keydown', (e) => {
 });
 
 /////////////////////////
+// Search/filter helpers (table filtering)
+/////////////////////////
+function getRowSearchText(tr) {
+  // Prefer a precomputed index if we set one
+  const idx = tr?.dataset?.searchIndex;
+  if (idx) return idx;
+
+  // Fallback: derive from visible text content
+  return norm(tr?.textContent || '');
+}
+
+function applyEmployeeTableFilter() {
+  if (!tableBody) return;
+
+  const q = norm(employeeSearchInput?.value || '');
+  const rows = Array.from(tableBody.querySelectorAll('tr'));
+
+  let shown = 0;
+  for (const tr of rows) {
+    if (!q) {
+      tr.style.display = '';
+      shown++;
+      continue;
+    }
+    const hay = getRowSearchText(tr);
+    const match = hay.includes(q);
+    tr.style.display = match ? '' : 'none';
+    if (match) shown++;
+  }
+
+  // Update count + no-results
+  const total = rows.length;
+  if (employeesCountEl) {
+    employeesCountEl.textContent = total
+      ? `${shown} of ${total} showing`
+      : `0 employees`;
+  }
+  if (noResultsEl) {
+    if (total > 0 && shown === 0 && q) {
+      noResultsEl.style.display = '';
+      noResultsEl.textContent = `No employees match “${employeeSearchInput.value}”.`;
+    } else {
+      noResultsEl.style.display = 'none';
+      noResultsEl.textContent = '';
+    }
+  }
+}
+
+// Live filter as you type
+if (employeeSearchInput) {
+  employeeSearchInput.addEventListener('input', () => applyEmployeeTableFilter());
+  employeeSearchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      employeeSearchInput.value = '';
+      applyEmployeeTableFilter();
+      employeeSearchInput.blur();
+    }
+  });
+}
+
+/////////////////////////
 // Auth guard -> live v2 (with sign-out reset)
 /////////////////////////
 auth.onAuthStateChanged((user) => {
@@ -204,6 +275,8 @@ auth.onAuthStateChanged((user) => {
     window._empLiveUnsub    = null;
     window._empLiveAttached = false;
     if (tableBody) tableBody.innerHTML = '';
+    if (employeesCountEl) employeesCountEl.textContent = '';
+    if (noResultsEl) { noResultsEl.style.display = 'none'; noResultsEl.textContent = ''; }
     return;
   }
   startEmployeesLive2();
@@ -244,6 +317,23 @@ function startEmployeesLive2() {
           const activeTxt = d.active === true ? 'Yes' : 'No';
 
           const row = tableBody.insertRow();
+
+          // Build a search index (includes name/email/phone/nickname/employeeId/emergency/roles/active/doc id)
+          // so filtering is fast + consistent with displayed formatting
+          const searchIndex = [
+            d.firstName, d.lastName,
+            d.email,
+            phoneTxt, d.phone,
+            d.nickname,
+            d.employeeID, d.employeeId,
+            emergencyName, emergencyPhone,
+            rolesTxt,
+            activeTxt,
+            docSnap.id
+          ].map(norm).filter(Boolean).join(' | ');
+
+          row.dataset.searchIndex = searchIndex;
+
           row.innerHTML = `
             <td class="sticky-col col-fname">${esc(d.firstName || '')}</td>
             <td class="sticky-col col-lname">${esc(d.lastName || '')}</td>
@@ -265,6 +355,9 @@ function startEmployeesLive2() {
             </td>
           `;
         });
+
+        // Apply whatever search filter is currently typed
+        applyEmployeeTableFilter();
       }, (err) => console.error('[live2] listener error:', err));
 
       console.log('[live2] attached. To stop: window._empLiveUnsub?.()');

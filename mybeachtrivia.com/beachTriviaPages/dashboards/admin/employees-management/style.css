@@ -2,29 +2,41 @@
 
 /* ---------- CSS Variables ---------- */
 :root {
-    --bg: #f6f7fb;
-    --surface: #ffffff;
-    --surface-2: #f2f4f8;
-    --text: #1f2937;
-    --text-muted: #6b7280;
-    --brand: #2563eb;
-    --brand-600: #1d4ed8;
-    --brand-700: #1e40af;
-    --danger: #e11d48;
-    --danger-700: #be123c;
-    --success: #16a34a;
-    --border: #e5e7eb;
-    --shadow: 0 6px 20px rgba(0,0,0,0.08);
-    --radius: 14px;
-    --radius-sm: 10px;
-    --radius-xs: 8px;
-    --gap: 16px;
+  --bg: #f6f7fb;
+  --surface: #ffffff;
+  --surface-2: #f2f4f8;
+  --text: #1f2937;
+  --text-muted: #6b7280;
+  --brand: #2563eb;
+  --brand-600: #1d4ed8;
+  --brand-700: #1e40af;
+  --danger: #e11d48;
+  --danger-700: #be123c;
+  --success: #16a34a;
+  --border: #e5e7eb;
+  --shadow: 0 6px 20px rgba(0,0,0,0.08);
+  --radius: 14px;
+  --radius-sm: 10px;
+  --radius-xs: 8px;
+  --gap: 16px;
 
-    /* widths for frozen columns (tweak as needed) */
-    --col-fname-w: 168px;
-    --col-lname-w: 188px;
-    --col-active-w: 96px;
-    --col-actions-w: 172px;
+  /* widths for frozen columns */
+  --col-fname-w: 168px;
+  --col-lname-w: 188px;
+  --col-active-w: 96px;
+  --col-actions-w: 172px;
+
+  /* defaults for row colors */
+  --row-even: color-mix(in srgb, var(--surface-2) 52%, var(--surface));
+  --row-hover: color-mix(in srgb, var(--surface-2) 68%, var(--surface));
+
+  /* sensible defaults for scrollable info columns */
+  --col-email-w: 220px;
+  --col-phone-w: 148px;
+  --col-nickname-w: 140px;
+  --col-employeeid-w: 140px;
+  --col-emergency-name-w: 180px;
+  --col-emergency-phone-w: 160px;
 }
 
 /* Dark mode (automatic) */
@@ -43,6 +55,10 @@
     --success: #22c55e;
     --border: #1f2937;
     --shadow: 0 10px 30px rgba(0,0,0,0.35);
+
+    /* even rows lighter in dark mode */
+    --row-even: color-mix(in srgb, #ffffff 12%, var(--surface));
+    --row-hover: color-mix(in srgb, #ffffff 18%, var(--surface));
   }
 }
 
@@ -121,33 +137,60 @@ body {
   padding: clamp(14px, 2.2vw, 22px);
 }
 
-/* Provision card layout (final) */
+/* ====================================================================== */
+/* Provision card layout (FIXED: forces Email row ABOVE roles)            */
+/* ====================================================================== */
+
 .card-provision .card-body { padding-block: 16px 18px; }
 
-.provision-grid {
+.provision-grid{
   display: grid;
   grid-template-columns: minmax(260px, 1fr) auto;
-  grid-template-rows: auto auto;
-  grid-template-areas:
-    "email  action"
-    "roles  roles";
-  gap: 16px;
+  grid-auto-rows: auto;
+  column-gap: 16px;
+  row-gap: 16px;
   align-items: start;
 }
-.provision-grid > .field:first-of-type { grid-area: email; }
-.provision-grid > .roles-fieldset      { grid-area: roles; }
-.provision-grid > .actions             { grid-area: action; justify-self: end; align-self: start; }
-.provision-grid .actions { align-self: start; }
 
-@media (max-width: 920px) {
-  .provision-grid {
+/* Email field = row 1, col 1 */
+.provision-grid > .field{
+  grid-column: 1;
+  grid-row: 1;
+}
+
+/* Button = row 1, col 2 */
+.provision-grid > .actions{
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+  align-self: start;
+}
+
+/* Roles fieldset = row 2, full width */
+.provision-grid > fieldset.roles-fieldset{
+  grid-column: 1 / -1;
+  grid-row: 2;
+  margin-top: 0; /* just in case */
+}
+
+/* Mobile: stack */
+@media (max-width: 920px){
+  .provision-grid{
     grid-template-columns: 1fr;
-    grid-template-areas:
-      "email"
-      "roles"
-      "action";
   }
-  .provision-grid > .actions { justify-self: stretch; }
+  .provision-grid > .field{
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .provision-grid > fieldset.roles-fieldset{
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .provision-grid > .actions{
+    grid-column: 1;
+    grid-row: 3;
+    justify-self: stretch;
+  }
   .provision-grid .btn { width: 100%; }
 }
 
@@ -211,7 +254,6 @@ textarea:focus {
 }
 @media (max-width: 720px) { .form-grid { grid-template-columns: 1fr; } }
 
-/* Legacy selector support (if needed) */
 #employeeForm .form-group { display: grid; gap: 8px; }
 
 /* Form actions */
@@ -279,17 +321,19 @@ textarea:focus {
 /* Remove/disable old “Add New Employee” button if it still exists in DOM */
 #addNewEmployeeBtn { display: none !important; }
 
-/* ---------- Table (base) ---------- */
+/* ---------- Table ---------- */
 .table-wrapper {
   width: 100%;
-  overflow-x: auto;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  overflow: auto; /* x + y */
+  max-height: min(72vh, 740px);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: var(--radius, 12px);
 }
 .table {
-  width: 100%;
-  border-collapse: collapse;
-  min-width: 720px;
+  width: max-content;
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
   background: var(--surface);
 }
 .table th,
@@ -300,21 +344,84 @@ textarea:focus {
   vertical-align: middle;
 }
 .table thead th {
-  background: color-mix(in srgb, var(--surface-2) 80%, transparent);
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: color-mix(in srgb, var(--surface, #ffffff) 92%, transparent);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+  box-shadow: 0 1px 0 var(--border, #e5e7eb);
   color: var(--text);
   font-weight: 700;
   font-size: 0.9rem;
   letter-spacing: .02em;
 }
 
-/* Zebra rows with FULL opacity (no dimming via opacity) */
-.table tbody tr { --row-bg: var(--surface); background: var(--row-bg); }
-.table tbody tr:nth-child(even) { --row-bg: color-mix(in srgb, var(--surface-2) 35%, var(--surface)); }
-.table tbody tr:hover { --row-bg: color-mix(in srgb, var(--surface-2) 55%, var(--surface)); }
+/* Zebra rows */
+.table tbody tr{ --row-bg: var(--surface); background: var(--row-bg); }
+.table tbody tr:nth-child(even){ --row-bg: var(--row-even); }
+.table tbody tr:hover{ --row-bg: var(--row-hover); }
+
+/* Sticky columns */
+.table .sticky-col { position: sticky; background: var(--surface); z-index: 2; }
+.table thead .sticky-col { z-index: 5; }
+.table tbody td.sticky-col { background: var(--row-bg); }
+
+/* narrower frozen widths */
+:root{
+  --col-fname-w: 140px;
+  --col-lname-w: 160px;
+  --col-active-w: 84px;
+}
+
+/* Frozen LEFT columns */
+.table .col-fname {
+  left: 0;
+  width: var(--col-fname-w);
+  min-width: var(--col-fname-w);
+  box-shadow: 1px 0 0 var(--border, #e5e7eb);
+}
+.table .col-lname {
+  left: var(--col-fname-w);
+  width: var(--col-lname-w);
+  min-width: var(--col-lname-w);
+  box-shadow: 1px 0 0 var(--border, #e5e7eb);
+}
+
+/* Frozen RIGHT columns */
+.table .col-actions {
+  right: 0;
+  width: var(--col-actions-w);
+  min-width: var(--col-actions-w);
+  box-shadow: -1px 0 0 var(--border, #e5e7eb);
+}
+.table .col-active  {
+  right: var(--col-actions-w);
+  width: var(--col-active-w);
+  min-width: var(--col-active-w);
+  box-shadow: -1px 0 0 var(--border, #e5e7eb);
+}
 
 /* Keep actions in one line */
 .table td.col-actions,
 .table td.actions { white-space: nowrap; }
+
+/* Single-line phone numbers */
+.table .col-phone,
+.table .col-emergency-phone {
+  white-space: nowrap;
+  word-break: keep-all;
+  overflow-wrap: normal;
+  hyphens: none;
+}
+
+/* Give common widths to scroll columns */
+.table .col-email          { width: var(--col-email-w);           min-width: var(--col-email-w); }
+.table .col-phone          { width: var(--col-phone-w);           min-width: var(--col-phone-w); }
+.table .col-nickname       { width: var(--col-nickname-w);        min-width: var(--col-nickname-w); }
+.table .col-employee-id    { width: var(--col-employeeid-w);      min-width: var(--col-employeeid-w); }
+.table .col-emergency-name { width: var(--col-emergency-name-w);  min-width: var(--col-emergency-name-w); }
+.table .col-emergency-phone{ width: var(--col-emergency-phone-w); min-width: var(--col-emergency-phone-w); }
 
 /* ---------- Badges ---------- */
 .badge {
@@ -340,7 +447,7 @@ textarea:focus {
 
 /* ---------- Modal ---------- */
 .modal {
-  display: none; /* toggled by JS */
+  display: none;
   position: fixed;
   inset: 0;
   z-index: 40;
@@ -361,9 +468,8 @@ textarea:focus {
   opacity: 0;
   animation: modal-in .18s ease-out forwards;
 }
-@keyframes modal-in {
-  to { transform: translateY(0) scale(1); opacity: 1; }
-}
+@keyframes modal-in { to { transform: translateY(0) scale(1); opacity: 1; } }
+
 .modal-title {
   margin: 0 0 6px 0;
   font-size: 1.1rem;
@@ -411,10 +517,9 @@ textarea:focus {
   .form-actions .btn { flex: 1 1 auto; }
 }
 
-/* ---------- Legacy compatibility (kept but modernized palette) ---------- */
+/* ---------- Legacy compatibility ---------- */
 #employeesTable { width: 100%; }
 .edit-btn, .delete-btn {
-  /* If old buttons are ever injected, make them look like new ones */
   all: unset;
   display: inline-flex;
   align-items: center;
@@ -438,151 +543,123 @@ textarea:focus {
 }
 .delete-btn:hover { background: color-mix(in srgb, var(--danger) 18%, var(--surface-2)); }
 
-/* === override: Sticky header + frozen cols (v2025-10-21) === */
+/* ====================================================================== */
+/* Copy-link button styling (provision.js success UI)                      */
+/* ====================================================================== */
 
-/* Only the table area scrolls; header stays visible */
-.table-wrapper {
-  overflow: auto; /* x + y */
-  max-height: min(72vh, 740px);
-  border: 1px solid var(--border, #e5e7eb);
-  border-radius: var(--radius, 12px);
+#provision-status a#open-setup-link,
+#open-setup-link {
+  color: var(--brand);
+  font-weight: 800;
+  text-decoration: none;
 }
+#provision-status a#open-setup-link:hover,
+#open-setup-link:hover { text-decoration: underline; }
 
-/* Table sizing so horizontal scroll works */
-.table {
-  width: max-content;   /* allow growth beyond container */
-  min-width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-}
+#copy-setup-link{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 
-/* Sticky header (top) */
-.table thead th {
-  position: sticky;
-  top: 0;
-  z-index: 3;
-  background: color-mix(in srgb, var(--surface, #ffffff) 92%, transparent);
-  -webkit-backdrop-filter: blur(2px);
-  backdrop-filter: blur(2px);
-  box-shadow: 0 1px 0 var(--border, #e5e7eb);
-}
+  height: 34px;
+  padding: 0 12px;
 
-/* Generic sticky cell styling */
-.table .sticky-col {
-  position: sticky;
-  background: var(--surface, #ffffff);
-  z-index: 2;
-}
-.table thead .sticky-col { z-index: 5; } /* header above body */
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--brand) 55%, var(--border));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--brand) 18%, var(--surface)) 0%,
+    color-mix(in srgb, var(--brand) 12%, var(--surface)) 100%
+  );
+  color: color-mix(in srgb, var(--brand) 88%, var(--text));
 
-/* Frozen LEFT columns (First, Last) */
-.table .col-fname {
-  left: 0;
-  width: var(--col-fname-w);
-  min-width: var(--col-fname-w);
-  box-shadow: 1px 0 0 var(--border, #e5e7eb);
-}
-.table .col-lname {
-  left: var(--col-fname-w);
-  width: var(--col-lname-w);
-  min-width: var(--col-lname-w);
-  box-shadow: 1px 0 0 var(--border, #e5e7eb);
-}
+  font-weight: 700;
+  font-size: 0.85rem;
 
-/* Frozen RIGHT columns (Active, Actions) */
-.table .col-actions {
-  right: 0;
-  width: var(--col-actions-w);
-  min-width: var(--col-actions-w);
-  box-shadow: -1px 0 0 var(--border, #e5e7eb);
+  cursor: pointer;
+  user-select: none;
+
+  box-shadow:
+    0 10px 18px color-mix(in srgb, var(--brand) 18%, transparent),
+    0 1px 0 color-mix(in srgb, #fff 14%, transparent) inset;
+
+  transition: transform .06s ease, background .2s ease, border-color .2s ease, color .2s ease, box-shadow .2s ease;
 }
-.table .col-active  {
-  right: var(--col-actions-w);
-  width: var(--col-active-w);
-  min-width: var(--col-active-w);
-  box-shadow: -1px 0 0 var(--border, #e5e7eb);
+#copy-setup-link:hover{
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--brand) 26%, var(--surface)) 0%,
+    color-mix(in srgb, var(--brand) 18%, var(--surface)) 100%
+  );
+  border-color: color-mix(in srgb, var(--brand) 70%, var(--border));
+  box-shadow:
+    0 14px 22px color-mix(in srgb, var(--brand) 22%, transparent),
+    0 1px 0 color-mix(in srgb, #fff 16%, transparent) inset;
+}
+#copy-setup-link:active{ transform: translateY(1px); }
+#copy-setup-link:focus-visible{
+  outline: none;
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--brand) 24%, transparent),
+    0 10px 18px color-mix(in srgb, var(--brand) 18%, transparent);
 }
 
-/* Match sticky cells to the row's solid background color */
-.table tbody td.sticky-col { background: var(--row-bg); }
+/* ====================================================================== */
+/* Search box in header (current employees)                                */
+/* ====================================================================== */
 
-/* === override: clearer zebra + narrower frozen cols v2025-10-21d === */
-:root{
-  --col-fname-w: 140px;   /* was 168 */
-  --col-lname-w: 160px;   /* was 188 */
-  --col-active-w: 84px;   /* was 96  */
-}
-/* Opaque zebra rows (no opacity dimming) */
-.table tbody tr{ --row-bg: var(--surface); background: var(--row-bg); }
-.table tbody tr:nth-child(even){ --row-bg: color-mix(in srgb, var(--surface-2) 52%, var(--surface)); }
-.table tbody tr:hover{ --row-bg: color-mix(in srgb, var(--surface-2) 68%, var(--surface)); }
-/* Ensure sticky cells inherit the row color */
-.table tbody td.sticky-col{ background: var(--row-bg); }
-
-/* === override: stronger zebra; even rows lighter in dark v2025-10-21e === */
-:root{
-  /* defaults for light mode */
-  --row-even: color-mix(in srgb, var(--surface-2) 52%, var(--surface));
-  --row-hover: color-mix(in srgb, var(--surface-2) 68%, var(--surface));
-}
-@media (prefers-color-scheme: dark){
-  :root{
-    /* make even rows LIGHTER than odd in dark mode */
-    --row-even: color-mix(in srgb, #ffffff 12%, var(--surface));
-    --row-hover: color-mix(in srgb, #ffffff 18%, var(--surface));
-  }
-}
-/* Apply */
-.table tbody tr{ --row-bg: var(--surface); background: var(--row-bg); }
-.table tbody tr:nth-child(even){ --row-bg: var(--row-even); }
-.table tbody tr:hover{ --row-bg: var(--row-hover); }
-/* Sticky cells inherit row color */
-.table tbody td.sticky-col{ background: var(--row-bg); }
-
-/* === override: provision grid email overlap fix v2025-10-21f === */
-/* Ensure ONLY the email field container occupies the 'email' area; roles goes to 'roles'. */
-.provision-grid { position: relative; }
-.provision-grid > .field:not(fieldset) { /* the Email wrapper div */
-  grid-area: email !important;
-  position: relative; z-index: 2; /* keep above any overlapping borders */
-}
-.provision-grid > fieldset.roles-fieldset { /* the Roles fieldset */
-  grid-area: roles !important;
-  position: relative; z-index: 1;
-}
-/* Keep the action button in the top-right cell */
-.provision-grid > .actions {
-  grid-area: action !important;
-  justify-self: end; align-self: start;
+.card-table .card-head .field.table-search{
+  display: block; /* override .field {display:grid} */
+  gap: 0;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  border: 1px solid color-mix(in srgb, var(--brand) 22%, var(--border));
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+  box-shadow:
+    0 10px 18px rgba(0,0,0,0.06),
+    0 0 0 1px color-mix(in srgb, var(--brand) 18%, transparent),
+    0 0 20px 2px color-mix(in srgb, var(--brand) 16%, transparent);
 }
 
-/* === override: phone number single-line & new info columns v2025-10-21g === */
-:root{
-  /* sensible defaults for scrollable info columns */
-  --col-email-w: 220px;
-  --col-phone-w: 148px;
-  --col-nickname-w: 140px;
-  --col-employeeid-w: 140px;
-  --col-emergency-name-w: 180px;
-  --col-emergency-phone-w: 160px;
+.card-table .card-head .field.table-search:focus-within{
+  box-shadow:
+    0 10px 18px rgba(0,0,0,0.06),
+    0 0 0 1px color-mix(in srgb, var(--brand) 18%, transparent),
+    0 0 24px 3px color-mix(in srgb, var(--brand) 20%, transparent);
 }
 
-/* Single-line phone numbers (prevents 315- / 409- / 3270 wrapping) */
-.table .col-phone,
-.table .col-emergency-phone {
-  white-space: nowrap;
-  word-break: keep-all;
-  overflow-wrap: normal;
-  hyphens: none;
+.card-table .card-head .field.table-search .label{
+  display: block;
+  margin: 0 0 6px 0;
 }
 
-/* Give common widths to new columns so the horizontal scroll feels consistent */
-.table .col-email         { width: var(--col-email-w);         min-width: var(--col-email-w); }
-.table .col-phone         { width: var(--col-phone-w);         min-width: var(--col-phone-w); }
-.table .col-nickname      { width: var(--col-nickname-w);      min-width: var(--col-nickname-w); }
-.table .col-employee-id   { width: var(--col-employeeid-w);    min-width: var(--col-employeeid-w); }
-.table .col-emergency-name{ width: var(--col-emergency-name-w);min-width: var(--col-emergency-name-w); }
-.table .col-emergency-phone{width: var(--col-emergency-phone-w);min-width: var(--col-emergency-phone-w); }
+#employeeSearchHint{
+  margin: 6px 0 0 0 !important;
+  opacity: .9;
+}
 
-/* Utility if you ever need it elsewhere */
+.card-table .card-head .field.table-search #employeeSearch{
+  width: 100%;
+}
+
+/* ====================================================================== */
+/* Provision status panel                                                  */
+/* ====================================================================== */
+
+#provision-status{
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--success) 28%, var(--border));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--success) 10%, var(--surface-2)) 0%,
+    color-mix(in srgb, var(--success) 6%, var(--surface)) 100%
+  );
+}
+#provision-status code{ font-weight: 800; }
+#provision-status > div{ align-items: center; }
+
+/* Utility */
 .nowrap { white-space: nowrap !important; word-break: keep-all !important; overflow-wrap: normal !important; }
