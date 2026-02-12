@@ -3,8 +3,8 @@
 /* =======================================================
    Global state
 ======================================================= */
-let teamCount = 0;         // number of teams
-let dataModified = false;  // unsaved changes guard
+let teamCount = 0; // number of teams
+let dataModified = false; // unsaved changes guard
 let standingsAscending = false; // false = 1st→last (default), true = last→1st
 
 /* =======================================================
@@ -25,28 +25,375 @@ function markAsModified() {
   dataModified = true;
 }
 
+
+
+function getActiveTeamRows() {
+  const table = document.getElementById("teamTable");
+  if (!table) return [];
+  const rows = Array.from(table.querySelectorAll("tbody tr[data-team-id]"));
+  return rows.filter((row) => {
+    const nameInput = row.querySelector("input.teamName");
+    return nameInput && nameInput.value.trim() !== "";
+  });
+}
+
+function getActiveTeamIds() {
+  return getActiveTeamRows()
+    .map((r) => parseInt(r.dataset.teamId || "0", 10))
+    .filter((n) => !!n);
+}
+
+/* =======================================================
+   NEW: Row “active” helpers (prevents default empty 5 rows from counting)
+   - A row is considered "active" only if:
+     1) Team name is non-empty AND
+     2) The user actually edited any score cell in that row (touched)
+   - We mark score inputs as touched only for TRUSTED user input events.
+======================================================= */
+function getTeamNameFromRow(row) {
+  const nameInput = row?.querySelector("input.teamName");
+  return (nameInput?.value || "").trim();
+}
+
+function isRowNamed(row) {
+  return getTeamNameFromRow(row).length > 0;
+}
+
+function rowHasTouchedScores(row) {
+  // any score-ish input in this row with data-touched="1"
+  const inputs = row.querySelectorAll("input");
+  for (const el of inputs) {
+    if (!(el instanceof HTMLInputElement)) continue;
+    if (el.type === "text" || el.classList.contains("teamName")) continue;
+    if (el.dataset.touched === "1") return true;
+  }
+  return false;
+}
+
+function isActiveScoresheetRow(row) {
+  return isRowNamed(row) && rowHasTouchedScores(row);
+}
+
+/* =======================================================
+   NEW: meta-field required checks (top of page)
+   - eventType is required
+   - submitter first/last are required
+   - themeName required only if eventType === 'themed_trivia'
+   - venueSelect is always set (defaults to 'other')
+   - eventDate defaults to today
+======================================================= */
+function clearMetaInvalidState() {
+  const ids = [
+    "eventDate",
+    "submitterFirstName",
+    "submitterLastName",
+    "eventType",
+    "themeName",
+    "venueSelect",
+  ];
+  ids.forEach((id) => document.getElementById(id)?.classList.remove("invalid"));
+}
+
+function getMissingMetaFields(meta) {
+  const missing = [];
+
+  // Required: submitter name
+  if (!meta.submitterFirstName) missing.push("submitterFirstName");
+  if (!meta.submitterLastName) missing.push("submitterLastName");
+
+  // Required: event type
+  if (!meta.eventType) missing.push("eventType");
+
+  // Required only if themed
+  if (meta.eventType === "themed_trivia" && !meta.themeName)
+    missing.push("themeName");
+
+  // NOTE: eventDate is auto-filled; venueSelect has a default.
+  return missing;
+}
+
+function validateMetaFieldsBeforeSubmit() {
+  const meta = getMetaFields();
+  clearMetaInvalidState();
+
+  const missing = getMissingMetaFields(meta);
+  if (missing.length === 0) return { ok: true, meta };
+
+  // highlight missing
+  missing.forEach((id) => document.getElementById(id)?.classList.add("invalid"));
+
+  // build friendly message
+  const labels = {
+    submitterFirstName: "First name",
+    submitterLastName: "Last name",
+    eventType: "Event type",
+    themeName: "Theme name",
+  };
+  const msg = missing.map((id) => labels[id] || id).join("\n• ");
+  alert(`Please fill out the required field(s):\n\n• ${msg}`);
+
+  // focus first missing
+  const first = document.getElementById(missing[0]);
+  first?.focus?.();
+  return { ok: false, meta };
+}
+
+/* =======================================================
+   UPDATED: count EMPTY scoresheet cells (for warning), then fill with 0 on submit
+   - ONLY table tbody inputs (scoresheet)
+   - does NOT touch meta fields above the table
+   - ✅ ONLY considers rows that are "active":
+       Team Name is filled AND user touched at least one score in that row.
+   - This prevents the default 5 blank teams (autofill zeros) from counting.
+======================================================= */
+function countEmptyScoresheetCells() {
+  const table = document.getElementById("teamTable");
+  if (!table) return 0;
+
+  let blanks = 0;
+
+  // Only consider "active" rows (rows with a team name)
+  const rows = getActiveTeamRows();
+
+  rows.forEach((row) => {
+    const inputs = row.querySelectorAll("input");
+    inputs.forEach((el) => {
+      if (!(el instanceof HTMLInputElement)) return;
+
+      // don't touch team name text inputs
+      if (el.type === "text" || el.classList.contains("teamName")) return;
+
+      if (el.value === "") blanks++;
+    });
+  });
+
+  return blanks;
+}
+
+function fillEmptyScoresheetWithZeros() {
+  const table = document.getElementById("teamTable");
+  if (!table) return 0;
+
+  let changed = 0;
+
+  // Only fill inside "active" rows (rows with a team name)
+  const rows = getActiveTeamRows();
+
+  rows.forEach((row) => {
+    const inputs = row.querySelectorAll("input");
+    inputs.forEach((el) => {
+      if (!(el instanceof HTMLInputElement)) return;
+
+      // don't touch team name text inputs
+      if (el.type === "text" || el.classList.contains("teamName")) return;
+
+      // If empty, set to "0"
+      if (el.value === "") {
+        el.value = "0";
+        changed++;
+      }
+    });
+  });
+
+  return changed;
+}
+
+/* =======================================================
+   NEW: Scoresheet meta fields (date / submitter / event type / theme / venue)
+======================================================= */
+function setDefaultEventDateToday() {
+  const el = $("#eventDate");
+  if (!el) return;
+  // <input type="date"> expects YYYY-MM-DD
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, "0");
+  const dd = String(today.getDate()).padStart(2, "0");
+  if (!el.value) el.value = `${yyyy}-${mm}-${dd}`;
+}
+
+function updateThemeFieldVisibility() {
+  const typeSel = $("#eventType");
+  const themeField = $("#themeNameField");
+  const themeInput = $("#themeName");
+  if (!typeSel || !themeField) return;
+
+  const isThemed = typeSel.value === "themed_trivia";
+  themeField.hidden = !isThemed;
+
+  if (!isThemed && themeInput) {
+    themeInput.value = "";
+  }
+}
+
+function getMetaFields() {
+  const eventDate = $("#eventDate")?.value || null;
+
+  const submitterFirstName = ($("#submitterFirstName")?.value || "").trim();
+  const submitterLastName = ($("#submitterLastName")?.value || "").trim();
+
+  const eventType = $("#eventType")?.value || null;
+
+  const themeName =
+    eventType === "themed_trivia" ? ($("#themeName")?.value || "").trim() : "";
+
+  // Venue dropdown (for now only "other")
+  const venue = $("#venueSelect")?.value || "other";
+
+  return {
+    eventDate, // YYYY-MM-DD (string) or null
+    submitterFirstName,
+    submitterLastName,
+    eventType,
+    themeName,
+    venue,
+  };
+}
+
+/* =======================================================
+   NEW: Validate required meta fields before submit
+   - Alerts and highlights missing fields (does not touch table)
+======================================================= */
+function validateRequiredMetaFieldsBeforeSubmit() {
+  // Clears previous invalid highlighting
+  const ids = [
+    "eventDate",
+    "submitterFirstName",
+    "submitterLastName",
+    "eventType",
+    "themeName",
+    "venueSelect",
+  ];
+
+  ids.forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove("invalid");
+  });
+
+  const missing = [];
+
+  const eventDateEl = document.getElementById("eventDate");
+  const firstEl = document.getElementById("submitterFirstName");
+  const lastEl = document.getElementById("submitterLastName");
+  const typeEl = document.getElementById("eventType");
+  const themeEl = document.getElementById("themeName");
+  const venueEl = document.getElementById("venueSelect");
+
+  const v = (el) => (el?.value ?? "").trim();
+
+  // Required: Date
+  if (!v(eventDateEl)) {
+    missing.push({ el: eventDateEl, label: "Event Date" });
+  }
+
+  // Required: Submitter First/Last
+  if (!v(firstEl)) missing.push({ el: firstEl, label: "Submitter First Name" });
+  if (!v(lastEl)) missing.push({ el: lastEl, label: "Submitter Last Name" });
+
+  // Required: Event Type (select)
+  if (!v(typeEl)) missing.push({ el: typeEl, label: "Event Type" });
+
+  // Required: Venue (select)
+  if (!v(venueEl)) missing.push({ el: venueEl, label: "Venue" });
+
+  // Conditional required: Theme Name
+  if (v(typeEl) === "themed_trivia" && !v(themeEl)) {
+    missing.push({ el: themeEl, label: "Theme Name" });
+  }
+
+  if (missing.length === 0) return true;
+
+  // Highlight + focus first missing
+  missing.forEach((m) => {
+    try {
+      m.el?.classList?.add("invalid");
+    } catch (_) {}
+  });
+
+  const msg =
+    "Please fill in these required fields before submitting:\n\n" +
+    missing.map((m) => `• ${m.label}`).join("\n");
+
+  alert(msg);
+
+  // focus first missing
+  const firstMissing = missing[0]?.el;
+  try {
+    firstMissing?.focus?.();
+    firstMissing?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+  } catch (_) {}
+
+  return false;
+}
+
+function bindMetaFieldListeners() {
+  const ids = [
+    "eventDate",
+    "submitterFirstName",
+    "submitterLastName",
+    "eventType",
+    "themeName",
+    "venueSelect",
+  ];
+
+  ids.forEach((id) => {
+    const el = document.getElementById(id);
+    if (!el || el.dataset.bound) return;
+
+    const mark = () => {
+      // if the user fixes a previously-missing required field, clear the red outline
+      el.classList.remove("invalid");
+      markAsModified();
+    };
+    el.addEventListener("input", mark);
+    el.addEventListener("change", mark);
+
+    el.dataset.bound = "1";
+  });
+
+  const eventType = $("#eventType");
+  if (eventType && !eventType.dataset.boundThemeToggle) {
+    eventType.addEventListener("change", () => {
+      updateThemeFieldVisibility();
+    });
+    eventType.dataset.boundThemeToggle = "1";
+  }
+}
+
 /* =======================================================
    Firebase helpers (compat SDK expected)
 ======================================================= */
 function ensureDbHandle() {
   // If firebase compat is present but window.db is missing, create it.
   if (!window.db && window.firebase?.firestore) {
-    try { window.db = window.firebase.firestore(); } catch (e) {}
+    try {
+      window.db = window.firebase.firestore();
+    } catch (e) {}
   }
 }
 
 async function ensureSignedIn() {
   // Requires auth-compat to be loaded BEFORE this script.
   if (!window.firebase?.auth) {
-    throw new Error("Auth SDK missing — load firebase-auth-compat.js before app.js");
+    throw new Error(
+      "Auth SDK missing — load firebase-auth-compat.js before app.js"
+    );
   }
   const auth = window.firebase.auth();
   if (auth.currentUser) return auth.currentUser;
 
   // Wait for an existing state or perform anonymous sign-in.
   await new Promise((resolve, reject) => {
-    const unsub = auth.onAuthStateChanged(u => { if (u) { unsub(); resolve(); }});
-    auth.signInAnonymously().catch(err => { unsub(); reject(err); });
+    const unsub = auth.onAuthStateChanged((u) => {
+      if (u) {
+        unsub();
+        resolve();
+      }
+    });
+    auth.signInAnonymously().catch((err) => {
+      unsub();
+      reject(err);
+    });
   });
   return auth.currentUser;
 }
@@ -74,7 +421,9 @@ function bindBonusInput(inp) {
   inp.addEventListener("focus", () => {
     if (inp.dataset.touched === "1") return;
     setTimeout(() => {
-      try { inp.select(); } catch (_) {}
+      try {
+        inp.select();
+      } catch (_) {}
     }, 0);
   });
 
@@ -104,7 +453,9 @@ function updateStickyRightWidths() {
     table.querySelector("thead th.bonus-col-right");
 
   if (!finalCell || !bonusCell) {
-    console.warn("[bonus+final-width] Missing .sticky-col-right or .bonus-col-right");
+    console.warn(
+      "[bonus+final-width] Missing .sticky-col-right or .bonus-col-right"
+    );
     return;
   }
 
@@ -192,11 +543,17 @@ function updateStickyRightWidths() {
     `;
 
     console.log(
-      "[bonus+final-width] finalWidth:", newFinalWidth,
-      "bonusWidth:", newBonusWidth,
-      "gap:", gap,
-      "→ bonus right:", newRight, "px",
-      "bonusInputWidth:", bonusInputWidth
+      "[bonus+final-width] finalWidth:",
+      newFinalWidth,
+      "bonusWidth:",
+      newBonusWidth,
+      "gap:",
+      gap,
+      "→ bonus right:",
+      newRight,
+      "px",
+      "bonusInputWidth:",
+      bonusInputWidth
     );
   });
 }
@@ -399,13 +756,13 @@ function addTeam() {
     tr.appendChild(td);
   }
 
-  // Final Question (free integer >= 0, can be negative via later helpers)
+  // Final Question (allow negative)
   {
     const td = document.createElement("td");
     const inp = document.createElement("input");
     inp.type = "number";
     inp.id = `finalQuestion${teamCount}`;
-    inp.min = "0";
+    // IMPORTANT: allow negatives (do NOT set min="0")
     inp.className = "finalquestion-input";
     td.appendChild(inp);
     tr.appendChild(td);
@@ -462,9 +819,21 @@ function validateInput(input, teamId) {
   const rawValue = input.value;
   dataModified = true;
 
-  // Halftime / Final Question: allow any non-negative int or empty
-  if (id === `halfTime${teamId}` || id === `finalQuestion${teamId}`) {
-    if (rawValue !== "" && (isNaN(parseInt(rawValue)) || parseInt(rawValue) < 0)) {
+  // Halftime: allow any non-negative int or empty
+  if (id === `halfTime${teamId}`) {
+    if (
+      rawValue !== "" &&
+      (isNaN(parseInt(rawValue, 10)) || parseInt(rawValue, 10) < 0)
+    ) {
+      input.value = "0";
+    }
+    updateScores(teamId);
+    return;
+  }
+
+  // Final Question: allow any int (negative OK) or empty
+  if (id === `finalQuestion${teamId}`) {
+    if (rawValue !== "" && isNaN(parseInt(rawValue, 10))) {
       input.value = "0";
     }
     updateScores(teamId);
@@ -500,7 +869,8 @@ function validateInput(input, teamId) {
 }
 
 function updateScores(teamId) {
-  const valOrZero = (el) => (el?.value === "" ? 0 : parseInt(el?.value, 10) || 0);
+  const valOrZero = (el) =>
+    el?.value === "" ? 0 : parseInt(el?.value, 10) || 0;
 
   // Row (for BONUS & checkbox lookup)
   const row = document.querySelector(`tr[data-team-id="${teamId}"]`);
@@ -514,7 +884,9 @@ function updateScores(teamId) {
 
   // Halftime / Final Question
   const halfTimeValue = valOrZero(document.getElementById(`halfTime${teamId}`));
-  const finalQuestionValue = valOrZero(document.getElementById(`finalQuestion${teamId}`));
+  const finalQuestionValue = valOrZero(
+    document.getElementById(`finalQuestion${teamId}`)
+  );
 
   // Totals
   const r1Total = values.slice(0, 5).reduce((a, b) => a + b, 0);
@@ -551,7 +923,8 @@ function updateScores(teamId) {
   }
 
   // Final score (FH + SH + BONUS column + checkbox 5-pt bonus)
-  const finalScore = firstHalfTotal + secondHalfTotal + bonusValue + checkboxBonus;
+  const finalScore =
+    firstHalfTotal + secondHalfTotal + bonusValue + checkboxBonus;
 
   // Update DOM
   const setText = (id, v) => {
@@ -590,13 +963,26 @@ function showStandings() {
   if (!modalList) return;
   modalList.innerHTML = "";
 
+  // Only include teams that have a real name entered
+  const activeIds = getActiveTeamIds();
+
   // Build ranking base data
   const teams = [];
-  for (let i = 1; i <= teamCount; i++) {
-    const name = (document.getElementById(`teamName${i}`)?.value || `Team ${i}`);
-    const finalScore = parseInt(document.getElementById(`finalScore${i}`)?.textContent || "0", 10);
-    const firstHalf = parseInt(document.getElementById(`firstHalfTotal${i}`)?.textContent || "0", 10);
-    const secondHalf = parseInt(document.getElementById(`secondHalfTotal${i}`)?.textContent || "0", 10);
+  for (const i of activeIds) {
+    const name =
+      document.getElementById(`teamName${i}`)?.value || `Team ${i}`;
+    const finalScore = parseInt(
+      document.getElementById(`finalScore${i}`)?.textContent || "0",
+      10
+    );
+    const firstHalf = parseInt(
+      document.getElementById(`firstHalfTotal${i}`)?.textContent || "0",
+      10
+    );
+    const secondHalf = parseInt(
+      document.getElementById(`secondHalfTotal${i}`)?.textContent || "0",
+      10
+    );
     teams.push({ name, score: finalScore, firstHalf, secondHalf });
   }
 
@@ -609,7 +995,7 @@ function showStandings() {
 
   teams.forEach((t, idx) => {
     if (lastScore === null || t.score < lastScore) {
-      currentRank = idx + 1;   // only advance rank when score drops
+      currentRank = idx + 1; // only advance rank when score drops
       lastScore = t.score;
     }
     t.rank = currentRank;
@@ -620,9 +1006,7 @@ function showStandings() {
 
   orderedTeams.forEach((t) => {
     const li = document.createElement("li");
-    li.textContent =
-      `${t.rank}) ${t.name} - Score: ${t.score} ` +
-      `(First Half: ${t.firstHalf}, Second Half: ${t.secondHalf})`;
+    li.textContent = `${t.rank}) ${t.name} - Score: ${t.score} (First Half: ${t.firstHalf}, Second Half: ${t.secondHalf})`;
 
     // Medal styling based on rank (not list position)
     if (t.rank === 1) {
@@ -649,7 +1033,9 @@ function closeModal() {
    Search (with suggestions)
 ======================================================= */
 function levenshteinDistance(str1, str2) {
-  const track = Array(str2.length + 1).fill(null).map(() => Array(str1.length + 1).fill(null));
+  const track = Array(str2.length + 1)
+    .fill(null)
+    .map(() => Array(str1.length + 1).fill(null));
   for (let i = 0; i <= str1.length; i++) track[0][i] = i;
   for (let j = 0; j <= str2.length; j++) track[j][0] = j;
 
@@ -657,8 +1043,8 @@ function levenshteinDistance(str1, str2) {
     for (let i = 1; i <= str1.length; i++) {
       const indicator = str1[i - 1] === str2[j - 1] ? 0 : 1;
       track[j][i] = Math.min(
-        track[j][i - 1] + 1,        // deletion
-        track[j - 1][i] + 1,        // insertion
+        track[j][i - 1] + 1, // deletion
+        track[j - 1][i] + 1, // insertion
         track[j - 1][i - 1] + indicator // substitution
       );
     }
@@ -669,7 +1055,10 @@ function levenshteinDistance(str1, str2) {
 function searchTeams() {
   const input = $("#teamSearch");
   const searchTerm = (input?.value || "").toLowerCase().trim();
-  if (!searchTerm) { clearHighlights(); return; }
+  if (!searchTerm) {
+    clearHighlights();
+    return;
+  }
 
   const teamNameInputs = $all(".teamName");
   clearHighlights();
@@ -679,7 +1068,10 @@ function searchTeams() {
     const name = (el.value || "").toLowerCase().trim();
     if (!name) continue;
 
-    if (name === searchTerm) { highlightTeam(el); return; }
+    if (name === searchTerm) {
+      highlightTeam(el);
+      return;
+    }
 
     const contains = name.includes(searchTerm);
     const containedBy = searchTerm.includes(name);
@@ -749,7 +1141,9 @@ function removeExistingSuggestions() {
 }
 
 function clearHighlights() {
-  $all(".highlighted-row").forEach((row) => row.classList.remove("highlighted-row"));
+  $all(".highlighted-row").forEach((row) =>
+    row.classList.remove("highlighted-row")
+  );
   removeExistingSuggestions();
 }
 
@@ -766,22 +1160,27 @@ function scrollToTeam(teamRow) {
 function collectTeamData() {
   const teamsData = [];
 
-  for (let i = 1; i <= teamCount; i++) {
-    const teamName = document.getElementById(`teamName${i}`)?.value || `Team ${i}`;
+  // Only include teams that have a real name entered
+  const activeIds = getActiveTeamIds();
+
+  for (const i of activeIds) {
+    const teamName = (document.getElementById(`teamName${i}`)?.value || "").trim();
     const bonusApplied = !!document.getElementById(`checkbox${i}`)?.checked;
 
     const questionScores = {};
     for (let j = 1; j <= 20; j++) {
       const el = document.getElementById(`num${i}${j}`);
       const raw = el?.value;
-      questionScores[`Q${j}`] = raw === "" ? null : (parseInt(raw, 10) || 0);
+      questionScores[`Q${j}`] = raw === "" ? null : parseInt(raw, 10) || 0;
     }
 
     const halfTimeRaw = document.getElementById(`halfTime${i}`)?.value;
-    const halfTimeScore = halfTimeRaw === "" ? null : (parseInt(halfTimeRaw || "0", 10) || 0);
+    const halfTimeScore =
+      halfTimeRaw === "" ? null : parseInt(halfTimeRaw || "0", 10) || 0;
 
     const finalQRaw = document.getElementById(`finalQuestion${i}`)?.value;
-    const finalQuestionScore = finalQRaw === "" ? null : (parseInt(finalQRaw || "0", 10) || 0);
+    const finalQuestionScore =
+      finalQRaw === "" ? null : parseInt(finalQRaw || "0", 10) || 0;
 
     // BONUS numeric value
     let bonusScore = 0;
@@ -792,21 +1191,42 @@ function collectTeamData() {
         row.querySelector("td.bonus-col-right input.bonus-input");
       if (bonusInput && bonusInput.value !== "") {
         const n = parseInt(bonusInput.value, 10);
-        bonusScore = (!isNaN(n) && n >= 0) ? n : 0;
+        bonusScore = !isNaN(n) && n >= 0 ? n : 0;
       }
     }
 
-    const r1Total = parseInt(document.getElementById(`r1Total${i}`)?.textContent || "0", 10);
-    const r2Total = parseInt(document.getElementById(`r2Total${i}`)?.textContent || "0", 10);
-    const r3Total = parseInt(document.getElementById(`r3Total${i}`)?.textContent || "0", 10);
-    const r4Total = parseInt(document.getElementById(`r4Total${i}`)?.textContent || "0", 10);
-    const firstHalfTotal = parseInt(document.getElementById(`firstHalfTotal${i}`)?.textContent || "0", 10);
-    const secondHalfTotal = parseInt(document.getElementById(`secondHalfTotal${i}`)?.textContent || "0", 10);
-    const finalScore = parseInt(document.getElementById(`finalScore${i}`)?.textContent || "0", 10);
+    const r1Total = parseInt(
+      document.getElementById(`r1Total${i}`)?.textContent || "0",
+      10
+    );
+    const r2Total = parseInt(
+      document.getElementById(`r2Total${i}`)?.textContent || "0",
+      10
+    );
+    const r3Total = parseInt(
+      document.getElementById(`r3Total${i}`)?.textContent || "0",
+      10
+    );
+    const r4Total = parseInt(
+      document.getElementById(`r4Total${i}`)?.textContent || "0",
+      10
+    );
+    const firstHalfTotal = parseInt(
+      document.getElementById(`firstHalfTotal${i}`)?.textContent || "0",
+      10
+    );
+    const secondHalfTotal = parseInt(
+      document.getElementById(`secondHalfTotal${i}`)?.textContent || "0",
+      10
+    );
+    const finalScore = parseInt(
+      document.getElementById(`finalScore${i}`)?.textContent || "0",
+      10
+    );
 
     teamsData.push({
       teamId: i,
-      teamName,
+      teamName: teamName || `Team ${i}`,
       bonusApplied,
       bonusScore,
       questionScores,
@@ -819,10 +1239,21 @@ function collectTeamData() {
     });
   }
 
+  // include meta fields at top-level
+  const meta = getMetaFields();
+
   return {
     timestamp: new Date().toISOString(),
     eventName: "Trivia Night",
-    teamCount,      // number already numeric; will be coerced again before submit
+    eventDate: meta.eventDate,
+    submitter: {
+      firstName: meta.submitterFirstName,
+      lastName: meta.submitterLastName,
+    },
+    eventType: meta.eventType,
+    themeName: meta.themeName,
+    venue: meta.venue,
+    teamCount: teamsData.length,
     teams: teamsData,
   };
 }
@@ -841,9 +1272,36 @@ async function sendDataToAPI(data) {
     // 2) coerce payload to satisfy rules
     const safe = { ...data };
     safe.timestamp = new Date().toISOString();
-    safe.eventName = (typeof safe.eventName === "string" && safe.eventName) ? safe.eventName : "Trivia Night";
-    safe.teamCount = Number.isFinite(safe.teamCount) ? Math.trunc(safe.teamCount) : 0;
+    safe.eventName =
+      typeof safe.eventName === "string" && safe.eventName
+        ? safe.eventName
+        : "Trivia Night";
+    safe.teamCount = Number.isFinite(safe.teamCount)
+      ? Math.trunc(safe.teamCount)
+      : 0;
     safe.teams = Array.isArray(safe.teams) ? safe.teams : [];
+
+    // Meta field coercion
+    safe.eventDate =
+      typeof safe.eventDate === "string" && safe.eventDate
+        ? safe.eventDate
+        : null;
+
+    if (!safe.submitter || typeof safe.submitter !== "object")
+      safe.submitter = { firstName: "", lastName: "" };
+    safe.submitter.firstName =
+      typeof safe.submitter.firstName === "string"
+        ? safe.submitter.firstName
+        : "";
+    safe.submitter.lastName =
+      typeof safe.submitter.lastName === "string"
+        ? safe.submitter.lastName
+        : "";
+
+    safe.eventType = typeof safe.eventType === "string" ? safe.eventType : null;
+    safe.themeName = typeof safe.themeName === "string" ? safe.themeName : "";
+    safe.venue =
+      typeof safe.venue === "string" && safe.venue ? safe.venue : "other";
 
     // 3) compat write via window.db
     const docRef = await window.db.collection("scores").add(safe);
@@ -853,7 +1311,9 @@ async function sendDataToAPI(data) {
     return { id: docRef.id, success: true };
   } catch (error) {
     console.error("Error sending data to Firestore:", error);
-    alert("Failed to submit scores to Firebase. Please try again or save locally.");
+    alert(
+      "Failed to submit scores to Firebase. Please try again or save locally."
+    );
     throw error;
   }
 }
@@ -894,6 +1354,11 @@ window.addEventListener("beforeunload", (e) => {
    Event delegation + initial setup
 ======================================================= */
 document.addEventListener("DOMContentLoaded", () => {
+  // initialize & bind meta fields
+  setDefaultEventDateToday();
+  bindMetaFieldListeners();
+  updateThemeFieldVisibility();
+
   // Ensure tbody exists
   const table = $("#teamTable");
   if (table && !table.querySelector("tbody")) {
@@ -930,6 +1395,19 @@ document.addEventListener("DOMContentLoaded", () => {
     if (target.classList.contains("teamName")) {
       markAsModified();
       return;
+    }
+
+    // ✅ mark score inputs as "touched" ONLY when the USER actually typed (trusted)
+    // This is the key to ignoring the default 5 rows where scripts set 0s.
+    if (e.isTrusted) {
+      if (
+        target.classList.contains("bonus-input") ||
+        target.id === `halfTime${teamId}` ||
+        target.id === `finalQuestion${teamId}` ||
+        /^num\d+\d+$/.test(target.id)
+      ) {
+        target.dataset.touched = "1";
+      }
     }
 
     // BONUS numeric column
@@ -1002,6 +1480,22 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnSubmit = $("#btnSubmitScores");
   if (btnSubmit && !btnSubmit.dataset.bound) {
     btnSubmit.addEventListener("click", async () => {
+      // ✅ required meta fields (top inputs) guard
+      if (!validateRequiredMetaFieldsBeforeSubmit()) return;
+
+      // ✅ warn user FIRST if any scoresheet inputs are blank (ACTIVE rows only)
+      const blanks = countEmptyScoresheetCells();
+      if (blanks > 0) {
+        const ok = confirm(
+          `There are ${blanks} blank score field(s) on rows that have a Team Name AND edited scores.\n\nClick OK to fill blanks with 0 and continue submitting.\nClick Cancel to go back and fill them manually.`
+        );
+        if (!ok) return;
+      }
+
+      // Then fill blanks with zero (scoresheet only; active rows only; not meta)
+      const changed = fillEmptyScoresheetWithZeros();
+      if (changed > 0) markAsModified();
+
       // Recompute totals before submit
       for (let i = 1; i <= teamCount; i++) updateScores(i);
 
@@ -1015,7 +1509,11 @@ document.addEventListener("DOMContentLoaded", () => {
           await sendDataToAPI(scoresData);
           alert("Scores submitted successfully to Firebase!");
         } catch {
-          if (confirm("Firebase submission failed. Would you like to save the data locally instead?")) {
+          if (
+            confirm(
+              "Firebase submission failed. Would you like to save the data locally instead?"
+            )
+          ) {
             saveDataLocally(scoresData);
           }
         }
@@ -1054,7 +1552,10 @@ document.addEventListener("DOMContentLoaded", () => {
   if (btnInvert && !btnInvert.dataset.bound) {
     btnInvert.addEventListener("click", () => {
       standingsAscending = !standingsAscending;
-      btnInvert.setAttribute("aria-pressed", standingsAscending ? "true" : "false");
+      btnInvert.setAttribute(
+        "aria-pressed",
+        standingsAscending ? "true" : "false"
+      );
       showStandings();
     });
     btnInvert.dataset.bound = "1";
@@ -1070,128 +1571,153 @@ window.closeModal = closeModal;
 window.searchTeams = searchTeams;
 window.clearHighlights = clearHighlights;
 
+window.validateRequiredMetaFieldsBeforeSubmit =
+  validateRequiredMetaFieldsBeforeSubmit;
+
 /* =======================================================
    GRID ENFORCER / NAV / Q-SNAPS / FINAL NEG
-   (your existing helper IIFEs – plus updated nav)
+   (your existing helper IIFEs – unchanged, except one typo fix)
 ======================================================= */
 
 // === [scoresheet][HOST] GRID ENFORCER: per-Q columns; non-zero => round value ===
 (() => {
-  if (window.__HOST_GRID_ENFORCER__) return; window.__HOST_GRID_ENFORCER__ = 1;
+  if (window.__HOST_GRID_ENFORCER__) return;
+  window.__HOST_GRID_ENFORCER__ = 1;
 
-  const roundForQ = (q) => (q>=1 && q<=20) ? Math.ceil(q/5) : null; // 1..4
+  const roundForQ = (q) => (q >= 1 && q <= 20 ? Math.ceil(q / 5) : null); // 1..4
 
   // Build header grid honoring rowSpan/colSpan; returns {cols, qByCol[]}
-  function mapHeader(table){
-    const thead = table.tHead; if (!thead) return { cols:0, qByCol:[] };
+  function mapHeader(table) {
+    const thead = table.tHead;
+    if (!thead) return { cols: 0, qByCol: [] };
     const rows = Array.from(thead.rows);
     // upper-bound columns: max colSpan sum of any row
     let maxCols = 0;
-    rows.forEach(r => {
-      let sum = 0; for (const c of r.cells) sum += Number(c.colSpan||1);
+    rows.forEach((r) => {
+      let sum = 0;
+      for (const c of r.cells) sum += Number(c.colSpan || 1);
       maxCols = Math.max(maxCols, sum);
     });
 
     // grid placement with rowSpan accounting
     const occ = Array(maxCols).fill(0);
-    const grid = rows.map(()=>Array(maxCols).fill(null));
+    const grid = rows.map(() => Array(maxCols).fill(null));
 
     rows.forEach((r, ri) => {
       let col = 0;
       for (const cell of r.cells) {
         while (occ[col] > 0) col++;
-        const cs = Number(cell.colSpan||1);
-        const rs = Number(cell.rowSpan||1);
-        for (let i=0;i<cs;i++) {
-          grid[ri][col+i] = cell;
-          occ[col+i] = rs;   // mark occupied for rs rows (including this one)
+        const cs = Number(cell.colSpan || 1);
+        const rs = Number(cell.rowSpan || 1);
+        for (let i = 0; i < cs; i++) {
+          grid[ri][col + i] = cell;
+          occ[col + i] = rs; // mark occupied for rs rows (including this one)
         }
         col += cs;
       }
-      for (let i=0;i<maxCols;i++) if (occ[i]>0) occ[i]--; // advance to next row
+      for (let i = 0; i < maxCols; i++) if (occ[i] > 0) occ[i]--; // advance to next row
     });
 
     // choose the row with most Q labels
-    let bestRow = 0, bestScore = -1;
+    let bestRow = 0,
+      bestScore = -1;
     grid.forEach((arr, ri) => {
       const score = arr.reduce((acc, cell) => {
-        const t = (cell?.textContent||'').trim();
+        const t = (cell?.textContent || "").trim();
         return acc + (/\bQ\s*\d+\b/i.test(t) ? 1 : 0);
       }, 0);
-      if (score > bestScore) { bestScore = score; bestRow = ri; }
+      if (score > bestScore) {
+        bestScore = score;
+        bestRow = ri;
+      }
     });
 
     const qByCol = Array(maxCols).fill(null);
-    for (let col=0; col<maxCols; col++) {
+    for (let col = 0; col < maxCols; col++) {
       const cell = grid[bestRow][col];
-      const m = (cell?.textContent||'').match(/\bQ\s*([0-9]{1,2})\b/i);
+      const m = (cell?.textContent || "").match(/\bQ\s*([0-9]{1,2})\b/i);
       if (m) qByCol[col] = Number(m[1]);
     }
-    return { cols:maxCols, qByCol };
+    return { cols: maxCols, qByCol };
   }
 
   // Find the <td> that covers a given column index, respecting colSpan
-  function getCellAtCol(tr, colIndex){
+  function getCellAtCol(tr, colIndex) {
     let pos = 0;
     for (const td of tr.cells) {
-      const span = Number(td.colSpan||1);
+      const span = Number(td.colSpan || 1);
       if (colIndex >= pos && colIndex < pos + span) return td;
       pos += span;
     }
     return null;
   }
 
-  function findEditor(td){
-    return td.querySelector('input, [contenteditable="true"], [contenteditable=""]')
-        || td.querySelector('input, div, span');
+  function findEditor(td) {
+    return (
+      td.querySelector("input, [contenteditable='true'], [contenteditable='']") ||
+      td.querySelector("input, div, span")
+    );
   }
 
-  function bind(el, allowed){
+  function bind(el, allowed) {
     if (el.__gridBound) return;
     el.__gridBound = true;
 
     const coerce = (raw) => {
-      const s = String(raw ?? '').replace(/[^\d]/g,'');
-      if (s === '') return '';           // allow temporary empty
+      const s = String(raw ?? "").replace(/[^\d]/g, "");
+      if (s === "") return ""; // allow temporary empty
       const n = Number(s);
-      if (n === 0) return '0';
-      return String(allowed);            // any non-zero snaps to 1/2/3/4
+      if (n === 0) return "0";
+      return String(allowed); // any non-zero snaps to 1/2/3/4
     };
 
     const apply = () => {
-      if (el.tagName === 'INPUT') el.value = coerce(el.value);
+      if (el.tagName === "INPUT") el.value = coerce(el.value);
       else el.textContent = coerce(el.textContent);
     };
 
-    if (el.tagName === 'INPUT') {
-      el.setAttribute('inputmode','numeric');
-      el.setAttribute('min','0'); el.setAttribute('max', String(allowed));
-      el.setAttribute('step', String(allowed));     // spinner toggles 0 <-> allowed
-      el.addEventListener('input', apply, { passive:true });
-      el.addEventListener('change', apply);
-      el.addEventListener('blur', () => { if (el.value === '') el.value = '0'; });
-      el.addEventListener('keydown', (e)=>{ if(['e','E','+','-','.'].includes(e.key)) e.preventDefault(); });
+    if (el.tagName === "INPUT") {
+      el.setAttribute("inputmode", "numeric");
+      el.setAttribute("min", "0");
+      el.setAttribute("max", String(allowed));
+      el.setAttribute("step", String(allowed)); // spinner toggles 0 <-> allowed
+      el.addEventListener("input", apply, { passive: true });
+      el.addEventListener("change", apply);
+      el.addEventListener("blur", () => {
+        if (el.value === "") el.value = "0";
+      });
+      el.addEventListener("keydown", (e) => {
+        if (["e", "E", "+", "-", "."].includes(e.key)) e.preventDefault();
+      });
     } else {
-      el.setAttribute('contenteditable','true');
-      el.addEventListener('input', apply);
-      el.addEventListener('blur', () => { if ((el.textContent||'') === '') el.textContent = '0'; });
-      el.addEventListener('keydown', (e)=>{ if(['e','E','+','-','.'].includes(e.key)) e.preventDefault(); });
+      el.setAttribute("contenteditable", "true");
+      el.addEventListener("input", apply);
+      el.addEventListener("blur", () => {
+        if ((el.textContent || "") === "") el.textContent = "0";
+      });
+      el.addEventListener("keydown", (e) => {
+        if (["e", "E", "+", "-", "."].includes(e.key)) e.preventDefault();
+      });
     }
     apply(); // normalize immediately
   }
 
-  function run(){
-    document.querySelectorAll('table').forEach(table => {
+  function run() {
+    document.querySelectorAll("table").forEach((table) => {
       const { cols, qByCol } = mapHeader(table);
       if (!cols) return;
 
       for (const tbody of table.tBodies) {
         for (const tr of tbody.rows) {
-          for (let col=0; col<cols; col++) {
-            const q = qByCol[col]; if (!q) continue;
-            const allowed = roundForQ(q); if (!allowed) continue;
-            const td = getCellAtCol(tr, col); if (!td) continue;
-            const el = findEditor(td); if (!el) continue;
+          for (let col = 0; col < cols; col++) {
+            const q = qByCol[col];
+            if (!q) continue;
+            const allowed = roundForQ(q);
+            if (!allowed) continue;
+            const td = getCellAtCol(tr, col);
+            if (!td) continue;
+            const el = findEditor(td);
+            if (!el) continue;
             bind(el, allowed);
           }
         }
@@ -1199,90 +1725,114 @@ window.clearHighlights = clearHighlights;
     });
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run, { once:true });
+  if (document.readyState === "loading")
+    document.addEventListener("DOMContentLoaded", run, { once: true });
   else run();
-  new MutationObserver(run).observe(document.documentElement, { childList:true, subtree:true });
+  new MutationObserver(run).observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+  });
 })();
 // === end GRID ENFORCER ===
 
 // === [scoresheet][HOST] TABLE NAVIGATION V3 — capture-phase; prevents stepping; moves focus + edge-aware scroll ===
 (() => {
-  if (window.__HOST_TABLE_NAV_V3__) return; window.__HOST_TABLE_NAV_V3__ = 1;
+  if (window.__HOST_TABLE_NAV_V3__) return;
+  window.__HOST_TABLE_NAV_V3__ = 1;
 
-  const isEditor = el => el && (el.matches?.('input, [contenteditable]') ||
-                                el.querySelector?.('input, [contenteditable]'));
+  const isEditor = (el) =>
+    el &&
+    (el.matches?.("input, [contenteditable]") ||
+      el.querySelector?.("input, [contenteditable]"));
 
-  function buildHeaderGrid(table){
-    const thead = table.tHead; if (!thead) return {cols:0, grid:[], labels:[]};
+  function buildHeaderGrid(table) {
+    const thead = table.tHead;
+    if (!thead) return { cols: 0, grid: [], labels: [] };
     const rows = Array.from(thead.rows);
     let maxCols = 0;
-    rows.forEach(r => { let s=0; for (const c of r.cells) s += Number(c.colSpan||1); maxCols = Math.max(maxCols, s); });
+    rows.forEach((r) => {
+      let s = 0;
+      for (const c of r.cells) s += Number(c.colSpan || 1);
+      maxCols = Math.max(maxCols, s);
+    });
     const occ = Array(maxCols).fill(0);
-    const grid = rows.map(()=>Array(maxCols).fill(null));
-    rows.forEach((r,ri) => {
+    const grid = rows.map(() => Array(maxCols).fill(null));
+    rows.forEach((r, ri) => {
       let col = 0;
       for (const cell of r.cells) {
         while (occ[col] > 0) col++;
-        const cs = Number(cell.colSpan||1), rs = Number(cell.rowSpan||1);
-        for (let i=0;i<cs;i++){
-          grid[ri][col+i] = cell;
-          occ[col+i] = rs;
+        const cs = Number(cell.colSpan || 1),
+          rs = Number(cell.rowSpan || 1);
+        for (let i = 0; i < cs; i++) {
+          grid[ri][col + i] = cell;
+          occ[col + i] = rs;
         }
         col += cs;
       }
-      for (let i=0;i<maxCols;i++) if (occ[i]>0) occ[i]--;
+      for (let i = 0; i < maxCols; i++) if (occ[i] > 0) occ[i]--;
     });
     const labels = Array(maxCols).fill(null);
-    for (let c=0;c<maxCols;c++){
-      let label = '';
-      for (let r=0;r<grid.length;r++){
-        const t = (grid[r][c]?.textContent || '').trim();
+    for (let c = 0; c < maxCols; c++) {
+      let label = "";
+      for (let r = 0; r < grid.length; r++) {
+        const t = (grid[r][c]?.textContent || "").trim();
         if (t) label = t;
       }
       labels[c] = label;
     }
-    return { cols:maxCols, grid, labels };
+    return { cols: maxCols, grid, labels };
   }
 
-  function getCellAtCol(tr, colIndex){
-    let pos=0;
-    for (const td of tr.cells){
-      const span = Number(td.colSpan||1);
+  function getCellAtCol(tr, colIndex) {
+    let pos = 0;
+    for (const td of tr.cells) {
+      const span = Number(td.colSpan || 1);
       if (colIndex >= pos && colIndex < pos + span) return td;
       pos += span;
     }
     return null;
   }
 
-  function colIndexOf(tr, td){
-    let pos=0;
-    for (const c of tr.cells){
-      const span = Number(c.colSpan||1);
+  function colIndexOf(tr, td) {
+    let pos = 0;
+    for (const c of tr.cells) {
+      const span = Number(c.colSpan || 1);
       if (c === td) return pos;
       pos += span;
     }
     return -1;
   }
 
-  function findEditor(td){
-    return td?.querySelector('input, [contenteditable]') || null;
+  function findEditor(td) {
+    return td?.querySelector("input, [contenteditable]") || null;
   }
 
-  function indexTable(table){
-    const {cols, labels} = buildHeaderGrid(table);
+  function indexTable(table) {
+    const { cols, labels } = buildHeaderGrid(table);
     const rows = [];
     for (const tb of table.tBodies) for (const tr of tb.rows) rows.push(tr);
 
     const navCols = Array(cols).fill(false);
-    const labelIsNav = (txt='') => {
+    const labelIsNav = (txt = "") => {
       const t = txt.toLowerCase();
-      return /\bq\s*\d+\b/.test(t) || /team(\s*name)?/.test(t) || /half[\s-]?time/.test(t) || /\bfinal\b/.test(t);
+      return (
+        /\bq\s*\d+\b/.test(t) ||
+        /team(\s*name)?/.test(t) ||
+        /half[\s-]?time/.test(t) ||
+        /\bfinal\b/.test(t)
+      );
     };
-    for (let c=0;c<cols;c++){
-      if (labelIsNav(labels[c])) { navCols[c] = true; continue; }
-      for (let r=0;r<rows.length; r++){
+    for (let c = 0; c < cols; c++) {
+      if (labelIsNav(labels[c])) {
+        navCols[c] = true;
+        continue;
+      }
+      for (let r = 0; r < rows.length; r++) {
         const td = getCellAtCol(rows[r], c);
-        if (td && isEditor(td)) { navCols[c] = true; break; }
+        if (td && isEditor(td)) {
+          navCols[c] = true;
+          break;
+        }
       }
     }
     return { rows, cols, navCols };
@@ -1292,19 +1842,18 @@ window.clearHighlights = clearHighlights;
   function ensureEditorVisible(editor) {
     if (!editor) return;
 
-    const cell = editor.closest('td,th') || editor;
+    const cell = editor.closest("td,th") || editor;
     const wrapper =
-      cell.closest('.table-wrapper') ||
-      document.querySelector('.table-wrapper');
+      cell.closest(".table-wrapper") || document.querySelector(".table-wrapper");
     if (!wrapper) return;
 
     const wrapperRect = wrapper.getBoundingClientRect();
-    const table = wrapper.querySelector('table');
+    const table = wrapper.querySelector("table");
 
     // Sticky left (Team Name)
     let leftStickyWidth = 0;
     if (table) {
-      const leftSticky = table.querySelector('thead .sticky-col');
+      const leftSticky = table.querySelector("thead .sticky-col");
       if (leftSticky) {
         leftStickyWidth = leftSticky.getBoundingClientRect().width;
       }
@@ -1313,10 +1862,12 @@ window.clearHighlights = clearHighlights;
     // Sticky right (Bonus + Final Score)
     let rightStickyWidth = 0;
     if (table) {
-      const finalSticky = table.querySelector('thead .sticky-col-right');
-      const bonusSticky = table.querySelector('thead .bonus-col-right');
-      if (bonusSticky) rightStickyWidth += bonusSticky.getBoundingClientRect().width;
-      if (finalSticky) rightStickyWidth += finalSticky.getBoundingClientRect().width;
+      const finalSticky = table.querySelector("thead .sticky-col-right");
+      const bonusSticky = table.querySelector("thead .bonus-col-right");
+      if (bonusSticky)
+        rightStickyWidth += bonusSticky.getBoundingClientRect().width;
+      if (finalSticky)
+        rightStickyWidth += finalSticky.getBoundingClientRect().width;
     }
 
     // Sticky header height
@@ -1332,9 +1883,9 @@ window.clearHighlights = clearHighlights;
     const marginX = 32;
     const marginY = 12;
 
-    const effectiveLeft   = wrapperRect.left + leftStickyWidth  + marginX;
-    const effectiveRight  = wrapperRect.right - rightStickyWidth - marginX;
-    const effectiveTop    = wrapperRect.top + headerHeight + marginY;
+    const effectiveLeft = wrapperRect.left + leftStickyWidth + marginX;
+    const effectiveRight = wrapperRect.right - rightStickyWidth - marginX;
+    const effectiveTop = wrapperRect.top + headerHeight + marginY;
     const effectiveBottom = wrapperRect.bottom - marginY;
 
     // Horizontal: keep cell between sticky Team and sticky Bonus/Final
@@ -1356,10 +1907,12 @@ window.clearHighlights = clearHighlights;
     }
   }
 
-  function moveFocus(fromEditor, dx, dy){
-    const table = fromEditor.closest('table'); if (!table) return;
-    const {rows, cols, navCols} = indexTable(table);
-    const fromTd = fromEditor.closest('td,th'); if (!fromTd) return;
+  function moveFocus(fromEditor, dx, dy) {
+    const table = fromEditor.closest("table");
+    if (!table) return;
+    const { rows, cols, navCols } = indexTable(table);
+    const fromTd = fromEditor.closest("td,th");
+    if (!fromTd) return;
     const fromTr = fromTd.parentElement;
     const rIdx = rows.indexOf(fromTr);
     let cIdx = colIndexOf(fromTr, fromTd);
@@ -1374,7 +1927,7 @@ window.clearHighlights = clearHighlights;
     }
 
     // Vertical: same column, clamp to table
-    const rTarget = Math.max(0, Math.min(rows.length - 1, rIdx + (dy||0)));
+    const rTarget = Math.max(0, Math.min(rows.length - 1, rIdx + (dy || 0)));
 
     const targetTr = rows[rTarget];
     const targetTd = getCellAtCol(targetTr, cIdx);
@@ -1386,18 +1939,19 @@ window.clearHighlights = clearHighlights;
     }
   }
 
-  const ARROWS = new Set(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight']);
-  function onKey(e){
+  const ARROWS = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
+  function onKey(e) {
     if (!ARROWS.has(e.key)) return;
     const t = e.target;
-    if (!t.closest('table') || !isEditor(t)) return;
+    if (!t.closest("table") || !isEditor(t)) return;
 
     // Kill native number-input stepping & caret moves
     e.preventDefault();
     e.stopImmediatePropagation();
 
-    const dx = (e.key==='ArrowRight') ? 1 : (e.key==='ArrowLeft') ? -1 : 0;
-    const dy = (e.key==='ArrowDown')  ? 1 : (e.key==='ArrowUp')    ? -1 : 0;
+    const dx =
+      e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+    const dy = e.key === "ArrowDown" ? 1 : e.key === "ArrowUp" ? -1 : 0;
     moveFocus(t, dx, dy);
   }
 
@@ -1406,109 +1960,137 @@ window.clearHighlights = clearHighlights;
   function onFocusIn(e) {
     const t = e.target;
     if (!(t instanceof HTMLElement)) return;
-    if (!t.closest('table')) return;
-    const editor = t.closest('input, [contenteditable]');
+    if (!t.closest("table")) return;
+    const editor = t.closest("input, [contenteditable]");
     if (!editor) return;
     ensureEditorVisible(editor);
   }
 
   // Capture-phase so we beat native stepping and any other handlers
-  document.addEventListener('keydown', onKey, true);
-  document.addElementListener?.('focusin', onFocusIn, true) ||
-  document.addEventListener('focusin', onFocusIn, true);
+  document.addEventListener("keydown", onKey, true);
+  // ✅ typo fix: addEventListener (not addElementListener)
+  document.addEventListener("focusin", onFocusIn, true);
 })();
 // === end TABLE NAVIGATION V3 ===
 
 // === [scoresheet][HOST] FINAL column — allow negative numbers ===
 (() => {
-  if (window.__HOST_FINAL_NEG__) return; window.__HOST_FINAL_NEG__ = 1;
+  if (window.__HOST_FINAL_NEG__) return;
+  window.__HOST_FINAL_NEG__ = 1;
 
-  function buildHeaderGrid(table){
-    const thead = table.tHead; if (!thead) return {cols:0, labels:[]};
-    const rows = Array.from(thead.rows); let maxCols = 0;
-    rows.forEach(r => { let s=0; for (const c of r.cells) s += Number(c.colSpan||1); maxCols = Math.max(maxCols, s); });
+  function buildHeaderGrid(table) {
+    const thead = table.tHead;
+    if (!thead) return { cols: 0, labels: [] };
+    const rows = Array.from(thead.rows);
+    let maxCols = 0;
+    rows.forEach((r) => {
+      let s = 0;
+      for (const c of r.cells) s += Number(c.colSpan || 1);
+      maxCols = Math.max(maxCols, s);
+    });
     const occ = Array(maxCols).fill(0);
-    const grid = rows.map(()=>Array(maxCols).fill(null));
-    rows.forEach((r,ri) => {
+    const grid = rows.map(() => Array(maxCols).fill(null));
+    rows.forEach((r, ri) => {
       let col = 0;
       for (const cell of r.cells) {
         while (occ[col] > 0) col++;
-        const cs = Number(cell.colSpan||1), rs = Number(cell.rowSpan||1);
-        for (let i=0;i<cs;i++){
-          grid[ri][col+i] = cell;
-          occ[col+i] = rs;
+        const cs = Number(cell.colSpan || 1),
+          rs = Number(cell.rowSpan || 1);
+        for (let i = 0; i < cs; i++) {
+          grid[ri][col + i] = cell;
+          occ[col + i] = rs;
         }
         col += cs;
       }
-      for (let i=0;i<maxCols;i++) if (occ[i]>0) occ[i]--;
+      for (let i = 0; i < maxCols; i++) if (occ[i] > 0) occ[i]--;
     });
 
     const labels = Array(maxCols).fill(null);
-    for (let c=0;c<maxCols;c++){
-      let label = '';
-      for (let r=0;r<grid.length;r++){
-        const t = (grid[r][c]?.textContent || '').trim();
+    for (let c = 0; c < maxCols; c++) {
+      let label = "";
+      for (let r = 0; r < grid.length; r++) {
+        const t = (grid[r][c]?.textContent || "").trim();
         if (t) label = t;
       }
       labels[c] = label;
     }
-    return { cols:maxCols, labels };
+    return { cols: maxCols, labels };
   }
 
-  function getCellAtCol(tr, colIndex){
-    let pos=0;
-    for (const td of tr.cells){
-      const span = Number(td.colSpan||1);
+  function getCellAtCol(tr, colIndex) {
+    let pos = 0;
+    for (const td of tr.cells) {
+      const span = Number(td.colSpan || 1);
       if (colIndex >= pos && colIndex < pos + span) return td;
       pos += span;
     }
     return null;
   }
-  const findEditor = (td) => td?.querySelector('input, [contenteditable="true"], [contenteditable=""]') || null;
+  const findEditor = (td) =>
+    td?.querySelector("input, [contenteditable='true'], [contenteditable='']") ||
+    null;
 
-  function bindFinalEditor(el){
+  function bindFinalEditor(el) {
     if (el.__finalNegBound) return;
     el.__finalNegBound = true;
 
     const sanitize = () => {
-      let s = (el.tagName === 'INPUT' ? el.value : el.textContent) ?? '';
+      let s = (el.tagName === "INPUT" ? el.value : el.textContent) ?? "";
       // keep only digits and a single leading '-'
-      s = String(s).replace(/[^\d-]/g, '').replace(/(?!^)-/g, '');
-      if (s === '' || s === '-') return;      // allow temp empty/just '-'
+      s = String(s).replace(/[^\d-]/g, "").replace(/(?!^)-/g, "");
+      if (s === "" || s === "-") return; // allow temp empty/just '-'
       const n = Number(s);
-      if (el.tagName === 'INPUT') el.value = String(n);
+      if (el.tagName === "INPUT") el.value = String(n);
       else el.textContent = String(n);
     };
 
-    if (el.tagName === 'INPUT') {
-      el.removeAttribute('min');              // allow negatives
-      el.setAttribute('step', '1');
-      el.setAttribute('inputmode', 'numeric');
-      el.setAttribute('pattern', '-?[0-9]*');
+    if (el.tagName === "INPUT") {
+      el.removeAttribute("min"); // allow negatives
+      el.setAttribute("step", "1");
+      el.setAttribute("inputmode", "numeric");
+      el.setAttribute("pattern", "-?[0-9]*");
       // block e/E/+/. but NOT '-'
-      el.addEventListener('keydown', (e)=>{ if (['e','E','+','.'].includes(e.key)) e.preventDefault(); }, true);
-      el.addEventListener('input', sanitize, { passive:true });
-      el.addEventListener('change', sanitize);
-      el.addEventListener('blur', () => { const v = el.value; if (v === '' || v === '-') el.value = '0'; });
+      el.addEventListener(
+        "keydown",
+        (e) => {
+          if (["e", "E", "+", "."].includes(e.key)) e.preventDefault();
+        },
+        true
+      );
+      el.addEventListener("input", sanitize, { passive: true });
+      el.addEventListener("change", sanitize);
+      el.addEventListener("blur", () => {
+        const v = el.value;
+        if (v === "" || v === "-") el.value = "0";
+      });
     } else {
-      el.setAttribute('contenteditable','true');
-      el.addEventListener('keydown', (e)=>{ if (['e','E','+','.'].includes(e.key)) e.preventDefault(); }, true);
-      el.addEventListener('input', sanitize);
-      el.addEventListener('blur', () => { const v = el.textContent||''; if (v === '' || v === '-') el.textContent = '0'; });
+      el.setAttribute("contenteditable", "true");
+      el.addEventListener(
+        "keydown",
+        (e) => {
+          if (["e", "E", "+", "."].includes(e.key)) e.preventDefault();
+        },
+        true
+      );
+      el.addEventListener("input", sanitize);
+      el.addEventListener("blur", () => {
+        const v = el.textContent || "";
+        if (v === "" || v === "-") el.textContent = "0";
+      });
     }
     // normalize once
     sanitize();
   }
 
-  function run(){
-    document.querySelectorAll('table').forEach(table => {
-      const {cols, labels} = buildHeaderGrid(table);
+  function run() {
+    document.querySelectorAll("table").forEach((table) => {
+      const { cols, labels } = buildHeaderGrid(table);
       if (!cols) return;
 
-      const isFinalCol = (lbl='') => /\bfinal\b/i.test(lbl);
+      const isFinalCol = (lbl = "") => /\bfinal\b/i.test(lbl);
       for (const tb of table.tBodies) {
         for (const tr of tb.rows) {
-          for (let c=0;c<cols;c++){
+          for (let c = 0; c < cols; c++) {
             if (!isFinalCol(labels[c])) continue;
             const td = getCellAtCol(tr, c);
             const el = findEditor(td);
@@ -1519,448 +2101,762 @@ window.clearHighlights = clearHighlights;
     });
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run, { once:true });
+  if (document.readyState === "loading")
+    document.addEventListener("DOMContentLoaded", run, { once: true });
   else run();
-  new MutationObserver(run).observe(document.documentElement, { childList:true, subtree:true });
+  new MutationObserver(run).observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+  });
 })();
 // === end FINAL column negatives ===
 
 // === FINAL NEGATIVE (safe, instance hook) ===
 (() => {
-  if (window.__HOST_FINAL_NEG_SAFE__) return; window.__HOST_FINAL_NEG_SAFE__ = 1;
+  if (window.__HOST_FINAL_NEG_SAFE__) return;
+  window.__HOST_FINAL_NEG_SAFE__ = 1;
 
-  function bind(el){
+  function bind(el) {
     if (!el || el.__finalNegBound) return;
     el.__finalNegBound = true;
 
     // allow negatives at HTML level
-    el.removeAttribute('min');
-    el.step = '1';
-    el.inputMode = 'numeric';
-    el.setAttribute('pattern','-?[0-9]*');
+    el.removeAttribute("min");
+    el.step = "1";
+    el.inputMode = "numeric";
+    el.setAttribute("pattern", "-?[0-9]*");
 
     // hook this element's value property (instance-level)
     const proto = Object.getPrototypeOf(el);
-    const desc  = Object.getOwnPropertyDescriptor(proto, 'value');
-    const get   = desc.get.bind(el);
-    const set   = desc.set.bind(el);
+    const desc = Object.getOwnPropertyDescriptor(proto, "value");
+    const get = desc.get.bind(el);
+    const set = desc.set.bind(el);
 
     if (!el.__negHooked) {
-      Object.defineProperty(el, 'value', {
+      Object.defineProperty(el, "value", {
         configurable: true,
-        get() { return get(); },
+        get() {
+          return get();
+        },
         set(v) {
           if (this.__negReentry) return set(v);
           if (this.__negWant && String(v) !== this.__negWant) {
-            this.__negReentry = true; set(this.__negWant); this.__negReentry = false; return;
+            this.__negReentry = true;
+            set(this.__negWant);
+            this.__negReentry = false;
+            return;
           }
           set(v);
-        }
+        },
       });
       el.__negHooked = true;
     }
 
     const normalize = () => {
-      let s = String(get() ?? '');
-      s = s.replace(/[^\d-]/g,'').replace(/(?!^)-/g,'');     // digits + single leading '-'
-      if (s === '' || s === '-') { el.__negWant = s; return; } // transient '-'
-      const n = String(Number(s));                            // canonical int
-      el.__negWant = n.startsWith('-') ? n : '';              // remember only negatives
-      if (get() !== n) { el.__negReentry = true; set(n); el.__negReentry = false; }
+      let s = String(get() ?? "");
+      s = s.replace(/[^\d-]/g, "").replace(/(?!^)-/g, ""); // digits + single leading '-'
+      if (s === "" || s === "-") {
+        el.__negWant = s;
+        return;
+      } // transient '-'
+      const n = String(Number(s)); // canonical int
+      el.__negWant = n.startsWith("-") ? n : ""; // remember only negatives
+      if (get() !== n) {
+        el.__negReentry = true;
+        set(n);
+        el.__negReentry = false;
+      }
     };
 
-    el.addEventListener('keydown', e => {
-      if (['e','E','+','.'].includes(e.key)) e.preventDefault(); // block sci/plus/decimal
-      if (e.key === '-') el.__negWant = '-';
-    }, true);
+    el.addEventListener(
+      "keydown",
+      (e) => {
+        if (["e", "E", "+", "."].includes(e.key)) e.preventDefault(); // block sci/plus/decimal
+        if (e.key === "-") el.__negWant = "-";
+      },
+      true
+    );
 
-    el.addEventListener('input',  e => { if (!e.isTrusted) return; normalize(); }, true);
-    const finish = () => { normalize(); const v=get(); if (v==='' || v==='-'){ el.__negWant=''; el.__negReentry=true; set('0'); el.__negReentry=false; } };
-    el.addEventListener('change', e => { if (!e.isTrusted) return; finish(); }, true);
-    el.addEventListener('blur',   e => { if (!e.isTrusted) return; finish(); }, true);
+    el.addEventListener(
+      "input",
+      (e) => {
+        if (!e.isTrusted) return;
+        normalize();
+      },
+      true
+    );
+    const finish = () => {
+      normalize();
+      const v = get();
+      if (v === "" || v === "-") {
+        el.__negWant = "";
+        el.__negReentry = true;
+        set("0");
+        el.__negReentry = false;
+      }
+    };
+    el.addEventListener(
+      "change",
+      (e) => {
+        if (!e.isTrusted) return;
+        finish();
+      },
+      true
+    );
+    el.addEventListener(
+      "blur",
+      (e) => {
+        if (!e.isTrusted) return;
+        finish();
+      },
+      true
+    );
   }
 
   // bind current and future Final Question inputs
-  const run = () => document.querySelectorAll('input.finalquestion-input').forEach(bind);
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run, { once:true }); else run();
-  new MutationObserver(run).observe(document.documentElement, { childList:true, subtree:true });
+  const run = () =>
+    document.querySelectorAll("input.finalquestion-input").forEach(bind);
+  if (document.readyState === "loading")
+    document.addEventListener("DOMContentLoaded", run, { once: true });
+  else run();
+  new MutationObserver(run).observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+  });
 })();
 // === end FINAL NEGATIVE (safe, instance hook) ===
 
 // === [scoresheet][HOST] Q-COLUMN NORMALIZER & STRICT SNAPPING ===
 (() => {
-  if (window.__HOST_QCELL_STRICT__) return; window.__HOST_QCELL_STRICT__ = 1;
+  if (window.__HOST_QCELL_STRICT__) return;
+  window.__HOST_QCELL_STRICT__ = 1;
 
-  function buildHeaderGrid(table){
-    const thead = table.tHead; if (!thead) return {cols:0, labels:[]};
-    const rows=[...thead.rows]; let max=0;
-    rows.forEach(r => { let s=0; for (const c of r.cells) s += Number(c.colSpan||1); max=Math.max(max,s); });
-    const occ=Array(max).fill(0), grid=rows.map(()=>Array(max).fill(null));
-    rows.forEach((r,ri)=>{ let c=0; for (const cell of r.cells){
-      while (occ[c]>0) c++; const cs=+cell.colSpan||1, rs=+cell.rowSpan||1;
-      for (let i=0;i<cs;i++){ grid[ri][c+i]=cell; occ[c+i]=rs; } c+=cs;
-    } for (let i=0;i<max;i++) if(occ[i]>0) occ[i]--; });
+  function buildHeaderGrid(table) {
+    const thead = table.tHead;
+    if (!thead) return { cols: 0, labels: [] };
+    const rows = [...thead.rows];
+    let max = 0;
+    rows.forEach((r) => {
+      let s = 0;
+      for (const c of r.cells) s += Number(c.colSpan || 1);
+      max = Math.max(max, s);
+    });
+    const occ = Array(max).fill(0),
+      grid = rows.map(() => Array(max).fill(null));
+    rows.forEach((r, ri) => {
+      let c = 0;
+      for (const cell of r.cells) {
+        while (occ[c] > 0) c++;
+        const cs = +cell.colSpan || 1,
+          rs = +cell.rowSpan || 1;
+        for (let i = 0; i < cs; i++) {
+          grid[ri][c + i] = cell;
+          occ[c + i] = rs;
+        }
+        c += cs;
+      }
+      for (let i = 0; i < max; i++) if (occ[i] > 0) occ[i]--;
+    });
 
-    const labels=Array(max).fill(null);
-    for (let c=0;c<max;c++){ let t=''; for (let r=0;r<grid.length;r++){
-      const s=(grid[r][c]?.textContent||'').trim(); if (s) t=s;
-    } labels[c]=t; }
-    return { cols:max, labels, grid };
+    const labels = Array(max).fill(null);
+    for (let c = 0; c < max; c++) {
+      let t = "";
+      for (let r = 0; r < grid.length; r++) {
+        const s = (grid[r][c]?.textContent || "").trim();
+        if (s) t = s;
+      }
+      labels[c] = t;
+    }
+    return { cols: max, labels, grid };
   }
 
-  function getCellColIndex(tr, td){
-    let pos=0; for (const c of tr.cells){ const span=+c.colSpan||1; if (c===td) return pos; pos+=span; } return -1;
+  function getCellColIndex(tr, td) {
+    let pos = 0;
+    for (const c of tr.cells) {
+      const span = +c.colSpan || 1;
+      if (c === td) return pos;
+      pos += span;
+    }
+    return -1;
   }
-  function labelForCol(table, col){
-    const {labels} = buildHeaderGrid(table); return labels[col] || '';
+  function labelForCol(table, col) {
+    const { labels } = buildHeaderGrid(table);
+    return labels[col] || "";
   }
-  function qNumberFromLabel(lbl){
-    const m = lbl.match(/\bQ\s*([0-9]{1,2})\b/i); return m ? +m[1] : null;
+  function qNumberFromLabel(lbl) {
+    const m = lbl.match(/\bQ\s*([0-9]{1,2})\b/i);
+    return m ? +m[1] : null;
   }
-  function weightForQ(q){
-    if (q>=1 && q<=5) return 1;
-    if (q>=6 && q<=10) return 2;
-    if (q>=11 && q<=15) return 3;
-    if (q>=16 && q<=20) return 4;
+  function weightForQ(q) {
+    if (q >= 1 && q <= 5) return 1;
+    if (q >= 6 && q <= 10) return 2;
+    if (q >= 11 && q <= 15) return 3;
+    if (q >= 16 && q <= 20) return 4;
     return null;
   }
 
-  function bindIfQInput(el){
-    const td = el.closest('td,th'); if (!td) return;
-    const tr = td.parentElement; const table = tr?.closest('table'); if (!table) return;
-    const col = getCellColIndex(tr, td); if (col < 0) return;
+  function bindIfQInput(el) {
+    const td = el.closest("td,th");
+    if (!td) return;
+    const tr = td.parentElement;
+    const table = tr?.closest("table");
+    if (!table) return;
+    const col = getCellColIndex(tr, td);
+    if (col < 0) return;
     const lbl = labelForCol(table, col);
-    const q   = qNumberFromLabel(lbl);
-    if (q == null) return;                  // skip non-Q columns (Final/Halftime/etc.)
-    const weight = weightForQ(q); if (weight == null) return;
+    const q = qNumberFromLabel(lbl);
+    if (q == null) return; // skip non-Q columns (Final/Halftime/etc.)
+    const weight = weightForQ(q);
+    if (weight == null) return;
 
     // Normalize attributes so browser doesn't clamp (e.g., max="1")
-    el.removeAttribute('max');
-    el.setAttribute('min',  '0');
-    el.setAttribute('step', '1');
-    el.setAttribute('inputmode','numeric');
-    el.setAttribute('pattern','[0-9]*');
+    el.removeAttribute("max");
+    el.setAttribute("min", "0");
+    el.setAttribute("step", "1");
+    el.setAttribute("inputmode", "numeric");
+    el.setAttribute("pattern", "[0-9]*");
 
     const snap = () => {
-      let s = String(el.value ?? '');
-      s = s.replace(/[^\d]/g,'');           // digits only for Q-cells
-      if (s === '') {                       // empty -> 0
-        if (el.value !== '0') el.value = '0';
+      let s = String(el.value ?? "");
+      s = s.replace(/[^\d]/g, ""); // digits only for Q-cells
+      if (s === "") {
+        if (el.value !== "0") el.value = "0";
         return;
       }
       const n = Number(s);
-      const out = (n === 0) ? '0' : String(weight);
+      const out = n === 0 ? "0" : String(weight);
       if (el.value !== out) {
         el.value = out;
         // bubble input so totals refresh even if value visually unchanged
-        el.dispatchEvent(new Event('input', { bubbles:true }));
+        el.dispatchEvent(new Event("input", { bubbles: true }));
       }
     };
 
     // Capture-phase ensures we override any stray handlers
-    el.addEventListener('input',  e => { if (!e.isTrusted) return; snap(); }, true);
-    el.addEventListener('change', e => { if (!e.isTrusted) return; snap(); }, true);
-    el.addEventListener('blur',   e => { if (!e.isTrusted) return; snap(); }, true);
+    el.addEventListener(
+      "input",
+      (e) => {
+        if (!e.isTrusted) return;
+        snap();
+      },
+      true
+    );
+    el.addEventListener(
+      "change",
+      (e) => {
+        if (!e.isTrusted) return;
+        snap();
+      },
+      true
+    );
+    el.addEventListener(
+      "blur",
+      (e) => {
+        if (!e.isTrusted) return;
+        snap();
+      },
+      true
+    );
   }
 
   const run = () => {
-    document.querySelectorAll('table tbody input[type="number"]').forEach(bindIfQInput);
+    document
+      .querySelectorAll('table tbody input[type="number"]')
+      .forEach(bindIfQInput);
   };
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run, { once:true });
+  if (document.readyState === "loading")
+    document.addEventListener("DOMContentLoaded", run, { once: true });
   else run();
-  new MutationObserver(run).observe(document.documentElement, { childList:true, subtree:true });
+  new MutationObserver(run).observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+  });
 })();
 // === end Q-COLUMN NORMALIZER & STRICT SNAPPING ===
 
 // === [scoresheet][HOST] Q11–Q15 STRICT (0 or 3) — removes browser max clamp & blocks script-forced "1" ===
 (() => {
-  if (window.__HOST_Q11_15_STRICT__) return; window.__HOST_Q11_15_STRICT__ = 1;
+  if (window.__HOST_Q11_15_STRICT__) return;
+  window.__HOST_Q11_15_STRICT__ = 1;
 
-  function buildHeaderGrid(table){
-    const thead = table.tHead; if (!thead) return {cols:0, labels:[]};
-    const rows = Array.from(thead.rows); let max = 0;
-    rows.forEach(r => { let s=0; for (const c of r.cells) s += Number(c.colSpan||1); max=Math.max(max,s); });
-    const occ = Array(max).fill(0), grid = rows.map(()=>Array(max).fill(null));
-    rows.forEach((r,ri) => {
-      let c=0; for (const cell of r.cells){
-        while (occ[c]>0) c++; const cs=+cell.colSpan||1, rs=+cell.rowSpan||1;
-        for (let i=0;i<cs;i++){ grid[ri][c+i]=cell; occ[c+i]=rs; } c+=cs;
+  function buildHeaderGrid(table) {
+    const thead = table.tHead;
+    if (!thead) return { cols: 0, labels: [] };
+    const rows = Array.from(thead.rows);
+    let max = 0;
+    rows.forEach((r) => {
+      let s = 0;
+      for (const c of r.cells) s += +c.colSpan || 1;
+      max = Math.max(max, s);
+    });
+    const occ = Array(max).fill(0),
+      grid = rows.map(() => Array(max).fill(null));
+    rows.forEach((r, ri) => {
+      let c = 0;
+      for (const cell of r.cells) {
+        while (occ[c] > 0) c++;
+        const cs = +cell.colSpan || 1,
+          rs = +cell.rowSpan || 1;
+        for (let i = 0; i < cs; i++) {
+          grid[ri][c + i] = cell;
+          occ[c + i] = rs;
+        }
+        c += cs;
       }
-      for (let i=0;i<max;i++) if(occ[i]>0) occ[i]--;
+      for (let i = 0; i < max; i++) if (occ[i] > 0) occ[i]--;
     });
     const labels = Array(max).fill(null);
-    for (let c=0;c<max;c++){ let t=''; for (let r=0;r<grid.length;r++){
-      const s=(grid[r][c]?.textContent||'').trim(); if (s) t=s;
-    } labels[c]=t; }
-    return { cols:max, labels };
+    for (let c = 0; c < max; c++) {
+      let t = "";
+      for (let r = 0; r < grid.length; r++) {
+        const s = (grid[r][c]?.textContent || "").trim();
+        if (s) t = s;
+      }
+      labels[c] = t;
+    }
+    return { cols: max, labels };
   }
-  function getCellAtCol(tr, colIndex){
-    let pos=0; for (const td of tr.cells){ const span=+td.colSpan||1; if (colIndex>=pos && colIndex<pos+span) return td; pos+=span; }
+  function getCellAtCol(tr, colIndex) {
+    let pos = 0;
+    for (const td of tr.cells) {
+      const span = +td.colSpan || 1;
+      if (colIndex >= pos && colIndex < pos + span) return td;
+      pos += span;
+    }
     return null;
   }
 
-  function collectQ11to15Inputs(table){
-    const {labels} = buildHeaderGrid(table);
+  function collectQ11to15Inputs(table) {
+    const { labels } = buildHeaderGrid(table);
     const qToCol = {};
-    labels.forEach((L,i)=>{ const m = /\bQ\s*([0-9]{1,2})\b/i.exec(L||''); if (m) qToCol[+m[1]] = i; });
+    labels.forEach((L, i) => {
+      const m = /\bQ\s*([0-9]{1,2})\b/i.exec(L || "");
+      if (m) qToCol[+m[1]] = i;
+    });
     const out = [];
-    [11,12,13,14,15].forEach(q=>{
-      const col = qToCol[q]; if (col==null) return;
-      for (const tb of table.tBodies) for (const tr of tb.rows){
-        const td = getCellAtCol(tr,col); if (!td) continue;
-        const el = td.querySelector('input[type=number]'); if (el) out.push(el);
-      }
+    [11, 12, 13, 14, 15].forEach((q) => {
+      const col = qToCol[q];
+      if (col == null) return;
+      for (const tb of table.tBodies)
+        for (const tr of tb.rows) {
+          const td = getCellAtCol(tr, col);
+          if (!td) continue;
+          const el = td.querySelector("input[type=number]");
+          if (el) out.push(el);
+        }
     });
     return out;
   }
 
   const bound = new WeakSet();
   const unbinds = [];
-  function bind(el){
-    if (!el || bound.has(el)) return; bound.add(el);
+  function bind(el) {
+    if (!el || bound.has(el)) return;
+    bound.add(el);
 
     // remove legacy clamps & keep numeric-only
-    el.removeAttribute('max'); el.min='0'; el.step='1'; el.inputMode='numeric'; el.setAttribute('pattern','[0-9]*');
+    el.removeAttribute("max");
+    el.min = "0";
+    el.step = "1";
+    el.inputMode = "numeric";
+    el.setAttribute("pattern", "[0-9]*");
 
     // no e/E/+/. (do NOT block arrows)
-    const onKey = e => { if (['e','E','+','.'].includes(e.key)) e.preventDefault(); };
-    el.addEventListener('keydown', onKey, true); unbinds.push(()=>el.removeEventListener('keydown', onKey, true));
+    const onKey = (e) => {
+      if (["e", "E", "+", "."].includes(e.key)) e.preventDefault();
+    };
+    el.addEventListener("keydown", onKey, true);
+    unbinds.push(() => el.removeEventListener("keydown", onKey, true));
 
     // snapper: non-zero => "3"
     const snap = () => {
-      let s = String(el.value ?? '').replace(/[^\d]/g,'');
-      const out = (s === '' || Number(s) === 0) ? '0' : '3';
-      if (el.value !== out) { el.value = out; el.dispatchEvent(new Event('input', { bubbles:true })); }
+      let s = String(el.value ?? "").replace(/[^\d]/g, "");
+      const out = s === "" || Number(s) === 0 ? "0" : "3";
+      if (el.value !== out) {
+        el.value = out;
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+      }
     };
-    const onInput  = e => { if (e.isTrusted) snap(); };
-    const onChange = e => { if (e.isTrusted) snap(); };
-    const onBlur   = e => { if (e.isTrusted) snap(); };
-    el.addEventListener('input', onInput, true);
-    el.addEventListener('change', onChange, true);
-    el.addEventListener('blur', onBlur, true);
-    unbinds.push(()=>{ el.removeEventListener('input',onInput,true); el.removeEventListener('change',onChange,true); el.removeEventListener('blur',onBlur,true); });
+    const onInput = (e) => {
+      if (e.isTrusted) snap();
+    };
+    const onChange = (e) => {
+      if (e.isTrusted) snap();
+    };
+    const onBlur = (e) => {
+      if (e.isTrusted) snap();
+    };
+    el.addEventListener("input", onInput, true);
+    el.addEventListener("change", onChange, true);
+    el.addEventListener("blur", onBlur, true);
+    unbinds.push(() => {
+      el.removeEventListener("input", onInput, true);
+      el.removeEventListener("change", onChange, true);
+      el.removeEventListener("blur", onBlur, true);
+    });
 
     // hard guard: if any script tries to set "1", coerce to "3" (unless '', '0', '3')
     const proto = Object.getPrototypeOf(el);
-    const d = Object.getOwnPropertyDescriptor(proto,'value');
+    const d = Object.getOwnPropertyDescriptor(proto, "value");
     if (d?.set && !el.__q315Hook) {
-      const get = d.get.bind(el), set = d.set.bind(el);
-      Object.defineProperty(el,'value',{ configurable:true,
-        get(){ return get(); },
-        set(v){
+      const get = d.get.bind(el),
+        set = d.set.bind(el);
+      Object.defineProperty(el, "value", {
+        configurable: true,
+        get() {
+          return get();
+        },
+        set(v) {
           if (this.__q315Re) return set(v);
           const str = String(v);
-          if (str !== '' && str !== '0' && str !== '3') { this.__q315Re = true; set('3'); this.__q315Re = false; return; }
+          if (str !== "" && str !== "0" && str !== "3") {
+            this.__q315Re = true;
+            set("3");
+            this.__q315Re = false;
+            return;
+          }
           set(v);
-        }
+        },
       });
       el.__q315Hook = true;
     }
   }
 
-  function apply(){
-    const table = document.querySelector('table'); if (!table) return;
+  function apply() {
+    const table = document.querySelector("table");
+    if (!table) return;
     collectQ11to15Inputs(table).forEach(bind);
   }
 
   apply();
   const mo = new MutationObserver(apply);
-  mo.observe(document.documentElement, { childList:true, subtree:true });
+  mo.observe(document.documentElement, { childList: true, subtree: true });
 
-  window.__HOST_Q11_15_STRICT_CLEANUP__ = () => { mo.disconnect(); unbinds.forEach(fn=>fn()); };
+  window.__HOST_Q11_15_STRICT_CLEANUP__ = () => {
+    mo.disconnect();
+    unbinds.forEach((fn) => fn());
+  };
 })();
 // === end Q11–Q15 STRICT ===
 
 // === [scoresheet][HOST] Q11–Q20 PRIORITY CAPTURE SNAP — no flicker, stops other handlers ===
 (() => {
-  if (window.__HOST_Q_PRIORITY_CAPTURE__) return; window.__HOST_Q_PRIORITY_CAPTURE__ = 1;
+  if (window.__HOST_Q_PRIORITY_CAPTURE__) return;
+  window.__HOST_Q_PRIORITY_CAPTURE__ = 1;
 
-  function buildHeaderGrid(table){
-    const thead = table.tHead; if (!thead) return {labels:[]};
-    const rows = Array.from(thead.rows); let max=0;
-    rows.forEach(r=>{ let s=0; for (const c of r.cells) s += Number(c.colSpan||1); max=Math.max(max,s); });
-    const occ = Array(max).fill(0), grid = rows.map(()=>Array(max).fill(null));
-    rows.forEach((r,ri)=>{ let c=0; for (const cell of r.cells){
-      while(occ[c]>0) c++; const cs=+cell.colSpan||1, rs=+cell.rowSpan||1;
-      for(let i=0;i<cs;i++){ grid[ri][c+i]=cell; occ[c+i]=rs; } c+=cs;
-    } for(let i=0;i<max;i++) if(occ[i]>0) occ[i]--; });
+  function buildHeaderGrid(table) {
+    const thead = table.tHead;
+    if (!thead) return { labels: [] };
+    const rows = Array.from(thead.rows);
+    let max = 0;
+    rows.forEach((r) => {
+      let s = 0;
+      for (const c of r.cells) s += +c.colSpan || 1;
+      max = Math.max(max, s);
+    });
+    const occ = Array(max).fill(0),
+      grid = rows.map(() => Array(max).fill(null));
+    rows.forEach((r, ri) => {
+      let c = 0;
+      for (const cell of r.cells) {
+        while (occ[c] > 0) c++;
+        const cs = +cell.colSpan || 1,
+          rs = +cell.rowSpan || 1;
+        for (let i = 0; i < cs; i++) {
+          grid[ri][c + i] = cell;
+          occ[c + i] = rs;
+        }
+        c += cs;
+      }
+      for (let i = 0; i < max; i++) if (occ[i] > 0) occ[i]--;
+    });
     const labels = Array(max).fill(null);
-    for (let c=0;c<max;c++){ let t=''; for (let r=0;r<grid.length;r++){
-      const s=(grid[r][c]?.textContent||'').trim(); if (s) t=s;
-    } labels[c]=t; }
-    return {labels, grid};
+    for (let c = 0; c < max; c++) {
+      let t = "";
+      for (let r = 0; r < grid.length; r++) {
+        const s = (grid[r][c]?.textContent || "").trim();
+        if (s) t = s;
+      }
+      labels[c] = t;
+    }
+    return { labels, grid };
   }
-  function getCellAtCol(tr, colIndex){
-    let pos=0; for (const td of tr.cells){ const span=+td.colSpan||1; if (colIndex>=pos && colIndex<pos+span) return td; pos+=span; }
+  function getCellAtCol(tr, colIndex) {
+    let pos = 0;
+    for (const td of tr.cells) {
+      const span = +td.colSpan || 1;
+      if (colIndex >= pos && colIndex < pos + span) return td;
+      pos += span;
+    }
     return null;
   }
-  function collectInputs(table, qs){
-    const {labels} = buildHeaderGrid(table);
-    const qToCol={}; labels.forEach((L,i)=>{ const m=/\bQ\s*([0-9]{1,2})\b/i.exec(L||''); if(m) qToCol[+m[1]]=i; });
-    const out=[];
-    qs.forEach(q=>{
-      const col=qToCol[q]; if(col==null) return;
-      for (const tb of table.tBodies) for (const tr of tb.rows){
-        const td=getCellAtCol(tr,col); if(!td) continue;
-        const el=td.querySelector('input[type=number], [contenteditable]');
-        if (el) out.push(el);
-      }
+  function collectInputs(table, qs) {
+    const { labels } = buildHeaderGrid(table);
+    const qToCol = {};
+    labels.forEach((L, i) => {
+      const m = /\bQ\s*([0-9]{1,2})\b/i.exec(L || "");
+      if (m) qToCol[+m[1]] = i;
+    });
+    const out = [];
+    qs.forEach((q) => {
+      const col = qToCol[q];
+      if (col == null) return;
+      for (const tb of table.tBodies)
+        for (const tr of tb.rows) {
+          const td = getCellAtCol(tr, col);
+          if (!td) continue;
+          const el = td.querySelector('input[type=number], [contenteditable]');
+          if (el) out.push(el);
+        }
     });
     return out;
   }
 
-  function bindSnap(el, weight){
+  function bindSnap(el, weight) {
     // normalize attributes so native number input doesn’t interfere
-    if (el.tagName === 'INPUT') {
-      el.removeAttribute('max');
-      el.setAttribute('min','0');
-      el.setAttribute('step','1');
-      el.setAttribute('inputmode','numeric');
-      el.setAttribute('pattern','[0-9]*');
+    if (el.tagName === "INPUT") {
+      el.removeAttribute("max");
+      el.setAttribute("min", "0");
+      el.setAttribute("step", "1");
+      el.setAttribute("inputmode", "numeric");
+      el.setAttribute("pattern", "[0-9]*");
     }
 
     // compute -> {0, weight}
     const compute = () => {
-      const raw = el.tagName === 'INPUT' ? (el.value ?? '') : (el.textContent ?? '');
-      const s = String(raw).replace(/[^\d]/g,'');
-      const out = (s === '' || Number(s) === 0) ? '0' : String(weight);
+      const raw = el.tagName === "INPUT" ? el.value ?? "" : el.textContent ?? "";
+      const s = String(raw).replace(/[^\d]/g, "");
+      const out = s === "" || Number(s) === 0 ? "0" : String(weight);
       return out;
     };
 
     // CAPTURE-PHASE: stop other handlers, apply immediately, then bubble a synthetic 'input'
     const onInputCap = (e) => {
-      if (!e.isTrusted) return;           // ignore our synthetic event later
-      e.stopImmediatePropagation();       // prevent older wrong handlers (e.g., 2) from firing
+      if (!e.isTrusted) return; // ignore our synthetic event later
+      e.stopImmediatePropagation(); // prevent older wrong handlers (e.g., 2) from firing
       const out = compute();
-      if (el.tagName === 'INPUT') { if (el.value !== out) el.value = out; }
-      else { if (el.textContent !== out) el.textContent = out; }
-      el.dispatchEvent(new Event('input', { bubbles:true })); // keep totals reactive
+      if (el.tagName === "INPUT") {
+        if (el.value !== out) el.value = out;
+      } else {
+        if (el.textContent !== out) el.textContent = out;
+      }
+      el.dispatchEvent(new Event("input", { bubbles: true })); // keep totals reactive
     };
 
-    const onChangeCap = (e) => { if (!e.isTrusted) return; e.stopImmediatePropagation(); onInputCap(e); };
-    const onBlurCap   = (e) => { if (!e.isTrusted) return; onInputCap(e); };
+    const onChangeCap = (e) => {
+      if (!e.isTrusted) return;
+      e.stopImmediatePropagation();
+      onInputCap(e);
+    };
+    const onBlurCap = (e) => {
+      if (!e.isTrusted) return;
+      onInputCap(e);
+    };
 
-    el.addEventListener('input',  onInputCap,  true);
-    el.addEventListener('change', onChangeCap, true);
-    el.addEventListener('blur',   onBlurCap,   true);
+    el.addEventListener("input", onInputCap, true);
+    el.addEventListener("change", onChangeCap, true);
+    el.addEventListener("blur", onBlurCap, true);
   }
 
-  function apply(){
-    const table = document.querySelector('table'); if (!table) return;
-    collectInputs(table, [11,12,13,14,15]).forEach(el => bindSnap(el, 3));
-    collectInputs(table, [16,17,18,19,20]).forEach(el => bindSnap(el, 4));
+  function apply() {
+    const table = document.querySelector("table");
+    if (!table) return;
+    collectInputs(table, [11, 12, 13, 14, 15]).forEach((el) => bindSnap(el, 3));
+    collectInputs(table, [16, 17, 18, 19, 20]).forEach((el) => bindSnap(el, 4));
   }
 
   apply();
-  new MutationObserver(apply).observe(document.documentElement, { childList:true, subtree:true });
+  new MutationObserver(apply).observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+  });
 })();
 // === end Q11–Q20 PRIORITY CAPTURE SNAP ===
 
 // === Q16–Q20 HARD SNAP (0 or 4) — no flicker, blocks late writes ===
 (() => {
-  if (window.__q16_20_hardsnap__) { console.log('[q16–20 snap] already active'); return; }
+  if (window.__q16_20_hardsnap__) {
+    console.log("[q16–20 snap] already active");
+    return;
+  }
   window.__q16_20_hardsnap__ = 1;
 
   const BOUND = new WeakSet();
 
-  function buildHeaderGrid(table){
-    const thead = table.tHead; if (!thead) return {labels:[]};
-    const rows=[...thead.rows]; let max=0;
-    rows.forEach(r=>{ let s=0; for (const c of r.cells) s += +c.colSpan||1; max=Math.max(max,s); });
-    const occ=Array(max).fill(0), grid=rows.map(()=>Array(max).fill(null));
-    rows.forEach((r,ri)=>{ let c=0; for (const cell of r.cells){
-      while (occ[c]>0) c++; const cs=+cell.colSpan||1, rs=+cell.rowSpan||1;
-      for (let i=0;i<cs;i++){ grid[ri][c+i]=cell; occ[c+i]=rs; } c+=cs;
-    } for(let i=0;i<max;i++) if(occ[i]>0) occ[i]--; });
-    const labels=Array(max).fill(null);
-    for (let c=0;c<max;c++){ let t=''; for (let r=0;r<grid.length;r++){
-      const s=(grid[r][c]?.textContent||'').trim(); if (s) t=s;
-    } labels[c]=t; }
-    return {labels};
+  function buildHeaderGrid(table) {
+    const thead = table.tHead;
+    if (!thead) return { labels: [] };
+    const rows = [...thead.rows];
+    let max = 0;
+    rows.forEach((r) => {
+      let s = 0;
+      for (const c of r.cells) s += +c.colSpan || 1;
+      max = Math.max(max, s);
+    });
+    const occ = Array(max).fill(0),
+      grid = rows.map(() => Array(max).fill(null));
+    rows.forEach((r, ri) => {
+      let c = 0;
+      for (const cell of r.cells) {
+        while (occ[c] > 0) c++;
+        const cs = +cell.colSpan || 1,
+          rs = +cell.rowSpan || 1;
+        for (let i = 0; i < cs; i++) {
+          grid[ri][c + i] = cell;
+          occ[c + i] = rs;
+        }
+        c += cs;
+      }
+      for (let i = 0; i < max; i++) if (occ[i] > 0) occ[i]--;
+    });
+    const labels = Array(max).fill(null);
+    for (let c = 0; c < max; c++) {
+      let t = "";
+      for (let r = 0; r < grid.length; r++) {
+        const s = (grid[r][c]?.textContent || "").trim();
+        if (s) t = s;
+      }
+      labels[c] = t;
+    }
+    return { labels };
   }
-  function getCellAtCol(tr, colIndex){
-    let pos=0; for (const td of tr.cells){ const span=+td.colSpan||1; if (colIndex>=pos && colIndex<pos+span) return td; pos+=span; }
+  function getCellAtCol(tr, colIndex) {
+    let pos = 0;
+    for (const td of tr.cells) {
+      const span = +td.colSpan || 1;
+      if (colIndex >= pos && colIndex < pos + span) return td;
+      pos += span;
+    }
     return null;
   }
-  function collectQInputs(){
-    const table=document.querySelector('table'); if(!table) return [];
-    const {labels}=buildHeaderGrid(table);
-    const qToCol={}; labels.forEach((L,i)=>{ const m=/\bQ\s*([0-9]{1,2})\b/i.exec(L||''); if(m) qToCol[+m[1]]=i; });
-    const out=[];
-    [16,17,18,19,20].forEach(q=>{
-      const col=qToCol[q]; if(col==null) return;
-      for (const tb of table.tBodies) for (const tr of tb.rows){
-        const td=getCellAtCol(tr,col); if(!td) continue;
-        const el=td.querySelector('input[type=number]'); if(el) out.push(el);
-      }
+  function collectQInputs() {
+    const table = document.querySelector("table");
+    if (!table) return [];
+    const { labels } = buildHeaderGrid(table);
+    const qToCol = {};
+    labels.forEach((L, i) => {
+      const m = /\bQ\s*([0-9]{1,2})\b/i.exec(L || "");
+      if (m) qToCol[+m[1]] = i;
+    });
+    const out = [];
+    [16, 17, 18, 19, 20].forEach((q) => {
+      const col = qToCol[q];
+      if (col == null) return;
+      for (const tb of table.tBodies)
+        for (const tr of tb.rows) {
+          const td = getCellAtCol(tr, col);
+          if (!td) continue;
+          const el = td.querySelector("input[type=number]");
+          if (el) out.push(el);
+        }
     });
     return out;
   }
 
-  function snapValue(el){
-    const s = String(el.value ?? '').replace(/[^\d]/g,'');
-    return (s === '' || Number(s) === 0) ? '0' : '4';
+  function snapValue(el) {
+    const s = String(el.value ?? "").replace(/[^\d]/g, "");
+    return s === "" || Number(s) === 0 ? "0" : "4";
   }
 
-  function bind(el){
-    if (!el || BOUND.has(el)) return; BOUND.add(el);
+  function bind(el) {
+    if (!el || BOUND.has(el)) return;
+    BOUND.add(el);
 
-    el.removeAttribute('max');
-    el.min = '0'; el.step = '1';
-    el.setAttribute('inputmode','numeric'); el.setAttribute('pattern','[0-9]*');
+    el.removeAttribute("max");
+    el.min = "0";
+    el.step = "1";
+    el.setAttribute("inputmode", "numeric");
+    el.setAttribute("pattern", "[0-9]*");
 
     const proto = Object.getPrototypeOf(el);
     if (!el.__origStepUp && proto.stepUp) {
       el.__origStepUp = proto.stepUp.bind(el);
-      el.stepUp = function(){ this.value = snapValue(this); this.dispatchEvent(new Event('input',{bubbles:true})); };
+      el.stepUp = function () {
+        this.value = snapValue(this);
+        this.dispatchEvent(new Event("input", { bubbles: true }));
+      };
     }
     if (!el.__origStepDown && proto.stepDown) {
       el.__origStepDown = proto.stepDown.bind(el);
-      el.stepDown = function(){ this.value = snapValue(this); this.dispatchEvent(new Event('input',{bubbles:true})); };
+      el.stepDown = function () {
+        this.value = snapValue(this);
+        this.dispatchEvent(new Event("input", { bubbles: true }));
+      };
     }
 
-    const desc = Object.getOwnPropertyDescriptor(proto, 'value');
+    const desc = Object.getOwnPropertyDescriptor(proto, "value");
     if (desc?.set && !el.__q1640SetterHook) {
-      const get = desc.get.bind(el), set = desc.set.bind(el);
-      Object.defineProperty(el, 'value', {
+      const get = desc.get.bind(el),
+        set = desc.set.bind(el);
+      Object.defineProperty(el, "value", {
         configurable: true,
-        get(){ return get(); },
-        set(v){
+        get() {
+          return get();
+        },
+        set(v) {
           if (this.__q1640Re) return set(v);
           const s = String(v);
-          const out = (s === '' || s === '0') ? '0' : '4';
-          this.__q1640Re = true; set(out); this.__q1640Re = false;
-        }
+          const out = s === "" || s === "0" ? "0" : "4";
+          this.__q1640Re = true;
+          set(out);
+          this.__q1640Re = false;
+        },
       });
       el.__q1640SetterHook = true;
     }
 
     const apply = () => {
       const out = snapValue(el);
-      if (el.value !== out) { el.value = out; }
-      el.dispatchEvent(new Event('input', { bubbles:true }));
+      if (el.value !== out) {
+        el.value = out;
+      }
+      el.dispatchEvent(new Event("input", { bubbles: true }));
     };
-    const onBefore = e => { if (!e.isTrusted) return; e.stopImmediatePropagation(); };
-    const onInput  = e => { if (!e.isTrusted) return; e.stopImmediatePropagation(); apply(); };
-    const onChange = e => { if (!e.isTrusted) return; e.stopImmediatePropagation(); apply(); };
+    const onBefore = (e) => {
+      if (!e.isTrusted) return;
+      e.stopImmediatePropagation();
+    };
+    const onInput = (e) => {
+      if (!e.isTrusted) return;
+      e.stopImmediatePropagation();
+      apply();
+    };
+    const onChange = (e) => {
+      if (!e.isTrusted) return;
+      e.stopImmediatePropagation();
+      apply();
+    };
 
-    el.addEventListener('beforeinput', onBefore, true);
-    el.addEventListener('input',      onInput,  true);
-    el.addEventListener('change',     onChange, true);
+    el.addEventListener("beforeinput", onBefore, true);
+    el.addEventListener("input", onInput, true);
+    el.addEventListener("change", onChange, true);
 
-    const fixAsync = () => { setTimeout(()=>{ const out = snapValue(el); if (el.value !== out) { el.value = out; el.dispatchEvent(new Event('input',{bubbles:true})); } }, 0); };
-    el.addEventListener('keyup',   fixAsync, true);
-    el.addEventListener('keydown', fixAsync, true);
+    const fixAsync = () => {
+      setTimeout(() => {
+        const out = snapValue(el);
+        if (el.value !== out) {
+          el.value = out;
+          el.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+      }, 0);
+    };
+    el.addEventListener("keyup", fixAsync, true);
+    el.addEventListener("keydown", fixAsync, true);
   }
 
-  function applyAll(){
+  function applyAll() {
     const inputs = collectQInputs();
     inputs.forEach(bind);
     console.log(`[q16–20 snap] bound ${inputs.length} inputs`);
   }
 
   applyAll();
-  new MutationObserver(applyAll).observe(document.documentElement, { childList:true, subtree:true });
-  console.log('[q16–20 snap] ACTIVE — type “9” in Q18: should render 4 instantly (no 2 flicker).');
+  new MutationObserver(applyAll).observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+  });
+  console.log(
+    '[q16–20 snap] ACTIVE — type “9” in Q18: should render 4 instantly (no 2 flicker).'
+  );
 })();

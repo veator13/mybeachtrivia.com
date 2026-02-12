@@ -31,6 +31,7 @@
   <!-- Bumped version so browsers pull the new app.js with standings invert + LIKE checkbox -->
   <script src="app.js?v=20251106-invert-standings-likebox" defer></script>
 </head>
+
 <body>
   <noscript>This app requires JavaScript enabled.</noscript>
 
@@ -40,6 +41,75 @@
 
   <main>
     <div class="container">
+
+      <!-- NEW: Submission meta fields (horizontal row) -->
+      <section class="meta-form" aria-label="Scoresheet details">
+        <div class="meta-grid" role="group" aria-label="Scoresheet submission details">
+
+          <div class="meta-field">
+            <label for="eventDate">Date</label>
+            <input
+              type="date"
+              id="eventDate"
+              name="eventDate"
+              autocomplete="off"
+            />
+          </div>
+
+          <div class="meta-field">
+            <label for="submitterFirstName">First Name</label>
+            <input
+              type="text"
+              id="submitterFirstName"
+              name="submitterFirstName"
+              placeholder="First name"
+              autocomplete="given-name"
+            />
+          </div>
+
+          <div class="meta-field">
+            <label for="submitterLastName">Last Name</label>
+            <input
+              type="text"
+              id="submitterLastName"
+              name="submitterLastName"
+              placeholder="Last name"
+              autocomplete="family-name"
+            />
+          </div>
+
+          <div class="meta-field">
+            <label for="eventType">Event Type</label>
+            <select id="eventType" name="eventType">
+              <option value="" selected disabled>Choose...</option>
+              <option value="classic_trivia">Classic Trivia</option>
+              <option value="themed_trivia">Themed Trivia</option>
+              <option value="feud">Feud</option>
+            </select>
+          </div>
+
+          <!-- Shown when eventType === themed_trivia (toggle via app.js; no inline JS) -->
+          <div class="meta-field meta-field--theme" id="themeNameField" hidden>
+            <label for="themeName">Theme Name</label>
+            <input
+              type="text"
+              id="themeName"
+              name="themeName"
+              placeholder="Enter theme name"
+              autocomplete="off"
+            />
+          </div>
+
+          <div class="meta-field">
+            <label for="venueSelect">Venue</label>
+            <select id="venueSelect" name="venueSelect">
+              <option value="other" selected>Other</option>
+            </select>
+          </div>
+
+        </div>
+      </section>
+
       <div class="button-container">
         <button type="button" id="btnAddTeam">Add Team</button>
         <button type="button" id="btnShowStandings">Standings</button>
@@ -62,6 +132,7 @@
           <caption id="tableCaption" class="sr-only">
             Enter team names and scores for each round and question.
           </caption>
+
           <thead>
             <tr class="top_row">
               <th class="sticky-col" rowspan="2">Team Name</th>
@@ -77,11 +148,10 @@
               <th rowspan="2">R4 Total</th>
               <th rowspan="2">Final Question</th>
               <th rowspan="2">Second Half Total</th>
-              <!-- Sticky BONUS column (numeric) just left of Final Score -->
               <th class="bonus-col-right" rowspan="2">Bonus</th>
-              <!-- Sticky Final Score column -->
               <th class="sticky-col-right" rowspan="2">Final Score</th>
             </tr>
+
             <tr class="top_row">
               <th>Q1</th><th>Q2</th><th>Q3</th><th>Q4</th><th>Q5</th>
               <th>Q6</th><th>Q7</th><th>Q8</th><th>Q9</th><th>Q10</th>
@@ -89,6 +159,7 @@
               <th>Q16</th><th>Q17</th><th>Q18</th><th>Q19</th><th>Q20</th>
             </tr>
           </thead>
+
           <tbody>
             <!-- Team rows are added dynamically by app.js (addTeam()) -->
           </tbody>
