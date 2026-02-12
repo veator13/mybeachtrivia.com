@@ -1,0 +1,165 @@
+cat > mybeachtrivia.com/beachTriviaPages/dashboards/admin/locations-management/index.html <<'EOF'
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="color-scheme" content="light dark" />
+  <title>Locations Admin</title>
+
+  <!-- Base admin styles (copied from employees-management) -->
+  <link rel="stylesheet" href="style.css"/>
+
+  <!-- Firebase SDKs (compat) -->
+  <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-firestore-compat.js"></script>
+
+  <!-- Your Firebase config + initialize -->
+  <script src="/firebase-init.js"></script>
+
+  <!-- Auth guard (keeps page hidden until authorized) -->
+  <script src="./auth-guard.js" defer></script>
+</head>
+
+<body data-page="locations-admin">
+  <!-- Authentication Loading Overlay -->
+  <div id="auth-loading" class="auth-overlay" aria-live="polite">
+    <div class="spinner" role="status" aria-label="Loading"></div>
+    <p>Verifying access...</p>
+  </div>
+
+  <div class="container" style="display:none;">
+    <header class="page-header">
+      <div>
+        <h1 class="page-title">Locations (Venues)</h1>
+        <p class="page-subtitle">Create and manage venues used across the admin tools.</p>
+      </div>
+    </header>
+
+    <!-- Create + Search -->
+    <section class="card card-table">
+      <div class="card-head" style="display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+        <div>
+          <h2 class="card-title" style="margin-bottom:2px;">Venues</h2>
+          <div class="muted" id="locations-count" aria-live="polite"></div>
+        </div>
+
+        <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+          <div class="field table-search" style="min-width:min(420px, 100%); max-width:520px;">
+            <label for="locationSearch" class="label">Search venues</label>
+            <input
+              id="locationSearch"
+              type="text"
+              class="input"
+              placeholder="Search name, contact, phone, email, notes…"
+              autocomplete="off"
+              aria-label="Search venues"
+            />
+            <div class="muted" id="locationSearchHint" style="margin-top:-2px;">Type to filter the table.</div>
+          </div>
+
+          <div class="actions" style="margin-left:auto;">
+            <button id="addLocationBtn" class="btn btn-primary">+ New Venue</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-body">
+        <div id="locations-no-results" class="muted" style="display:none; margin: 0 0 10px 0;" aria-live="polite"></div>
+
+        <div class="table-wrapper">
+          <table id="locationsTable" class="table">
+            <thead>
+              <tr>
+                <th scope="col" class="sticky-col col-venue">Venue</th>
+
+                <!-- Scrollable info columns -->
+                <th scope="col" class="col-contact">Contact</th>
+                <th scope="col" class="col-phone">Phone</th>
+                <th scope="col" class="col-email">Email</th>
+                <th scope="col" class="col-schedule">Schedule</th>
+                <th scope="col" class="col-notes">Notes</th>
+
+                <!-- Frozen right side -->
+                <th scope="col" class="sticky-col col-active">Active</th>
+                <th scope="col" class="sticky-col col-actions">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="locationsTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Venue Modal -->
+  <div id="locationModal" class="modal" aria-hidden="true" aria-labelledby="locationModalTitle" role="dialog">
+    <div class="modal-content">
+      <button type="button" class="close-modal" aria-label="Close">&times;</button>
+      <form id="locationForm" novalidate>
+        <h3 id="locationModalTitle" class="modal-title">New Venue</h3>
+        <input type="hidden" id="locationId">
+
+        <div class="form-grid">
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label for="venueName" class="label">Venue Name</label>
+            <input type="text" id="venueName" class="input" required>
+            <div class="muted" id="venueNameLockHint" style="display:none; margin-top:6px;">
+              Venue name is locked after creation to avoid breaking older shifts that reference the name.
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="contactName" class="label">Person of Contact</label>
+            <input type="text" id="contactName" class="input">
+          </div>
+
+          <div class="form-group">
+            <label for="phone" class="label">Phone</label>
+            <input type="tel" id="phone" class="input" placeholder="(757) 555-1234">
+          </div>
+
+          <div class="form-group">
+            <label for="email" class="label">Email</label>
+            <input type="email" id="email" class="input" placeholder="contact@venue.com">
+          </div>
+
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label for="schedule" class="label">Schedule</label>
+            <input type="text" id="schedule" class="input" placeholder="e.g., Tue 7pm / Thu 7pm / Sat 6pm">
+          </div>
+
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label for="notes" class="label">Notes</label>
+            <textarea id="notes" class="input" rows="4" placeholder="Any important notes (parking, payout, point of contact, etc.)"></textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="active" class="label">Active</label>
+            <select id="active" class="input">
+              <option value="true">Yes</option>
+              <option value="false">No</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" id="saveLocation" class="btn btn-primary">Save Venue</button>
+          <button type="button" id="cancelEdit" class="btn btn-ghost">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Boot (reveals container when auth OK) -->
+  <script src="boot.js"></script>
+
+  <!-- Page logic -->
+  <script src="./script.js" defer></script>
+
+  <!-- Route guard (prod) -->
+  <script src="/beachTriviaPages/js/auth-route-guard.v2.js?v=2025-10-14a"></script>
+</body>
+</html>
+EOF
