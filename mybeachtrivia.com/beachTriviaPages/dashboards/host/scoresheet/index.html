@@ -1,205 +1,199 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0"
-  />
-  <title>Team Score Calculator</title>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Trivia Scoresheet</title>
 
-  <!-- Main stylesheet with all updated styles (including LIKE checkbox) -->
-  <link rel="stylesheet" href="style.css" />
+    <!-- Main stylesheet -->
+    <link rel="stylesheet" href="style.css" />
 
-  <!-- Optional: normal favicon for the page itself -->
-  <link rel="icon" href="/favicon.ico" />
+    <!-- Favicon -->
+    <link rel="icon" href="/favicon.ico" />
 
-  <!-- Firebase (compat builds) - loaded as external scripts to satisfy CSP (no inline JS). -->
-  <script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-app-compat.js" defer></script>
-  <script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore-compat.js" defer></script>
-  <script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-auth-compat.js" defer></script>
+    <!-- Firebase (compat builds) -->
+    <script
+      src="https://www.gstatic.com/firebasejs/11.4.0/firebase-app-compat.js"
+      defer
+    ></script>
+    <script
+      src="https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore-compat.js"
+      defer
+    ></script>
+    <script
+      src="https://www.gstatic.com/firebasejs/11.4.0/firebase-auth-compat.js"
+      defer
+    ></script>
 
-  <!-- Your initializer must exist at this path; it should call firebase.initializeApp(...)
-       and set window.db = firebase.firestore() plus any helpers your app.js expects. -->
-  <script src="/beachTriviaPages/js/firebase-init-compat.js" defer></script>
+    <!-- MUST initialize firebase + set window.db (or equivalent) -->
+    <script src="/beachTriviaPages/js/firebase-init-compat.js" defer></script>
 
-  <!-- Route guard (external) -->
-  <script src="/beachTriviaPages/js/auth-route-guard.v2.js?v=2025-10-14a" defer></script>
+    <!-- Route guard -->
+    <script src="/beachTriviaPages/js/auth-route-guard.v2.js?v=2025-10-14a" defer></script>
 
-  <!-- Extra guard + main app -->
-  <script src="final-neg-guard.js?v=20251025163459" defer></script>
-  <!-- Bumped version so browsers pull the new app.js with standings invert + LIKE checkbox -->
-  <script src="app.js?v=20251106-invert-standings-likebox" defer></script>
-</head>
+    <!-- Extra guard + main app -->
+    <script src="final-neg-guard.js?v=20251025163459" defer></script>
+    <script src="app.js?v=20260212-venues-fix" defer></script>
+  </head>
 
-<body>
-  <noscript>This app requires JavaScript enabled.</noscript>
+  <body>
+    <noscript>This app requires JavaScript enabled.</noscript>
 
-  <header>
-    <h1>Trivia Scoresheet</h1>
-  </header>
+    <header>
+      <h1>TRIVIA SCORESHEET</h1>
+    </header>
 
-  <main>
-    <div class="container">
+    <main>
+      <div class="container">
+        <!-- Submission meta fields -->
+        <section class="meta-form" aria-label="Scoresheet details">
+          <div class="meta-grid" role="group" aria-label="Scoresheet submission details">
+            <div class="meta-field">
+              <label for="eventDate">Date</label>
+              <input type="date" id="eventDate" name="eventDate" autocomplete="off" />
+            </div>
 
-      <!-- NEW: Submission meta fields (horizontal row) -->
-      <section class="meta-form" aria-label="Scoresheet details">
-        <div class="meta-grid" role="group" aria-label="Scoresheet submission details">
+            <div class="meta-field">
+              <label for="submitterFirstName">First Name</label>
+              <input
+                type="text"
+                id="submitterFirstName"
+                name="submitterFirstName"
+                placeholder="First name"
+                autocomplete="given-name"
+              />
+            </div>
 
-          <div class="meta-field">
-            <label for="eventDate">Date</label>
-            <input
-              type="date"
-              id="eventDate"
-              name="eventDate"
-              autocomplete="off"
-            />
+            <div class="meta-field">
+              <label for="submitterLastName">Last Name</label>
+              <input
+                type="text"
+                id="submitterLastName"
+                name="submitterLastName"
+                placeholder="Last name"
+                autocomplete="family-name"
+              />
+            </div>
+
+            <div class="meta-field">
+              <label for="eventType">Event Type</label>
+              <select id="eventType" name="eventType">
+                <option value="" selected disabled>Choose...</option>
+                <option value="classic_trivia">Classic Trivia</option>
+                <option value="themed_trivia">Themed Trivia</option>
+                <option value="feud">Feud</option>
+              </select>
+            </div>
+
+            <!-- Shown when eventType === themed_trivia -->
+            <div class="meta-field meta-field--theme" id="themeNameField" hidden>
+              <label for="themeName">Theme Name</label>
+              <input
+                type="text"
+                id="themeName"
+                name="themeName"
+                placeholder="Enter theme name"
+                autocomplete="off"
+              />
+            </div>
+
+            <div class="meta-field">
+              <label for="venueSelect">Venue</label>
+
+              <!--
+                IMPORTANT:
+                - Keep id="venueSelect" exactly (app.js expects it)
+                - Include "Other" fallback
+                - Optional "Loading..." helps you visually confirm JS is replacing options
+              -->
+              <select id="venueSelect" name="venueSelect">
+                <option value="loading" disabled selected>Loading venues...</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
           </div>
+        </section>
 
-          <div class="meta-field">
-            <label for="submitterFirstName">First Name</label>
+        <div class="button-container">
+          <button type="button" id="btnAddTeam">Add Team</button>
+          <button type="button" id="btnShowStandings">Standings</button>
+          <button type="button" id="btnSubmitScores">Submit Scores</button>
+
+          <div class="search-container">
             <input
               type="text"
-              id="submitterFirstName"
-              name="submitterFirstName"
-              placeholder="First name"
-              autocomplete="given-name"
+              id="teamSearch"
+              class="search-input"
+              placeholder="Search team..."
+              aria-label="Search for a team"
             />
+            <button type="button" id="btnSearch">Search</button>
           </div>
-
-          <div class="meta-field">
-            <label for="submitterLastName">Last Name</label>
-            <input
-              type="text"
-              id="submitterLastName"
-              name="submitterLastName"
-              placeholder="Last name"
-              autocomplete="family-name"
-            />
-          </div>
-
-          <div class="meta-field">
-            <label for="eventType">Event Type</label>
-            <select id="eventType" name="eventType">
-              <option value="" selected disabled>Choose...</option>
-              <option value="classic_trivia">Classic Trivia</option>
-              <option value="themed_trivia">Themed Trivia</option>
-              <option value="feud">Feud</option>
-            </select>
-          </div>
-
-          <!-- Shown when eventType === themed_trivia (toggle via app.js; no inline JS) -->
-          <div class="meta-field meta-field--theme" id="themeNameField" hidden>
-            <label for="themeName">Theme Name</label>
-            <input
-              type="text"
-              id="themeName"
-              name="themeName"
-              placeholder="Enter theme name"
-              autocomplete="off"
-            />
-          </div>
-
-          <div class="meta-field">
-            <label for="venueSelect">Venue</label>
-            <select id="venueSelect" name="venueSelect">
-              <option value="other" selected>Other</option>
-            </select>
-          </div>
-
         </div>
-      </section>
 
-      <div class="button-container">
-        <button type="button" id="btnAddTeam">Add Team</button>
-        <button type="button" id="btnShowStandings">Standings</button>
-        <button type="button" id="btnSubmitScores">Submit Scores</button>
+        <div class="table-wrapper">
+          <table id="teamTable" aria-describedby="tableCaption">
+            <caption id="tableCaption" class="sr-only">
+              Enter team names and scores for each round and question.
+            </caption>
 
-        <div class="search-container">
-          <input
-            type="text"
-            id="teamSearch"
-            class="search-input"
-            placeholder="Search team..."
-            aria-label="Search for a team"
-          />
-          <button type="button" id="btnSearch">Search</button>
+            <thead>
+              <tr class="top_row">
+                <th class="sticky-col" rowspan="2">Team Name</th>
+                <th colspan="5">Round 1</th>
+                <th rowspan="2">R1 Total</th>
+                <th colspan="5">Round 2</th>
+                <th rowspan="2">R2 Total</th>
+                <th rowspan="2">Half Time</th>
+                <th rowspan="2">First Half Total</th>
+                <th colspan="5">Round 3</th>
+                <th rowspan="2">R3 Total</th>
+                <th colspan="5">Round 4</th>
+                <th rowspan="2">R4 Total</th>
+                <th rowspan="2">Final Question</th>
+                <th rowspan="2">Second Half Total</th>
+                <th class="bonus-col-right" rowspan="2">Bonus</th>
+                <th class="sticky-col-right" rowspan="2">Final Score</th>
+              </tr>
+
+              <tr class="top_row">
+                <th>Q1</th><th>Q2</th><th>Q3</th><th>Q4</th><th>Q5</th>
+                <th>Q6</th><th>Q7</th><th>Q8</th><th>Q9</th><th>Q10</th>
+                <th>Q11</th><th>Q12</th><th>Q13</th><th>Q14</th><th>Q15</th>
+                <th>Q16</th><th>Q17</th><th>Q18</th><th>Q19</th><th>Q20</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              <!-- Team rows are added dynamically by app.js -->
+            </tbody>
+          </table>
         </div>
       </div>
+    </main>
 
-      <div class="table-wrapper">
-        <table id="teamTable" aria-describedby="tableCaption">
-          <caption id="tableCaption" class="sr-only">
-            Enter team names and scores for each round and question.
-          </caption>
+    <!-- Modal for Standings -->
+    <div
+      id="standingsModal"
+      class="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="standingsTitle"
+      hidden
+    >
+      <div class="modal-content">
+        <button type="button" id="btnCloseModal" class="close" aria-label="Close standings">
+          &times;
+        </button>
 
-          <thead>
-            <tr class="top_row">
-              <th class="sticky-col" rowspan="2">Team Name</th>
-              <th colspan="5">Round 1</th>
-              <th rowspan="2">R1 Total</th>
-              <th colspan="5">Round 2</th>
-              <th rowspan="2">R2 Total</th>
-              <th rowspan="2">Half Time</th>
-              <th rowspan="2">First Half Total</th>
-              <th colspan="5">Round 3</th>
-              <th rowspan="2">R3 Total</th>
-              <th colspan="5">Round 4</th>
-              <th rowspan="2">R4 Total</th>
-              <th rowspan="2">Final Question</th>
-              <th rowspan="2">Second Half Total</th>
-              <th class="bonus-col-right" rowspan="2">Bonus</th>
-              <th class="sticky-col-right" rowspan="2">Final Score</th>
-            </tr>
+        <h2 id="standingsTitle">Team Standings</h2>
 
-            <tr class="top_row">
-              <th>Q1</th><th>Q2</th><th>Q3</th><th>Q4</th><th>Q5</th>
-              <th>Q6</th><th>Q7</th><th>Q8</th><th>Q9</th><th>Q10</th>
-              <th>Q11</th><th>Q12</th><th>Q13</th><th>Q14</th><th>Q15</th>
-              <th>Q16</th><th>Q17</th><th>Q18</th><th>Q19</th><th>Q20</th>
-            </tr>
-          </thead>
+        <button type="button" id="btnInvertStandings" aria-pressed="false">
+          <span class="sr-only">Invert standings order (show last place first)</span>
+        </button>
 
-          <tbody>
-            <!-- Team rows are added dynamically by app.js (addTeam()) -->
-          </tbody>
-        </table>
+        <ul id="modalRankingList"></ul>
       </div>
     </div>
-  </main>
-
-  <!-- Modal for Standings -->
-  <div
-    id="standingsModal"
-    class="modal"
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="standingsTitle"
-    hidden
-  >
-    <div class="modal-content">
-      <button
-        type="button"
-        id="btnCloseModal"
-        class="close"
-        aria-label="Close standings"
-      >&times;</button>
-
-      <h2 id="standingsTitle">Team Standings</h2>
-
-      <!-- Icon-only pill; arrows are drawn via CSS ::before/::after -->
-      <button
-        type="button"
-        id="btnInvertStandings"
-        aria-pressed="false"
-      >
-        <span class="sr-only">
-          Invert standings order (show last place first)
-        </span>
-      </button>
-
-      <ul id="modalRankingList"></ul>
-    </div>
-  </div>
-</body>
+  </body>
 </html>
