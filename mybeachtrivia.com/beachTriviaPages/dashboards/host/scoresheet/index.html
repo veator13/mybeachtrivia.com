@@ -37,20 +37,23 @@
     <!-- Extra guard -->
     <script src="final-neg-guard.js?v=20251025163459" defer></script>
 
-    <!-- Split files (loaded BEFORE app.js so helpers exist) -->
+    <!-- Split files -->
     <script src="js/dom-utils.js" defer></script>
     <script src="js/state.js" defer></script>
     <script src="js/firebase.js" defer></script>
     <script src="js/venues.js" defer></script>
     <script src="js/meta-fields.js" defer></script>
+
+    <!-- IMPORTANT: sticky/bonus utilities must load BEFORE table-build.js -->
+    <script src="js/ui-sticky-bonus.js" defer></script>
     <script src="js/table-build.js" defer></script>
+
     <script src="js/scoring.js" defer></script>
     <script src="js/search.js" defer></script>
     <script src="js/standings-modal.js" defer></script>
-    <script src="js/ui-sticky-bonus.js" defer></script>
     <script src="js/grid-enforcer.js" defer></script>
 
-    <!-- Keep the legacy big file during migration -->
+    <!-- Keep the legacy big file during migration (disabled for now) -->
     <!-- <script src="app.js?v=20260212-venues-fix" defer></script> -->
 
     <!-- Bootstrap wiring LAST -->
@@ -132,7 +135,7 @@
 
               <!--
                 IMPORTANT:
-                - Keep id="venueSelect" exactly (app.js expects it)
+                - Keep id="venueSelect" exactly
                 - Include "Other" fallback
               -->
               <select id="venueSelect" name="venueSelect">
@@ -212,7 +215,7 @@
             </thead>
 
             <tbody>
-              <!-- Team rows are added dynamically by app.js (during migration) -->
+              <!-- Rows injected by table-build.js -->
             </tbody>
           </table>
         </div>
@@ -241,7 +244,9 @@
         <h2 id="standingsTitle">Team Standings</h2>
 
         <button type="button" id="btnInvertStandings" aria-pressed="false">
-          <span class="sr-only">Invert standings order (show last place first)</span>
+          <span class="sr-only">
+            Invert standings order (show last place first)
+          </span>
         </button>
 
         <ul id="modalRankingList"></ul>

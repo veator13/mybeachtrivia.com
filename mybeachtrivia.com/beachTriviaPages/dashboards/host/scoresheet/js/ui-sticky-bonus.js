@@ -1,179 +1,190 @@
 /* ui-sticky-bonus.js
-   UI helpers:
-   - Keep sticky right columns aligned (bonus + final score)
-   - Bonus input convenience: select-on-focus, clamp negatives on blur
+   Keeps BONUS + FINAL SCORE sticky columns aligned (no overlap)
+   and provides the legacy "bonus input selects 0 on first click" behavior.
 
-   Exposes globals:
-     - updateStickyRightWidths()
-     - bindBonusInput()
+   Assumes:
+   - BONUS td/th has class "bonus-col-right"
+   - FINAL SCORE td/th has class "sticky-col-right"
+   - Table id is "teamTable"
 */
+
 (function () {
     "use strict";
   
-    function $(sel, root) {
-      if (window.DomUtils?.$) return window.DomUtils.$(sel, root);
-      return (root || document).querySelector(sel);
+    const TABLE_ID = "teamTable";
+    const BONUS_CELL_SELECTOR = "td.bonus-col-right, th.bonus-col-right";
+    const FINAL_CELL_SELECTOR = "td.sticky-col-right, th.sticky-col-right";
+    const BONUS_INPUT_SELECTOR = "td.bonus-col-right input.bonus-input";
+  
+    function bindBonusInput(inp) {
+      if (!inp || inp.__bonusBound) return;
+      inp.__bonusBound = true;
+  
+      if (inp.value === "" || inp.value == null) inp.value = "0";
+      if (!inp.dataset.touched) inp.dataset.touched = "0";
+  
+      // First interaction selects the whole value (handy when default is 0)
+      inp.addEventListener("mousedown", (e) => {
+        if (inp.dataset.touched === "1") return;
+        // prevent drag-selection weirdness
+        e.preventDefault();
+        inp.focus();
+        try {
+          inp.select();
+        } catch (_) {}
+      });
+  
+      inp.addEventListener("focus", () => {
+        if (inp.dataset.touched === "1") return;
+        setTimeout(() => {
+          try {
+            inp.select();
+          } catch (_) {}
+        }, 0);
+      });
+  
+      inp.addEventListener("input", () => {
+        inp.dataset.touched = "1";
+        // keep layout stable if width changes due to font rendering
+        scheduleStickyRecalc();
+      });
     }
   
-    function $all(sel, root) {
-      if (window.DomUtils?.$all) return window.DomUtils.$all(sel, root);
-      return Array.from((root || document).querySelectorAll(sel));
-    }
-  
-    function isHidden(el) {
-      if (!el) return true;
-      const cs = getComputedStyle(el);
-      return cs.display === "none" || cs.visibility === "hidden";
-    }
-  
-    function clampNonNegative(inputEl) {
-      if (!inputEl) return;
-      const type = (inputEl.getAttribute("type") || "").toLowerCase();
-      if (type !== "number") return;
-      if (inputEl.value === "") return;
-      const n = Number(inputEl.value);
-      if (!Number.isFinite(n)) return;
-      if (n < 0) {
-        inputEl.value = "0";
-        inputEl.dispatchEvent(new Event("input", { bubbles: true }));
-        inputEl.dispatchEvent(new Event("change", { bubbles: true }));
+    function ensureStyleTag(id) {
+      let tag = document.getElementById(id);
+      if (!tag) {
+        tag = document.createElement("style");
+        tag.id = id;
+        document.head.appendChild(tag);
       }
+      return tag;
     }
   
-    function getHeaderCells() {
-      const table = $("#teamTable");
-      if (!table) return {};
-      const headRow = table.querySelector("thead tr.top_row");
-      if (!headRow) return {};
-  
-      return {
-        bonusTh: headRow.querySelector(".bonus-col-right"),
-        finalTh: headRow.querySelector(".sticky-col-right"),
-      };
+    function getTable() {
+      return document.getElementById(TABLE_ID);
     }
   
-    function measureCellWidth(el) {
-      if (!el || isHidden(el)) return 0;
-      const rect = el.getBoundingClientRect();
-      return Math.ceil(rect.width);
+    function findSampleCell(table, selector) {
+      // Prefer tbody cell (real width), fallback to header
+      return (
+        table.querySelector("tbody " + selector) ||
+        table.querySelector("thead " + selector) ||
+        table.querySelector(selector)
+      );
     }
   
     function updateStickyRightWidths() {
-      const table = $("#teamTable");
+      const table = getTable();
       if (!table) return;
   
-      // We want bonus + final score columns to stay aligned between header and body,
-      // especially with horizontal scrolling.
-      const { bonusTh, finalTh } = getHeaderCells();
+      const finalCell = findSampleCell(table, FINAL_CELL_SELECTOR);
+      const bonusCell = findSampleCell(table, BONUS_CELL_SELECTOR);
   
-      // Body cells:
-      const bonusTds = $all("#teamTable tbody td.bonus-col-right");
-      const finalTds = $all("#teamTable tbody td.sticky-col-right");
+      if (!finalCell || !bonusCell) return;
   
-      // Measure widest among header + first few rows (avoid O(n) cost on huge tables)
-      let bonusW = measureCellWidth(bonusTh);
-      let finalW = measureCellWidth(finalTh);
+      // --- Step 1: compute stable widths for the two rightmost sticky columns
+      // Use current measured widths, but clamp to sane minimums
+      const finalWidth = Math.max(60, Math.round(finalCell.getBoundingClientRect().width || 0));
+      const bonusWidth = Math.max(40, Math.round(bonusCell.getBoundingClientRect().width || 0));
   
-      for (const td of bonusTds.slice(0, 8)) bonusW = Math.max(bonusW, measureCellWidth(td));
-      for (const td of finalTds.slice(0, 8)) finalW = Math.max(finalW, measureCellWidth(td));
+      const widthStyle = ensureStyleTag("bonus-final-width-style");
+      widthStyle.textContent = `
+        ${FINAL_CELL_SELECTOR} {
+          min-width: ${finalWidth}px;
+          width: ${finalWidth}px;
+        }
+        ${BONUS_CELL_SELECTOR} {
+          min-width: ${bonusWidth}px;
+          width: ${bonusWidth}px;
+        }
+      `;
   
-      // Apply widths as inline style so CSS stays simple
-      if (bonusTh) bonusTh.style.width = `${bonusW}px`;
-      if (finalTh) finalTh.style.width = `${finalW}px`;
+      // --- Step 2: size bonus input so it doesn't overflow its cell
+      // Try to base it on a typical score input width, else default
+      const sampleQInput =
+        table.querySelector("tbody input[id^='num']") ||
+        table.querySelector("tbody input[type='number']");
   
-      bonusTds.forEach((td) => (td.style.width = `${bonusW}px`));
-      finalTds.forEach((td) => (td.style.width = `${finalW}px`));
-    }
-  
-    function bindBonusInput() {
-      const tbody = $("#teamTable tbody");
-      if (!tbody) return;
-  
-      // Event delegation so it works for dynamically added rows
-      tbody.addEventListener(
-        "focusin",
-        (e) => {
-          const t = e.target;
-          if (!(t instanceof HTMLElement)) return;
-          if (t.tagName.toLowerCase() !== "input") return;
-          if ((t.getAttribute("type") || "").toLowerCase() !== "number") return;
-  
-          const td = t.closest("td");
-          if (!td) return;
-  
-          // Heuristic: bonus is in the td with class bonus-col-right OR id contains "bonus"
-          const isBonus =
-            td.classList.contains("bonus-col-right") ||
-            (t.id || "").toLowerCase().includes("bonus") ||
-            (t.name || "").toLowerCase().includes("bonus");
-  
-          if (!isBonus) return;
-  
-          // Select contents for quick overwrite
-          try {
-            t.select?.();
-          } catch {}
-        },
-        true
-      );
-  
-      tbody.addEventListener(
-        "focusout",
-        (e) => {
-          const t = e.target;
-          if (!(t instanceof HTMLElement)) return;
-          if (t.tagName.toLowerCase() !== "input") return;
-  
-          const td = t.closest("td");
-          if (!td) return;
-  
-          const isBonus =
-            td.classList.contains("bonus-col-right") ||
-            (t.id || "").toLowerCase().includes("bonus") ||
-            (t.name || "").toLowerCase().includes("bonus");
-  
-          if (!isBonus) return;
-  
-          clampNonNegative(t);
-  
-          // Ensure totals stay updated if scoring exists
-          const row = t.closest("tr");
-          if (row) {
-            if (typeof window.updateFinalScore === "function") {
-              try { window.updateFinalScore(row); } catch {}
-            } else if (typeof window.updateScores === "function") {
-              try { window.updateScores(row); } catch {}
-            } else if (typeof window.recalcRowTotals === "function") {
-              try { window.recalcRowTotals(row); } catch {}
-            }
-          }
-        },
-        true
-      );
-    }
-  
-    // Expose globals
-    window.updateStickyRightWidths = window.updateStickyRightWidths || updateStickyRightWidths;
-    window.bindBonusInput = window.bindBonusInput || bindBonusInput;
-  
-    function init() {
-      bindBonusInput();
-      updateStickyRightWidths();
-  
-      // Keep widths in sync on resize / after fonts load
-      window.addEventListener("resize", () => updateStickyRightWidths());
-  
-      // If rows are added dynamically, recalc widths occasionally
-      const tbody = $("#teamTable tbody");
-      if (tbody && "MutationObserver" in window) {
-        const mo = new MutationObserver(() => updateStickyRightWidths());
-        mo.observe(tbody, { childList: true, subtree: true });
+      let bonusInputWidth = 30;
+      if (sampleQInput) {
+        const r = sampleQInput.getBoundingClientRect();
+        if (r.width) bonusInputWidth = Math.max(26, Math.round(r.width * 0.75));
       }
+  
+      const bonusInputStyle = ensureStyleTag("bonus-input-tight-style");
+      bonusInputStyle.textContent = `
+        ${BONUS_INPUT_SELECTOR} {
+          width: ${bonusInputWidth}px;
+        }
+      `;
+  
+      // --- Step 3: compute BONUS "right" offset so it sits directly left of FINAL
+      // Bonus is sticky-right too, so it must have right = finalWidth (+ any actual overlap/gap adjustments)
+      // We do a two-pass measurement because layout settles after widthStyle injection.
+      requestAnimationFrame(() => {
+        const finalCell2 = findSampleCell(table, FINAL_CELL_SELECTOR);
+        const bonusCell2 = findSampleCell(table, BONUS_CELL_SELECTOR);
+        if (!finalCell2 || !bonusCell2) return;
+  
+        const f = finalCell2.getBoundingClientRect();
+        const b = bonusCell2.getBoundingClientRect();
+  
+        // gap = distance from bonus right edge to final left edge
+        //   +gap => space between them, -gap => overlap
+        const gap = f.left - b.right;
+  
+        // Start with expected right offset = final width
+        // Then correct by subtracting gap:
+        //   - if overlap (-gap), subtracting (-gap) increases right (moves bonus left) -> fixes overlap
+        //   - if space (+gap), subtracting (+gap) decreases right (moves bonus right) -> closes gap
+        const expected = Math.max(0, Math.round(f.width));
+        const corrected = Math.max(0, Math.round(expected - gap));
+  
+        const offsetStyle = ensureStyleTag("bonus-offset-style");
+        offsetStyle.textContent = `
+          ${BONUS_CELL_SELECTOR} {
+            right: ${corrected}px;
+          }
+        `;
+      });
     }
   
-    if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", init, { once: true });
-    } else {
-      init();
+    // Debounced scheduler to avoid spam
+    let stickyTimer = null;
+    function scheduleStickyRecalc() {
+      if (stickyTimer) clearTimeout(stickyTimer);
+      stickyTimer = setTimeout(() => {
+        updateStickyRightWidths();
+        // run twice to catch late font/layout settling
+        requestAnimationFrame(updateStickyRightWidths);
+      }, 80);
     }
+  
+    // Bind existing bonus inputs (for already-rendered rows)
+    function bindAllBonusInputs() {
+      const table = getTable();
+      if (!table) return;
+      table.querySelectorAll(BONUS_INPUT_SELECTOR).forEach(bindBonusInput);
+    }
+  
+    // Events that should trigger recalculation
+    window.addEventListener("load", () => {
+      bindAllBonusInputs();
+      scheduleStickyRecalc();
+    });
+  
+    window.addEventListener("resize", scheduleStickyRecalc);
+  
+    // Any scroll (especially horizontal on table wrapper) can change sticky calc
+    document.addEventListener("scroll", scheduleStickyRecalc, true);
+  
+    // When our table-build.js adds a team, it dispatches this event
+    window.addEventListener("scoresheet:team-added", () => {
+      bindAllBonusInputs();
+      scheduleStickyRecalc();
+    });
+  
+    // Expose for other modules
+    window.bindBonusInput = bindBonusInput;
+    window.updateStickyRightWidths = updateStickyRightWidths;
   })();
