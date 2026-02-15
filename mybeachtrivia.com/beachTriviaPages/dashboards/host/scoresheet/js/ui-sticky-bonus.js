@@ -2,6 +2,9 @@
    Keeps BONUS + FINAL SCORE sticky columns aligned (no overlap / no growing)
    and preserves "bonus input selects 0 on first click".
 
+   Fix: do NOT use background: inherit; (it makes sticky cells “transparent”).
+        Force an opaque background + proper stacking so rows don’t show through.
+
    Assumes:
    - BONUS td/th has class "bonus-col-right"
    - FINAL SCORE td/th has class "sticky-col-right"
@@ -40,17 +43,13 @@
         if (inp.dataset.touched === "1") return;
         e.preventDefault();
         inp.focus();
-        try {
-          inp.select();
-        } catch (_) {}
+        try { inp.select(); } catch (_) {}
       });
   
       inp.addEventListener("focus", () => {
         if (inp.dataset.touched === "1") return;
         setTimeout(() => {
-          try {
-            inp.select();
-          } catch (_) {}
+          try { inp.select(); } catch (_) {}
         }, 0);
       });
   
@@ -68,7 +67,6 @@
   
     // --- Sticky sizing/offsets (NO measurement from tbody; lock to header widths) ---
     function measureHeaderWidths(table) {
-      // Prefer the top header row where BONUS/FINAL are in the first header row with rowspans
       const bonusTh =
         table.querySelector("thead th.bonus-col-right") ||
         table.querySelector("thead tr:first-child th:nth-last-child(2)");
@@ -84,33 +82,58 @@
       return { bonusW, finalW };
     }
   
+    function findOpaqueBg(table) {
+      // Prefer explicit colors if present; fall back to the table background.
+      // (Computed styles are safest across your gradients/themes.)
+      const finalCell = table.querySelector("thead th.sticky-col-right") || table.querySelector("th.sticky-col-right") || table;
+      const bg = window.getComputedStyle(finalCell).backgroundColor;
+      if (bg && bg !== "rgba(0, 0, 0, 0)" && bg !== "transparent") return bg;
+  
+      const tableBg = window.getComputedStyle(table).backgroundColor;
+      if (tableBg && tableBg !== "rgba(0, 0, 0, 0)" && tableBg !== "transparent") return tableBg;
+  
+      return "#2a2a2a";
+    }
+  
     function applyWidthsAndOffsets(table, bonusW, finalW) {
-      // Inject stable widths + sticky positioning.
-      // NOTE: we explicitly set position/right here because some CSS currently differs between th/td.
+      const bg = findOpaqueBg(table);
+  
       const style = ensureStyleTag("sticky-right-columns-style");
       style.textContent = `
+        /* FINAL */
         ${FINAL_CELL_SELECTOR} {
           position: sticky;
           right: 0px;
-          z-index: 6;
-          background: inherit;
+          z-index: 200;
+          background-color: ${bg};
+          background-clip: padding-box;
           width: ${finalW}px;
           min-width: ${finalW}px;
           max-width: ${finalW}px;
           box-sizing: border-box;
+          isolation: isolate;
+          transform: translateZ(0);
         }
+  
+        /* BONUS */
         ${BONUS_CELL_SELECTOR} {
           position: sticky;
           right: ${finalW}px;
-          z-index: 5;
-          background: inherit;
+          z-index: 190;
+          background-color: ${bg};
+          background-clip: padding-box;
           width: ${bonusW}px;
           min-width: ${bonusW}px;
           max-width: ${bonusW}px;
           box-sizing: border-box;
+          isolation: isolate;
+          transform: translateZ(0);
         }
+  
+        /* Keep the input from forcing column growth */
         ${BONUS_INPUT_SELECTOR} {
           width: 100%;
+          max-width: 100%;
           box-sizing: border-box;
         }
       `;
@@ -120,7 +143,6 @@
       const table = getTable();
       if (!table) return;
   
-      // Always measure header widths (stable). Measuring tbody is what causes the "grows then won't shrink" issue.
       const m = measureHeaderWidths(table);
       if (!m) return;
   
@@ -133,12 +155,10 @@
       if (stickyTimer) clearTimeout(stickyTimer);
       stickyTimer = setTimeout(() => {
         updateStickyRightWidths();
-        // second pass for late layout settling
         requestAnimationFrame(updateStickyRightWidths);
       }, 80);
     }
   
-    // --- init / listeners ---
     function init() {
       bindAllBonusInputs();
       scheduleStickyRecalc();
@@ -147,10 +167,6 @@
     window.addEventListener("load", init);
     window.addEventListener("resize", scheduleStickyRecalc);
     window.addEventListener("orientationchange", scheduleStickyRecalc);
-  
-    // IMPORTANT: do NOT recalc on every scroll (causes jitter + feedback loops).
-    // Horizontal scrolling should NOT require recalculation when widths/offsets are fixed.
-    // document.addEventListener("scroll", scheduleStickyRecalc, true);
   
     window.addEventListener("scoresheet:team-added", () => {
       bindAllBonusInputs();
