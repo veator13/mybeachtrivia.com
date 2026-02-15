@@ -12,32 +12,20 @@
     <link rel="icon" href="/favicon.ico" />
 
     <!-- Firebase (compat builds) -->
-    <script
-      src="https://www.gstatic.com/firebasejs/11.4.0/firebase-app-compat.js"
-      defer
-    ></script>
-    <script
-      src="https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore-compat.js"
-      defer
-    ></script>
-    <script
-      src="https://www.gstatic.com/firebasejs/11.4.0/firebase-auth-compat.js"
-      defer
-    ></script>
+    <script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-app-compat.js" defer></script>
+    <script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore-compat.js" defer></script>
+    <script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-auth-compat.js" defer></script>
 
     <!-- MUST initialize firebase + set window.db (or equivalent) -->
     <script src="/beachTriviaPages/js/firebase-init-compat.js" defer></script>
 
     <!-- Route guard -->
-    <script
-      src="/beachTriviaPages/js/auth-route-guard.v2.js?v=2025-10-14a"
-      defer
-    ></script>
+    <script src="/beachTriviaPages/js/auth-route-guard.v2.js?v=2025-10-14a" defer></script>
 
-    <!-- Extra guard -->
+    <!-- Guards (keep before app bootstrap) -->
     <script src="final-neg-guard.js?v=20251025163459" defer></script>
 
-    <!-- Split files -->
+    <!-- Split files (load order matters; defer preserves order) -->
     <script src="js/dom-utils.js" defer></script>
     <script src="js/state.js" defer></script>
     <script src="js/firebase.js" defer></script>
@@ -51,9 +39,11 @@
     <script src="js/scoring.js" defer></script>
     <script src="js/search.js" defer></script>
     <script src="js/standings-modal.js" defer></script>
+
+    <!-- Enforcers that depend on the table existing -->
     <script src="js/grid-enforcer.js" defer></script>
 
-    <!-- Keep the legacy big file during migration (disabled for now) -->
+    <!-- Legacy big file (disabled) -->
     <!-- <script src="app.js?v=20260212-venues-fix" defer></script> -->
 
     <!-- Bootstrap wiring LAST -->
@@ -71,19 +61,10 @@
       <div class="container">
         <!-- Submission meta fields -->
         <section class="meta-form" aria-label="Scoresheet details">
-          <div
-            class="meta-grid"
-            role="group"
-            aria-label="Scoresheet submission details"
-          >
+          <div class="meta-grid" role="group" aria-label="Scoresheet submission details">
             <div class="meta-field">
               <label for="eventDate">Date</label>
-              <input
-                type="date"
-                id="eventDate"
-                name="eventDate"
-                autocomplete="off"
-              />
+              <input type="date" id="eventDate" name="eventDate" autocomplete="off" />
             </div>
 
             <div class="meta-field">
@@ -132,16 +113,9 @@
 
             <div class="meta-field">
               <label for="venueSelect">Venue</label>
-
-              <!--
-                IMPORTANT:
-                - Keep id="venueSelect" exactly
-                - Include "Other" fallback
-              -->
+              <!-- keep id="venueSelect" exactly -->
               <select id="venueSelect" name="venueSelect">
-                <option value="loading" disabled selected>
-                  Loading venues...
-                </option>
+                <option value="loading" disabled selected>Loading venues...</option>
                 <option value="other">Other</option>
               </select>
             </div>
@@ -232,21 +206,14 @@
       hidden
     >
       <div class="modal-content">
-        <button
-          type="button"
-          id="btnCloseModal"
-          class="close"
-          aria-label="Close standings"
-        >
+        <button type="button" id="btnCloseModal" class="close" aria-label="Close standings">
           &times;
         </button>
 
         <h2 id="standingsTitle">Team Standings</h2>
 
         <button type="button" id="btnInvertStandings" aria-pressed="false">
-          <span class="sr-only">
-            Invert standings order (show last place first)
-          </span>
+          <span class="sr-only">Invert standings order (show last place first)</span>
         </button>
 
         <ul id="modalRankingList"></ul>
