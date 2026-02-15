@@ -1,266 +1,302 @@
 /* table-build.js
-   Responsible for building team rows in the scoresheet table.
-
-   Exposes globals:
-     - addTeam()
-     - addTeamRow() (alias)
-     - getActiveTeamRows()
-     - getActiveTeamIds()
-
-   This generates a row structure aligned with your table header:
-     Team Name
-     Q1-5 + R1 Total
-     Q6-10 + R2 Total
-     Half Time + First Half Total
-     Q11-15 + R3 Total
-     Q16-20 + R4 Total
-     Final Question + Second Half Total
-     Bonus + Final Score
+   Builds team rows EXACTLY like legacy app.js addTeam(), so existing CSS matches.
+   Exposes window.addTeam().
 */
 (function () {
     "use strict";
   
-    function $(sel, root) {
-      if (window.DomUtils?.$) return window.DomUtils.$(sel, root);
-      return (root || document).querySelector(sel);
+    // Fallback $ helper if dom-utils.js didn't define it
+    const $ = window.$ || ((sel) => document.querySelector(sel));
+  
+    // Safe no-ops if modules aren't loaded yet
+    const bindBonusInput =
+      window.bindBonusInput ||
+      function () {
+        /* no-op */
+      };
+  
+    const updateStickyRightWidths =
+      window.updateStickyRightWidths ||
+      function () {
+        /* no-op */
+      };
+  
+    // Shared counters/flags (use existing globals if present)
+    function getTeamCount() {
+      return typeof window.teamCount === "number" ? window.teamCount : 0;
     }
-  
-    function $all(sel, root) {
-      if (window.DomUtils?.$all) return window.DomUtils.$all(sel, root);
-      return Array.from((root || document).querySelectorAll(sel));
+    function setTeamCount(n) {
+      window.teamCount = n;
     }
-  
-    function el(tag, attrs) {
-      const node = document.createElement(tag);
-      if (attrs) {
-        Object.entries(attrs).forEach(([k, v]) => {
-          if (k === "text") node.textContent = v;
-          else if (k === "class") node.className = v;
-          else if (k === "dataset") Object.assign(node.dataset, v);
-          else node.setAttribute(k, v);
-        });
-      }
-      return node;
-    }
-  
-    function makeNumberInput({ id, ariaLabel, min = "0", step = "1", value = "" } = {}) {
-      const i = el("input", {
-        type: "number",
-        inputmode: "numeric",
-        min,
-        step,
-        value,
-        autocomplete: "off",
-      });
-      if (id) i.id = id;
-      if (ariaLabel) i.setAttribute("aria-label", ariaLabel);
-      return i;
-    }
-  
-    function makeTextInput({ id, ariaLabel, placeholder = "Team name..." } = {}) {
-      const i = el("input", {
-        type: "text",
-        autocomplete: "off",
-        placeholder,
-      });
-      if (id) i.id = id;
-      if (ariaLabel) i.setAttribute("aria-label", ariaLabel);
-      return i;
-    }
-  
-    function tdWithInput(inputEl, className) {
-      const td = el("td");
-      if (className) td.className = className;
-      td.appendChild(inputEl);
-      return td;
-    }
-  
-    function tdTotal({ className, datasetTotalKey, text = "0" } = {}) {
-      const td = el("td", { class: className || "" });
-      if (datasetTotalKey) td.dataset.total = datasetTotalKey;
-      td.textContent = text;
-      return td;
-    }
-  
-    function getNextTeamId() {
-      // Use ScoresheetState if present; fallback to global teamCount increment
-      if (window.ScoresheetState?.incrementTeamCount) {
-        return window.ScoresheetState.incrementTeamCount();
-      }
-      window.teamCount = (window.teamCount || 0) + 1;
-      return window.teamCount;
-    }
-  
-    function markModified() {
-      if (typeof window.ScoresheetState?.markAsModified === "function") {
-        window.ScoresheetState.markAsModified();
-        return;
-      }
-      if (typeof window.markAsModified === "function") {
-        window.markAsModified();
-        return;
-      }
-      window.dataModified = true;
-    }
-  
-    function recalcRow(row) {
-      // Prefer the most specific scoring function available
-      if (typeof window.updateFinalScore === "function") return window.updateFinalScore(row);
-      if (typeof window.updateScores === "function") return window.updateScores(row);
-      if (typeof window.recalcRowTotals === "function") return window.recalcRowTotals(row);
-      return null;
-    }
-  
-    function buildTeamRow(teamId) {
-      const tr = el("tr", { dataset: { teamId: String(teamId) } });
-  
-      // Team Name (sticky left col)
-      const teamNameTd = el("td", { class: "sticky-col" });
-      const teamNameInput = makeTextInput({
-        id: `teamName-${teamId}`,
-        ariaLabel: `Team ${teamId} name`,
-        placeholder: "Team name",
-      });
-      teamNameTd.appendChild(teamNameInput);
-      tr.appendChild(teamNameTd);
-  
-      // Q1 - Q5
-      for (let q = 1; q <= 5; q++) {
-        const inp = makeNumberInput({
-          id: `t${teamId}-q${q}`,
-          ariaLabel: `Team ${teamId} Question ${q}`,
-        });
-        tr.appendChild(tdWithInput(inp));
-      }
-      tr.appendChild(tdTotal({ className: "r1-total", datasetTotalKey: "r1Total" }));
-  
-      // Q6 - Q10
-      for (let q = 6; q <= 10; q++) {
-        const inp = makeNumberInput({
-          id: `t${teamId}-q${q}`,
-          ariaLabel: `Team ${teamId} Question ${q}`,
-        });
-        tr.appendChild(tdWithInput(inp));
-      }
-      tr.appendChild(tdTotal({ className: "r2-total", datasetTotalKey: "r2Total" }));
-  
-      // Half Time
-      const halftimeInput = makeNumberInput({
-        id: `t${teamId}-halftime`,
-        ariaLabel: `Team ${teamId} half time`,
-      });
-      tr.appendChild(tdWithInput(halftimeInput));
-  
-      // First Half Total
-      tr.appendChild(tdTotal({ className: "first-half-total", datasetTotalKey: "firstHalfTotal" }));
-  
-      // Q11 - Q15
-      for (let q = 11; q <= 15; q++) {
-        const inp = makeNumberInput({
-          id: `t${teamId}-q${q}`,
-          ariaLabel: `Team ${teamId} Question ${q}`,
-        });
-        tr.appendChild(tdWithInput(inp));
-      }
-      tr.appendChild(tdTotal({ className: "r3-total", datasetTotalKey: "r3Total" }));
-  
-      // Q16 - Q20
-      for (let q = 16; q <= 20; q++) {
-        const inp = makeNumberInput({
-          id: `t${teamId}-q${q}`,
-          ariaLabel: `Team ${teamId} Question ${q}`,
-        });
-        tr.appendChild(tdWithInput(inp));
-      }
-      tr.appendChild(tdTotal({ className: "r4-total", datasetTotalKey: "r4Total" }));
-  
-      // Final Question
-      const finalQInput = makeNumberInput({
-        id: `t${teamId}-finalq`,
-        ariaLabel: `Team ${teamId} final question`,
-      });
-      tr.appendChild(tdWithInput(finalQInput));
-  
-      // Second Half Total
-      tr.appendChild(tdTotal({ className: "second-half-total", datasetTotalKey: "secondHalfTotal" }));
-  
-      // Bonus (has its own class in your header)
-      const bonusInput = makeNumberInput({
-        id: `t${teamId}-bonus`,
-        ariaLabel: `Team ${teamId} bonus`,
-      });
-      tr.appendChild(tdWithInput(bonusInput, "bonus-col-right"));
-  
-      // Final Score (sticky right)
-      const finalScoreTd = tdTotal({
-        className: "sticky-col-right final-score",
-        datasetTotalKey: "finalScore",
-        text: "0",
-      });
-      tr.appendChild(finalScoreTd);
-  
-      // Input listeners: mark modified + recalc
-      tr.addEventListener("input", (e) => {
-        const t = e.target;
-        if (!(t instanceof HTMLElement)) return;
-  
-        // Mark modified on any meaningful change
-        if (t.tagName.toLowerCase() === "input" || t.tagName.toLowerCase() === "select") {
-          markModified();
-        }
-  
-        // Validate number input if available
-        if (typeof window.validateInput === "function" && t.tagName.toLowerCase() === "input") {
-          if ((t.getAttribute("type") || "").toLowerCase() === "number") {
-            try {
-              window.validateInput(t);
-            } catch {}
-          }
-        }
-  
-        // Recalc totals for this row
-        recalcRow(tr);
-      });
-  
-      // Initial totals
-      recalcRow(tr);
-  
-      return tr;
+    function setDataModified(v) {
+      window.dataModified = v;
     }
   
     function addTeam() {
-      const tbody = $("#teamTable tbody");
+      let teamCount = getTeamCount();
+      teamCount++;
+      setTeamCount(teamCount);
+      setDataModified(true);
+  
+      // Ensure a <tbody> exists
+      const table = $("#teamTable");
+      if (!table) {
+        console.warn("[table-build] #teamTable not found");
+        return;
+      }
+      let tbody = table.querySelector("tbody");
       if (!tbody) {
-        console.warn("[scoresheet] teamTable tbody not found");
-        return null;
+        tbody = document.createElement("tbody");
+        table.appendChild(tbody);
       }
   
-      const teamId = getNextTeamId();
-      const row = buildTeamRow(teamId);
-      tbody.appendChild(row);
+      const tr = document.createElement("tr");
+      tr.dataset.teamId = String(teamCount); // reliable teamId source
   
-      // Focus team name for convenience
-      const nameInput = row.querySelector('input[type="text"]');
-      nameInput?.focus?.();
-      nameInput?.select?.();
+      // --- Team name + LIKE bonus checkbox (left sticky col) ---
+      const tdTeam = document.createElement("td");
+      tdTeam.className = "sticky-col";
   
-      return row;
+      const nameInput = document.createElement("input");
+      nameInput.type = "text";
+      nameInput.id = `teamName${teamCount}`;
+      nameInput.className = "teamName";
+      nameInput.placeholder = `Team ${teamCount}`;
+  
+      // Wrapper for checkbox + icon + LIKE label
+      const bonusCheckboxWrapper = document.createElement("label");
+      bonusCheckboxWrapper.className = "teamCheckboxWrapper";
+  
+      const bonusCheckbox = document.createElement("input");
+      bonusCheckbox.type = "checkbox";
+      bonusCheckbox.id = `checkbox${teamCount}`;
+      bonusCheckbox.className = "teamCheckbox";
+  
+      // Icon span (favicon background handled in CSS)
+      const bonusIcon = document.createElement("span");
+      bonusIcon.className = "teamCheckboxIcon";
+      bonusIcon.setAttribute("aria-hidden", "true");
+  
+      // "LIKE" label under the icon
+      const bonusLike = document.createElement("span");
+      bonusLike.className = "teamCheckboxLike";
+      bonusLike.textContent = "LIKE";
+  
+      // Screen-reader only text
+      const bonusCheckboxText = document.createElement("span");
+      bonusCheckboxText.className = "sr-only";
+      bonusCheckboxText.textContent = "Apply five point bonus";
+  
+      bonusCheckboxWrapper.append(
+        bonusCheckbox,
+        bonusIcon,
+        bonusLike,
+        bonusCheckboxText
+      );
+  
+      tdTeam.append(nameInput, bonusCheckboxWrapper);
+      tr.appendChild(tdTeam);
+  
+      // --- Round 1 (Q1-Q5): only 0 or 1 ---
+      for (let j = 1; j <= 5; j++) {
+        const td = document.createElement("td");
+        const inp = document.createElement("input");
+        inp.type = "number";
+        inp.id = `num${teamCount}${j}`;
+        inp.min = "0";
+        inp.max = "1";
+        inp.step = "1";
+        inp.className = "round1-input";
+        td.appendChild(inp);
+        tr.appendChild(td);
+      }
+  
+      // R1 Total
+      {
+        const td = document.createElement("td");
+        td.className = "round1-total";
+        const span = document.createElement("span");
+        span.id = `r1Total${teamCount}`;
+        span.style.fontSize = "18px";
+        span.style.color = "#80d4ff";
+        span.style.textShadow = "0px 0px 6px rgba(128, 212, 255, 0.5)";
+        span.style.fontWeight = "bold";
+        span.textContent = "0";
+        td.appendChild(span);
+        tr.appendChild(td);
+      }
+  
+      // --- Round 2 (Q6-Q10): only 0 or 2 ---
+      for (let j = 6; j <= 10; j++) {
+        const td = document.createElement("td");
+        const inp = document.createElement("input");
+        inp.type = "number";
+        inp.id = `num${teamCount}${j}`;
+        inp.min = "0";
+        inp.max = "2";
+        inp.step = "2";
+        inp.className = "round2-input";
+        td.appendChild(inp);
+        tr.appendChild(td);
+      }
+  
+      // R2 Total
+      {
+        const td = document.createElement("td");
+        const span = document.createElement("span");
+        span.id = `r2Total${teamCount}`;
+        span.style.fontSize = "18px";
+        span.style.color = "#80d4ff";
+        span.style.textShadow = "0px 0px 6px rgba(128, 212, 255, 0.5)";
+        span.style.fontWeight = "bold";
+        span.textContent = "0";
+        td.appendChild(span);
+        tr.appendChild(td);
+      }
+  
+      // Half Time (free integer >= 0)
+      {
+        const td = document.createElement("td");
+        const inp = document.createElement("input");
+        inp.type = "number";
+        inp.id = `halfTime${teamCount}`;
+        inp.min = "0";
+        inp.className = "halftime-input";
+        td.appendChild(inp);
+        tr.appendChild(td);
+      }
+  
+      // First Half Total
+      {
+        const td = document.createElement("td");
+        const span = document.createElement("span");
+        span.id = `firstHalfTotal${teamCount}`;
+        span.className = "first-half-total";
+        span.textContent = "0";
+        td.appendChild(span);
+        tr.appendChild(td);
+      }
+  
+      // --- Round 3 (Q11-Q15): only 0 or 3 ---
+      for (let j = 11; j <= 15; j++) {
+        const td = document.createElement("td");
+        const inp = document.createElement("input");
+        inp.type = "number";
+        inp.id = `num${teamCount}${j}`;
+        inp.min = "0";
+        inp.max = "3";
+        inp.step = "3";
+        inp.className = "round3-input";
+        td.appendChild(inp);
+        tr.appendChild(td);
+      }
+  
+      // R3 Total
+      {
+        const td = document.createElement("td");
+        const span = document.createElement("span");
+        span.id = `r3Total${teamCount}`;
+        span.style.fontSize = "18px";
+        span.style.color = "#80d4ff";
+        span.style.textShadow = "0px 0px 6px rgba(128, 212, 255, 0.5)";
+        span.style.fontWeight = "bold";
+        span.textContent = "0";
+        td.appendChild(span);
+        tr.appendChild(td);
+      }
+  
+      // --- Round 4 (Q16-Q20): only 0 or 4 ---
+      for (let j = 16; j <= 20; j++) {
+        const td = document.createElement("td");
+        const inp = document.createElement("input");
+        inp.type = "number";
+        inp.id = `num${teamCount}${j}`;
+        inp.min = "0";
+        inp.max = "4";
+        inp.step = "4";
+        inp.className = "round4-input";
+        td.appendChild(inp);
+        tr.appendChild(td);
+      }
+  
+      // R4 Total
+      {
+        const td = document.createElement("td");
+        const span = document.createElement("span");
+        span.id = `r4Total${teamCount}`;
+        span.style.fontSize = "18px";
+        span.style.color = "#80d4ff";
+        span.style.textShadow = "0px 0px 6px rgba(128, 212, 255, 0.5)";
+        span.style.fontWeight = "bold";
+        span.textContent = "0";
+        td.appendChild(span);
+        tr.appendChild(td);
+      }
+  
+      // Final Question (allow negative)
+      {
+        const td = document.createElement("td");
+        const inp = document.createElement("input");
+        inp.type = "number";
+        inp.id = `finalQuestion${teamCount}`;
+        // IMPORTANT: allow negatives (do NOT set min="0")
+        inp.className = "finalquestion-input";
+        td.appendChild(inp);
+        tr.appendChild(td);
+      }
+  
+      // Second Half Total
+      {
+        const td = document.createElement("td");
+        const span = document.createElement("span");
+        span.id = `secondHalfTotal${teamCount}`;
+        span.className = "second-half-total";
+        span.textContent = "0";
+        td.appendChild(span);
+        tr.appendChild(td);
+      }
+  
+      // BONUS column (numeric, right side just left of Final Score)
+      {
+        const td = document.createElement("td");
+        td.className = "bonus-col-right";
+        const inp = document.createElement("input");
+        inp.type = "number";
+        inp.min = "0";
+        inp.step = "1";
+        inp.className = "bonus-input";
+        inp.value = "0";
+        td.appendChild(inp);
+        tr.appendChild(td);
+        bindBonusInput(inp);
+      }
+  
+      // Final Score (right sticky col)
+      {
+        const td = document.createElement("td");
+        td.className = "sticky-col-right";
+        const span = document.createElement("span");
+        span.id = `finalScore${teamCount}`;
+        span.textContent = "0";
+        td.appendChild(span);
+        tr.appendChild(td);
+      }
+  
+      tbody.appendChild(tr);
+  
+      // Let scoring module bind listeners if it wants to
+      try {
+        window.dispatchEvent(
+          new CustomEvent("scoresheet:team-added", { detail: { teamId: teamCount } })
+        );
+      } catch (_) {}
+  
+      // Re-sync sticky widths after layout changes
+      updateStickyRightWidths();
+  
+      return teamCount;
     }
   
-    function getActiveTeamRows() {
-      // If you later implement row "deletion", filter here.
-      return $all("#teamTable tbody tr");
-    }
-  
-    function getActiveTeamIds() {
-      return getActiveTeamRows()
-        .map((tr) => tr.dataset.teamId)
-        .filter(Boolean);
-    }
-  
-    // Expose globals
-    window.addTeam = window.addTeam || addTeam;
-    window.addTeamRow = window.addTeamRow || addTeam;
-    window.getActiveTeamRows = window.getActiveTeamRows || getActiveTeamRows;
-    window.getActiveTeamIds = window.getActiveTeamIds || getActiveTeamIds;
+    // Export
+    window.addTeam = addTeam;
   })();
