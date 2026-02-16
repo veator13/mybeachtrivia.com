@@ -40,11 +40,11 @@
     <script src="js/search.js" defer></script>
     <script src="js/standings-modal.js" defer></script>
 
+    <!-- Submit handler (NEW split file) -->
+    <script src="js/submit-scores.js" defer></script>
+
     <!-- Enforcers that depend on the table existing -->
     <script src="js/grid-enforcer.js" defer></script>
-
-    <!-- Legacy big file (disabled) -->
-    <!-- <script src="app.js?v=20260212-venues-fix" defer></script> -->
 
     <!-- Bootstrap wiring LAST -->
     <script src="js/main.js" defer></script>
@@ -203,7 +203,6 @@
       role="dialog"
       aria-modal="true"
       aria-labelledby="standingsTitle"
-      hidden
     >
       <div class="modal-content">
         <button type="button" id="btnCloseModal" class="close" aria-label="Close standings">
@@ -219,5 +218,9 @@
         <ul id="modalRankingList"></ul>
       </div>
     </div>
+
+    <!-- IMPORTANT:
+         Remove the HTML "hidden" attribute usage (you were mixing hidden + display:none).
+         JS controls visibility via modal.style.display = "block"/"none". -->
   </body>
 </html>
