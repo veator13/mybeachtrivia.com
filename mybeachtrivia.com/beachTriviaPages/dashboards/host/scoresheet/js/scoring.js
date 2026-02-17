@@ -1,232 +1,304 @@
 /* scoring.js
-   Score validation + calculation helpers for the Host Scoresheet.
+   Legacy-compatible scoring for split-file Host Scoresheet.
 
-   Exposes (globals):
-     - validateInput(inputEl)
-     - updateScores(rowEl)
-     - updateFinalScore(rowEl)
-     - recalcRowTotals(rowEl)
+   FIX:
+   - Avoid document.getElementById("num{teamId}{q}") because IDs collide:
+       num111 = team 1 q11  OR  team 11 q1
+   - Always resolve num* inputs within the row for that team.
 
-   Notes:
-   - Designed to work with your current table shape:
-     Team Name | Q1..Q5 | R1 Total | Q6..Q10 | R2 Total | Half Time | First Half Total
-               | Q11..Q15 | R3 Total | Q16..Q20 | R4 Total | Final Question | Second Half Total
-               | Bonus | Final Score
-   - Uses numeric parsing with defaults, clamps negatives to 0 (can be adjusted).
+   CHANGE REQUEST:
+   - In NORMAL mode (NOT feud):
+       * If user enters 0 => keep 0
+       * If user enters ANY non-zero => snap to the cell’s fixed value:
+           Q1-5  => 1
+           Q6-10 => 2
+           Q11-15=> 3
+           Q16-20=> 4
+   - In FEUD mode (#eventType === "feud"):
+       * allow any non-negative integer in Q1..Q20 (no snapping)
 */
 (function () {
-    "use strict";
-  
-    function $(sel, root) {
-      if (window.DomUtils?.$) return window.DomUtils.$(sel, root);
-      return (root || document).querySelector(sel);
+  "use strict";
+
+  function $(sel, root) {
+    if (window.DomUtils?.$) return window.DomUtils.$(sel, root);
+    return (root || document).querySelector(sel);
+  }
+
+  function $all(sel, root) {
+    if (window.DomUtils?.$all) return window.DomUtils.$all(sel, root);
+    return Array.from((root || document).querySelectorAll(sel));
+  }
+
+  function num(v) {
+    if (v === null || v === undefined) return 0;
+    if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+    const s = String(v).trim();
+    if (!s) return 0;
+    const n = Number(s);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function int(v) {
+    const n = parseInt(String(v ?? "").trim(), 10);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function setTextById(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = String(value);
+  }
+
+  function getEventTypeValue() {
+    const el = document.getElementById("eventType");
+    return (el?.value || "").trim();
+  }
+
+  function isFeudMode() {
+    return getEventTypeValue() === "feud";
+  }
+
+  function getTeamIdFrom(arg, teamIdMaybe) {
+    if (Number.isFinite(Number(teamIdMaybe)) && Number(teamIdMaybe) > 0) return Number(teamIdMaybe);
+    if (Number.isFinite(Number(arg)) && Number(arg) > 0) return Number(arg);
+
+    const el = arg && arg.nodeType === 1 ? arg : null;
+    const row = el?.closest?.("tr[data-team-id]") || null;
+    const tid = row ? parseInt(row.dataset.teamId || "0", 10) : 0;
+    return tid || 0;
+  }
+
+  function getRowByTeamId(teamId) {
+    return document.querySelector(`tr[data-team-id="${teamId}"]`);
+  }
+
+  // ✅ IMPORTANT: resolve by id *within the row* (avoids duplicate id collisions)
+  function getByIdInRow(row, id) {
+    if (!row) return document.getElementById(id);
+    try {
+      return row.querySelector(`#${CSS.escape(id)}`) || document.getElementById(id);
+    } catch {
+      // CSS.escape might not exist in very old browsers; fallback
+      return row.querySelector(`[id="${id}"]`) || document.getElementById(id);
     }
-  
-    function $all(sel, root) {
-      if (window.DomUtils?.$all) return window.DomUtils.$all(sel, root);
-      return Array.from((root || document).querySelectorAll(sel));
-    }
-  
-    function num(v) {
-      if (v === null || v === undefined) return 0;
-      if (typeof v === "number") return Number.isFinite(v) ? v : 0;
-      const s = String(v).trim();
-      if (!s) return 0;
-      const n = Number(s);
-      return Number.isFinite(n) ? n : 0;
-    }
-  
-    function clamp0(n) {
-      return n < 0 ? 0 : n;
-    }
-  
-    function setText(cell, value) {
-      if (!cell) return;
-      cell.textContent = String(value);
-    }
-  
-    function setValue(input, value) {
-      if (!input) return;
-      input.value = String(value);
-    }
-  
-    function getRow(el) {
-      return el?.closest?.("tr") || null;
-    }
-  
-    function getRowInputs(row) {
-      // All numeric inputs in the row (excluding team name text input if present)
-      return $all('input[type="number"]', row).filter((i) => !i.disabled);
-    }
-  
-    function findCellsByHeuristics(row) {
-      // Heuristic: many implementations use class names on total cells/inputs.
-      // If your app.js uses different selectors, we’ll tweak later once you paste your row markup.
-      const byClass = (cls) => row.querySelector(cls);
-  
-      return {
-        // totals might be <td> with ids/classes or could be <input readonly>
-        r1Total: byClass(".r1-total, .r1Total, [data-total='r1'], [data-total='r1Total']"),
-        r2Total: byClass(".r2-total, .r2Total, [data-total='r2'], [data-total='r2Total']"),
-        r3Total: byClass(".r3-total, .r3Total, [data-total='r3'], [data-total='r3Total']"),
-        r4Total: byClass(".r4-total, .r4Total, [data-total='r4'], [data-total='r4Total']"),
-        firstHalfTotal: byClass(
-          ".first-half-total, .firstHalfTotal, [data-total='firstHalf'], [data-total='firstHalfTotal']"
-        ),
-        secondHalfTotal: byClass(
-          ".second-half-total, .secondHalfTotal, [data-total='secondHalf'], [data-total='secondHalfTotal']"
-        ),
-        finalScore: byClass(".final-score, .finalScore, [data-total='final'], [data-total='finalScore']"),
-      };
-    }
-  
-    function getOrderedScoreInputs(row) {
-      // Your table has 20 question inputs + halftime + final question + bonus (likely numeric).
-      // We assume the row’s numeric inputs appear in DOM order:
-      // Q1..Q5, Q6..Q10, halftime, Q11..Q15, Q16..Q20, finalQ, bonus, finalScore(readonly maybe)
-      // If your row contains readonly totals as <input type=number>, that will confuse things.
-      // In that case we’ll use your actual selectors after you show your addTeam() row template.
-      return getRowInputs(row);
-    }
-  
-    function computeTotalsFromInputs(row) {
-      const inputs = getOrderedScoreInputs(row);
-      // We expect at least:
-      // 20 questions + halftime + finalQ + bonus = 23 numeric inputs.
-      // Some builds include totals as readonly inputs; if so, we still compute from the first 23.
-      const vals = inputs.map((i) => clamp0(num(i.value)));
-  
-      // Find a sane mapping:
-      // Q1-5 => 0-4
-      // Q6-10 => 5-9
-      // halftime => 10
-      // Q11-15 => 11-15
-      // Q16-20 => 16-20
-      // finalQ => 21
-      // bonus => 22
-      const q1_5 = vals.slice(0, 5);
-      const q6_10 = vals.slice(5, 10);
-      const halftime = vals[10] ?? 0;
-      const q11_15 = vals.slice(11, 16);
-      const q16_20 = vals.slice(16, 21);
-      const finalQ = vals[21] ?? 0;
-      const bonus = vals[22] ?? 0;
-  
-      const r1Total = q1_5.reduce((a, b) => a + b, 0);
-      const r2Total = q6_10.reduce((a, b) => a + b, 0);
-      const firstHalfTotal = r1Total + r2Total + halftime;
-  
-      const r3Total = q11_15.reduce((a, b) => a + b, 0);
-      const r4Total = q16_20.reduce((a, b) => a + b, 0);
-      const secondHalfTotal = r3Total + r4Total + finalQ;
-  
-      const finalScore = firstHalfTotal + secondHalfTotal + bonus;
-  
-      return {
-        r1Total,
-        r2Total,
-        halftime,
-        firstHalfTotal,
-        r3Total,
-        r4Total,
-        finalQ,
-        secondHalfTotal,
-        bonus,
-        finalScore,
-      };
-    }
-  
-    function writeTotals(row, totals) {
-      // Try to write into obvious readonly inputs/cells if they exist
-      const cells = findCellsByHeuristics(row);
-  
-      const write = (target, value) => {
-        if (!target) return;
-        const tag = target.tagName?.toLowerCase?.();
-        if (tag === "input" || tag === "textarea") setValue(target, value);
-        else setText(target, value);
-      };
-  
-      write(cells.r1Total, totals.r1Total);
-      write(cells.r2Total, totals.r2Total);
-      write(cells.r3Total, totals.r3Total);
-      write(cells.r4Total, totals.r4Total);
-      write(cells.firstHalfTotal, totals.firstHalfTotal);
-      write(cells.secondHalfTotal, totals.secondHalfTotal);
-      write(cells.finalScore, totals.finalScore);
-    }
-  
-    function validateInput(inputEl) {
-      if (!inputEl) return { ok: true };
-  
-      const type = (inputEl.getAttribute("type") || "").toLowerCase();
-      if (type !== "number") return { ok: true };
-  
-      if (inputEl.value === "") return { ok: true };
-  
-      const n = Number(inputEl.value);
-      if (!Number.isFinite(n)) {
-        inputEl.classList.add("invalid");
-        return { ok: false, reason: "Not a number" };
-      }
-  
-      // Clamp negatives to 0 (your grid-enforcer also does this)
-      if (n < 0) {
-        inputEl.value = "0";
-      }
-  
+  }
+
+  function getBonusInput(row, teamId) {
+    if (!row) return null;
+    const byId = getByIdInRow(row, `bonus${teamId}`);
+    if (byId) return byId;
+    return row.querySelector("td.bonus-col-right .bonus-input") || row.querySelector(".bonus-input");
+  }
+
+  function fixedValueForQuestion(q) {
+    if (q >= 1 && q <= 5) return 1;
+    if (q >= 6 && q <= 10) return 2;
+    if (q >= 11 && q <= 15) return 3;
+    if (q >= 16 && q <= 20) return 4;
+    return 0;
+  }
+
+  function clampQuestionValue(q, v) {
+    const n = int(v);
+    if (n === 0) return 0;
+    return fixedValueForQuestion(q);
+  }
+
+  function parseQuestionNumberFromId(id, teamId) {
+    // id format: num{teamId}{q}
+    const rest = id.replace(/^num/, "");
+    const teamStr = String(teamId);
+    const idx = rest.indexOf(teamStr);
+    if (idx === -1) return 0;
+    const qStr = rest.slice(idx + teamStr.length);
+    const q = parseInt(qStr || "0", 10);
+    return Number.isFinite(q) ? q : 0;
+  }
+
+  function validateInput(inputEl, teamIdMaybe) {
+    if (!inputEl) return { ok: true };
+
+    const type = (inputEl.getAttribute("type") || "").toLowerCase();
+    if (type !== "number") return { ok: true };
+
+    if (inputEl.value === "") {
       inputEl.classList.remove("invalid");
       return { ok: true };
     }
-  
-    function recalcRowTotals(rowEl) {
-      const row = rowEl?.tagName ? rowEl : getRow(rowEl);
-      if (!row) return null;
-  
-      // Validate all numeric inputs first (light-touch)
-      getRowInputs(row).forEach((inp) => validateInput(inp));
-  
-      const totals = computeTotalsFromInputs(row);
-      writeTotals(row, totals);
-  
-      return totals;
+
+    const raw = Number(inputEl.value);
+    if (!Number.isFinite(raw)) {
+      inputEl.classList.add("invalid");
+      return { ok: false, reason: "Not a number" };
     }
-  
-    function updateScores(rowEl) {
-      // Alias to the same recalculation
-      return recalcRowTotals(rowEl);
+
+    const id = inputEl.id || "";
+
+    // Final question allows negatives (do not clamp)
+    if (/^finalQuestion\d+$/.test(id)) {
+      inputEl.classList.remove("invalid");
+      return { ok: true };
     }
-  
-    function updateFinalScore(rowEl) {
-      // Same calculation; kept for compatibility with older naming
-      return recalcRowTotals(rowEl);
+
+    // Halftime: clamp negatives to 0, integer
+    if (/^halfTime\d+$/.test(id)) {
+      const v = int(inputEl.value);
+      inputEl.value = String(v < 0 ? 0 : v);
+      inputEl.classList.remove("invalid");
+      return { ok: true };
     }
-  
-    // Expose globals (so app.js can keep calling them)
-    window.validateInput = window.validateInput || validateInput;
-    window.recalcRowTotals = window.recalcRowTotals || recalcRowTotals;
-    window.updateScores = window.updateScores || updateScores;
-    window.updateFinalScore = window.updateFinalScore || updateFinalScore;
-  
-    // Optional: auto-bind recalculation on input changes (safe, but you may already do this in app.js)
-    function autoBind() {
-      const tbody = $("#teamTable tbody");
-      if (!tbody) return;
-  
-      // Delegate input events: whenever a numeric input changes, recalc that row
-      tbody.addEventListener("input", (e) => {
-        const t = e.target;
-        if (!(t instanceof HTMLElement)) return;
-        if (t.tagName.toLowerCase() !== "input") return;
-        if ((t.getAttribute("type") || "").toLowerCase() !== "number") return;
-  
+
+    // Bonus: clamp negatives to 0, integer
+    if (inputEl.classList.contains("bonus-input") || /^bonus\d+$/.test(id)) {
+      const v = int(inputEl.value);
+      inputEl.value = String(v < 0 ? 0 : v);
+      inputEl.classList.remove("invalid");
+      return { ok: true };
+    }
+
+    // Question inputs
+    if (/^num\d+\d+$/.test(id)) {
+      const teamId = getTeamIdFrom(inputEl, teamIdMaybe);
+      const q = parseQuestionNumberFromId(id, teamId);
+
+      if (isFeudMode()) {
+        const v = int(inputEl.value);
+        inputEl.value = String(v < 0 ? 0 : v);
+        inputEl.classList.remove("invalid");
+        return { ok: true };
+      }
+
+      const v = clampQuestionValue(q, inputEl.value);
+      inputEl.value = String(v);
+      inputEl.classList.remove("invalid");
+      return { ok: true };
+    }
+
+    // Default: clamp negatives to 0
+    if (raw < 0) inputEl.value = "0";
+    inputEl.classList.remove("invalid");
+    return { ok: true };
+  }
+
+  function computeTotals(teamId) {
+    const row = getRowByTeamId(teamId);
+    if (!row) return null;
+
+    let r1 = 0,
+      r2 = 0,
+      r3 = 0,
+      r4 = 0;
+
+    for (let q = 1; q <= 20; q++) {
+      const inp = getByIdInRow(row, `num${teamId}${q}`); // ✅ row-scoped
+      if (!inp) continue;
+      validateInput(inp, teamId);
+      const v = int(inp.value);
+      if (q <= 5) r1 += v;
+      else if (q <= 10) r2 += v;
+      else if (q <= 15) r3 += v;
+      else r4 += v;
+    }
+
+    const htEl = getByIdInRow(row, `halfTime${teamId}`);
+    if (htEl) validateInput(htEl, teamId);
+    const halftime = htEl ? int(htEl.value) : 0;
+
+    const fqEl = getByIdInRow(row, `finalQuestion${teamId}`);
+    if (fqEl) validateInput(fqEl, teamId);
+    const finalQ = fqEl ? num(fqEl.value) : 0;
+
+    const bonusEl = getBonusInput(row, teamId);
+    if (bonusEl) validateInput(bonusEl, teamId);
+    const bonus = bonusEl ? int(bonusEl.value) : 0;
+
+    const likeEl = getByIdInRow(row, `checkbox${teamId}`) || document.getElementById(`checkbox${teamId}`);
+    const likeBonus = likeEl && likeEl.checked ? 5 : 0;
+
+    const firstHalfTotal = r1 + r2 + halftime;
+    const secondHalfTotal = r3 + r4 + finalQ;
+    const finalScore = firstHalfTotal + secondHalfTotal + bonus + likeBonus;
+
+    return {
+      r1Total: r1,
+      r2Total: r2,
+      r3Total: r3,
+      r4Total: r4,
+      halftime,
+      finalQ,
+      bonus,
+      likeBonus,
+      firstHalfTotal,
+      secondHalfTotal,
+      finalScore,
+    };
+  }
+
+  function writeTotals(teamId, totals) {
+    if (!totals) return;
+    setTextById(`r1Total${teamId}`, totals.r1Total);
+    setTextById(`r2Total${teamId}`, totals.r2Total);
+    setTextById(`r3Total${teamId}`, totals.r3Total);
+    setTextById(`r4Total${teamId}`, totals.r4Total);
+
+    setTextById(`firstHalfTotal${teamId}`, totals.firstHalfTotal);
+    setTextById(`secondHalfTotal${teamId}`, totals.secondHalfTotal);
+    setTextById(`finalScore${teamId}`, totals.finalScore);
+  }
+
+  function recalcRowTotals(arg, teamIdMaybe) {
+    const teamId = getTeamIdFrom(arg, teamIdMaybe);
+    if (!teamId) return null;
+    const totals = computeTotals(teamId);
+    writeTotals(teamId, totals);
+    return totals;
+  }
+
+  function updateScores(arg, teamIdMaybe) {
+    return recalcRowTotals(arg, teamIdMaybe);
+  }
+
+  function updateFinalScore(arg, teamIdMaybe) {
+    return recalcRowTotals(arg, teamIdMaybe);
+  }
+
+  window.validateInput = window.validateInput || validateInput;
+  window.recalcRowTotals = window.recalcRowTotals || recalcRowTotals;
+  window.updateScores = window.updateScores || updateScores;
+  window.updateFinalScore = window.updateFinalScore || updateFinalScore;
+
+  function autoBind() {
+    const tbody = $("#teamTable tbody");
+    if (!tbody || tbody.dataset.boundScoring) return;
+
+    tbody.addEventListener("input", (e) => {
+      const t = e.target;
+      if (!(t instanceof HTMLInputElement)) return;
+      if ((t.type || "").toLowerCase() !== "number") return;
+      validateInput(t);
+      recalcRowTotals(t);
+    });
+
+    tbody.addEventListener("change", (e) => {
+      const t = e.target;
+      if (!(t instanceof HTMLInputElement)) return;
+
+      if (t.classList.contains("teamCheckbox") || /^checkbox\d+$/.test(t.id || "")) {
         recalcRowTotals(t);
-      });
-    }
-  
-    if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", autoBind, { once: true });
-    } else {
-      autoBind();
-    }
-  })();
+      }
+    });
+
+    window.addEventListener("scoresheet:team-added", (ev) => {
+      const teamId = ev?.detail?.teamId;
+      if (teamId) recalcRowTotals(teamId);
+    });
+
+    tbody.dataset.boundScoring = "1";
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", autoBind, { once: true });
+  } else {
+    autoBind();
+  }
+})();

@@ -1,264 +1,484 @@
 /* grid-enforcer.js
    Host Scoresheet "grid enforcer" behaviors:
    - Keyboard navigation across the table inputs (arrows / Enter / Tab-like flow)
-   - Quick-snap focus helpers
-   - Final-negative guard: prevents negative values in score inputs (esp final/bonus)
+   - Auto-fill empty numeric cells with 0 when leaving a cell (blur) or when navigating away
+   - Final-negative guard: prevents negative values in score inputs
+   - WARN on refresh/close/back when unsaved changes exist (beforeunload)
 
-   Classic script style (no imports). Exposes window.GridEnforcer.init().
+   Update:
+   - ArrowLeft/ArrowRight:
+       * If caret can move within the current field, move caret (do NOT change cell)
+       * If caret is already at start/end, move to prev/next cell
+   - Keep active cell in view:
+       * Auto-scroll the .table-wrapper so the focused cell is NOT hidden under sticky columns
 */
 (function () {
-    "use strict";
-  
-    const SELECTORS = {
-      table: "#teamTable",
-      tbody: "#teamTable tbody",
-      // Inputs we consider "grid cells"
-      cellInputs:
-        '#teamTable tbody input[type="number"], #teamTable tbody input[type="text"], #teamTable tbody input',
-    };
-  
-    function $(sel, root) {
-      return (root || document).querySelector(sel);
-    }
-  
-    function $all(sel, root) {
-      return Array.from((root || document).querySelectorAll(sel));
-    }
-  
-    function isVisible(el) {
-      if (!el) return false;
-      const style = window.getComputedStyle(el);
-      return style.display !== "none" && style.visibility !== "hidden";
-    }
-  
-    function getCellInputsInRow(tr) {
-      // Return ONLY visible, enabled inputs in this row in DOM order.
-      return $all('input, select, textarea', tr)
-        .filter((el) => !el.disabled && isVisible(el))
-        .filter((el) => {
-          const tag = el.tagName.toLowerCase();
-          if (tag === "input") return el.type !== "hidden";
-          return true;
-        });
-    }
-  
-    function getGridInputs() {
-      return $all(SELECTORS.cellInputs).filter((el) => !el.disabled && isVisible(el));
-    }
-  
-    function findRow(el) {
-      return el?.closest?.("tr") || null;
-    }
-  
-    function clampNonNegativeNumberInput(inputEl) {
-      if (!inputEl) return;
-  
-      // Only act on number-like inputs
-      const type = (inputEl.getAttribute("type") || "").toLowerCase();
-      if (type !== "number") return;
-  
-      // If empty, do nothing
-      if (inputEl.value === "") return;
-  
-      const n = Number(inputEl.value);
-      if (!Number.isFinite(n)) return;
-  
-      if (n < 0) {
-        inputEl.value = "0";
-        // Fire input/change so any score recalcs hooked elsewhere still run
-        inputEl.dispatchEvent(new Event("input", { bubbles: true }));
-        inputEl.dispatchEvent(new Event("change", { bubbles: true }));
-      }
-    }
-  
-    function focusEl(el) {
-      if (!el) return false;
-      try {
-        el.focus({ preventScroll: false });
-        if (typeof el.select === "function") el.select();
+  "use strict";
+
+  const SELECTORS = {
+    table: "#teamTable",
+    tbody: "#teamTable tbody",
+    cellInputs:
+      '#teamTable tbody input[type="number"], #teamTable tbody input[type="text"], #teamTable tbody input',
+    wrapper: ".table-wrapper",
+  };
+
+  function $(sel, root) {
+    return (root || document).querySelector(sel);
+  }
+
+  function $all(sel, root) {
+    return Array.from((root || document).querySelectorAll(sel));
+  }
+
+  function isVisible(el) {
+    if (!el) return false;
+    const style = window.getComputedStyle(el);
+    return style.display !== "none" && style.visibility !== "hidden";
+  }
+
+  function getCellInputsInRow(tr) {
+    return $all("input, select, textarea", tr)
+      .filter((el) => !el.disabled && isVisible(el))
+      .filter((el) => {
+        const tag = el.tagName.toLowerCase();
+        if (tag === "input") return el.type !== "hidden";
         return true;
-      } catch {
-        return false;
+      });
+  }
+
+  function getGridInputs() {
+    return $all(SELECTORS.cellInputs).filter((el) => !el.disabled && isVisible(el));
+  }
+
+  function findRow(el) {
+    return el?.closest?.("tr") || null;
+  }
+
+  function isNumberInput(inputEl) {
+    const type = (inputEl?.getAttribute?.("type") || "").toLowerCase();
+    return type === "number";
+  }
+
+  // ---- dirty tracking ----
+  function markDirty() {
+    try {
+      if (window.ScoresheetState?.markAsModified) window.ScoresheetState.markAsModified();
+    } catch (_) {}
+    if (typeof window.dataModified === "boolean") window.dataModified = true;
+    if (window.ScoresheetState && typeof window.ScoresheetState.isDirty === "boolean") {
+      window.ScoresheetState.isDirty = true;
+    }
+  }
+
+  function isDirty() {
+    try {
+      if (window.ScoresheetState?.isModified?.()) return true;
+    } catch (_) {}
+    if (window.ScoresheetState && typeof window.ScoresheetState.isDirty === "boolean") {
+      return !!window.ScoresheetState.isDirty;
+    }
+    if (typeof window.dataModified === "boolean") return window.dataModified;
+    return false;
+  }
+
+  function setupBeforeUnloadWarning() {
+    if (window.__gridEnforcerBeforeUnloadBound) return;
+    window.__gridEnforcerBeforeUnloadBound = true;
+
+    window.addEventListener("beforeunload", (e) => {
+      if (!isDirty()) return;
+      e.preventDefault();
+      e.returnValue = "";
+    });
+  }
+
+  function fillEmptyWithZero(inputEl) {
+    if (!inputEl || !isNumberInput(inputEl)) return;
+    const v = String(inputEl.value ?? "").trim();
+    if (v !== "") return;
+
+    inputEl.value = "0";
+    markDirty();
+    inputEl.dispatchEvent(new Event("input", { bubbles: true }));
+    inputEl.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
+  function clampNonNegativeNumberInput(inputEl) {
+    if (!inputEl || !isNumberInput(inputEl)) return;
+    if (String(inputEl.value ?? "").trim() === "") return;
+
+    const n = Number(inputEl.value);
+    if (!Number.isFinite(n)) return;
+
+    if (n < 0) {
+      inputEl.value = "0";
+      markDirty();
+      inputEl.dispatchEvent(new Event("input", { bubbles: true }));
+      inputEl.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+  }
+
+  function finalizeCellOnLeave(currentEl) {
+    if (!currentEl) return;
+    fillEmptyWithZero(currentEl);
+    clampNonNegativeNumberInput(currentEl);
+  }
+
+  // ---- keep focused cell visible (accounts for sticky columns) ----
+  function findScrollWrapper() {
+    const w = $(SELECTORS.wrapper);
+    if (w) return w;
+
+    const table = $(SELECTORS.table);
+    if (!table) return null;
+
+    let el = table.parentElement;
+    while (el) {
+      const s = getComputedStyle(el);
+      const canScrollX = /(auto|scroll)/.test(s.overflowX);
+      const canScrollY = /(auto|scroll)/.test(s.overflowY);
+      if (canScrollX || canScrollY) return el;
+      el = el.parentElement;
+    }
+    return null;
+  }
+
+  function getStickyGutters(wrapper) {
+    const wrapRect = wrapper.getBoundingClientRect();
+
+    const stickyEls = Array.from(wrapper.querySelectorAll("*")).filter((el) => {
+      const cs = getComputedStyle(el);
+      if (cs.position !== "sticky") return false;
+      const left = cs.left;
+      const right = cs.right;
+      return (left && left !== "auto") || (right && right !== "auto");
+    });
+
+    let leftGutter = 0;
+    let rightGutter = 0;
+
+    for (const el of stickyEls) {
+      const cs = getComputedStyle(el);
+      const r = el.getBoundingClientRect();
+
+      if (cs.left && cs.left !== "auto") {
+        leftGutter = Math.max(leftGutter, r.right - wrapRect.left);
+      }
+      if (cs.right && cs.right !== "auto") {
+        rightGutter = Math.max(rightGutter, wrapRect.right - r.left);
       }
     }
-  
-    function moveWithinRow(currentEl, dir) {
-      const tr = findRow(currentEl);
-      if (!tr) return false;
-  
-      const inputs = getCellInputsInRow(tr);
-      const idx = inputs.indexOf(currentEl);
-      if (idx === -1) return false;
-  
-      const next = inputs[idx + dir];
-      return focusEl(next);
+
+    leftGutter = Math.max(0, Math.min(leftGutter, wrapRect.width * 0.8));
+    rightGutter = Math.max(0, Math.min(rightGutter, wrapRect.width * 0.8));
+
+    return { leftGutter, rightGutter };
+  }
+
+  function ensureCellInView(focusEl) {
+    const wrapper = findScrollWrapper();
+    if (!wrapper || !focusEl) return;
+
+    const cell = focusEl.closest("td,th") || focusEl;
+
+    const wrapRect = wrapper.getBoundingClientRect();
+    const cellRect = cell.getBoundingClientRect();
+
+    const { leftGutter, rightGutter } = getStickyGutters(wrapper);
+    const margin = 12;
+
+    const visibleLeft = wrapRect.left + leftGutter + margin;
+    const visibleRight = wrapRect.right - rightGutter - margin;
+    const visibleTop = wrapRect.top + margin;
+    const visibleBottom = wrapRect.bottom - margin;
+
+    // Horizontal
+    if (cellRect.left < visibleLeft) {
+      wrapper.scrollLeft -= (visibleLeft - cellRect.left);
+    } else if (cellRect.right > visibleRight) {
+      wrapper.scrollLeft += (cellRect.right - visibleRight);
     }
-  
-    function moveToRow(currentEl, rowDir) {
-      const tr = findRow(currentEl);
-      if (!tr) return false;
-  
-      // Determine "column index" inside the current row’s input list
-      const currentRowInputs = getCellInputsInRow(tr);
-      const colIndex = currentRowInputs.indexOf(currentEl);
-  
-      let targetRow = tr;
-      for (let i = 0; i < 1000; i++) {
-        targetRow = rowDir > 0 ? targetRow.nextElementSibling : targetRow.previousElementSibling;
-        if (!targetRow) return false;
-        if (targetRow.tagName?.toLowerCase() !== "tr") continue;
-  
-        const targetInputs = getCellInputsInRow(targetRow);
-        if (targetInputs.length === 0) continue;
-  
-        // Same column if possible; otherwise clamp to last input
-        const target = targetInputs[Math.min(Math.max(colIndex, 0), targetInputs.length - 1)];
-        return focusEl(target);
+
+    // Vertical
+    if (cellRect.top < visibleTop) {
+      wrapper.scrollTop -= (visibleTop - cellRect.top);
+    } else if (cellRect.bottom > visibleBottom) {
+      wrapper.scrollTop += (cellRect.bottom - visibleBottom);
+    }
+  }
+
+  function focusEl(el) {
+    if (!el) return false;
+    try {
+      // preventScroll so we can do our own "sticky-aware" scroll
+      el.focus({ preventScroll: true });
+      ensureCellInView(el);
+
+      // Keep your "select all" behavior (works great for score cells)
+      if (typeof el.select === "function") el.select();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function moveWithinRow(currentEl, dir) {
+    const tr = findRow(currentEl);
+    if (!tr) return false;
+
+    const inputs = getCellInputsInRow(tr);
+    const idx = inputs.indexOf(currentEl);
+    if (idx === -1) return false;
+
+    return focusEl(inputs[idx + dir]);
+  }
+
+  function moveNextGridInput(currentEl, dir) {
+    const all = getGridInputs();
+    const idx = all.indexOf(currentEl);
+    if (idx === -1) return false;
+    return focusEl(all[idx + dir]);
+  }
+
+  function moveToRow(currentEl, rowDir) {
+    const tr = findRow(currentEl);
+    if (!tr) return false;
+
+    const currentRowInputs = getCellInputsInRow(tr);
+    const colIndex = currentRowInputs.indexOf(currentEl);
+
+    let targetRow = tr;
+    for (let i = 0; i < 1000; i++) {
+      targetRow = rowDir > 0 ? targetRow.nextElementSibling : targetRow.previousElementSibling;
+      if (!targetRow) return false;
+      if (targetRow.tagName?.toLowerCase() !== "tr") continue;
+
+      const targetInputs = getCellInputsInRow(targetRow);
+      if (targetInputs.length === 0) continue;
+
+      const target = targetInputs[Math.min(Math.max(colIndex, 0), targetInputs.length - 1)];
+      return focusEl(target);
+    }
+    return false;
+  }
+
+  function moveToEdge(currentEl, edge) {
+    const tr = findRow(currentEl);
+    if (!tr) return false;
+
+    const inputs = getCellInputsInRow(tr);
+    if (!inputs.length) return false;
+
+    if (edge === "start") return focusEl(inputs[0]);
+    if (edge === "end") return focusEl(inputs[inputs.length - 1]);
+    return false;
+  }
+
+  // ---- caret helpers (cursor until edge, then hop cell) ----
+  function canUseCaret(el) {
+    return (
+      el &&
+      typeof el.selectionStart === "number" &&
+      typeof el.selectionEnd === "number" &&
+      typeof el.setSelectionRange === "function"
+    );
+  }
+
+  function getLen(el) {
+    return String(el?.value ?? "").length;
+  }
+
+  function moveCaret(el, pos) {
+    try {
+      el.setSelectionRange(pos, pos);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function handleArrowLeftRight(el, dir) {
+    if (!el) return false;
+
+    if (canUseCaret(el)) {
+      const len = getLen(el);
+      let ss = el.selectionStart;
+      let se = el.selectionEnd;
+
+      if (ss == null || se == null) return false;
+
+      // If selection exists, collapse it toward the arrow direction
+      if (ss !== se) {
+        const newPos = dir < 0 ? Math.min(ss, se) : Math.max(ss, se);
+        moveCaret(el, newPos);
+        return true;
       }
-      return false;
-    }
-  
-    function moveToEdge(currentEl, edge) {
-      const tr = findRow(currentEl);
-      if (!tr) return false;
-  
-      const inputs = getCellInputsInRow(tr);
-      if (!inputs.length) return false;
-  
-      if (edge === "start") return focusEl(inputs[0]);
-      if (edge === "end") return focusEl(inputs[inputs.length - 1]);
-      return false;
-    }
-  
-    function moveNextGridInput(currentEl, dir) {
-      // A "flat" navigation across all inputs in the table (row-major).
-      const all = getGridInputs();
-      const idx = all.indexOf(currentEl);
-      if (idx === -1) return false;
-  
-      return focusEl(all[idx + dir]);
-    }
-  
-    function handleKeydown(e) {
-      const el = e.target;
-      if (!el) return;
-  
-      // Only act on inputs inside the grid table
-      const table = $(SELECTORS.table);
-      if (!table || !table.contains(el)) return;
-  
-      const key = e.key;
-  
-      // We do NOT hijack typing (letters, numbers)
-      // Only navigation keys below.
-      if (key === "ArrowLeft") {
-        e.preventDefault();
-        // Try left within row, else go to prev grid input
+
+      const caret = ss;
+
+      if (dir < 0) {
+        if (caret > 0) {
+          moveCaret(el, caret - 1);
+          return true;
+        }
+        // at start -> hop
+        finalizeCellOnLeave(el);
         if (!moveWithinRow(el, -1)) moveNextGridInput(el, -1);
-        return;
-      }
-  
-      if (key === "ArrowRight") {
-        e.preventDefault();
+        return true;
+      } else {
+        if (caret < len) {
+          moveCaret(el, caret + 1);
+          return true;
+        }
+        // at end -> hop
+        finalizeCellOnLeave(el);
         if (!moveWithinRow(el, +1)) moveNextGridInput(el, +1);
-        return;
-      }
-  
-      if (key === "ArrowUp") {
-        e.preventDefault();
-        moveToRow(el, -1);
-        return;
-      }
-  
-      if (key === "ArrowDown") {
-        e.preventDefault();
-        moveToRow(el, +1);
-        return;
-      }
-  
-      // Enter behaves like "move right" (common in score grids)
-      if (key === "Enter") {
-        e.preventDefault();
-        if (!moveWithinRow(el, +1)) moveNextGridInput(el, +1);
-        return;
-      }
-  
-      // Home/End jump within the row
-      if (key === "Home") {
-        e.preventDefault();
-        moveToEdge(el, "start");
-        return;
-      }
-  
-      if (key === "End") {
-        e.preventDefault();
-        moveToEdge(el, "end");
-        return;
-      }
-  
-      // Optional: Ctrl+Arrow to jump to row edge
-      if (e.ctrlKey && key === "ArrowLeft") {
-        e.preventDefault();
-        moveToEdge(el, "start");
-        return;
-      }
-  
-      if (e.ctrlKey && key === "ArrowRight") {
-        e.preventDefault();
-        moveToEdge(el, "end");
-        return;
+        return true;
       }
     }
-  
-    function handleInput(e) {
-      const el = e.target;
-      if (!el) return;
-  
-      const table = $(SELECTORS.table);
-      if (!table || !table.contains(el)) return;
-  
-      // Enforce non-negative numeric inputs
-      clampNonNegativeNumberInput(el);
-    }
-  
-    function quickSnapFirstCell() {
-      const tbody = $(SELECTORS.tbody);
-      if (!tbody) return false;
-      const firstRow = tbody.querySelector("tr");
-      if (!firstRow) return false;
-  
-      const inputs = getCellInputsInRow(firstRow);
-      return focusEl(inputs[0]);
-    }
-  
-    function init() {
-      const table = $(SELECTORS.table);
-      if (!table) return;
-  
-      // Event delegation (survives dynamic row creation)
-      document.addEventListener("keydown", handleKeydown, true);
-      document.addEventListener("input", handleInput, true);
-      document.addEventListener("change", handleInput, true);
-  
-      // Convenience: Alt+G snaps to the first grid cell
-      document.addEventListener(
-        "keydown",
-        (e) => {
-          if (e.altKey && (e.key === "g" || e.key === "G")) {
-            e.preventDefault();
-            quickSnapFirstCell();
-          }
-        },
-        true
-      );
-    }
-  
-    window.GridEnforcer = { init };
-  
-    // Auto-init (scripts are defer; DOM will be parsed)
-    if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", init, { once: true });
+
+    // fallback
+    finalizeCellOnLeave(el);
+    if (dir < 0) {
+      if (!moveWithinRow(el, -1)) moveNextGridInput(el, -1);
+      return true;
     } else {
-      init();
+      if (!moveWithinRow(el, +1)) moveNextGridInput(el, +1);
+      return true;
     }
-  })();
+  }
+
+  function handleKeydown(e) {
+    const el = e.target;
+    if (!el) return;
+
+    const table = $(SELECTORS.table);
+    if (!table || !table.contains(el)) return;
+
+    const key = e.key;
+
+    if (key === "ArrowLeft") {
+      e.preventDefault();
+      handleArrowLeftRight(el, -1);
+      return;
+    }
+
+    if (key === "ArrowRight") {
+      e.preventDefault();
+      handleArrowLeftRight(el, +1);
+      return;
+    }
+
+    if (key === "ArrowUp") {
+      e.preventDefault();
+      finalizeCellOnLeave(el);
+      moveToRow(el, -1);
+      return;
+    }
+
+    if (key === "ArrowDown") {
+      e.preventDefault();
+      finalizeCellOnLeave(el);
+      moveToRow(el, +1);
+      return;
+    }
+
+    if (key === "Enter") {
+      e.preventDefault();
+      finalizeCellOnLeave(el);
+      if (!moveWithinRow(el, +1)) moveNextGridInput(el, +1);
+      return;
+    }
+
+    if (key === "Home") {
+      e.preventDefault();
+      finalizeCellOnLeave(el);
+      moveToEdge(el, "start");
+      return;
+    }
+
+    if (key === "End") {
+      e.preventDefault();
+      finalizeCellOnLeave(el);
+      moveToEdge(el, "end");
+      return;
+    }
+
+    if (e.ctrlKey && key === "ArrowLeft") {
+      e.preventDefault();
+      finalizeCellOnLeave(el);
+      moveToEdge(el, "start");
+      return;
+    }
+
+    if (e.ctrlKey && key === "ArrowRight") {
+      e.preventDefault();
+      finalizeCellOnLeave(el);
+      moveToEdge(el, "end");
+      return;
+    }
+  }
+
+  function handleInput(e) {
+    const el = e.target;
+    if (!el) return;
+
+    const table = $(SELECTORS.table);
+    if (!table || !table.contains(el)) return;
+
+    markDirty();
+    clampNonNegativeNumberInput(el);
+  }
+
+  function handleBlur(e) {
+    const el = e.target;
+    if (!el) return;
+
+    const table = $(SELECTORS.table);
+    if (!table || !table.contains(el)) return;
+
+    fillEmptyWithZero(el);
+  }
+
+  function quickSnapFirstCell() {
+    const tbody = $(SELECTORS.tbody);
+    if (!tbody) return false;
+    const firstRow = tbody.querySelector("tr");
+    if (!firstRow) return false;
+
+    const inputs = getCellInputsInRow(firstRow);
+    return focusEl(inputs[0]);
+  }
+
+  function init() {
+    const table = $(SELECTORS.table);
+    if (!table) return;
+
+    setupBeforeUnloadWarning();
+
+    document.addEventListener("keydown", handleKeydown, true);
+    document.addEventListener("input", handleInput, true);
+    document.addEventListener("change", handleInput, true);
+    document.addEventListener("blur", handleBlur, true);
+
+    document.addEventListener(
+      "keydown",
+      (e) => {
+        if (e.altKey && (e.key === "g" || e.key === "G")) {
+          e.preventDefault();
+          quickSnapFirstCell();
+        }
+      },
+      true
+    );
+  }
+
+  window.GridEnforcer = { init };
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init, { once: true });
+  } else {
+    init();
+  }
+})();

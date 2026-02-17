@@ -1,227 +1,271 @@
 /* standings-modal.js
-   Standings modal open/close + ranking rendering.
+   Team standings modal with invert (high->low / low->high) toggle.
 
-   Exposes globals:
-     - showStandings()
-     - closeModal()
-     - invertStandingsOrder()  (alias toggleStandingsSort)
-
-   Relies on existing DOM ids:
-     - standingsModal
-     - modalRankingList
-     - btnCloseModal
-     - btnInvertStandings
+   Fixes:
+   - Renders into #modalRankingList (your actual UL) with a safe fallback to #standingsList
+   - Flip button now re-sorts + re-renders every click
+   - Keeps label + aria-pressed in sync with current mode
+   - Live refresh while modal is open (team name edits / score changes)
+   - IMPORTANT: Only include rows with a NON-BLANK team name
+   - IMPORTANT: Rank numbers stay "competition-style":
+       #1 is ALWAYS the highest score, even when viewing Low → High
 */
 (function () {
-    "use strict";
-  
-    function $(sel, root) {
-      if (window.DomUtils?.$) return window.DomUtils.$(sel, root);
-      return (root || document).querySelector(sel);
+  "use strict";
+
+  function $(sel, root) {
+    if (window.DomUtils?.$) return window.DomUtils.$(sel, root);
+    return (root || document).querySelector(sel);
+  }
+  function $all(sel, root) {
+    if (window.DomUtils?.$all) return window.DomUtils.$all(sel, root);
+    return Array.from((root || document).querySelectorAll(sel));
+  }
+
+  function getStandingsAscending() {
+    // false = high->low (default), true = low->high
+    if (
+      window.ScoresheetState?.state &&
+      typeof window.ScoresheetState.state.standingsAscending === "boolean"
+    ) {
+      return window.ScoresheetState.state.standingsAscending;
     }
-  
-    function $all(sel, root) {
-      if (window.DomUtils?.$all) return window.DomUtils.$all(sel, root);
-      return Array.from((root || document).querySelectorAll(sel));
-    }
-  
-    function num(v) {
-      if (v === null || v === undefined) return 0;
-      const s = String(v).trim();
-      if (!s) return 0;
-      const n = Number(s);
-      return Number.isFinite(n) ? n : 0;
-    }
-  
-    function getTeamRows() {
-      return $all("#teamTable tbody tr");
-    }
-  
-    function getTeamName(row) {
-      // first text input in the row
-      const inp = row.querySelector('input[type="text"], input:not([type]), textarea');
-      return (inp?.value || "").trim() || "Unnamed Team";
-    }
-  
-    function getFinalScoreValue(row) {
-      // Try common patterns first
-      const candidates = [
-        row.querySelector(".sticky-col-right input"),
-        row.querySelector(".sticky-col-right"),
-        row.querySelector(".final-score input"),
-        row.querySelector(".final-score"),
-        row.querySelector("[data-total='finalScore']"),
-        row.querySelector("[data-total='final']"),
-      ].filter(Boolean);
-  
-      for (const c of candidates) {
-        if (!c) continue;
-        const tag = c.tagName?.toLowerCase?.();
-        if (tag === "input" || tag === "textarea") return num(c.value);
-        // If it contains an input, use it
-        const inner = c.querySelector?.("input, textarea");
-        if (inner) return num(inner.value);
-        // else use text content
-        return num(c.textContent);
-      }
-  
-      // Fallback: last numeric input in the row (often final score, unless totals are also inputs)
-      const nums = Array.from(row.querySelectorAll('input[type="number"]')).filter((i) => !i.disabled);
-      if (nums.length) return num(nums[nums.length - 1].value);
-  
-      // last resort: parse any number from last cell text
-      const lastCell = row.querySelector("td:last-child");
-      return num(lastCell?.textContent || "0");
-    }
-  
-    function recalcAllRowsIfPossible() {
-      // If scoring recalculation exists, run it so standings are accurate.
-      const rows = getTeamRows();
-      for (const row of rows) {
-        // Most compatible: updateFinalScore(row) or updateScores(row)
-        if (typeof window.updateFinalScore === "function") {
-          try { window.updateFinalScore(row); } catch {}
-        } else if (typeof window.updateScores === "function") {
-          try { window.updateScores(row); } catch {}
-        } else if (typeof window.recalcRowTotals === "function") {
-          try { window.recalcRowTotals(row); } catch {}
+    if (typeof window.standingsAscending === "boolean") return window.standingsAscending;
+    return false;
+  }
+
+  function setStandingsAscending(v) {
+    const val = !!v;
+    if (window.ScoresheetState?.state) window.ScoresheetState.state.standingsAscending = val;
+    window.standingsAscending = val;
+  }
+
+  function setButtonText(btn) {
+    if (!btn) return;
+    const asc = getStandingsAscending();
+    // Show CURRENT mode
+    btn.textContent = asc ? "Low → High" : "High → Low";
+    btn.setAttribute("aria-pressed", asc ? "true" : "false");
+  }
+
+  function getTotalForRow(row) {
+    const teamId = row?.dataset?.teamId;
+    if (!teamId) return 0;
+
+    const scoreEl = document.getElementById(`finalScore${teamId}`);
+    const text = (scoreEl?.textContent || "").trim();
+    const v = parseInt(text, 10);
+    return Number.isFinite(v) ? v : 0;
+  }
+
+  function buildRankings() {
+    const rows = $all("#teamTable tbody tr[data-team-id]");
+
+    const list = rows
+      .map((row, domIndex) => {
+        const teamId = row.dataset.teamId;
+        const nameInput = row.querySelector("input.teamName");
+
+        // ✅ NO fallback label. Blank stays blank.
+        const name = (nameInput?.value || "").trim();
+
+        const total = getTotalForRow(row);
+        return { teamId, name, total, domIndex, row };
+      })
+      // ✅ Only include named teams
+      .filter((x) => x.name && x.name.trim().length > 0);
+
+    const asc = getStandingsAscending();
+
+    // stable-ish ordering: sort by score, then DOM order
+    list.sort((a, b) => {
+      if (a.total !== b.total) return asc ? a.total - b.total : b.total - a.total;
+      return a.domIndex - b.domIndex;
+    });
+
+    return list;
+  }
+
+  function getStandingsListEl() {
+    // Your actual UL (confirmed in console): #modalRankingList
+    return $("#modalRankingList") || $("#standingsList");
+  }
+
+  function renderStandings(list) {
+    const ul = getStandingsListEl();
+    if (!ul) return;
+
+    ul.innerHTML = "";
+
+    const asc = getStandingsAscending();
+    const n = list.length;
+
+    for (let i = 0; i < n; i++) {
+      const item = list[i];
+
+      const li = document.createElement("li");
+      li.className = "standings-item";
+
+      // ✅ Rank numbers stay "highest score is #1" even when viewing Low → High
+      const rankNum = asc ? (n - i) : (i + 1);
+
+      // Match your screenshot style: "#1 name (score)"
+      li.textContent = `#${rankNum} ${item.name} (${item.total})`;
+
+      // click an item -> scroll to that team row and highlight
+      li.addEventListener("click", () => {
+        try {
+          if (typeof window.clearHighlights === "function") window.clearHighlights();
+        } catch (_) {}
+        item.row?.classList?.add("highlighted-row");
+
+        const wrapper = $(".table-wrapper");
+        if (wrapper && item.row) {
+          const thead = $("#teamTable thead");
+          const headerH = thead ? thead.offsetHeight || 0 : 0;
+          const y = (item.row.offsetTop || 0) - headerH - 10;
+          try {
+            wrapper.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
+          } catch {
+            wrapper.scrollTop = Math.max(0, y);
+          }
         }
-      }
-    }
-  
-    function buildRankings() {
-      recalcAllRowsIfPossible();
-  
-      const rows = getTeamRows();
-      const items = rows.map((row) => {
-        return {
-          row,
-          name: getTeamName(row),
-          score: getFinalScoreValue(row),
-        };
       });
-  
-      // Default: descending (highest score first). If standingsAscending is true, lowest first.
-      const ascending = !!window.standingsAscending;
-  
-      items.sort((a, b) => (ascending ? a.score - b.score : b.score - a.score));
-  
-      return items;
+
+      ul.appendChild(li);
     }
-  
-    function renderRankings(items) {
-      const list = document.getElementById("modalRankingList");
-      if (!list) return;
-  
-      list.innerHTML = "";
-  
-      items.forEach((it, idx) => {
-        const li = document.createElement("li");
-        li.style.display = "flex";
-        li.style.justifyContent = "space-between";
-        li.style.gap = "12px";
-        li.style.padding = "6px 0";
-  
-        const left = document.createElement("span");
-        left.textContent = `${idx + 1}. ${it.name}`;
-  
-        const right = document.createElement("strong");
-        right.textContent = String(it.score);
-  
-        li.appendChild(left);
-        li.appendChild(right);
-  
-        // Click a ranking to scroll to that team row
-        li.style.cursor = "pointer";
-        li.addEventListener("click", () => {
-          it.row.scrollIntoView({ behavior: "smooth", block: "center" });
-          // Try focusing the team name input
-          const inp = it.row.querySelector('input[type="text"], input:not([type]), textarea');
-          inp?.focus?.();
-          inp?.select?.();
-        });
-  
-        list.appendChild(li);
-      });
+
+    // Harmless; helps if some CSS accidentally forced height:0 earlier
+    ul.style.height = "";
+  }
+
+  function isModalOpen() {
+    const modal = $("#standingsModal");
+    if (!modal) return false;
+    if (modal.classList.contains("hidden")) return false;
+    if (modal.style.display && modal.style.display === "none") return false;
+    const cs = window.getComputedStyle(modal);
+    return cs.display !== "none" && cs.visibility !== "hidden" && cs.opacity !== "0";
+  }
+
+  function updateStandings() {
+    if (!isModalOpen()) return;
+
+    const flipBtn = $("#btnInvertStandings");
+    setButtonText(flipBtn);
+
+    const list = buildRankings();
+    renderStandings(list);
+  }
+
+  function openModal() {
+    const modal = $("#standingsModal");
+    if (!modal) return;
+    modal.classList.remove("hidden");
+    modal.style.display = "flex";
+    document.body.classList.add("modal-open");
+  }
+
+  function closeModal() {
+    const modal = $("#standingsModal");
+    if (!modal) return;
+    modal.classList.add("hidden");
+    modal.style.display = "none";
+    document.body.classList.remove("modal-open");
+  }
+
+  function showStandings() {
+    openModal();
+    updateStandings();
+  }
+
+  function invertStandingsOrder() {
+    setStandingsAscending(!getStandingsAscending());
+    updateStandings();
+  }
+
+  // Debounce for live-updating while modal open
+  const debounce =
+    window.DomUtils?.debounce ||
+    function (fn, wait) {
+      let t;
+      return function (...args) {
+        clearTimeout(t);
+        t = setTimeout(() => fn.apply(this, args), wait);
+      };
+    };
+
+  const updateStandingsDebounced = debounce(updateStandings, 120);
+
+  function bind() {
+    const modal = $("#standingsModal");
+    if (!modal || modal.dataset.boundStandingsModal) return;
+
+    const closeBtn = $("#btnCloseStandings") || $("#closeStandings") || modal.querySelector(".close");
+    const flipBtn = $("#btnInvertStandings");
+
+    // Close button
+    if (closeBtn && !closeBtn.dataset.boundClose) {
+      closeBtn.addEventListener(
+        "click",
+        (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
+          closeModal();
+        },
+        true
+      );
+      closeBtn.dataset.boundClose = "1";
     }
-  
-    function openModal() {
-      const modal = document.getElementById("standingsModal");
-      if (!modal) return;
-  
-      modal.hidden = false;
-  
-      // Focus close button for accessibility
-      const btnClose = document.getElementById("btnCloseModal");
-      btnClose?.focus?.();
+
+    // Flip button (capture + stopImmediatePropagation)
+    if (flipBtn && !flipBtn.dataset.boundFlip) {
+      flipBtn.addEventListener(
+        "click",
+        (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
+          invertStandingsOrder();
+        },
+        true
+      );
+      flipBtn.dataset.boundFlip = "1";
+      setButtonText(flipBtn);
     }
-  
-    function closeModal() {
-      const modal = document.getElementById("standingsModal");
-      if (!modal) return;
-  
-      modal.hidden = true;
-  
-      // Return focus to "Standings" button if present
-      document.getElementById("btnShowStandings")?.focus?.();
+
+    // Clicking backdrop closes modal
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) closeModal();
+    });
+
+    // Live refresh while modal is open:
+    // - score inputs changing
+    // - team names edited
+    const tbody = $("#teamTable tbody");
+    if (tbody && !tbody.dataset.boundStandingsLive) {
+      tbody.addEventListener("input", () => updateStandingsDebounced(), true);
+      tbody.addEventListener("change", () => updateStandingsDebounced(), true);
+      tbody.dataset.boundStandingsLive = "1";
     }
-  
-    function syncInvertButtonState() {
-      const btn = document.getElementById("btnInvertStandings");
-      if (!btn) return;
-      const pressed = !!window.standingsAscending;
-      btn.setAttribute("aria-pressed", pressed ? "true" : "false");
-    }
-  
-    function invertStandingsOrder() {
-      window.standingsAscending = !window.standingsAscending;
-      syncInvertButtonState();
-  
-      // If modal is open, rerender
-      const modal = document.getElementById("standingsModal");
-      if (modal && !modal.hidden) {
-        renderRankings(buildRankings());
-      }
-    }
-  
-    function showStandings() {
-      syncInvertButtonState();
-      const items = buildRankings();
-      renderRankings(items);
-      openModal();
-    }
-  
-    // Wire buttons (safe even if main.js also wires; duplicates won’t break much but we’ll keep it minimal)
-    function bind() {
-      const btnClose = document.getElementById("btnCloseModal");
-      if (btnClose && !btnClose.__standingsBound) {
-        btnClose.__standingsBound = true;
-        btnClose.addEventListener("click", closeModal);
-      }
-  
-      const btnInvert = document.getElementById("btnInvertStandings");
-      if (btnInvert && !btnInvert.__standingsBound) {
-        btnInvert.__standingsBound = true;
-        btnInvert.addEventListener("click", invertStandingsOrder);
-      }
-  
-      // Escape closes modal
-      document.addEventListener("keydown", (e) => {
-        if (e.key !== "Escape") return;
-        const modal = document.getElementById("standingsModal");
-        if (modal && !modal.hidden) closeModal();
-      });
-    }
-  
-    // Expose globals for compatibility
-    window.showStandings = window.showStandings || showStandings;
-    window.closeModal = window.closeModal || closeModal;
-    window.invertStandingsOrder = window.invertStandingsOrder || invertStandingsOrder;
-    window.toggleStandingsSort = window.toggleStandingsSort || invertStandingsOrder;
-  
-    if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", bind, { once: true });
-    } else {
-      bind();
-    }
-  })();
+
+    // Also refresh on your custom events (if fired)
+    window.addEventListener("scoresheet:totals-updated", updateStandingsDebounced);
+    window.addEventListener("scoresheet:team-added", updateStandingsDebounced);
+    window.addEventListener("scoresheet:team-removed", updateStandingsDebounced);
+
+    modal.dataset.boundStandingsModal = "1";
+  }
+
+  // Expose
+  window.updateStandings = window.updateStandings || updateStandings;
+  window.showStandings = window.showStandings || showStandings;
+  window.invertStandingsOrder = window.invertStandingsOrder || invertStandingsOrder;
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bind, { once: true });
+  } else {
+    bind();
+  }
+})();

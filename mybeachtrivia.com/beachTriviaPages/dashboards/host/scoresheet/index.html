@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Trivia Scoresheet</title>
+    <title>Scoresheet</title>
 
     <!-- Main stylesheet -->
     <link rel="stylesheet" href="style.css" />
@@ -54,7 +54,7 @@
     <noscript>This app requires JavaScript enabled.</noscript>
 
     <header>
-      <h1>TRIVIA SCORESHEET</h1>
+      <h1>SCORESHEET</h1>
     </header>
 
     <main>
@@ -96,6 +96,7 @@
                 <option value="classic_trivia">Classic Trivia</option>
                 <option value="themed_trivia">Themed Trivia</option>
                 <option value="feud">Feud</option>
+                <option value="private_event">Private Event</option>
               </select>
             </div>
 
@@ -127,14 +128,44 @@
           <button type="button" id="btnShowStandings">Standings</button>
           <button type="button" id="btnSubmitScores">Submit Scores</button>
 
+          <!-- Search (with match navigation arrows) -->
           <div class="search-container">
-            <input
-              type="text"
-              id="teamSearch"
-              class="search-input"
-              placeholder="Search team..."
-              aria-label="Search for a team"
-            />
+            <div class="search-input-wrap" role="group" aria-label="Team search">
+              <input
+                type="text"
+                id="teamSearch"
+                class="search-input"
+                placeholder="Search team..."
+                aria-label="Search for a team"
+                autocomplete="off"
+              />
+
+              <!-- Enabled/disabled by JS -->
+              <button
+                type="button"
+                id="btnSearchPrev"
+                class="search-nav-btn"
+                aria-label="Previous match"
+                title="Previous match"
+                disabled
+              >
+                ‹
+              </button>
+
+              <button
+                type="button"
+                id="btnSearchNext"
+                class="search-nav-btn"
+                aria-label="Next match"
+                title="Next match"
+                disabled
+              >
+                ›
+              </button>
+
+              <span id="searchMatchCount" class="search-match-count" aria-live="polite"></span>
+            </div>
+
             <button type="button" id="btnSearch">Search</button>
           </div>
         </div>
@@ -220,7 +251,6 @@
     </div>
 
     <!-- IMPORTANT:
-         Remove the HTML "hidden" attribute usage (you were mixing hidden + display:none).
-         JS controls visibility via modal.style.display = "block"/"none". -->
+         JS controls modal visibility via modal.style.display = "block"/"none". -->
   </body>
 </html>

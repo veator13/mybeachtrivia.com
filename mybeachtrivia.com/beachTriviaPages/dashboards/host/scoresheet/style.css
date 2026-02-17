@@ -1,8 +1,23 @@
+/* =========================
+   Scoresheet Styles (FULL)
+   Fixes:
+   - Remove global nth-of-type button styling (scoped to IDs)
+   - Modal always overlays sticky table layers (z-index + isolation)
+   - body.modal-open class support (used by JS)
+   - Team search highlight + suggestion dropdown styling (restored search UX)
+   - FIX: highlighted-row no longer causes bleed-through on sticky columns
+   - NEW: search match nav UI (‹ › + count)
+   - NEW: standings modal list styling (so items actually show)
+   - UPDATED: modern standings modal UI (title, close button, list items)
+   - FIX: invert standings button text readability (High→Low state)
+   - NEW: subtle delete-row X button styling (btnDeleteTeam) + layout
+   ========================= */
+
 /* General Page Styling */
 body {
     font-family: 'Arial', sans-serif;
-    background-color: #181818; /* Dark Gray Background */
-    color: #f5f5f5; /* Light Gray Text */
+    background-color: #181818;
+    color: #f5f5f5;
     text-align: center;
     margin: 0;
     padding: 0;
@@ -10,8 +25,8 @@ body {
 
 /* Custom properties for sticky right columns */
 :root {
-    --final-col-width: 80px;  /* default; JS/inline styles will effectively override */
-    --bonus-col-width: 35px;  /* roughly half of the normal cell width */
+    --final-col-width: 170px;  /* fit "FINAL SCORE" without truncation */
+    --bonus-col-width: 70px;
 }
 
 /* Visually-hidden text (for screen readers only) */
@@ -20,7 +35,7 @@ body {
     width: 1px;
     height: 1px;
     padding: 0;
-    margin: -1px;
+    margin: 0;
     overflow: hidden;
     clip: rect(0, 0, 0, 0);
     white-space: nowrap;
@@ -28,9 +43,7 @@ body {
 }
 
 /* =========================
-   NEW: Scoresheet "meta" fields (Date / Name / Event Type / Venue)
-   Works with your CURRENT HTML:
-   <section class="meta-form"><div class="meta-grid"><div class="meta-field">...</div></div></section>
+   Scoresheet "meta" fields (Date / Name / Event Type / Venue)
    ========================= */
 
 .meta-form{
@@ -47,13 +60,12 @@ body {
 .meta-grid{
     display: flex;
     flex-direction: row;
-    flex-wrap: wrap;                 /* wraps nicely if needed */
-    justify-content: center;         /* center row */
-    align-items: flex-end;           /* align bottoms of controls */
-    gap: 12px 18px;                  /* row/col gap */
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: flex-end;
+    gap: 12px 18px;
 }
 
-/* Each label + control stays side-by-side */
 .meta-field{
     display: inline-flex;
     flex-direction: row;
@@ -62,7 +74,6 @@ body {
     white-space: nowrap;
 }
 
-/* Labels */
 .meta-field label{
     font-size: 14px;
     font-weight: 800;
@@ -71,15 +82,14 @@ body {
     text-shadow: 0 0 6px rgba(0, 0, 0, 0.5);
 }
 
-/* IMPORTANT: Make meta inputs + selects EXACT same height as dropdowns */
 .meta-grid input,
 .meta-grid select{
     width: auto;
     min-width: 150px;
 
-    height: 46px;              /* LOCKED HEIGHT (change this if you want taller) */
-    padding: 0 12px;           /* vertical padding = 0 so height is truly identical */
-    line-height: 46px;         /* keeps text nicely centered */
+    height: 46px;
+    padding: 0 12px;
+    line-height: 46px;
 
     border-radius: 8px;
     border: 2px solid #666;
@@ -89,11 +99,9 @@ body {
     font-weight: 700;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
     text-align: left;
-
-    box-sizing: border-box;    /* prevents border/padding from changing height */
+    box-sizing: border-box;
 }
 
-/* Normalize control rendering (helps Safari/Chrome) */
 .meta-grid input{
     -webkit-appearance: none;
     appearance: none;
@@ -103,24 +111,16 @@ body {
     appearance: none;
 }
 
-/* Slightly nicer widths */
-.meta-grid input[type="date"]{
-    min-width: 170px;
-}
+.meta-grid input[type="date"]{ min-width: 170px; }
 .meta-grid #submitterFirstName,
-.meta-grid #submitterLastName{
-    min-width: 170px;
-}
+.meta-grid #submitterLastName{ min-width: 170px; }
 .meta-grid #eventType,
 .meta-grid #venueSelect{
     min-width: 190px;
     cursor: pointer;
 }
-.meta-grid #themeName{
-    min-width: 240px;
-}
+.meta-grid #themeName{ min-width: 240px; }
 
-/* Focus states */
 .meta-grid input:focus,
 .meta-grid select:focus{
     outline: none;
@@ -128,21 +128,15 @@ body {
     box-shadow: 0 0 10px rgba(0, 255, 204, 0.35);
 }
 
-/* Placeholder */
 .meta-grid input::placeholder{
     color: #9a9a9a;
     font-weight: 600;
 }
 
-/* Responsive: still horizontal, but left-aligned and bigger controls */
 @media (max-width: 900px){
-    .meta-grid{
-        justify-content: flex-start;
-    }
+    .meta-grid{ justify-content: flex-start; }
     .meta-grid input,
-    .meta-grid select{
-        min-width: 220px;
-    }
+    .meta-grid select{ min-width: 220px; }
 }
 
 /* Header */
@@ -189,61 +183,43 @@ button {
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 }
 
+/* Add Team button - Purple */
+#btnAddTeam {
+    background: linear-gradient(135deg, #9966ff, #6633cc);
+    color: #ffffff;
+}
+#btnAddTeam:hover {
+    background: linear-gradient(135deg, #8855ee, #5522bb);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(153, 102, 255, 0.4);
+}
+
 /* Standings button - Green */
-#teamTable + div > .button-container button:nth-child(2),
-button:nth-of-type(2) {
+#btnShowStandings {
     background: linear-gradient(135deg, #00ffcc, #00ccaa);
     color: #1a1a1a;
 }
-
-#teamTable + div > .button-container button:nth-child(2):hover,
-button:nth-of-type(2):hover {
+#btnShowStandings:hover {
     background: linear-gradient(135deg, #00ccaa, #00aa88);
     transform: translateY(-2px);
     box-shadow: 0 6px 12px rgba(0, 255, 204, 0.4);
 }
 
 /* Submit Scores button - Orange */
-#teamTable + div > .button-container button:nth-child(3),
-button:nth-of-type(3) {
+#btnSubmitScores {
     background: linear-gradient(135deg, #ff9900, #ff6600);
     color: #1a1a1a;
 }
-
-#teamTable + div > .button-container button:nth-child(3):hover,
-button:nth-of-type(3):hover {
+#btnSubmitScores:hover {
     background: linear-gradient(135deg, #ff6600, #cc5200);
     transform: translateY(-2px);
     box-shadow: 0 6px 12px rgba(255, 153, 0, 0.4);
 }
 
-/* Add Team button - Purple */
-#teamTable + div > .button-container button:nth-child(1),
-button:nth-of-type(1) {
-    background: linear-gradient(135deg, #9966ff, #6633cc);
-    color: #ffffff;
-}
+/* =========================
+   Search Bar Styling (+ nav UI)
+   ========================= */
 
-#teamTable + div > .button-container button:nth-child(1):hover,
-button:nth-of-type(1):hover {
-    background: linear-gradient(135deg, #8855ee, #5522bb);
-    transform: translateY(-2px);
-    box-shadow: 0 6px 12px rgba(153, 102, 255, 0.4);
-}
-
-/* Search Button - Blue */
-.search-container button {
-    background: linear-gradient(135deg, #3399ff, #0066cc);
-    color: #ffffff;
-}
-
-.search-container button:hover {
-    background: linear-gradient(135deg, #0066cc, #0055aa);
-    transform: translateY(-2px);
-    box-shadow: 0 6px 12px rgba(51, 153, 255, 0.4);
-}
-
-/* Search Bar Styling */
 .search-container {
     display: flex;
     align-items: center;
@@ -252,6 +228,25 @@ button:nth-of-type(1):hover {
     position: relative;
 }
 
+/* Search Button - Blue (ONLY the main Search button in container) */
+.search-container > button#btnSearch {
+    background: linear-gradient(135deg, #3399ff, #0066cc);
+    color: #ffffff;
+}
+.search-container > button#btnSearch:hover {
+    background: linear-gradient(135deg, #0066cc, #0055aa);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(51, 153, 255, 0.4);
+}
+
+/* Wrap input + nav buttons + count */
+.search-input-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Input */
 .search-input {
     width: 220px;
     height: 42px;
@@ -264,78 +259,138 @@ button:nth-of-type(1):hover {
     transition: all 0.3s ease;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
-
 .search-input:focus {
     border-color: #00ffcc;
     box-shadow: 0 0 10px rgba(0, 255, 204, 0.4);
     outline: none;
 }
+.search-input::placeholder { color: #888; }
 
-.search-input::placeholder {
-    color: #888;
+/* Nav arrow buttons (‹ ›) */
+.search-nav-btn {
+    height: 42px;
+    width: 44px;
+    padding: 0;
+    border-radius: 6px;
+    font-size: 22px;
+    line-height: 42px;
+    font-weight: 900;
+    text-transform: none;
+    letter-spacing: 0;
+
+    background: linear-gradient(135deg, #3399ff, #0066cc);
+    color: #ffffff;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
-/* Search Suggestions Styling */
+.search-nav-btn:hover:not(:disabled) {
+    background: linear-gradient(135deg, #0066cc, #0055aa);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(51, 153, 255, 0.35);
+}
+
+.search-nav-btn:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+}
+
+.search-nav-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.35;
+    filter: grayscale(0.3);
+    transform: none;
+}
+
+/* Match count text (e.g., 1/3) */
+.search-match-count {
+    min-width: 46px;
+    height: 42px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    font-weight: 800;
+    font-size: 14px;
+    color: #00ffcc;
+    text-shadow: 0 0 6px rgba(0, 255, 204, 0.25);
+    user-select: none;
+}
+
+/* =========================
+   SEARCH UX (restored)
+   ========================= */
+
+/* Highlighted row after search */
+.highlighted-row td {
+    background: rgba(0, 255, 204, 0.12) !important;
+    box-shadow: inset 0 0 0 2px rgba(0, 255, 204, 0.35);
+}
+
+/* Sticky cells: force opaque base paint + keep highlight as overlay */
+.highlighted-row td.sticky-col,
+.highlighted-row td.bonus-col-right,
+.highlighted-row td.sticky-col-right {
+    background-color: #2a2a2a !important; /* OPAQUE base */
+    isolation: isolate;                  /* isolate overlay paint */
+}
+
+/* Overlay highlight on sticky cells WITHOUT transparency bleed */
+.highlighted-row td.sticky-col::after,
+.highlighted-row td.bonus-col-right::after,
+.highlighted-row td.sticky-col-right::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 255, 204, 0.16);
+    box-shadow: inset 0 0 0 2px rgba(0, 255, 204, 0.35);
+    pointer-events: none;
+}
+
+/* Suggestions dropdown */
 .search-suggestions {
     position: absolute;
-    z-index: 100;
-    background: linear-gradient(135deg, #2a2a2a, #3a3a2a);
-    border: 2px solid #00ffcc;
-    border-radius: 6px;
-    box-shadow: 0 4px 15px rgba(0, 255, 204, 0.3);
-    width: 250px;
-    max-width: 100%;
-    margin-top: 5px;
-    animation: fadeIn 0.2s ease-out;
-    padding: 10px;
+    top: calc(100% + 10px);
     right: 0;
-}
-
-.search-suggestions p {
-    margin: 0 0 8px 0;
-    font-size: 14px;
-    color: #ccc;
+    width: min(360px, 90vw);
+    background: linear-gradient(135deg, #222, #2c2c2c);
+    border: 1px solid rgba(0, 255, 204, 0.35);
+    border-radius: 10px;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.7);
+    padding: 10px 12px;
+    z-index: 9999;
     text-align: left;
 }
-
+.search-suggestions p {
+    margin: 0 0 8px;
+    font-weight: 800;
+    color: #00ffcc;
+    letter-spacing: 0.4px;
+    font-size: 13px;
+}
 .search-suggestions ul {
-    list-style: none;
     margin: 0;
     padding: 0;
-    text-align: left;
+    list-style: none;
 }
-
 .search-suggestions li {
-    padding: 8px 10px;
+    padding: 10px 10px;
+    border-radius: 8px;
     cursor: pointer;
-    border-radius: 4px;
-    transition: all 0.2s ease;
     color: #fff;
-    margin-bottom: 2px;
-    border-left: 3px solid transparent;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    transition: background 0.15s ease, transform 0.12s ease;
 }
-
 .search-suggestions li:hover {
-    background-color: #3d3d3d;
-    border-left: 3px solid #00ffcc;
-    transform: translateX(3px);
+    background: rgba(0, 255, 204, 0.14);
+    transform: translateY(-1px);
 }
-
-/* Highlight animation for found teams */
-@keyframes highlight-pulse {
-    0% { background-color: rgba(0, 255, 204, 0.1); }
-    50% { background-color: rgba(0, 255, 204, 0.3); }
-    100% { background-color: rgba(0, 255, 204, 0.1); }
-}
-
-.highlighted-row {
-    animation: highlight-pulse 1.5s ease-in-out infinite;
-}
-
-/* Fade in animation for suggestions */
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(-10px); }
-    to { opacity: 1; transform: translateY(0); }
+.search-suggestions li:active {
+    transform: translateY(0);
 }
 
 /* Table Container */
@@ -346,15 +401,15 @@ button:nth-of-type(1):hover {
     overflow: hidden;
     border-radius: 8px;
     box-shadow: 0px 4px 15px rgba(255, 255, 255, 0.15);
-    background-color: #222; /* Match table background */
+    background-color: #222;
 }
 
 .table-wrapper {
     overflow-x: auto;
     position: relative;
     max-width: 100%;
-    max-height: 80vh; /* Limit height to enable vertical scrolling */
-    overflow-y: auto; /* Enable vertical scrolling */
+    max-height: 80vh;
+    overflow-y: auto;
 }
 
 /* Table */
@@ -368,11 +423,12 @@ table {
 
 /* Common cell styling */
 th, td {
-    padding: 8px 14px; /* Reduced from 14px */
+    padding: 8px 14px;
     border: 1px solid #444;
     text-align: center;
-    font-size: 16px; /* Reduced from 18px */
+    font-size: 16px;
     color: #e0e0e0;
+    box-sizing: border-box;
 }
 
 /* Table Headers */
@@ -389,31 +445,14 @@ thead {
     top: 0;
     z-index: 30;
 }
+thead th { background-color: #333; }
+thead tr:first-child th { border-bottom: 0; }
+thead tr:nth-child(2) th { border-top: 0; }
 
-/* Style for all header cells */
-thead th {
-    background-color: #333;
-}
-
-/* Remove double borders between header rows */
-thead tr:first-child th {
-    border-bottom: 0;
-}
-
-thead tr:nth-child(2) th {
-    border-top: 0;
-}
-
-/* Fix z-index for sticky columns within the sticky header */
-thead th.sticky-col {
-    z-index: 40;
-    background-color: #1e1e1e;
-}
-
-thead th.sticky-col-right {
-    z-index: 40;
-    background-color: #1e1e1e;
-}
+/* Sticky header z-index layering */
+thead th.sticky-col { z-index: 60; background-color: #1e1e1e; }
+thead th.bonus-col-right{ z-index: 65; background-color: #1e1e1e; }
+thead th.sticky-col-right { z-index: 70; background-color: #1e1e1e; }
 
 /* Add a shadow to the bottom of the header */
 thead::after {
@@ -430,12 +469,12 @@ thead::after {
 .sticky-col {
     position: sticky;
     left: 0;
-    z-index: 10;
+    z-index: 20;
     background-color: #2a2a2a;
     border-right: 3px solid #777;
-    min-width: 170px; /* Reduced from 180px */
+    min-width: 240px;
     text-align: left;
-    padding-left: 16px; /* Reduced from 20px */
+    padding-left: 16px;
     box-shadow: 5px 0 12px rgba(0, 0, 0, 0.5);
     white-space: nowrap;
 }
@@ -450,15 +489,52 @@ thead::after {
     vertical-align: middle;
 }
 
+/* =========================
+   RIGHT STICKY COLUMNS (BONUS + FINAL)
+   ========================= */
+
 /* FINAL SCORE COLUMN - RIGHT SIDE */
 .sticky-col-right {
     position: sticky;
     right: 0;
-    z-index: 10;
+    z-index: 55;
     background-color: #2a2a2a;
     border-left: 3px solid #777;
     min-width: var(--final-col-width);
+    width: var(--final-col-width);
     box-shadow: -5px 0 12px rgba(0, 0, 0, 0.5);
+    white-space: nowrap;
+    overflow: visible;
+    text-overflow: clip;
+}
+
+/* BONUS column just left of Final Score */
+.bonus-col-right {
+    position: sticky;
+    right: var(--final-col-width);
+    z-index: 50;
+    background-color: #2a2a2a;
+    border-left: 3px solid #777;
+    min-width: var(--bonus-col-width);
+    width: var(--bonus-col-width);
+    box-shadow: -5px 0 12px rgba(0, 0, 0, 0.5);
+    white-space: nowrap;
+    overflow: visible;
+    text-overflow: clip;
+}
+
+/* Ensure BODY cells of sticky right columns are above table cells */
+tbody td.bonus-col-right { z-index: 50; }
+tbody td.sticky-col-right { z-index: 55; }
+
+/* Header styling for BONUS & FINAL SCORE (no truncation) */
+.top_row th.bonus-col-right,
+.top_row th.sticky-col-right{
+    white-space: nowrap;
+    overflow: visible;
+    text-overflow: clip;
+    padding-left: 10px;
+    padding-right: 10px;
 }
 
 /* Header styling for final score */
@@ -468,6 +544,32 @@ thead::after {
     color: #00ffcc;
     text-shadow: 0px 0px 5px rgba(0, 255, 204, 0.5);
     font-size: 20px;
+}
+
+/* Header styling for BONUS column */
+.top_row th.bonus-col-right {
+    background-color: #1e1e1e;
+    border-left: 3px solid #888;
+    color: #00ffcc;
+    text-shadow: 0px 0px 5px rgba(0, 255, 204, 0.5);
+    font-size: 18px;
+}
+
+/* Tighter padding so bonus stays slim */
+td.bonus-col-right,
+th.bonus-col-right {
+    padding-left: 6px;
+    padding-right: 6px;
+}
+
+/* BONUS input styling */
+td.bonus-col-right input {
+    width: 28px;
+    background-color: #444;
+    color: #ffcc00;
+    font-weight: bold;
+    border: 2px solid #666;
+    border-radius: 4px;
 }
 
 /* Round headers styling */
@@ -503,21 +605,7 @@ td:nth-child(7), td:nth-child(13), td:nth-child(21), td:nth-child(27) {
     font-weight: bold;
     border: 2px solid #666;
 }
-
-.finalquestion-input {
-    color: #ff9900;
-}
-
-/* Round total span styling */
-#r1Total1, #r1Total2, #r1Total3, #r1Total4, #r1Total5,
-#r2Total1, #r2Total2, #r2Total3, #r2Total4, #r2Total5,
-#r3Total1, #r3Total2, #r3Total3, #r3Total4, #r3Total5,
-#r4Total1, #r4Total2, #r4Total3, #r4Total4, #r4Total5 {
-    font-size: 18px;
-    color: #80d4ff;
-    text-shadow: 0px 0px 6px rgba(128, 212, 255, 0.5);
-    font-weight: bold;
-}
+.finalquestion-input { color: #ff9900; }
 
 /* First Half and Second Half Total styling */
 .first-half-total, .second-half-total {
@@ -538,6 +626,7 @@ input {
     color: #ffffff;
     border: 1px solid #777;
     border-radius: 4px;
+    box-sizing: border-box;
 }
 
 /* Remove spinner buttons from number inputs */
@@ -546,10 +635,7 @@ input[type="number"]::-webkit-outer-spin-button {
     -webkit-appearance: none;
     margin: 0;
 }
-
-input[type="number"] {
-    -moz-appearance: textfield;
-}
+input[type="number"] { -moz-appearance: textfield; }
 
 input:focus {
     outline: none;
@@ -557,22 +643,85 @@ input:focus {
     box-shadow: 0px 0px 8px rgba(255, 255, 255, 0.3);
 }
 
-/* Enhanced Team Name Input */
+/* Enhanced Team Name Input (BIGGER) */
 .teamName {
-    width: 115px;
+    width: 150px;
+    height: 38px;
+    padding: 8px 10px;
     background-color: #444;
-    padding: 6px;
     color: white;
     border: 2px solid #888;
-    border-radius: 4px;
+    border-radius: 6px;
     display: inline-block;
     vertical-align: middle;
     margin-right: 10px;
-    font-weight: bold;
-    font-size: 14px;
+    font-weight: 800;
+    font-size: 16px;
+    line-height: 22px;
     box-shadow: 0px 0px 6px rgba(255, 255, 255, 0.2);
-    height: 30px; /* match checkbox height */
+    box-sizing: border-box;
 }
+
+/* =========================
+   NEW: Delete Team Row Button (subtle gray X)
+   ========================= */
+
+/* Layout: make the sticky cell a flex row so X + input + like align cleanly */
+#teamTable td.sticky-col {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+/* Subtle gray button that does NOT inherit the big global button styling */
+#teamTable td.sticky-col .btnDeleteTeam {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: 0 !important;
+    margin: 1px 0 0 0;
+
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.06);
+
+    color: rgba(255, 255, 255, 0.65);
+    font-size: 22px;
+    font-weight: 900;
+    line-height: 1;
+
+    text-transform: none !important;
+    letter-spacing: 0 !important;
+    box-shadow: none !important;
+
+    cursor: pointer;
+    transition: transform 0.14s ease, background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+
+#teamTable td.sticky-col .btnDeleteTeam:hover {
+    background: rgba(255, 255, 255, 0.10);
+    border-color: rgba(255, 255, 255, 0.20);
+    color: rgba(255, 255, 255, 0.85);
+    transform: translateY(-1px);
+}
+
+#teamTable td.sticky-col .btnDeleteTeam:active {
+    transform: translateY(0);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+#teamTable td.sticky-col .btnDeleteTeam:focus-visible {
+    outline: 2px solid rgba(0, 255, 204, 0.70);
+    outline-offset: 3px;
+}
+
+/* Tighten input spacing since flex gap handles spacing now */
+#teamTable td.sticky-col .teamName { margin-right: 0; }
 
 /* Wrapper for LIKE checkbox + label */
 .teamCheckboxWrapper {
@@ -581,9 +730,9 @@ input:focus {
     align-items: center;
     justify-content: flex-start;
     gap: 2px;
-    margin-left: 4px;
+    margin-left: 0; /* flex gap now */
     vertical-align: middle;
-    transform: translateY(-4px); /* nudge the whole block up slightly */
+    transform: none;
 }
 
 /* LIKE text under the box */
@@ -591,7 +740,7 @@ input:focus {
     font-size: 9px;
     letter-spacing: 1px;
     text-transform: uppercase;
-    color: #80d4ff;           /* BT blue */
+    color: #80d4ff;
     opacity: 0.9;
     line-height: 1;
 }
@@ -601,7 +750,7 @@ input:focus {
     -webkit-appearance: none;
     appearance: none;
     width: 30px;
-    height: 30px; /* same visual height as teamName */
+    height: 30px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -615,32 +764,28 @@ input:focus {
     position: relative;
 }
 
-/* Favicon logo inside the box (unchecked + checked) */
 .teamCheckbox::before {
     content: "";
     display: block;
     width: 18px;
     height: 18px;
-    background-image: url("/favicon.ico"); /* adjust path if your favicon lives elsewhere */
+    background-image: url("/favicon.ico");
     background-size: contain;
     background-position: center;
     background-repeat: no-repeat;
     opacity: 0.95;
 }
 
-/* Checked state: *blue* background + checkmark overlay */
 .teamCheckbox:checked {
-    background-color: #80d4ff;  /* BT blue instead of green */
+    background-color: #80d4ff;
     border-color: #80d4ff;
 }
 
-/* Dim the logo slightly when checked to make the check pop */
 .teamCheckbox:checked::before {
     opacity: 0.35;
     filter: grayscale(1) brightness(2);
 }
 
-/* Checkmark overlay */
 .teamCheckbox::after {
     content: "";
     position: absolute;
@@ -660,35 +805,9 @@ input:focus {
     opacity: 1;
 }
 
-/* Focus ring for keyboard users */
 .teamCheckbox:focus-visible {
     outline: 2px solid #00ffcc;
     outline-offset: 2px;
-}
-
-/* Round-specific input styling */
-input[id^="num"][id$="1"], input[id^="num"][id$="2"], 
-input[id^="num"][id$="3"], input[id^="num"][id$="4"], 
-input[id^="num"][id$="5"] {
-    background-color: #4a4a4a;
-}
-
-input[id^="num"][id$="6"], input[id^="num"][id$="7"], 
-input[id^="num"][id$="8"], input[id^="num"][id$="9"], 
-input[id^="num"][id$="10"] {
-    background-color: #3a3a3a;
-}
-
-input[id^="num"][id$="11"], input[id^="num"][id$="12"], 
-input[id^="num"][id$="13"], input[id^="num"][id$="14"], 
-input[id^="num"][id$="15"] {
-    background-color: #3a3a3a;
-}
-
-input[id^="num"][id$="16"], input[id^="num"][id$="17"], 
-input[id^="num"][id$="18"], input[id^="num"][id$="19"], 
-input[id^="num"][id$="20"] {
-    background-color: #3a3a3a;
 }
 
 /* Score Display */
@@ -699,20 +818,28 @@ span {
     text-shadow: 0px 0px 5px rgba(0, 255, 136, 0.8);
 }
 
-/* Enhanced Final Score Column */
+/* Enhanced Final Score Column number */
 td.sticky-col-right span {
+    display: block;
     font-size: 22px;
     color: #00ffff;
     text-shadow: 0px 0px 10px rgba(0, 255, 255, 0.9);
     font-weight: 800;
     letter-spacing: 1px;
+    white-space: nowrap;
+    overflow: visible;
+    text-overflow: clip;
 }
 
-/* Modal Styles */
+/* =========================
+   MODAL (Standings)
+   Fix: table showing through / overlay not covering stickies
+   ========================= */
+
 .modal {
     display: none;
     position: fixed;
-    z-index: 100;
+    z-index: 10000; /* ABOVE sticky headers/cells */
     left: 0;
     top: 0;
     width: 100%;
@@ -722,236 +849,263 @@ td.sticky-col-right span {
     animation: fadeIn 0.3s ease-in-out;
 }
 
+/* If your JS adds body.modal-open, force underlying stack low */
+body.modal-open .table-wrapper,
+body.modal-open #teamTable,
+body.modal-open #teamTable thead,
+body.modal-open #teamTable td,
+body.modal-open #teamTable th {
+    z-index: 1 !important;
+}
+
+/* Make sure modal content establishes its own stacking context */
 .modal-content {
+    position: relative;
+    isolation: isolate;
+
     background: linear-gradient(135deg, #222, #333);
     margin: 10% auto;
-    padding: 25px;
+    padding: 28px 26px;
     border: 2px solid #00ffcc;
     width: 50%;
     height: 80%;
-    border-radius: 10px;
+    border-radius: 16px;
     box-shadow: 0 0 25px rgba(0, 255, 204, 0.4);
     animation: slideDown 0.4s ease-out;
-    position: relative;
     overflow-y: auto;
 }
+
+/* ===== Modern Title Styling (Team Standings) ===== */
+#standingsTitle,
+.modal-content h2,
+.modal-content h1 {
+    margin: 10px 0 14px;
+    font-size: 36px;
+    font-weight: 900;
+    letter-spacing: 0.4px;
+    color: #ffffff;
+    text-shadow: 0 12px 36px rgba(0,0,0,0.55);
+}
+
+/* ===== Modern Close Button (X) ===== */
+#btnCloseStandings,
+.modal-content .close {
+    position: absolute;
+    top: 18px;
+    right: 18px;
+
+    width: 56px;
+    height: 56px;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.10);
+
+    box-shadow:
+        0 12px 30px rgba(0,0,0,0.55),
+        inset 0 1px 0 rgba(255,255,255,0.08);
+
+    cursor: pointer;
+    transition: transform 0.14s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+
+.modal-content .close {
+    color: #ffb14a;
+    font-size: 34px;
+    font-weight: 900;
+    line-height: 1;
+    text-decoration: none;
+}
+
+#btnCloseStandings {
+    color: #ffb14a;
+    font-size: 28px;
+    font-weight: 900;
+    text-transform: none;
+    letter-spacing: 0;
+    padding: 0;
+}
+
+#btnCloseStandings:hover,
+.modal-content .close:hover {
+    background: rgba(255, 255, 255, 0.14);
+    transform: translateY(-1px) scale(1.02);
+    box-shadow:
+        0 14px 34px rgba(0,0,0,0.6),
+        inset 0 1px 0 rgba(255,255,255,0.10);
+}
+#btnCloseStandings:active,
+.modal-content .close:active {
+    transform: translateY(0) scale(0.99);
+}
+#btnCloseStandings:focus-visible,
+.modal-content .close:focus-visible {
+    outline: 2px solid rgba(0, 255, 204, 0.75);
+    outline-offset: 3px;
+}
+
+/* =========================
+   STANDINGS LIST (Modern)
+   ========================= */
+
+#modalRankingList {
+    list-style: none;
+    padding: 0;
+    margin: 18px auto 0;
+    width: min(700px, 92%);
+}
+
+#modalRankingList li {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+
+    padding: 16px 18px;
+    margin: 12px 0;
+
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+
+    background:
+        linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)),
+        rgba(0,0,0,0.25);
+
+    box-shadow:
+        0 18px 45px rgba(0,0,0,0.45),
+        inset 0 1px 0 rgba(255,255,255,0.06);
+
+    color: #ffffff;
+    font-size: 20px;
+    font-weight: 800;
+    text-shadow: 0 10px 24px rgba(0,0,0,0.55);
+
+    cursor: pointer;
+    transition: transform 0.12s ease, border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+
+#modalRankingList li::before {
+    content: "";
+    position: absolute;
+    left: 10px;
+    top: 10px;
+    bottom: 10px;
+    width: 4px;
+    border-radius: 999px;
+    background: rgba(0, 255, 204, 0.45);
+    filter: drop-shadow(0 0 10px rgba(0,255,204,0.18));
+    opacity: 0.8;
+}
+
+#modalRankingList li:hover {
+    transform: translateY(-2px);
+    border-color: rgba(0, 255, 204, 0.28);
+    background:
+        linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03)),
+        rgba(0,0,0,0.28);
+    box-shadow:
+        0 22px 55px rgba(0,0,0,0.55),
+        inset 0 1px 0 rgba(255,255,255,0.07);
+}
+
+#modalRankingList li:active { transform: translateY(0); }
+
+#modalRankingList li .rank-num {
+    min-width: 50px;
+    text-align: right;
+    opacity: 0.95;
+}
+#modalRankingList li .rank-name {
+    flex: 1;
+    text-align: left;
+    padding-left: 10px;
+}
+#modalRankingList li .rank-score {
+    min-width: 74px;
+    text-align: right;
+    color: #00ffcc;
+    text-shadow: 0 0 12px rgba(0, 255, 204, 0.45);
+}
+#modalRankingList li { letter-spacing: 0.2px; }
+
+/* =========================
+   Modal scrolling polish
+   ========================= */
+.modal-content {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0,255,204,0.35) rgba(255,255,255,0.06);
+}
+.modal-content::-webkit-scrollbar { width: 10px; }
+.modal-content::-webkit-scrollbar-track { background: rgba(255,255,255,0.06); border-radius: 999px; }
+.modal-content::-webkit-scrollbar-thumb { background: rgba(0,255,204,0.30); border-radius: 999px; }
+.modal-content::-webkit-scrollbar-thumb:hover { background: rgba(0,255,204,0.40); }
 
 @keyframes slideDown {
     from {transform: translateY(-50px); opacity: 0;}
     to {transform: translateY(0); opacity: 1;}
 }
 
-.close {
-    color: #ff9900;
-    float: right;
-    font-size: 32px;
-    font-weight: bold;
-    transition: all 0.3s ease;
-    cursor: pointer;
-    margin-top: -10px;
-}
-
-.close:hover,
-.close:focus {
-    color: #ff6600;
-    text-shadow: 0 0 10px rgba(255, 153, 0, 0.7);
-    text-decoration: none;
-    transform: scale(1.1);
-}
-
-/* Modal Rankings */
-#modalRankingList {
-    max-height: calc(100% - 80px);
-    overflow-y: auto;
-    margin-top: 20px;
-}
-
-#modalRankingList li {
-    width: 80%;
-    font-size: 22px;
-    margin: 12px auto;
-    padding: 15px;
-    border-left: 6px solid #00ffcc;
-    background: linear-gradient(to right, #2a2a2a, #3a3a2a);
-    box-shadow: 0 4px 15px rgba(0, 255, 204, 0.2);
-    transition: all 0.3s ease;
-}
-
-#modalRankingList li:hover {
-    transform: translateX(5px);
-    background: linear-gradient(to right, #2a2a2a, #444);
-    box-shadow: 0 4px 20px rgba(0, 255, 204, 0.3);
-}
-
-/* Fix for Firefox - force hardware acceleration to fix stacking context issues */
+/* Firefox stacking fix */
 @-moz-document url-prefix() {
-    .sticky-col, .sticky-col-right {
+    .sticky-col, .sticky-col-right, .bonus-col-right {
         transform: translateZ(0);
     }
 }
 
 /* Responsive Design */
 @media (max-width: 1400px) {
-    .container {
-        width: 98%;
-    }
-    
-    input {
-        width: 35px;
-        height: 30px;
-        font-size: 16px;
-    }
-    
-    td, th {
-        padding: 8px 6px;
-        font-size: 16px;
-    }
-    
-    .teamName {
-        width: 100px;
-    }
-    
-    .halftime-input, .finalquestion-input {
-        width: 45px;
-    }
-    
-    .modal-content {
-        width: 70%;
-    }
-    
-    #r1Total1, #r1Total2, #r2Total1, #r2Total2, #r3Total1, #r3Total2, #r4Total1, #r4Total2 {
-        font-size: 18px;
-    }
-    
-    .first-half-total, .second-half-total {
-        font-size: 18px;
-    }
-    
-    .button-container {
-        gap: 15px;
-    }
-    
-    button {
-        padding: 10px 20px;
-        font-size: 16px;
-    }
-    
-    .search-input {
-        width: 180px;
-    }
-    
-    .search-suggestions {
-        width: 220px;
-    }
+    .container { width: 98%; }
+    input { width: 35px; height: 30px; font-size: 16px; }
+    td, th { padding: 8px 6px; font-size: 16px; }
+    .teamName { width: 130px; height: 36px; font-size: 15px; padding: 7px 9px; }
+    .halftime-input, .finalquestion-input { width: 45px; }
+    .modal-content { width: 70%; }
+    .button-container { gap: 15px; }
+    button { padding: 10px 20px; font-size: 16px; }
+    .search-input { width: 180px; }
+    .search-suggestions { right: auto; left: 0; }
+
+    .search-match-count { min-width: 40px; }
+    .search-nav-btn { width: 42px; }
+
+    /* delete btn slightly smaller at this breakpoint */
+    #teamTable td.sticky-col .btnDeleteTeam { width: 34px; height: 34px; min-width: 34px; }
 }
 
 @media (max-width: 1000px) {
-    input {
-        width: 30px;
-        height: 25px;
-        font-size: 14px;
-        padding: 3px;
-    }
-    
-    td, th {
-        padding: 6px 4px;
-        font-size: 14px;
-    }
-    
-    span {
-        font-size: 16px;
-    }
-    
-    .teamName {
-        width: 80px;
-        font-size: 14px;
-        height: 24px;
-    }
-    
-    .sticky-col {
-        min-width: 150px;
-    }
-    
-    .halftime-input, .finalquestion-input {
-        width: 40px;
-    }
-    
-    td.sticky-col-right span {
-        font-size: 18px;
-    }
-    
-    .first-half-total, .second-half-total {
-        font-size: 16px;
-    }
+    input { width: 30px; height: 25px; font-size: 14px; padding: 3px; }
+    td, th { padding: 6px 4px; font-size: 14px; }
+    span { font-size: 16px; }
 
-    .modal-content {
-        width: 90%;
-    }
-    
-    #modalRankingList li {
-        width: 90%;
-        font-size: 18px;
-        padding: 12px;
-    }
-    
+    .teamName { width: 115px; height: 34px; font-size: 14px; padding: 6px 8px; }
+
+    .sticky-col { min-width: 210px; }
+    .halftime-input, .finalquestion-input { width: 40px; }
+    td.sticky-col-right span { font-size: 18px; }
+    .first-half-total, .second-half-total { font-size: 16px; }
+    .modal-content { width: 90%; }
+
     .search-container {
         flex: 1 0 100%;
         margin-top: 15px;
         justify-content: flex-start;
     }
-    
-    .search-input {
-        width: 100%;
-        max-width: 300px;
-    }
-    
-    .search-suggestions {
-        width: 100%;
-        max-width: 300px;
-        left: 0;
-        right: auto;
-    }
-}
+    .search-input { width: 100%; max-width: 300px; }
+    .search-suggestions { width: min(420px, 95vw); }
 
-/* =========================
-   BONUS COLUMN (right side)
-   ========================= */
+    /* Modal tweaks on smaller screens */
+    #modalRankingList { width: min(780px, 94%); }
+    #modalRankingList li { padding: 14px 14px; font-size: 18px; border-radius: 14px; }
+    #btnCloseStandings, .modal-content .close { width: 52px; height: 52px; border-radius: 14px; }
+    #standingsTitle, .modal-content h2, .modal-content h1 { font-size: 30px; }
 
-/* Sticky BONUS column just left of Final Score */
-.bonus-col-right {
-    position: sticky;
-    right: var(--final-col-width); /* initial offset; JS will tighten this */
-    z-index: 9;  /* lower than final score (10) so it tucks underneath at edges */
-    background-color: #2a2a2a;
-    border-left: 3px solid #777;
-    min-width: var(--bonus-col-width);
-    box-shadow: -5px 0 12px rgba(0, 0, 0, 0.5);
-}
-
-/* Tighter padding so the column really shrinks */
-td.bonus-col-right,
-th.bonus-col-right {
-    padding-left: 4px;
-    padding-right: 4px;
-}
-
-/* Header styling for BONUS column */
-.top_row th.bonus-col-right {
-    background-color: #1e1e1e;
-    border-left: 3px solid #888;
-    color: #00ffcc;
-    text-shadow: 0px 0px 5px rgba(0, 255, 204, 0.5);
-    font-size: 18px;
-}
-
-/* BONUS input styling – baseline; JS will make it ~75% of Q input width */
-td.bonus-col-right input {
-    width: 24px;
-    background-color: #444;
-    color: #ffcc00;
-    font-weight: bold;
-    border: 2px solid #666;
-    border-radius: 4px;
+    /* delete btn slightly smaller on phones */
+    #teamTable td.sticky-col .btnDeleteTeam { width: 32px; height: 32px; min-width: 32px; font-size: 20px; border-radius: 10px; }
 }
 
 /* =========================
@@ -975,7 +1129,6 @@ td.bonus-col-right input {
     letter-spacing: 0;
 }
 
-/* Arrow glyphs */
 #btnInvertStandings::before,
 #btnInvertStandings::after {
     font-size: 20px;
@@ -983,14 +1136,12 @@ td.bonus-col-right input {
     text-shadow: 0 0 6px rgba(0, 0, 0, 0.8);
 }
 
-/* Up arrow (left) */
 #btnInvertStandings::before {
     content: "↑";
     margin-right: 4px;
     transform: translateY(-1px);
 }
 
-/* Down arrow (right) */
 #btnInvertStandings::after {
     content: "↓";
     margin-left: 4px;
@@ -1008,7 +1159,63 @@ td.bonus-col-right input {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.8);
 }
 
-/* Optional "toggled" state if you decide to set aria-pressed="true" in JS */
 #btnInvertStandings[aria-pressed="true"] {
     background: linear-gradient(135deg, #00ccaa, #008877);
 }
+
+/* ===== FIX: invert standings button text readability ===== */
+#btnInvertStandings{
+    color: rgba(255,255,255,0.92) !important;
+    text-shadow: 0 0 10px rgba(0,0,0,0.75) !important;
+}
+#btnInvertStandings[aria-pressed="true"]{
+    color: rgba(0,0,0,0.85) !important;
+    text-shadow: 0 0 8px rgba(255,255,255,0.25) !important;
+}
+
+/* ==========================================================
+   HARD FIX: force sticky cells to PAINT ABOVE scrolling cells
+   ========================================================== */
+
+.table-wrapper { position: relative; }
+
+#teamTable td,
+#teamTable th {
+    background-clip: padding-box;
+}
+
+/* sticky LEFT */
+#teamTable td.sticky-col,
+#teamTable th.sticky-col {
+    isolation: isolate;
+    transform: translateZ(0);
+    z-index: 180;
+}
+
+/* sticky BONUS */
+#teamTable td.bonus-col-right,
+#teamTable th.bonus-col-right {
+    isolation: isolate;
+    transform: translateZ(0);
+    z-index: 190;
+}
+
+/* sticky FINAL */
+#teamTable td.sticky-col-right,
+#teamTable th.sticky-col-right {
+    isolation: isolate;
+    transform: translateZ(0);
+    z-index: 200;
+}
+
+/* keep THEAD above tbody stickies */
+#teamTable thead { z-index: 300; }
+#teamTable thead th { z-index: 310; }
+#teamTable thead th.sticky-col { z-index: 360; }
+#teamTable thead th.bonus-col-right { z-index: 370; }
+#teamTable thead th.sticky-col-right { z-index: 380; }
+
+/* ====== TOP ALIGN: team name input with LIKE graphic ====== */
+#teamTable td.sticky-col { vertical-align: top; }
+#teamTable td.sticky-col .teamName { vertical-align: top; margin-top: 0; }
+#teamTable td.sticky-col .teamCheckboxWrapper { align-self: flex-start; margin-top: 0; }

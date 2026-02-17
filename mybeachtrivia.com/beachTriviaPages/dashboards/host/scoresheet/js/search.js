@@ -1,276 +1,496 @@
 /* search.js
-   Team search + optional suggestions for the Host Scoresheet.
+   Team search + optional suggestions + match navigation (Prev/Next).
 
    Exposes globals:
-     - levenshteinDistance(a, b)
-     - searchTeams(query)
-     - clearHighlights()
+     - window.levenshteinDistance(a, b)
+     - window.searchTeams(query?)         // explicit search (button / Enter)
+     - window.searchNextMatch()
+     - window.searchPrevMatch()
+     - window.clearHighlights()
+
+   UI hooks:
+     - #btnSearchPrev / #btnSearchNext
+     - #searchMatchCount
 
    Behavior:
-     - Highlights matching team rows.
-     - Scrolls the best match into view.
-     - (Optional) shows a simple suggestions list under the search input if enabled.
+     - Matching priority (inclusion):
+         1) exact
+         2) startsWith
+         3) contains
+         4) fuzzy (guarded: first+last letter match, len diff <=2, edit distance <=1/2)
+     - Ordering: TOP-to-BOTTOM (DOM order)
+     - Prev/Next cycles through all matches
+     - Arrow clicks are captured + stopImmediatePropagation to prevent other handlers
+
+   Live updates:
+     - Typing in #teamSearch re-runs search (debounced)
+     - Editing any team name (.teamName) re-runs search if query non-empty (debounced)
+     - Adding/removing rows in tbody re-runs search if query non-empty (MutationObserver)
+     - Nav index is preserved when possible (by stable key: teamId + nameRaw)
 */
 (function () {
-    "use strict";
-  
-    const CFG = {
-      // If true, shows suggestions UI under the search box
-      enableSuggestions: true,
-      // Maximum suggestions to show
-      maxSuggestions: 8,
-      // Fuzzy threshold (lower = stricter). Only used if no direct contains match found.
-      maxEditDistance: 3,
+  "use strict";
+
+  const CFG = {
+    enableSuggestions: true,
+    maxSuggestions: 5,
+    liveMinChars: 2,
+    liveDebounceMs: 250,
+    suggestionsAutoHideMs: 10000,
+    fuzzyMinChars: 4,
+  };
+
+  function $(sel, root) {
+    if (window.DomUtils?.$) return window.DomUtils.$(sel, root);
+    return (root || document).querySelector(sel);
+  }
+
+  function $all(sel, root) {
+    if (window.DomUtils?.$all) return window.DomUtils.$all(sel, root);
+    return Array.from((root || document).querySelectorAll(sel));
+  }
+
+  const debounce =
+    window.DomUtils?.debounce ||
+    function (fn, wait) {
+      let t;
+      return function (...args) {
+        clearTimeout(t);
+        t = setTimeout(() => fn.apply(this, args), wait);
+      };
     };
-  
-    function $(sel, root) {
-      if (window.DomUtils?.$) return window.DomUtils.$(sel, root);
-      return (root || document).querySelector(sel);
-    }
-  
-    function $all(sel, root) {
-      if (window.DomUtils?.$all) return window.DomUtils.$all(sel, root);
-      return Array.from((root || document).querySelectorAll(sel));
-    }
-  
-    function norm(s) {
-      return (s || "")
-        .toString()
-        .trim()
-        .toLowerCase()
-        .replace(/\s+/g, " ");
-    }
-  
-    function levenshteinDistance(a, b) {
-      a = norm(a);
-      b = norm(b);
-      if (a === b) return 0;
-      if (!a) return b.length;
-      if (!b) return a.length;
-  
-      const m = a.length;
-      const n = b.length;
-      const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
-  
-      for (let i = 0; i <= m; i++) dp[i][0] = i;
-      for (let j = 0; j <= n; j++) dp[0][j] = j;
-  
-      for (let i = 1; i <= m; i++) {
-        for (let j = 1; j <= n; j++) {
-          const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-          dp[i][j] = Math.min(
-            dp[i - 1][j] + 1, // deletion
-            dp[i][j - 1] + 1, // insertion
-            dp[i - 1][j - 1] + cost // substitution
-          );
-        }
-      }
-      return dp[m][n];
-    }
-  
-    function getTeamRows() {
-      return $all("#teamTable tbody tr");
-    }
-  
-    function getTeamNameInput(row) {
-      // Your first cell is the sticky "Team Name" col. Usually contains a text input.
-      // We'll grab the first text input in the row.
-      return row.querySelector('input[type="text"], input:not([type]), textarea');
-    }
-  
-    function getTeamName(row) {
-      const inp = getTeamNameInput(row);
-      return inp ? inp.value || "" : "";
-    }
-  
-    function clearHighlights() {
-      getTeamRows().forEach((row) => row.classList.remove("search-hit", "search-best"));
-    }
-  
-    function ensureSuggestionsBox() {
-      if (!CFG.enableSuggestions) return null;
-  
-      let box = document.getElementById("teamSearchSuggestions");
-      if (box) return box;
-  
-      const input = document.getElementById("teamSearch");
-      if (!input) return null;
-  
-      box = document.createElement("div");
-      box.id = "teamSearchSuggestions";
-      box.style.position = "absolute";
-      box.style.zIndex = "9999";
-      box.style.background = "#fff";
-      box.style.border = "1px solid #ccc";
-      box.style.borderRadius = "6px";
-      box.style.boxShadow = "0 6px 16px rgba(0,0,0,0.12)";
-      box.style.padding = "6px";
-      box.style.display = "none";
-      box.style.maxWidth = "320px";
-      box.style.fontSize = "14px";
-  
-      // Position it under the input (relative to viewport)
-      const rect = input.getBoundingClientRect();
-      box.style.left = `${Math.round(rect.left + window.scrollX)}px`;
-      box.style.top = `${Math.round(rect.bottom + window.scrollY + 6)}px`;
-  
-      window.addEventListener("resize", () => {
-        const r = input.getBoundingClientRect();
-        box.style.left = `${Math.round(r.left + window.scrollX)}px`;
-        box.style.top = `${Math.round(r.bottom + window.scrollY + 6)}px`;
-      });
-  
-      document.body.appendChild(box);
-  
-      // Hide when clicking elsewhere
-      document.addEventListener("click", (e) => {
-        if (e.target === input || box.contains(e.target)) return;
-        box.style.display = "none";
-      });
-  
-      return box;
-    }
-  
-    function renderSuggestions(items) {
-      const box = ensureSuggestionsBox();
-      if (!box) return;
-  
-      if (!items.length) {
-        box.style.display = "none";
-        return;
-      }
-  
-      box.innerHTML = "";
-      items.slice(0, CFG.maxSuggestions).forEach((it) => {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.textContent = it.name;
-        btn.style.display = "block";
-        btn.style.width = "100%";
-        btn.style.textAlign = "left";
-        btn.style.border = "0";
-        btn.style.background = "transparent";
-        btn.style.padding = "6px 8px";
-        btn.style.cursor = "pointer";
-        btn.onmouseenter = () => (btn.style.background = "rgba(0,0,0,0.06)");
-        btn.onmouseleave = () => (btn.style.background = "transparent");
-        btn.addEventListener("click", () => {
-          // Focus that row’s name input
-          const inp = getTeamNameInput(it.row);
-          if (inp) {
-            inp.focus();
-            inp.select?.();
-            it.row.scrollIntoView({ behavior: "smooth", block: "center" });
-          }
-          box.style.display = "none";
-        });
-        box.appendChild(btn);
-      });
-  
-      box.style.display = "block";
-    }
-  
-    function highlightRow(row, isBest) {
-      row.classList.add("search-hit");
-      if (isBest) row.classList.add("search-best");
-    }
-  
-    function searchTeams(query) {
-      const q = norm(query);
-      clearHighlights();
-  
-      if (!q) {
-        renderSuggestions([]);
-        return null;
-      }
-  
-      const rows = getTeamRows();
-  
-      // First: direct contains matches
-      const direct = [];
-      for (const row of rows) {
-        const name = norm(getTeamName(row));
-        if (!name) continue;
-        if (name.includes(q)) {
-          direct.push({ row, name, score: 0 });
-        }
-      }
-  
-      if (direct.length) {
-        direct.forEach((m, idx) => highlightRow(m.row, idx === 0));
-        // Scroll best match into view
-        direct[0].row.scrollIntoView({ behavior: "smooth", block: "center" });
-  
-        renderSuggestions(
-          direct.map((d) => ({
-            row: d.row,
-            name: getTeamName(d.row) || "(Unnamed team)",
-          }))
+
+  function norm(s) {
+    return String(s || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ");
+  }
+
+  function levenshteinDistance(str1, str2) {
+    const a = String(str1 || "");
+    const b = String(str2 || "");
+
+    const track = Array(b.length + 1)
+      .fill(null)
+      .map(() => Array(a.length + 1).fill(null));
+
+    for (let i = 0; i <= a.length; i++) track[0][i] = i;
+    for (let j = 0; j <= b.length; j++) track[j][0] = j;
+
+    for (let j = 1; j <= b.length; j++) {
+      for (let i = 1; i <= a.length; i++) {
+        const indicator = a[i - 1] === b[j - 1] ? 0 : 1;
+        track[j][i] = Math.min(
+          track[j][i - 1] + 1,
+          track[j - 1][i] + 1,
+          track[j - 1][i - 1] + indicator
         );
-  
-        return direct[0].row;
       }
-  
-      // Second: fuzzy matching (edit distance) if nothing direct
-      const fuzzy = [];
-      for (const row of rows) {
-        const raw = getTeamName(row);
-        const name = norm(raw);
-        if (!name) continue;
-        const dist = levenshteinDistance(q, name);
-        if (dist <= CFG.maxEditDistance) {
-          fuzzy.push({ row, name: raw, dist });
-        }
-      }
-  
-      fuzzy.sort((a, b) => a.dist - b.dist);
-  
-      if (fuzzy.length) {
-        fuzzy.forEach((m, idx) => highlightRow(m.row, idx === 0));
-        fuzzy[0].row.scrollIntoView({ behavior: "smooth", block: "center" });
-  
-        renderSuggestions(
-          fuzzy.map((f) => ({
-            row: f.row,
-            name: f.name || "(Unnamed team)",
-          }))
-        );
-  
-        return fuzzy[0].row;
-      }
-  
-      renderSuggestions([]);
+    }
+    return track[b.length][a.length];
+  }
+
+  // ---- navigation state
+  const Nav = {
+    query: "",
+    matches: [], // [{ element, nameRaw, domIndex, kind, key }]
+    index: -1,
+  };
+
+  function getTeamNameInputs() {
+    return $all("#teamTable input.teamName");
+  }
+
+  function removeExistingSuggestions() {
+    const existing = $(".search-suggestions");
+    if (existing) existing.remove();
+  }
+
+  function getHeaderHeight() {
+    const thead = $("#teamTable thead");
+    return thead ? thead.offsetHeight || 0 : 0;
+  }
+
+  function scrollToTeam(teamRow) {
+    const wrapper = $(".table-wrapper");
+    if (!wrapper || !teamRow) return;
+
+    const headerH = getHeaderHeight();
+    const y = (teamRow.offsetTop || 0) - headerH - 10;
+
+    try {
+      wrapper.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
+    } catch {
+      wrapper.scrollTop = Math.max(0, y);
+    }
+  }
+
+  function clearHighlights() {
+    $all("#teamTable tbody tr.highlighted-row").forEach((row) =>
+      row.classList.remove("highlighted-row")
+    );
+    removeExistingSuggestions();
+  }
+
+  function highlightTeam(teamNameInput) {
+    const teamRow = teamNameInput?.closest?.("tr");
+    if (!teamRow) return;
+    teamRow.classList.add("highlighted-row");
+    scrollToTeam(teamRow);
+  }
+
+  function updateNavUI() {
+    const prevBtn = $("#btnSearchPrev");
+    const nextBtn = $("#btnSearchNext");
+    const countEl = $("#searchMatchCount");
+
+    const count = Nav.matches.length;
+    const idx = Nav.index;
+
+    const enableArrows = count > 1;
+
+    if (prevBtn) prevBtn.disabled = !enableArrows;
+    if (nextBtn) nextBtn.disabled = !enableArrows;
+
+    if (countEl) {
+      if (count > 0 && idx >= 0) countEl.textContent = `${idx + 1}/${count}`;
+      else countEl.textContent = "";
+    }
+
+    try {
+      window.dispatchEvent(
+        new CustomEvent("scoresheet:search-updated", {
+          detail: { query: Nav.query, count, index: idx },
+        })
+      );
+    } catch {}
+  }
+
+  function buildKey(el, nameRaw) {
+    const row = el?.closest?.("tr");
+    const teamId = row?.dataset?.teamId || "";
+    // include teamId when possible; fallback to normalized name + dom position
+    return teamId ? `${teamId}::${String(nameRaw || "")}` : `__noid__::${norm(nameRaw)}::${el?.id || ""}`;
+  }
+
+  function setMatches(queryNorm, matches, indexOrKey) {
+    Nav.query = queryNorm || "";
+    Nav.matches = Array.isArray(matches) ? matches : [];
+
+    if (!Nav.matches.length) {
+      Nav.index = -1;
+      updateNavUI();
+      return;
+    }
+
+    // If indexOrKey is a number, use it. If it's a key, try to preserve.
+    if (typeof indexOrKey === "number" && Number.isFinite(indexOrKey)) {
+      Nav.index = Math.max(0, Math.min(indexOrKey, Nav.matches.length - 1));
+      updateNavUI();
+      return;
+    }
+
+    if (typeof indexOrKey === "string" && indexOrKey) {
+      const found = Nav.matches.findIndex((m) => m.key === indexOrKey);
+      Nav.index = found >= 0 ? found : 0;
+      updateNavUI();
+      return;
+    }
+
+    Nav.index = 0;
+    updateNavUI();
+  }
+
+  function jumpToIndex(i) {
+    const count = Nav.matches.length;
+    if (!count) {
+      setMatches(Nav.query, [], -1);
       return null;
     }
-  
-    // Expose globals
-    window.levenshteinDistance = window.levenshteinDistance || levenshteinDistance;
-    window.searchTeams = window.searchTeams || searchTeams;
-    window.clearHighlights = window.clearHighlights || clearHighlights;
-  
-    // Optional: live suggestions as user types
-    function bindLiveSearch() {
-      if (!CFG.enableSuggestions) return;
-      const input = document.getElementById("teamSearch");
-      if (!input) return;
-  
-      const handler = window.DomUtils?.debounce
-        ? window.DomUtils.debounce(() => searchTeams(input.value), 120)
-        : () => searchTeams(input.value);
-  
-      input.addEventListener("input", handler);
-  
-      input.addEventListener("keydown", (e) => {
-        if (e.key === "Escape") {
-          clearHighlights();
-          renderSuggestions([]);
-        }
+
+    let next = i;
+    if (next < 0) next = count - 1;
+    if (next >= count) next = 0;
+
+    Nav.index = next;
+
+    clearHighlights();
+    const target = Nav.matches[Nav.index]?.element;
+    if (target) highlightTeam(target);
+
+    updateNavUI();
+    return target?.closest("tr") || null;
+  }
+
+  function searchNextMatch() {
+    return jumpToIndex(Nav.index + 1);
+  }
+
+  function searchPrevMatch() {
+    return jumpToIndex(Nav.index - 1);
+  }
+
+  function maxFuzzyErrors(qLen) {
+    return qLen <= 5 ? 1 : 2;
+  }
+
+  function fuzzyEligible(nameNorm, qNorm) {
+    if (!nameNorm || !qNorm) return false;
+    if (qNorm.length < CFG.fuzzyMinChars) return false;
+
+    const firstOK = nameNorm[0] === qNorm[0];
+    const lastOK = nameNorm[nameNorm.length - 1] === qNorm[qNorm.length - 1];
+    const lenOK = Math.abs(nameNorm.length - qNorm.length) <= 2;
+
+    return firstOK && lastOK && lenOK;
+  }
+
+  function buildMatches(qNorm, teamNameInputs) {
+    const q = qNorm;
+    const matches = [];
+
+    for (let domIndex = 0; domIndex < teamNameInputs.length; domIndex++) {
+      const el = teamNameInputs[domIndex];
+      const nameRaw = el.value || "";
+      const nameNorm = norm(nameRaw);
+      if (!nameNorm) continue;
+
+      const exact = nameNorm === q;
+      const startsWith = !exact && nameNorm.startsWith(q);
+      const contains = !exact && !startsWith && nameNorm.includes(q);
+
+      let kind = null;
+
+      if (exact) kind = "exact";
+      else if (startsWith) kind = "startsWith";
+      else if (contains) kind = "contains";
+      else if (fuzzyEligible(nameNorm, q)) {
+        const dist = levenshteinDistance(nameNorm, q);
+        if (dist <= maxFuzzyErrors(q.length)) kind = "fuzzy";
+      }
+
+      if (kind) {
+        matches.push({
+          element: el,
+          nameRaw,
+          domIndex,
+          kind,
+          key: buildKey(el, nameRaw),
+        });
+      }
+    }
+
+    // keep DOM order (top-to-bottom)
+    return matches;
+  }
+
+  function showSuggestions(matches) {
+    if (!CFG.enableSuggestions) return;
+    removeExistingSuggestions();
+
+    const container = document.createElement("div");
+    container.className = "search-suggestions";
+
+    const p = document.createElement("p");
+    p.textContent = "Did you mean:";
+    container.appendChild(p);
+
+    const ul = document.createElement("ul");
+    for (const m of matches) {
+      const li = document.createElement("li");
+      li.textContent = m.nameRaw;
+      li.addEventListener("click", () => {
+        const input = $("#teamSearch");
+        if (input) input.value = m.nameRaw;
+        removeExistingSuggestions();
+        doSearch(m.nameRaw, { silent: true, preserveIndex: false });
       });
+      ul.appendChild(li);
     }
-  
-    if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", bindLiveSearch, { once: true });
-    } else {
-      bindLiveSearch();
+    container.appendChild(ul);
+
+    $(".search-container")?.appendChild(container);
+
+    setTimeout(() => {
+      if ($(".search-suggestions")) removeExistingSuggestions();
+    }, CFG.suggestionsAutoHideMs);
+  }
+
+  function doSearch(query, opts) {
+    const options = { silent: false, preserveIndex: true, ...opts };
+
+    const input = $("#teamSearch");
+    const qNorm = norm(query != null ? query : input?.value || "");
+
+    // preserve current selected match if possible
+    const currentKey = options.preserveIndex ? Nav.matches?.[Nav.index]?.key : null;
+
+    if (!qNorm) {
+      clearHighlights();
+      setMatches("", [], -1);
+      return null;
     }
-  })();
+
+    const teamNameInputs = getTeamNameInputs();
+    const matches = buildMatches(qNorm, teamNameInputs);
+
+    if (matches.length > 0) {
+      setMatches(qNorm, matches, currentKey);
+
+      clearHighlights();
+      const active = Nav.matches[Nav.index] || matches[0];
+      if (active?.element) highlightTeam(active.element);
+
+      if (CFG.enableSuggestions && matches.length > 1) {
+        const topKinds = new Set(matches.slice(0, 3).map((m) => m.kind));
+        if (topKinds.has("fuzzy")) {
+          showSuggestions(matches.slice(0, Math.min(CFG.maxSuggestions, matches.length)));
+        }
+      }
+
+      return (active?.element || matches[0].element).closest("tr") || null;
+    }
+
+    clearHighlights();
+    setMatches(qNorm, [], -1);
+
+    if (!options.silent) alert("No team found with that name. Try a different search term.");
+    return null;
+  }
+
+  function searchTeams(query) {
+    // IMPORTANT: if called with no args, treat as "use current input value"
+    return doSearch(query, { silent: false, preserveIndex: false });
+  }
+
+  function bindNavButtonsOnce() {
+    const prevBtn = $("#btnSearchPrev");
+    const nextBtn = $("#btnSearchNext");
+
+    const kill = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
+    };
+
+    if (prevBtn && !prevBtn.dataset.boundNav) {
+      prevBtn.addEventListener(
+        "click",
+        (e) => {
+          kill(e);
+          searchPrevMatch();
+        },
+        true
+      );
+      prevBtn.dataset.boundNav = "1";
+    }
+
+    if (nextBtn && !nextBtn.dataset.boundNav) {
+      nextBtn.addEventListener(
+        "click",
+        (e) => {
+          kill(e);
+          searchNextMatch();
+        },
+        true
+      );
+      nextBtn.dataset.boundNav = "1";
+    }
+  }
+
+  // Expose globals
+  window.levenshteinDistance = window.levenshteinDistance || levenshteinDistance;
+  window.searchTeams = window.searchTeams || searchTeams;
+  window.clearHighlights = window.clearHighlights || clearHighlights;
+  window.searchNextMatch = window.searchNextMatch || searchNextMatch;
+  window.searchPrevMatch = window.searchPrevMatch || searchPrevMatch;
+
+  function bindLiveSearch() {
+    const searchInput = $("#teamSearch");
+    const tbody = $("#teamTable tbody");
+    if (!searchInput || searchInput.dataset.boundSearchLive) return;
+
+    bindNavButtonsOnce();
+    updateNavUI();
+
+    // Keyboard behavior on the search input itself
+    searchInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        doSearch(searchInput.value, { silent: false, preserveIndex: false });
+        return;
+      }
+
+      if (e.key === "ArrowDown" || e.key === "ArrowRight") {
+        if (Nav.matches.length > 1) {
+          e.preventDefault();
+          searchNextMatch();
+        }
+      }
+      if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
+        if (Nav.matches.length > 1) {
+          e.preventDefault();
+          searchPrevMatch();
+        }
+      }
+    });
+
+    // 1) Live typing in search box
+    const runFromInput = debounce(function () {
+      const v = (this.value || "").trim();
+      if (!v) {
+        clearHighlights();
+        setMatches("", [], -1);
+        return;
+      }
+      if (v.length >= CFG.liveMinChars) doSearch(v, { silent: true, preserveIndex: false });
+    }, CFG.liveDebounceMs);
+
+    searchInput.addEventListener("input", runFromInput);
+
+    // 2) Editing team names should update matches if query active
+    if (tbody) {
+      const runFromTable = debounce(() => {
+        const q = (searchInput.value || "").trim();
+        if (!q) return;
+        if (q.length < CFG.liveMinChars) return;
+        // preserve current selection if possible
+        doSearch(q, { silent: true, preserveIndex: true });
+      }, Math.max(60, Math.min(200, CFG.liveDebounceMs)));
+
+      tbody.addEventListener(
+        "input",
+        (e) => {
+          const t = e.target;
+          if (!(t instanceof HTMLInputElement)) return;
+          if (!t.classList.contains("teamName")) return;
+          runFromTable();
+        },
+        true
+      );
+
+      tbody.addEventListener(
+        "change",
+        (e) => {
+          const t = e.target;
+          if (!(t instanceof HTMLInputElement)) return;
+          if (!t.classList.contains("teamName")) return;
+          runFromTable();
+        },
+        true
+      );
+
+      // 3) New rows added/removed should update matches if query active
+      const mo = new MutationObserver(() => runFromTable());
+      mo.observe(tbody, { childList: true, subtree: true });
+    }
+
+    searchInput.dataset.boundSearchLive = "1";
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bindLiveSearch, { once: true });
+  } else {
+    bindLiveSearch();
+  }
+})();

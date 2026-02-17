@@ -1,72 +1,99 @@
 /* state.js
    Shared state for the Host Scoresheet.
 
-   Classic script style (no imports). Exposes:
-     - window.ScoresheetState (preferred for new files)
-     - legacy globals: window.teamCount, window.dataModified, window.standingsAscending
+   IMPORTANT:
+   Some split files (ported from app.js) still reference `teamCount`,
+   `dataModified`, `standingsAscending` as *identifiers* (not window.*).
+   In classic scripts, that requires `var` globals.
 
-   Helpers:
-     - markAsModified()
-     - resetModifiedFlag()
-     - setStandingsAscending(bool)
-     - incrementTeamCount()
+   Exposes:
+     - window.ScoresheetState (preferred)
+     - legacy globals (IDENTIFIERS): teamCount, dataModified, standingsAscending
+     - helpers: markAsModified(), resetModifiedFlag(), setStandingsAscending(),
+                incrementTeamCount(), setTeamCount()
 */
+
+/* ✅ Legacy global bindings (must be var to create real global identifiers) */
+var teamCount = 0;
+var dataModified = false;
+var standingsAscending = false;
+
 (function () {
-    "use strict";
-  
-    const state = {
-      teamCount: 0,
-      dataModified: false,
-      standingsAscending: false,
-    };
-  
-    function syncLegacyGlobals() {
-      window.teamCount = state.teamCount;
-      window.dataModified = state.dataModified;
-      window.standingsAscending = state.standingsAscending;
-    }
-  
-    function markAsModified() {
-      state.dataModified = true;
-      syncLegacyGlobals();
-    }
-  
-    function resetModifiedFlag() {
-      state.dataModified = false;
-      syncLegacyGlobals();
-    }
-  
-    function setStandingsAscending(v) {
-      state.standingsAscending = !!v;
-      syncLegacyGlobals();
-    }
-  
-    function incrementTeamCount() {
-      state.teamCount += 1;
-      syncLegacyGlobals();
-      return state.teamCount;
-    }
-  
-    function setTeamCount(n) {
-      const nn = Number(n);
-      state.teamCount = Number.isFinite(nn) ? nn : 0;
-      syncLegacyGlobals();
-      return state.teamCount;
-    }
-  
-    // Initialize legacy globals (in case app.js reads them early)
-    syncLegacyGlobals();
-  
-    window.ScoresheetState = {
-      state,
-      syncLegacyGlobals,
-      markAsModified,
-      resetModifiedFlag,
-      setStandingsAscending,
-      incrementTeamCount,
-      setTeamCount,
-    };
-  
-    // Back-compat global helpers (optional)
-    window.markAsModified = window.markAsModified || markAsModified;
-  })();
+  "use strict";
+
+  const state = {
+    get teamCount() {
+      return teamCount;
+    },
+    set teamCount(v) {
+      teamCount = Number.isFinite(+v) ? +v : 0;
+      window.teamCount = teamCount;
+    },
+
+    get dataModified() {
+      return dataModified;
+    },
+    set dataModified(v) {
+      dataModified = !!v;
+      window.dataModified = dataModified;
+    },
+
+    get standingsAscending() {
+      return standingsAscending;
+    },
+    set standingsAscending(v) {
+      standingsAscending = !!v;
+      window.standingsAscending = standingsAscending;
+    },
+  };
+
+  function syncLegacyGlobals() {
+    // keep window.* mirrors aligned (optional but nice for debugging)
+    window.teamCount = teamCount;
+    window.dataModified = dataModified;
+    window.standingsAscending = standingsAscending;
+  }
+
+  function markAsModified() {
+    state.dataModified = true;
+  }
+
+  function resetModifiedFlag() {
+    state.dataModified = false;
+  }
+
+  function setStandingsAscending(v) {
+    state.standingsAscending = !!v;
+  }
+
+  function incrementTeamCount() {
+    state.teamCount = state.teamCount + 1;
+    return state.teamCount;
+  }
+
+  function setTeamCount(n) {
+    state.teamCount = n;
+    return state.teamCount;
+  }
+
+  // init mirrors once
+  syncLegacyGlobals();
+
+  window.ScoresheetState = {
+    state,
+    syncLegacyGlobals,
+    markAsModified,
+    resetModifiedFlag,
+    setStandingsAscending,
+    incrementTeamCount,
+    setTeamCount,
+  };
+
+  // Back-compat helper names
+  window.markAsModified = window.markAsModified || markAsModified;
+  window.resetModifiedFlag = window.resetModifiedFlag || resetModifiedFlag;
+  window.setStandingsAscending =
+    window.setStandingsAscending || setStandingsAscending;
+  window.incrementTeamCount = window.incrementTeamCount || incrementTeamCount;
+  window.setTeamCount = window.setTeamCount || setTeamCount;
+})();
