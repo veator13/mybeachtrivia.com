@@ -1397,3 +1397,26 @@ body.modal-open #teamTable th {
 #teamTable td.sticky-col { vertical-align: top; }
 #teamTable td.sticky-col .teamName { vertical-align: top; margin-top: 0; }
 #teamTable td.sticky-col .teamCheckboxWrapper { align-self: flex-start; margin-top: 0; }
+/* ==========================================================
+   HOTFIX: prevent highlighted rows from affecting RIGHT stickies
+   (BONUS + FINAL). Keeps seams/shadows clean.
+   ========================================================== */
+.highlighted-row td.bonus-col-right,
+.highlighted-row td.sticky-col-right {
+  background-color: #2a2a2a !important; /* fully opaque paint */
+}
+
+/* kill highlight overlay on RIGHT stickies */
+.highlighted-row td.bonus-col-right::after,
+.highlighted-row td.sticky-col-right::after {
+  content: none !important;
+  display: none !important;
+}
+
+/* also ensure no highlight box-shadow/outline leaks in */
+.highlighted-row td.bonus-col-right,
+.highlighted-row td.sticky-col-right {
+  box-shadow: -5px 0 12px rgba(0, 0, 0, 0.5) !important; /* restore sticky shadow */
+  outline: none !important;
+  filter: none !important;
+}
