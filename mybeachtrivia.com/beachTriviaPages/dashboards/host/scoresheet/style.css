@@ -6,11 +6,21 @@
    - body.modal-open class support (used by JS)
    - Team search highlight + suggestion dropdown styling (restored search UX)
    - FIX: highlighted-row no longer causes bleed-through on sticky columns
+   - FIX: highlighted-row no longer gets funky on RIGHT sticky cols (no double paint/shadow)
    - NEW: search match nav UI (‹ › + count)
    - NEW: standings modal list styling (so items actually show)
    - UPDATED: modern standings modal UI (title, close button, list items)
    - FIX: invert standings button text readability (High→Low state)
    - NEW: subtle delete-row X button styling (btnDeleteTeam) + layout
+   - NEW: offline badge + venue select/input toggle UI polish
+   - NEW: online badge (green) + header badge layout
+   - FIX: add missing fadeIn keyframes
+   - FIX: make highlighted sticky overlays position correctly (relative)
+   - FIX: ensure badge pills render even if some earlier CSS is cached (fallback display)
+   - UPDATE: button row layout (left buttons, centered search, right submit)
+   - UPDATE: submit scores aligns with RIGHT edge of table (remove side margin + full-width row)
+   - ✅ FIX (NEW): highlight overlay now preserves LEFT sticky (team name) stickiness
+   - ✅ FIX (NEW): RIGHT sticky highlight no longer interferes with sticky paint/shadow
    ========================= */
 
 /* General Page Styling */
@@ -139,6 +149,98 @@ body {
     .meta-grid select{ min-width: 220px; }
 }
 
+/* =========================
+   Header Status Badges (ONLINE/OFFLINE)
+   ========================= */
+
+/* Ensure HTML `hidden` attribute always hides elements */
+[hidden]{
+    display: none !important;
+}
+
+/* Wrapper under SCORESHEET */
+.offline-status-wrap{
+    margin-top: 10px;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    min-height: 30px; /* prevents header jump */
+}
+
+/* Make sure these always render as pills (fallback) */
+.offline-badge,
+.online-badge{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    height: 26px;
+    padding: 0 10px;
+    font-weight: 900;
+    font-size: 12px;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.35);
+}
+
+/* OFFLINE pill badge */
+.offline-badge{
+    border: 1px solid rgba(255, 153, 0, 0.35);
+    background: rgba(255, 153, 0, 0.14);
+    color: #ffb14a;
+}
+
+/* dot */
+.offline-badge::before{
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: #ffb14a;
+    margin-right: 8px;
+    box-shadow: 0 0 12px rgba(255, 177, 74, 0.45);
+}
+
+/* ONLINE pill badge (green) */
+.online-badge{
+    border: 1px solid rgba(0, 255, 136, 0.35);
+    background: rgba(0, 255, 136, 0.12);
+    color: #6dffb5;
+}
+
+/* dot */
+.online-badge::before{
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: #36ff9a;
+    margin-right: 8px;
+    box-shadow: 0 0 12px rgba(54, 255, 154, 0.45);
+}
+
+/* helper text under venue input (if you used <small class="field-help">...) */
+.field-help{
+    display: block;
+    margin-top: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.65);
+    text-shadow: 0 0 10px rgba(0,0,0,0.35);
+}
+
+/* make venue input feel consistent with selects (you used #venueInput) */
+.meta-grid #venueInput{
+    min-width: 240px; /* a bit wider than select since it's free text */
+}
+
+/* when JS disables select while offline, make it look obviously disabled */
+.meta-grid select:disabled{
+    opacity: 0.55;
+    cursor: not-allowed;
+    filter: grayscale(0.2);
+}
+
 /* Header */
 header {
     background: linear-gradient(135deg, #000000, #292929);
@@ -158,14 +260,56 @@ h1 {
     margin: 0;
 }
 
-/* Button Container */
+/* =========================
+   Button Row Layout (LEFT / CENTER / RIGHT)
+   ========================= */
+
 .button-container {
     display: flex;
-    justify-content: flex-start;
     align-items: center;
     gap: 20px;
-    margin: 25px 20px 15px;
-    flex-wrap: wrap;
+
+    /* ✅ align with table edges (no side inset) */
+    margin: 25px 0 15px;
+    padding: 0;
+    width: 100%;
+    box-sizing: border-box;
+
+    flex-wrap: nowrap; /* ✅ keep true centering on wide screens */
+}
+
+/* Left group: Add Team + Standings */
+.btn-group-left{
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex: 0 0 auto;
+}
+
+/* Center group: SEARCH always centered in available space */
+.btn-group-center{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1 1 auto;   /* ✅ this is what makes it truly centered */
+    min-width: 280px; /* prevents squish */
+}
+
+/* Right group: Submit Scores pinned right */
+.btn-group-right{
+    margin-left: auto; /* ✅ hard pin to far right */
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex: 0 0 auto;
+}
+
+/* Responsive: allow wrapping on smaller widths */
+@media (max-width: 1000px){
+    .button-container{ flex-wrap: wrap; }
+    .btn-group-left{ flex: 1 0 100%; justify-content: flex-start; }
+    .btn-group-center{ flex: 1 0 100%; justify-content: flex-start; }
+    .btn-group-right{ flex: 1 0 100%; justify-content: flex-start; margin-left: 0; }
 }
 
 /* Action Buttons - base */
@@ -209,6 +353,9 @@ button {
 #btnSubmitScores {
     background: linear-gradient(135deg, #ff9900, #ff6600);
     color: #1a1a1a;
+
+    /* ✅ IMPORTANT: remove the old flex hack */
+    margin-left: 0;
 }
 #btnSubmitScores:hover {
     background: linear-gradient(135deg, #ff6600, #cc5200);
@@ -224,7 +371,10 @@ button {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-left: auto;
+
+    /* ✅ no margin auto needed now (center group handles it) */
+    margin: 0;
+
     position: relative;
 }
 
@@ -324,8 +474,8 @@ button {
    SEARCH UX (restored)
    ========================= */
 
-/* Highlighted row after search */
-.highlighted-row td {
+/* ✅ Highlight ONLY non-sticky cells (prevents funky right-side layering) */
+.highlighted-row td:not(.sticky-col):not(.bonus-col-right):not(.sticky-col-right) {
     background: rgba(0, 255, 204, 0.12) !important;
     box-shadow: inset 0 0 0 2px rgba(0, 255, 204, 0.35);
 }
@@ -336,9 +486,10 @@ button {
 .highlighted-row td.sticky-col-right {
     background-color: #2a2a2a !important; /* OPAQUE base */
     isolation: isolate;                  /* isolate overlay paint */
+    position: relative;                  /* required for ::after overlay positioning */
 }
 
-/* Overlay highlight on sticky cells WITHOUT transparency bleed */
+/* ✅ NEW: keep overlay BEHIND content + do not interfere with sticky positioning */
 .highlighted-row td.sticky-col::after,
 .highlighted-row td.bonus-col-right::after,
 .highlighted-row td.sticky-col-right::after {
@@ -348,6 +499,21 @@ button {
     background: rgba(0, 255, 204, 0.16);
     box-shadow: inset 0 0 0 2px rgba(0, 255, 204, 0.35);
     pointer-events: none;
+    z-index: 0; /* overlay sits behind real content */
+}
+
+/* ✅ NEW: ensure actual cell content paints above the overlay */
+.highlighted-row td.sticky-col > *,
+.highlighted-row td.bonus-col-right > *,
+.highlighted-row td.sticky-col-right > * {
+    position: relative;
+    z-index: 1;
+}
+
+/* ✅ NEW: RIGHT sticky columns - keep overlay from affecting sticky seam/shadow */
+.highlighted-row td.bonus-col-right,
+.highlighted-row td.sticky-col-right {
+    overflow: hidden !important;
 }
 
 /* Suggestions dropdown */
@@ -668,9 +834,14 @@ input:focus {
 
 /* Layout: make the sticky cell a flex row so X + input + like align cleanly */
 #teamTable td.sticky-col {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
+  /* IMPORTANT: keep TD as a table-cell so sticky works */
+  /* (do NOT set display:flex on a <td>) */
+  position: sticky;
+  left: 0;
+  z-index: 200;
+
+  text-align: left;
+  white-space: nowrap;
 }
 
 /* Subtle gray button that does NOT inherit the big global button styling */
@@ -1045,9 +1216,15 @@ body.modal-open #teamTable th {
 .modal-content::-webkit-scrollbar-thumb { background: rgba(0,255,204,0.30); border-radius: 999px; }
 .modal-content::-webkit-scrollbar-thumb:hover { background: rgba(0,255,204,0.40); }
 
+/* FIX: missing fadeIn keyframes */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
 @keyframes slideDown {
-    from {transform: translateY(-50px); opacity: 0;}
-    to {transform: translateY(0); opacity: 1;}
+    from { transform: translateY(-50px); opacity: 0; }
+    to   { transform: translateY(0); opacity: 1; }
 }
 
 /* Firefox stacking fix */
@@ -1090,11 +1267,12 @@ body.modal-open #teamTable th {
     .first-half-total, .second-half-total { font-size: 16px; }
     .modal-content { width: 90%; }
 
+    /* On mobile, the button row stacks; don't force search left */
     .search-container {
-        flex: 1 0 100%;
-        margin-top: 15px;
+        margin-top: 0;
         justify-content: flex-start;
     }
+
     .search-input { width: 100%; max-width: 300px; }
     .search-suggestions { width: min(420px, 95vw); }
 
