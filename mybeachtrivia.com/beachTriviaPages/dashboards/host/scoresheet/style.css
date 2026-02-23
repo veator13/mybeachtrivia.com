@@ -1458,3 +1458,31 @@ body.modal-open #teamTable th {
   content: none !important;
   display: none !important;
 }
+
+/* ==========================================================
+   UI POLISH: spacing in TEAM NAME sticky cell
+   (X button ↔ input ↔ LIKE)
+   ========================================================== */
+
+/* Give the whole sticky cell some breathing room */
+#teamTable td.sticky-col {
+  padding-top: 10px !important;
+  padding-bottom: 10px !important;
+  padding-left: 12px !important;
+  padding-right: 12px !important;
+}
+
+/* Space between the X button and the input */
+#teamTable td.sticky-col .btnDeleteTeam {
+  margin-right: 12px !important;
+}
+
+/* Space between input and LIKE wrapper */
+#teamTable td.sticky-col .teamCheckboxWrapper {
+  margin-left: 12px !important;
+}
+
+/* Give LIKE label a touch of separation from the checkbox */
+#teamTable td.sticky-col .teamCheckboxLike {
+  margin-top: 4px !important;
+}
