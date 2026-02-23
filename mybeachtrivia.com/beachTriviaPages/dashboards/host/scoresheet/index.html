@@ -5,8 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Scoresheet</title>
 
-    <!-- Main stylesheet -->
-    <link rel="stylesheet" href="style.css" />
+    <!-- ✅ ONE place to change cache-bust version (keep in sync with sw.js ASSET_V) -->
+    <script>
+      window.__SCORESHEET_ASSET_V__ = "20260218-04";
+    </script>
+
+    <!-- Main stylesheet (versioned) -->
+    <link rel="stylesheet" href="style.css?v=20260223-01" />
 
     <!-- Favicon -->
     <link rel="icon" href="/favicon.ico" />
@@ -25,29 +30,32 @@
     <!-- Guards (keep before app bootstrap) -->
     <script src="final-neg-guard.js?v=20251025163459" defer></script>
 
-    <!-- Split files (load order matters; defer preserves order) -->
-    <script src="js/dom-utils.js" defer></script>
-    <script src="js/state.js" defer></script>
-    <script src="js/firebase.js" defer></script>
-    <script src="js/venues.js" defer></script>
-    <script src="js/meta-fields.js" defer></script>
+    <!-- Split files (✅ ALL versioned together; defer preserves order) -->
+    <script src="js/dom-utils.js?v=20260218-04" defer></script>
+    <script src="js/state.js?v=20260218-04" defer></script>
+    <script src="js/firebase.js?v=20260218-04" defer></script>
+    <script src="js/venues.js?v=20260218-04" defer></script>
+    <script src="js/meta-fields.js?v=20260218-04" defer></script>
 
     <!-- IMPORTANT: sticky/bonus utilities must load BEFORE table-build.js -->
-    <script src="js/ui-sticky-bonus.js" defer></script>
-    <script src="js/table-build.js" defer></script>
+    <script src="js/ui-sticky-bonus.js?v=20260218-04" defer></script>
+    <script src="js/table-build.js?v=20260218-04" defer></script>
 
-    <script src="js/scoring.js" defer></script>
-    <script src="js/search.js" defer></script>
-    <script src="js/standings-modal.js" defer></script>
+    <script src="js/scoring.js?v=20260218-04" defer></script>
+    <script src="js/search.js?v=20260218-04" defer></script>
+    <script src="js/standings-modal.js?v=20260218-04" defer></script>
 
-    <!-- Submit handler (NEW split file) -->
-    <script src="js/submit-scores.js" defer></script>
+    <!-- Submit handler -->
+    <script src="js/submit-scores.js?v=20260218-04" defer></script>
 
     <!-- Enforcers that depend on the table existing -->
-    <script src="js/grid-enforcer.js" defer></script>
+    <script src="js/grid-enforcer.js?v=20260218-04" defer></script>
 
     <!-- Bootstrap wiring LAST -->
-    <script src="js/main.js" defer></script>
+    <script src="js/main.js?v=20260218-04" defer></script>
+
+    <!-- (optional) Theme color for nicer mobile header -->
+    <meta name="theme-color" content="#181818" />
   </head>
 
   <body>
@@ -55,6 +63,18 @@
 
     <header>
       <h1>SCORESHEET</h1>
+
+      <!-- Status badge(s): ONE shows at all times (state.js toggles) -->
+      <div
+        id="offlineStatusWrap"
+        class="offline-status-wrap"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        <!-- ✅ Default OFFLINE on first paint -->
+        <span id="onlineBadge" class="online-badge" hidden>ONLINE</span>
+        <span id="offlineBadge" class="offline-badge">OFFLINE</span>
+      </div>
     </header>
 
     <main>
@@ -114,59 +134,79 @@
 
             <div class="meta-field">
               <label for="venueSelect">Venue</label>
-              <!-- keep id="venueSelect" exactly -->
+
+              <!-- ONLINE: dropdown -->
               <select id="venueSelect" name="venueSelect">
                 <option value="loading" disabled selected>Loading venues...</option>
                 <option value="other">Other</option>
               </select>
+
+              <!-- OFFLINE: input fallback -->
+              <input
+                type="text"
+                id="venueInput"
+                name="venueInput"
+                placeholder="Enter venue name"
+                autocomplete="organization"
+                hidden
+              />
             </div>
           </div>
         </section>
 
+        <!-- ✅ Buttons: left group + centered search + right submit -->
         <div class="button-container">
-          <button type="button" id="btnAddTeam">Add Team</button>
-          <button type="button" id="btnShowStandings">Standings</button>
-          <button type="button" id="btnSubmitScores">Submit Scores</button>
+          <!-- LEFT -->
+          <div class="btn-group-left">
+            <button type="button" id="btnAddTeam">Add Team</button>
+            <button type="button" id="btnShowStandings">Standings</button>
+          </div>
 
-          <!-- Search (with match navigation arrows) -->
-          <div class="search-container">
-            <div class="search-input-wrap" role="group" aria-label="Team search">
-              <input
-                type="text"
-                id="teamSearch"
-                class="search-input"
-                placeholder="Search team..."
-                aria-label="Search for a team"
-                autocomplete="off"
-              />
+          <!-- CENTER -->
+          <div class="btn-group-center">
+            <div class="search-container">
+              <div class="search-input-wrap" role="group" aria-label="Team search">
+                <input
+                  type="text"
+                  id="teamSearch"
+                  class="search-input"
+                  placeholder="Search team..."
+                  aria-label="Search for a team"
+                  autocomplete="off"
+                />
 
-              <!-- Enabled/disabled by JS -->
-              <button
-                type="button"
-                id="btnSearchPrev"
-                class="search-nav-btn"
-                aria-label="Previous match"
-                title="Previous match"
-                disabled
-              >
-                ‹
-              </button>
+                <button
+                  type="button"
+                  id="btnSearchPrev"
+                  class="search-nav-btn"
+                  aria-label="Previous match"
+                  title="Previous match"
+                  disabled
+                >
+                  ‹
+                </button>
 
-              <button
-                type="button"
-                id="btnSearchNext"
-                class="search-nav-btn"
-                aria-label="Next match"
-                title="Next match"
-                disabled
-              >
-                ›
-              </button>
+                <button
+                  type="button"
+                  id="btnSearchNext"
+                  class="search-nav-btn"
+                  aria-label="Next match"
+                  title="Next match"
+                  disabled
+                >
+                  ›
+                </button>
 
-              <span id="searchMatchCount" class="search-match-count" aria-live="polite"></span>
+                <span id="searchMatchCount" class="search-match-count" aria-live="polite"></span>
+              </div>
+
+              <button type="button" id="btnSearch">Search</button>
             </div>
+          </div>
 
-            <button type="button" id="btnSearch">Search</button>
+          <!-- RIGHT -->
+          <div class="btn-group-right">
+            <button type="button" id="btnSubmitScores">Submit Scores</button>
           </div>
         </div>
 
@@ -196,26 +236,10 @@
               </tr>
 
               <tr class="top_row">
-                <th>Q1</th>
-                <th>Q2</th>
-                <th>Q3</th>
-                <th>Q4</th>
-                <th>Q5</th>
-                <th>Q6</th>
-                <th>Q7</th>
-                <th>Q8</th>
-                <th>Q9</th>
-                <th>Q10</th>
-                <th>Q11</th>
-                <th>Q12</th>
-                <th>Q13</th>
-                <th>Q14</th>
-                <th>Q15</th>
-                <th>Q16</th>
-                <th>Q17</th>
-                <th>Q18</th>
-                <th>Q19</th>
-                <th>Q20</th>
+                <th>Q1</th><th>Q2</th><th>Q3</th><th>Q4</th><th>Q5</th>
+                <th>Q6</th><th>Q7</th><th>Q8</th><th>Q9</th><th>Q10</th>
+                <th>Q11</th><th>Q12</th><th>Q13</th><th>Q14</th><th>Q15</th>
+                <th>Q16</th><th>Q17</th><th>Q18</th><th>Q19</th><th>Q20</th>
               </tr>
             </thead>
 
@@ -236,7 +260,7 @@
       aria-labelledby="standingsTitle"
     >
       <div class="modal-content">
-        <button type="button" id="btnCloseModal" class="close" aria-label="Close standings">
+        <button type="button" id="btnCloseStandings" class="close" aria-label="Close standings">
           &times;
         </button>
 
@@ -250,7 +274,48 @@
       </div>
     </div>
 
-    <!-- IMPORTANT:
-         JS controls modal visibility via modal.style.display = "block"/"none". -->
+    <!-- ✅ Service Worker registration (force update + immediate activation) -->
+    <script>
+      (function () {
+        if (!("serviceWorker" in navigator)) return;
+
+        window.addEventListener("load", function () {
+          navigator.serviceWorker
+            .register("/sw.js")
+            .then(function (reg) {
+              console.log("[sw] registered:", reg.scope);
+
+              // Ask browser to check for updated SW right now
+              if (typeof reg.update === "function") reg.update();
+
+              // If a new SW is waiting, tell it to activate immediately
+              if (reg.waiting) reg.waiting.postMessage("SKIP_WAITING");
+
+              // When an update is found, prompt the installing worker to skip waiting
+              reg.addEventListener("updatefound", function () {
+                var worker = reg.installing;
+                if (!worker) return;
+
+                worker.addEventListener("statechange", function () {
+                  if (worker.state === "installed" && reg.waiting) {
+                    reg.waiting.postMessage("SKIP_WAITING");
+                  }
+                });
+              });
+
+              // When controller changes (new SW took over), hard reload once
+              var reloaded = false;
+              navigator.serviceWorker.addEventListener("controllerchange", function () {
+                if (reloaded) return;
+                reloaded = true;
+                window.location.reload();
+              });
+            })
+            .catch(function (err) {
+              console.warn("[sw] registration failed:", err);
+            });
+        });
+      })();
+    </script>
   </body>
 </html>
