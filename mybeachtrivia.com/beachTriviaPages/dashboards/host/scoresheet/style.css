@@ -1420,3 +1420,41 @@ body.modal-open #teamTable th {
   outline: none !important;
   filter: none !important;
 }
+
+/* ==========================================================
+   HARD FIX v2: highlighted rows must NOT affect RIGHT stickies
+   (BONUS + FINAL) — stop bleed-through + keep seam/shadow clean
+   ========================================================== */
+
+/* If any browser paints TR background, kill it */
+#teamTable tbody tr.highlighted-row {
+  background: transparent !important;
+}
+
+/* Force RIGHT stickies to be fully opaque + on top */
+#teamTable tbody tr.highlighted-row td.bonus-col-right,
+#teamTable tbody tr.highlighted-row td.sticky-col-right {
+  background: #2a2a2a !important;
+  background-image: none !important;
+  outline: none !important;
+
+  /* kill any inherited/inset highlight visuals */
+  box-shadow: -5px 0 12px rgba(0, 0, 0, 0.5) !important;
+
+  /* be absolutely sure they paint above the highlighted cells */
+  position: sticky !important;
+  z-index: 999 !important;
+
+  /* prevent anything behind from showing at seams */
+  background-clip: padding-box !important;
+  overflow: hidden !important;
+}
+
+/* If your earlier highlight used ::after overlays anywhere, kill them here */
+#teamTable tbody tr.highlighted-row td.bonus-col-right::before,
+#teamTable tbody tr.highlighted-row td.bonus-col-right::after,
+#teamTable tbody tr.highlighted-row td.sticky-col-right::before,
+#teamTable tbody tr.highlighted-row td.sticky-col-right::after {
+  content: none !important;
+  display: none !important;
+}
