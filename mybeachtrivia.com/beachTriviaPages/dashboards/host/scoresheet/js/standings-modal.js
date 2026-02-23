@@ -145,7 +145,7 @@
     if (modal.classList.contains("hidden")) return false;
     if (modal.style.display && modal.style.display === "none") return false;
     const cs = window.getComputedStyle(modal);
-    return cs.display !== "none" && cs.visibility !== "hidden" && cs.opacity !== "0";
+    return cs.display !== "none" && cs.visibility !== "hidden";
   }
 
   function updateStandings() {
