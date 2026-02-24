@@ -27,6 +27,57 @@
     .btn { padding: 8px 12px; border: 0; border-radius: 6px; cursor: pointer; }
     .btn.primary { background: #2e4561; color: #fff; }
     .btn.ghost { background: transparent; color: #2e4561; border: 1px solid #2e4561; }
+
+    /* Provision-style modal bits (kept minimal; main look still comes from styles.css) */
+    .roles-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px 14px;
+      margin-top: 6px;
+    }
+    .role-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+    }
+    .status-box {
+      display: none;
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 14px;
+      line-height: 1.3;
+      border: 1px solid rgba(0,0,0,.12);
+      background: rgba(0,0,0,.04);
+    }
+    .status-box.success { display: block; border-color: rgba(54,153,255,.45); background: rgba(54,153,255,.10); }
+    .status-box.error { display: block; border-color: rgba(255,0,0,.25); background: rgba(255,0,0,.06); }
+    .setup-link-wrap {
+      margin-top: 10px;
+      display: none;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .setup-link-wrap.show { display: flex; }
+    .setup-link {
+      word-break: break-all;
+      font-size: 13px;
+      padding: 8px;
+      border: 1px solid rgba(0,0,0,.15);
+      border-radius: 8px;
+      background: rgba(255,255,255,.65);
+      flex: 1 1 420px;
+    }
+    .small-action-btn {
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid rgba(0,0,0,.18);
+      background: #fff;
+      cursor: pointer;
+      font-size: 13px;
+    }
   </style>
 </head>
 
@@ -252,76 +303,61 @@
       </div>
     </div>
 
-    <!-- New Host Modal -->
+    <!-- New Host Modal (Provision-style) -->
     <div class="modal" id="new-host-modal" role="dialog" aria-labelledby="new-host-title" aria-hidden="true">
       <div class="modal-content">
-        <h2 id="new-host-title">Add New Host</h2>
+        <h2 id="new-host-title">Create Employee &amp; Send Password Setup Link</h2>
+
         <form id="new-host-form">
           <div class="form-group">
-            <label for="new-host-firstname">First Name:</label>
-            <input type="text" id="new-host-firstname" required aria-describedby="firstname-hint" placeholder="Enter first name" />
-            <small id="firstname-hint" class="form-hint">Enter the first name of the host</small>
+            <label for="new-host-email">Email <span style="opacity:.7;">(required)</span>:</label>
+            <input type="email" id="new-host-email" required aria-describedby="email-hint" placeholder="name@example.com" />
+            <small id="email-hint" class="form-hint">This is required so the user can set up a password.</small>
           </div>
 
           <div class="form-group">
-            <label for="new-host-lastname">Last Name:</label>
-            <input type="text" id="new-host-lastname" required aria-describedby="lastname-hint" placeholder="Enter last name" />
-            <small id="lastname-hint" class="form-hint">Enter the last name of the host</small>
+            <label for="new-host-firstname">First Name <span style="opacity:.7;">(optional)</span>:</label>
+            <input type="text" id="new-host-firstname" aria-describedby="firstname-hint" placeholder="Enter first name (optional)" />
+            <small id="firstname-hint" class="form-hint">Optional — you can leave this blank.</small>
           </div>
 
           <div class="form-group">
-            <label for="new-host-nickname">Nickname:</label>
+            <label for="new-host-lastname">Last Name <span style="opacity:.7;">(optional)</span>:</label>
+            <input type="text" id="new-host-lastname" aria-describedby="lastname-hint" placeholder="Enter last name (optional)" />
+            <small id="lastname-hint" class="form-hint">Optional — you can leave this blank.</small>
+          </div>
+
+          <div class="form-group">
+            <label for="new-host-nickname">Nickname <span style="opacity:.7;">(optional)</span>:</label>
             <input type="text" id="new-host-nickname" aria-describedby="nickname-hint" placeholder="Enter nickname (optional)" />
-            <small id="nickname-hint" class="form-hint">Enter the nickname of the host (if applicable)</small>
+            <small id="nickname-hint" class="form-hint">Optional — used for display in dropdowns if present.</small>
           </div>
 
           <div class="form-group">
-            <label for="new-host-phone">Phone:</label>
-            <input type="tel" id="new-host-phone" aria-describedby="phone-hint" placeholder="Enter phone number" />
-            <small id="phone-hint" class="form-hint">Enter the host's phone number</small>
-          </div>
-
-          <div class="form-group">
-            <label for="new-host-email">Email:</label>
-            <input type="email" id="new-host-email" aria-describedby="email-hint" placeholder="Enter email address" />
-            <small id="email-hint" class="form-hint">Enter the host's email address</small>
-          </div>
-
-          <div class="form-group">
-            <label for="new-host-emergency-contact">Emergency Contact:</label>
-            <input type="text" id="new-host-emergency-contact" aria-describedby="emergency-contact-hint" placeholder="Enter emergency contact name" />
-            <small id="emergency-contact-hint" class="form-hint">Enter name of emergency contact</small>
-          </div>
-
-          <div class="form-group">
-            <label for="new-host-emergency-phone">Emergency Phone:</label>
-            <input type="tel" id="new-host-emergency-phone" aria-describedby="emergency-phone-hint" placeholder="Enter emergency contact phone" />
-            <small id="emergency-phone-hint" class="form-hint">Enter phone number of emergency contact</small>
-          </div>
-
-          <div class="form-group">
-            <label for="new-host-employee-id">Employee ID:</label>
-            <input type="text" id="new-host-employee-id" aria-describedby="employee-id-hint" placeholder="Enter employee ID number" />
-            <small id="employee-id-hint" class="form-hint">Enter the host's employee ID number</small>
-          </div>
-
-          <div class="form-group toggle-group">
-            <label for="new-host-active">Active:</label>
-            <div class="toggle-switch-container">
-              <label class="toggle-switch">
-                <input type="checkbox" id="new-host-active" checked />
-                <span class="toggle-slider"></span>
-              </label>
-              <span class="toggle-label">Active</span>
+            <label>Roles:</label>
+            <div class="roles-grid" aria-label="Assign roles">
+              <label class="role-item"><input type="checkbox" id="role-host" checked /> Host</label>
+              <label class="role-item"><input type="checkbox" id="role-admin" /> Admin</label>
+              <label class="role-item"><input type="checkbox" id="role-superadmin" /> Super Admin</label>
+              <label class="role-item"><input type="checkbox" id="role-content" /> Content</label>
             </div>
-            <small id="active-hint" class="form-hint">Toggle whether this host is currently active</small>
+            <small class="form-hint">Pick the roles this employee should have. (Host is checked by default.)</small>
+          </div>
+
+          <div id="new-host-status" class="status-box" aria-live="polite"></div>
+
+          <div class="setup-link-wrap" id="setup-link-wrap">
+            <div class="setup-link" id="setup-link-text"></div>
+            <button type="button" class="small-action-btn" id="copy-setup-link-btn">Copy link</button>
+            <button type="button" class="small-action-btn" id="open-setup-link-btn">Open link</button>
           </div>
 
           <div class="spacer"></div>
         </form>
+
         <div class="button-group">
           <button type="button" class="cancel" id="cancel-new-host">Cancel</button>
-          <button type="submit" form="new-host-form" id="save-new-host">Save Host</button>
+          <button type="submit" form="new-host-form" id="save-new-host">Create Employee</button>
         </div>
       </div>
     </div>
@@ -423,6 +459,8 @@
   <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-firestore-compat.js"></script>
+  <!-- REQUIRED for calling Cloud Functions via compat API -->
+  <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-functions-compat.js"></script>
 
   <!-- CSP-safe Firebase init (external file) -->
   <script src="../../../firebase-init.js"></script>

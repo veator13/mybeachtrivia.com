@@ -163,25 +163,56 @@ function selectDropdownOptionByValue(dropdown, value) {
     }
 }
 
-// New host modal functions
+/* ============================================================
+   NEW Host (Employee Provision) Modal
+   - Requires email
+   - Optional first/last/nickname
+   - Roles checkboxes
+   - Uses Cloud Function: adminCreateEmployee (callable)
+   - Displays + copies password setup link
+   ============================================================ */
+
 function openNewHostModal() {
     // Reset the form first
     elements.newHostForm.reset();
+
+    // Default roles: Host checked
+    const roleHost = document.getElementById('role-host');
+    const roleAdmin = document.getElementById('role-admin');
+    const roleSuperadmin = document.getElementById('role-superadmin');
+    const roleContent = document.getElementById('role-content');
+    if (roleHost) roleHost.checked = true;
+    if (roleAdmin) roleAdmin.checked = false;
+    if (roleSuperadmin) roleSuperadmin.checked = false;
+    if (roleContent) roleContent.checked = false;
+
+    // Clear status + link UI
+    const statusEl = document.getElementById('new-host-status');
+    const wrap = document.getElementById('setup-link-wrap');
+    const linkText = document.getElementById('setup-link-text');
+    if (statusEl) {
+        statusEl.classList.remove('success', 'error');
+        statusEl.textContent = '';
+        statusEl.style.display = 'none';
+    }
+    if (wrap) wrap.classList.remove('show');
+    if (linkText) linkText.textContent = '';
 
     // Show the modal and fix aria-hidden
     elements.newHostModal.style.display = 'flex';
     elements.newHostModal.setAttribute('aria-hidden', 'false');
 
-    // Set focus on the first name input
+    // Set focus on the email input (required)
     setTimeout(() => {
-        document.getElementById('new-host-firstname').focus();
+        const emailEl = document.getElementById('new-host-email');
+        if (emailEl) emailEl.focus();
     }, 100);
 
     // Announce for screen readers
-    announceForScreenReader('Add new host form is open');
+    announceForScreenReader('Create employee form is open');
 
     // For debugging
-    console.log('Opening new host modal');
+    console.log('Opening new host modal (employee provision)');
 }
 
 function closeNewHostModal() {
@@ -193,6 +224,248 @@ function closeNewHostModal() {
         setTimeout(() => {
             elements.addNewHostBtn.focus();
         }, 100);
+    }
+}
+
+function _showNewHostStatus(message, type /* 'success' | 'error' */) {
+    const statusEl = document.getElementById('new-host-status');
+    if (!statusEl) return;
+
+    statusEl.classList.remove('success', 'error');
+    statusEl.classList.add(type === 'success' ? 'success' : 'error');
+    statusEl.textContent = message;
+    statusEl.style.display = 'block';
+}
+
+function _getSelectedRolesFromModal() {
+    const roles = [];
+    const roleHost = document.getElementById('role-host');
+    const roleAdmin = document.getElementById('role-admin');
+    const roleSuperadmin = document.getElementById('role-superadmin');
+    const roleContent = document.getElementById('role-content');
+
+    if (roleHost && roleHost.checked) roles.push('host');
+    if (roleAdmin && roleAdmin.checked) roles.push('admin');
+    if (roleSuperadmin && roleSuperadmin.checked) roles.push('superadmin');
+    if (roleContent && roleContent.checked) roles.push('content');
+
+    // Ensure at least host if none selected (sane default for calendar add-host)
+    if (roles.length === 0) roles.push('host');
+
+    return roles;
+}
+
+async function _copyToClipboard(text) {
+    try {
+        await navigator.clipboard.writeText(text);
+        return true;
+    } catch (e) {
+        // Fallback
+        try {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.setAttribute('readonly', '');
+            ta.style.position = 'absolute';
+            ta.style.left = '-9999px';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            return true;
+        } catch (_) {
+            return false;
+        }
+    }
+}
+
+// MODIFIED/REPLACED: Save new host (now provisions an employee user and shows setup link)
+async function saveNewHost(e) {
+    e.preventDefault();
+
+    const emailEl = document.getElementById('new-host-email');
+    const firstNameEl = document.getElementById('new-host-firstname');
+    const lastNameEl = document.getElementById('new-host-lastname');
+    const nicknameEl = document.getElementById('new-host-nickname');
+
+    const email = (emailEl?.value || '').trim();
+    const firstName = (firstNameEl?.value || '').trim();
+    const lastName = (lastNameEl?.value || '').trim();
+    const nickname = (nicknameEl?.value || '').trim();
+
+    // Email is REQUIRED
+    if (!email) {
+        _showNewHostStatus('Email is required.', 'error');
+        if (emailEl) emailEl.focus();
+        return;
+    }
+
+    // Light format check (prevents obvious typos; backend should still enforce)
+    const emailLooksValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    if (!emailLooksValid) {
+        _showNewHostStatus('Please enter a valid email address.', 'error');
+        if (emailEl) emailEl.focus();
+        return;
+    }
+
+    const roles = _getSelectedRolesFromModal();
+
+    const saveButton = document.getElementById('save-new-host');
+    const originalButtonText = saveButton ? saveButton.textContent : 'Create Employee';
+    if (saveButton) {
+        saveButton.textContent = 'Creating…';
+        saveButton.disabled = true;
+    }
+
+    // Clear any previous status/link
+    _showNewHostStatus('', 'success');
+    const statusEl = document.getElementById('new-host-status');
+    if (statusEl) {
+        statusEl.classList.remove('success', 'error');
+        statusEl.textContent = '';
+        statusEl.style.display = 'none';
+    }
+    const wrap = document.getElementById('setup-link-wrap');
+    const linkText = document.getElementById('setup-link-text');
+    const copyBtn = document.getElementById('copy-setup-link-btn');
+    const openBtn = document.getElementById('open-setup-link-btn');
+    if (wrap) wrap.classList.remove('show');
+    if (linkText) linkText.textContent = '';
+    if (copyBtn) copyBtn.onclick = null;
+    if (openBtn) openBtn.onclick = null;
+
+    try {
+        if (!firebase?.functions) {
+            throw new Error('Firebase Functions SDK not available. Did you include firebase-functions-compat.js?');
+        }
+
+        const adminCreateEmployee = firebase.functions().httpsCallable('adminCreateEmployee');
+
+        // Call your existing employee provision function
+        const result = await adminCreateEmployee({
+            email,
+            roles,
+            // Keep names optional; backend may ignore but we’ll patch Firestore after
+            firstName: firstName || '',
+            lastName: lastName || '',
+            nickname: nickname || ''
+        });
+
+        const payload = result?.data || {};
+        const uid = payload.uid;
+        const passwordSetupLink = payload.passwordSetupLink || payload.link || payload.resetLink;
+
+        if (!uid) {
+            console.warn('[calendar] adminCreateEmployee response missing uid:', payload);
+        }
+
+        // If user provided any optional fields, patch employee doc without overwriting with blanks
+        if (uid && (firstName || lastName || nickname)) {
+            const patch = {};
+            if (firstName) patch.firstName = firstName;
+            if (lastName) patch.lastName = lastName;
+            if (nickname) patch.nickname = nickname;
+
+            try {
+                await firebase.firestore().collection('employees').doc(uid).set(patch, { merge: true });
+            } catch (e) {
+                console.warn('[calendar] Could not patch employee name fields:', e);
+            }
+        }
+
+        // Build display name for dropdowns (safe even if blank)
+        const displayName =
+            (nickname && firstName && lastName) ? `${nickname} (${firstName} ${lastName})` :
+            (firstName && lastName) ? `${firstName} ${lastName}` :
+            (nickname) ? nickname :
+            email;
+
+        // Keep legacy global caches in sync (so the calendar stays happy immediately)
+        if (!window.employees) window.employees = {};
+        window.employees[uid || email] = displayName;
+
+        if (!window.employeesData) window.employeesData = {};
+        if (uid) {
+            window.employeesData[uid] = {
+                id: uid,
+                email,
+                firstName: firstName || '',
+                lastName: lastName || '',
+                nickname: nickname || '',
+                roles,
+                active: true,
+                displayName,
+                shortDisplayName: nickname || firstName || lastName || email
+            };
+        }
+
+        // Add to dropdowns
+        if (typeof addEmployeeToDropdowns === 'function') {
+            // addEmployeeToDropdowns(employeeId, displayName)
+            addEmployeeToDropdowns(uid, displayName);
+        } else {
+            // Fallback
+            const opt1 = document.createElement('option');
+            opt1.value = uid;
+            opt1.textContent = displayName;
+            elements.employeeSelect.appendChild(opt1);
+
+            const opt2 = document.createElement('option');
+            opt2.value = uid;
+            opt2.textContent = displayName;
+            elements.shiftEmployeeSelect.appendChild(opt2);
+        }
+
+        // Select new host in shift modal
+        if (uid) elements.shiftEmployeeSelect.value = uid;
+
+        // Show setup link
+        if (passwordSetupLink) {
+            if (linkText) linkText.textContent = passwordSetupLink;
+            if (wrap) wrap.classList.add('show');
+
+            if (copyBtn) {
+                copyBtn.onclick = async () => {
+                    const ok = await _copyToClipboard(passwordSetupLink);
+                    _showNewHostStatus(ok ? 'Setup link copied to clipboard.' : 'Could not copy link automatically—please copy it manually.', ok ? 'success' : 'error');
+                };
+            }
+
+            if (openBtn) {
+                openBtn.onclick = () => {
+                    try { window.open(passwordSetupLink, '_blank', 'noopener'); } catch (_) {}
+                };
+            }
+
+            // Auto-copy once on success
+            await _copyToClipboard(passwordSetupLink);
+
+            _showNewHostStatus('Employee created. Password setup link generated and copied.', 'success');
+        } else {
+            _showNewHostStatus('Employee created, but no setup link was returned by the server.', 'success');
+        }
+
+        // Keep the modal open so the admin can copy/open the link.
+        // They can hit Cancel to return to scheduling.
+        announceForScreenReader('Employee created. Password setup link is ready.');
+    } catch (error) {
+        console.error('[calendar] Error provisioning employee:', error);
+
+        const msg = (error?.message || '').toLowerCase();
+
+        if (error?.code === 'permission-denied' || msg.includes('permission')) {
+            _showNewHostStatus('You do not have permission to create employees. Please check your admin login.', 'error');
+        } else if (error?.code === 'unauthenticated' || msg.includes('unauthenticated')) {
+            _showNewHostStatus('You must be signed in to create employees. Please sign in and try again.', 'error');
+        } else if (msg.includes('already') || msg.includes('exists')) {
+            _showNewHostStatus('That email already exists. Try selecting the host from the dropdown instead.', 'error');
+        } else {
+            _showNewHostStatus(`Error creating employee: ${error?.message || 'Unknown error'}`, 'error');
+        }
+    } finally {
+        if (saveButton) {
+            saveButton.textContent = originalButtonText;
+            saveButton.disabled = false;
+        }
     }
 }
 
@@ -226,138 +499,6 @@ function closeNewLocationModal() {
             elements.addNewLocationBtn.focus();
         }, 100);
     }
-}
-
-// MODIFIED: Save new host with improved Firebase integration and error checking
-function saveNewHost(e) {
-    e.preventDefault();
-
-    // Get values from all fields
-    const firstName = document.getElementById('new-host-firstname').value.trim();
-    const lastName = document.getElementById('new-host-lastname').value.trim();
-    const nickname = document.getElementById('new-host-nickname').value.trim();
-    const phone = document.getElementById('new-host-phone').value.trim();
-    const email = document.getElementById('new-host-email').value.trim();
-    const emergencyContact = document.getElementById('new-host-emergency-contact').value.trim();
-    const emergencyPhone = document.getElementById('new-host-emergency-phone').value.trim();
-    const employeeId = document.getElementById('new-host-employee-id').value.trim();
-    const isActive = document.getElementById('new-host-active').checked;
-
-    // Validate required fields
-    if (!firstName) {
-        alert('Please enter a first name for the host.');
-        document.getElementById('new-host-firstname').focus();
-        return;
-    }
-
-    if (!lastName) {
-        alert('Please enter a last name for the host.');
-        document.getElementById('new-host-lastname').focus();
-        return;
-    }
-
-    // Create short display name for the calendar
-    const shortDisplayName = nickname ? nickname : firstName;
-
-    // Create full display name for detailed views
-    const fullDisplayName = nickname ?
-        `${nickname} (${firstName} ${lastName})` :
-        `${firstName} ${lastName}`;
-
-    // Create host object for Firebase
-    const newHost = {
-        firstName: firstName,
-        lastName: lastName,
-        nickname: nickname,
-        phone: phone,
-        email: email,
-        emergencyContactName: emergencyContact,
-        emergencyContactPhone: emergencyPhone,
-        employeeID: employeeId,
-        active: isActive,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-    };
-
-    // Show loading state
-    const saveButton = document.getElementById('save-new-host');
-    const originalButtonText = saveButton.textContent;
-    saveButton.textContent = 'Saving...';
-    saveButton.disabled = true;
-
-    // Save to Firebase
-    firebase.firestore().collection('employees').add(newHost)
-        .then(docRef => {
-            console.log('New host added with ID:', docRef.id);
-
-            // Use Firebase document ID for local reference
-            const newHostId = docRef.id;
-
-            // For backward compatibility with existing code
-            if (!employees) {
-                // Initialize employees object if it doesn't exist
-                window.employees = {};
-            }
-
-            employees[newHostId] = shortDisplayName;
-
-            // Store the complete employee data in the local cache
-            if (!window.employeesData) {
-                window.employeesData = {};
-            }
-            window.employeesData[newHostId] = {
-                ...newHost,
-                id: newHostId,
-                displayName: fullDisplayName,
-                shortDisplayName: shortDisplayName
-            };
-
-            // Use the addEmployeeToDropdowns function from main.js
-            if (typeof addEmployeeToDropdowns === 'function') {
-                addEmployeeToDropdowns(newHostId, fullDisplayName);
-            } else {
-                // Fallback implementation if the function isn't available
-                // Add to both dropdowns - the filter dropdown and the shift modal dropdown
-                const newOptionForFilter = document.createElement('option');
-                newOptionForFilter.value = newHostId;
-                newOptionForFilter.textContent = fullDisplayName;
-                elements.employeeSelect.appendChild(newOptionForFilter);
-
-                const newOptionForShift = document.createElement('option');
-                newOptionForShift.value = newHostId;
-                newOptionForShift.textContent = fullDisplayName;
-                elements.shiftEmployeeSelect.appendChild(newOptionForShift);
-            }
-
-            // Select the new host in the shift modal dropdown
-            elements.shiftEmployeeSelect.value = newHostId;
-
-            // Close the new host modal and reset form
-            document.getElementById('new-host-form').reset();
-            closeNewHostModal();
-
-            // Focus on the next field in the add event form
-            elements.startTimeSelect.focus();
-
-            // Announce for screen readers
-            announceForScreenReader(`New host ${shortDisplayName} has been added`);
-        })
-        .catch(error => {
-            console.error('Error adding host to Firebase:', error);
-
-            // Handle specific error cases
-            if (error.code === 'permission-denied') {
-                alert('You do not have permission to add hosts. Please check your login status.');
-            } else if (error.code === 'unavailable' || (error.name === 'FirebaseError' && error.message.includes('network'))) {
-                alert('Network error. Please check your internet connection and try again.');
-            } else {
-                alert(`Error adding host: ${error.message}`);
-            }
-        })
-        .finally(() => {
-            // Restore button state
-            saveButton.textContent = originalButtonText;
-            saveButton.disabled = false;
-        });
 }
 
 // UPDATED: Save new location with extended fields and Firebase integration
