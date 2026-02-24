@@ -11,7 +11,7 @@
     --text-secondary: #a0a0a0;
     --text-muted: #555;
     --shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-    
+
     /* Event Colors */
     --classic-trivia-color: #3699ff;
     --themed-trivia-color: #9d4edd;
@@ -24,32 +24,32 @@
     .modal-content {
         max-height: 95vh; /* Use more vertical space on shorter screens */
     }
-    
+
     .modal h2 {
         padding: 15px 25px;
     }
-    
+
     .form-group {
         margin-bottom: 12px;
     }
-    
+
     .button-group {
         padding: 10px 25px;
     }
-    
+
     .modal-content::before {
         height: 65px;
     }
-    
+
     .modal-content::after {
         height: 55px;
     }
-    
+
     #shift-form {
         padding-top: 65px;
         padding-bottom: 55px;
     }
-    
+
     .warning-message {
         padding-top: 65px;
         padding-bottom: 55px;
@@ -62,15 +62,15 @@
         transition: none !important;
         animation: none !important;
     }
-    
+
     .shift:hover {
         transform: none;
     }
-    
+
     .week-copy-button:hover {
         transform: translate(-50%, -50%);
     }
-    
+
     .week-move-button:hover {
         transform: translate(-50%, -50%);
     }
@@ -99,10 +99,13 @@ body {
     padding: 25px;
 }
 
+/* UPDATED: Header layout so the welcome line sits nicely under the title */
 header {
     display: flex;
-    justify-content: space-between;
+    flex-direction: column;
     align-items: center;
+    justify-content: center;
+    gap: 6px;
     margin-bottom: 25px;
     padding-bottom: 20px;
     text-align: center;
@@ -118,7 +121,7 @@ h1 {
     letter-spacing: 2px;
     position: relative;
     padding-bottom: 15px;
-    margin-bottom: 30px;
+    margin-bottom: 6px;
 }
 
 h1::before, h1::after {
@@ -737,8 +740,8 @@ select:focus {
 }
 
 .triangle-right {
-    width: 0; 
-    height: 0; 
+    width: 0;
+    height: 0;
     border-top: 4px solid transparent;
     border-bottom: 4px solid transparent;
     border-left: 4px solid white;
@@ -779,25 +782,11 @@ select:focus {
 }
 
 /* Shift types */
-.classic-trivia {
-    border-left-color: var(--classic-trivia-color);
-}
-
-.themed-trivia {
-    border-left-color: var(--themed-trivia-color);
-}
-
-.classic-bingo {
-    border-left-color: var(--classic-bingo-color);
-}
-
-.music-bingo {
-    border-left-color: var(--music-bingo-color);
-}
-
-.beach-feud {
-    border-left-color: var(--beach-feud-color);
-}
+.classic-trivia { border-left-color: var(--classic-trivia-color); }
+.themed-trivia  { border-left-color: var(--themed-trivia-color); }
+.classic-bingo  { border-left-color: var(--classic-bingo-color); }
+.music-bingo    { border-left-color: var(--music-bingo-color); }
+.beach-feud     { border-left-color: var(--beach-feud-color); }
 
 /* Modal */
 .modal {
@@ -947,18 +936,9 @@ select:focus {
     font-size: 13px;
 }
 
-.conflict-time {
-    color: var(--text-secondary);
-}
-
-.conflict-event {
-    color: var(--primary-color);
-    font-weight: 500;
-}
-
-.conflict-location {
-    color: var(--secondary-color);
-}
+.conflict-time { color: var(--text-secondary); }
+.conflict-event { color: var(--primary-color); font-weight: 500; }
+.conflict-location { color: var(--secondary-color); }
 
 /* Clear Day Modal */
 .day-details {
@@ -988,9 +968,7 @@ button.proceed {
     border: none;
 }
 
-button.proceed:hover {
-    background-color: #ffb340;
-}
+button.proceed:hover { background-color: #ffb340; }
 
 button.danger-proceed {
     background-color: rgba(255, 77, 77, 0.9);
@@ -998,13 +976,9 @@ button.danger-proceed {
     border: none;
 }
 
-button.danger-proceed:hover {
-    background-color: rgba(255, 77, 77, 1);
-}
+button.danger-proceed:hover { background-color: rgba(255, 77, 77, 1); }
 
-.form-group {
-    margin-bottom: 20px;
-}
+.form-group { margin-bottom: 20px; }
 
 label {
     display: block;
@@ -1047,9 +1021,7 @@ input:focus, select:focus {
     outline: none;
 }
 
-#new-host-form .form-group {
-    margin-bottom: 20px;
-}
+#new-host-form .form-group { margin-bottom: 20px; }
 
 #new-host-form label {
     display: block;
@@ -1074,9 +1046,7 @@ input:focus, select:focus {
     padding: 10px 20px;
 }
 
-#save-new-host:hover, #save-new-location:hover {
-    background-color: #2487ea;
-}
+#save-new-host:hover, #save-new-location:hover { background-color: #2487ea; }
 
 /* Form hints */
 .form-hint {
@@ -1087,9 +1057,7 @@ input:focus, select:focus {
 }
 
 /* Host select with add button */
-.host-input-group {
-    margin-bottom: 4px;
-}
+.host-input-group { margin-bottom: 4px; }
 
 .select-with-button {
     display: flex;
@@ -1146,9 +1114,7 @@ select option {
     border: 1px solid var(--border-color);
 }
 
-.cancel:hover {
-    background-color: var(--border-color);
-}
+.cancel:hover { background-color: var(--border-color); }
 
 button[type="submit"] {
     background-color: var(--input-bg);
@@ -1156,9 +1122,7 @@ button[type="submit"] {
     border: 1px solid var(--border-color);
 }
 
-button[type="submit"]:hover {
-    background-color: var(--border-color);
-}
+button[type="submit"]:hover { background-color: var(--border-color); }
 
 /* Hide/Show conditional fields */
 .conditional-field {
@@ -1175,10 +1139,7 @@ button[type="submit"]:hover {
 }
 
 /* Toggle Switch Styling - New Addition */
-.toggle-group {
-    display: flex;
-    flex-direction: column;
-}
+.toggle-group { display: flex; flex-direction: column; }
 
 .toggle-switch-container {
     display: flex;
@@ -1194,11 +1155,7 @@ button[type="submit"]:hover {
     height: 24px;
 }
 
-.toggle-switch input {
-    opacity: 0;
-    width: 0;
-    height: 0;
-}
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
 
 .toggle-slider {
     position: absolute;
@@ -1224,41 +1181,104 @@ button[type="submit"]:hover {
     border-radius: 50%;
 }
 
-input:checked + .toggle-slider {
-    background-color: #3699ff;
-}
-
-input:focus + .toggle-slider {
-    box-shadow: 0 0 1px #3699ff;
-}
-
-input:checked + .toggle-slider:before {
-    transform: translateX(26px);
-}
+input:checked + .toggle-slider { background-color: #3699ff; }
+input:focus + .toggle-slider { box-shadow: 0 0 1px #3699ff; }
+input:checked + .toggle-slider:before { transform: translateX(26px); }
 
 .toggle-label {
     color: var(--text-primary);
     font-size: 14px;
 }
 
-/* Custom scrollbar */
-::-webkit-scrollbar {
-    width: 5px;
-    height: 5px;
+/* Provision-style modal bits (moved from inline) */
+.roles-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 14px;
+    margin-top: 6px;
 }
 
-::-webkit-scrollbar-track {
-    background: var(--card-bg);
+.role-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
 }
+
+.status-box {
+    display: none;
+    margin-top: 10px;
+    padding: 10px;
+    border-radius: 8px;
+    font-size: 14px;
+    line-height: 1.3;
+    border: 1px solid rgba(0,0,0,.12);
+    background: rgba(0,0,0,.04);
+}
+
+.status-box.success {
+    display: block;
+    border-color: rgba(54,153,255,.45);
+    background: rgba(54,153,255,.10);
+}
+
+.status-box.error {
+    display: block;
+    border-color: rgba(255,0,0,.25);
+    background: rgba(255,0,0,.06);
+}
+
+.setup-link-wrap {
+    margin-top: 10px;
+    display: none;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.setup-link-wrap.show { display: flex; }
+
+.setup-link {
+    word-break: break-all;
+    font-size: 13px;
+    padding: 8px;
+    border: 1px solid rgba(0,0,0,.15);
+    border-radius: 8px;
+    background: rgba(255,255,255,.65);
+    flex: 1 1 420px;
+    color: #111;
+}
+
+.small-action-btn {
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(0,0,0,.18);
+    background: #fff;
+    cursor: pointer;
+    font-size: 13px;
+    color: #111;
+}
+
+.small-action-btn:hover {
+    background: rgba(255,255,255,.9);
+}
+
+.small-action-btn:focus {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+
+::-webkit-scrollbar-track { background: var(--card-bg); }
 
 ::-webkit-scrollbar-thumb {
     background: var(--primary-color);
     border-radius: 10px;
 }
 
-::-webkit-scrollbar-thumb:hover {
-    background: #2487ea;
-}
+::-webkit-scrollbar-thumb:hover { background: #2487ea; }
 
 /* Visual feedback for drag and drop */
 .drop-indicator {
@@ -1329,47 +1349,41 @@ input:checked + .toggle-slider:before {
 
 /* Responsive */
 @media (max-width: 768px) {
-    h1 {
-        font-size: 24px;
-    }
-    
+    h1 { font-size: 24px; }
+
     .header-controls {
         margin-top: 0;
         flex-direction: column;
         width: 100%;
     }
-    
-    .employee-filter, .filter-group {
-        width: 100%;
-    }
-    
+
+    .employee-filter, .filter-group { width: 100%; }
+
     .controls {
         flex-direction: column;
         gap: 15px;
     }
-    
+
     .date-nav {
         flex-wrap: wrap;
         justify-content: center;
         gap: 10px;
     }
-    
+
     .month-display {
         position: static;
         transform: none;
         width: 100%;
         margin: 10px 0;
     }
-    
+
     .calendar td {
         min-height: 100px;
         height: auto;
     }
-    
-    .week-copy-cell {
-        height: 100px; /* Match the responsive height of other cells */
-    }
-    
+
+    .week-copy-cell { height: 100px; }
+
     .time-inputs {
         flex-direction: column;
         gap: 10px;
@@ -1379,35 +1393,21 @@ input:checked + .toggle-slider:before {
         flex-direction: column;
         gap: 10px;
     }
-    
+
     /* Make modal more mobile-friendly */
     .modal-content {
         width: 95%;
         max-height: 85vh;
     }
-    
-    .modal h2 {
-        font-size: 20px;
-    }
-    
-    .button-group {
-        flex-direction: column;
-    }
-    
-    .button-group button {
-        width: 100%;
-    }
-    
+
+    .modal h2 { font-size: 20px; }
+
+    .button-group { flex-direction: column; }
+
+    .button-group button { width: 100%; }
+
     /* Media query for responsive layouts */
-    .week-clear-button {
-        top: calc(50% + 85px); /* Adjust position for smaller screens */
-    }
-    
-    .week-toggle-button {
-        top: calc(50% + 55px); /* Adjust position for smaller screens */
-    }
-    
-    .week-move-button {
-        top: calc(50% + 25px); /* Adjust position for smaller screens */
-    }
+    .week-clear-button { top: calc(50% + 85px); }
+    .week-toggle-button { top: calc(50% + 55px); }
+    .week-move-button { top: calc(50% + 25px); }
 }
