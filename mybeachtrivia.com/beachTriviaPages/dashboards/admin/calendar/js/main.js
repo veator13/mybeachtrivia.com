@@ -213,15 +213,37 @@ async function fetchEmployeesFromFirebase() {
   qs.forEach(doc => {
     const d = doc.data();
     const id = doc.id;
-    const display = d.nickname
-      ? `${d.nickname} (${d.firstName} ${d.lastName})`
-      : `${d.firstName} ${d.lastName}`;
-    const short = d.nickname || `${d.firstName} ${d.lastName?.charAt(0) ?? ''}.`;
+
+    const first = (d.firstName || '').trim();
+    const last = (d.lastName || '').trim();
+    const nick = (d.nickname || '').trim();
+    const email = (d.email || '').trim();
+
+    const firstLast = [first, last].filter(Boolean).join(' ').trim();
+
+    // Display name (what dropdowns show)
+    const display =
+      nick && firstLast ? `${nick} (${firstLast})` :
+      nick ? nick :
+      firstLast ? firstLast :
+      email ? email :
+      'Unknown Employee';
+
+    // Short name (used in compact calendar labels)
+    const emailLocal = email ? email.split('@')[0] : '';
+    const short =
+      nick ? nick :
+      first ? first :
+      last ? last :
+      emailLocal ? emailLocal :
+      email ? email :
+      'Unknown';
 
     employees[id] = short;
     window.employeesData[id] = { ...d, id, displayName: display, shortDisplayName: short };
     addEmployeeToDropdowns(id, display);
   });
+
   console.log(`[calendar] Employees loaded: ${qs.size}`);
 }
 

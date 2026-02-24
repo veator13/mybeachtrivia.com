@@ -85,7 +85,10 @@ function collectSelectedRoles() {
       const callable = getFns().httpsCallable("adminCreateEmployee");
       const res = await callable({ email, roles, idToken });
 
-      const { uid, resetLink } = res.data || {};
+      const data = res?.data || {};
+      const uid = data.uid;
+      const resetLink = data.passwordSetupLink || data.resetLink || data.link;
+
       if (!uid || !resetLink) throw new Error("Unexpected response from server.");
 
       // Add return path so login bounces to account-setup
@@ -159,6 +162,6 @@ function collectSelectedRoles() {
   // --- Wire up ---------------------------------------------------------------
   document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("provision-btn")?.addEventListener("click", createAndSend);
-    console.log("provision.js v7 (labels + restored copy link)");
+    console.log("provision.js v8 (handles passwordSetupLink/resetLink)");
   });
 })();
