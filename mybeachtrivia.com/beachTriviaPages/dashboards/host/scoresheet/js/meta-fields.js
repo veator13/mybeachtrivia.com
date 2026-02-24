@@ -7,11 +7,22 @@
    - eventType-driven themeName autofill (Classic/Feud/Private Event) + blank for Themed
 
    FEUD MODE HOOK:
-   - When event type changes, dispatches a custom event:
+   - When event type changes, dispatches:
        window.dispatchEvent(new CustomEvent("scoresheet:event-type-changed", { detail: { eventType } }))
-     so other modules (like table-build.js / scoring.js) can react live.
 
-   Classic script style (no imports). Exposes functions on window:
+   OFFLINE/VENUE RULES (matches submit-scores.js + venues.js + state.js behavior):
+   - OFFLINE:
+       • venueInput is REQUIRED
+       • venueSelect is ignored
+   - ONLINE:
+       • venueSelect is REQUIRED
+       • reject "loading" and "other" (unless you explicitly support "other" online)
+
+   IMPORTANT:
+   - Offline detection MUST use ScoresheetState (Firestore reachability), not navigator.onLine,
+     because SW/cache can make navigator.onLine unreliable.
+
+   Exposes on window:
      - setDefaultEventDateToday()
      - updateThemeFieldVisibility()
      - applyThemeNameDefaultFromEventType()
@@ -60,6 +71,24 @@
     } catch {}
   }
 
+  function isBlank(v) {
+    return v === null || v === undefined || String(v).trim() === "";
+  }
+
+  // ✅ Source of truth for offline mode:
+  // - Prefer ScoresheetState (Firestore reachability)
+  // - Fallback to navigator.onLine only if state isn't available yet
+  function isOfflineNow() {
+    try {
+      if (window.ScoresheetState?.isOffline) return !!window.ScoresheetState.isOffline();
+    } catch {}
+    try {
+      return typeof navigator !== "undefined" ? !navigator.onLine : false;
+    } catch {
+      return false;
+    }
+  }
+
   // ✅ when event type changes, set themeName defaults
   function applyThemeNameDefaultFromEventType() {
     const eventTypeEl = getEl("eventType");
@@ -78,11 +107,9 @@
       themeInput.value = "Private Event";
       fireUserLikeInput(themeInput);
     } else if (v === "themed_trivia") {
-      // themed trivia: leave blank and require user input
       themeInput.value = "";
       fireUserLikeInput(themeInput);
     } else {
-      // unknown/blank selection
       themeInput.value = "";
       fireUserLikeInput(themeInput);
     }
@@ -93,10 +120,23 @@
     const themeField = getEl("themeNameField");
     if (!eventTypeEl || !themeField) return;
 
-    // Only show the Theme Name field UI for Themed Trivia.
-    // Classic/Feud/Private Event will be auto-filled (field can stay hidden).
     const show = (eventTypeEl.value || "").trim() === "themed_trivia";
     themeField.hidden = !show;
+  }
+
+  // ✅ Central place to resolve venue based on online/offline mode
+  function getVenueResolved() {
+    const venueSelect = getEl("venueSelect");
+    const venueInput = getEl("venueInput");
+    const offline = isOfflineNow();
+
+    const selectVal = (venueSelect?.value || "").trim();
+    const inputVal = (venueInput?.value || "").trim();
+
+    if (offline) {
+      return { offline, venueId: "", venueName: inputVal, source: "manual" };
+    }
+    return { offline, venueId: selectVal, venueName: "", source: "dropdown" };
   }
 
   function getMetaFields() {
@@ -105,15 +145,20 @@
     const submitterLastName = (getEl("submitterLastName")?.value || "").trim();
     const eventType = (getEl("eventType")?.value || "").trim();
     const themeName = (getEl("themeName")?.value || "").trim();
-    const venueId = (getEl("venueSelect")?.value || "").trim();
 
+    const venueInfo = getVenueResolved();
+
+    // Keep legacy keys (venueId) but also provide venueName + offline for newer logic
     return {
       eventDate,
       submitterFirstName,
       submitterLastName,
       eventType,
       themeName,
-      venueId,
+      venueId: venueInfo.venueId,
+      venueName: venueInfo.venueName,
+      venueSource: venueInfo.source,
+      offline: venueInfo.offline,
     };
   }
 
@@ -145,38 +190,44 @@
     const lastEl = getEl("submitterLastName");
     const eventTypeEl = getEl("eventType");
     const themeEl = getEl("themeName");
-    const venueEl = getEl("venueSelect");
+    const venueSelectEl = getEl("venueSelect");
+    const venueInputEl = getEl("venueInput");
 
     const meta = getMetaFields();
     const missing = [];
 
-    if (!meta.eventDate) missing.push({ key: "eventDate", el: eventDateEl, label: "Date" });
-    if (!meta.submitterFirstName)
+    if (isBlank(meta.eventDate)) missing.push({ key: "eventDate", el: eventDateEl, label: "Date" });
+    if (isBlank(meta.submitterFirstName))
       missing.push({ key: "submitterFirstName", el: firstEl, label: "First Name" });
-    if (!meta.submitterLastName)
+    if (isBlank(meta.submitterLastName))
       missing.push({ key: "submitterLastName", el: lastEl, label: "Last Name" });
-    if (!meta.eventType)
+    if (isBlank(meta.eventType))
       missing.push({ key: "eventType", el: eventTypeEl, label: "Event Type" });
 
-    // ✅ Theme rules:
-    // - Themed Trivia: must be user-provided (field shown)
-    // - Classic/Feud/Private Event: auto-filled, but still must not be blank
+    // ✅ Theme rules
     const themeRequiredTypes = new Set(["themed_trivia", "classic_trivia", "feud", "private_event"]);
-    if (themeRequiredTypes.has(meta.eventType) && !meta.themeName) {
+    if (themeRequiredTypes.has(meta.eventType) && isBlank(meta.themeName)) {
       missing.push({ key: "themeName", el: themeEl, label: "Theme Name" });
     }
 
-    // Venue required (exclude loading placeholder)
-    if (!meta.venueId || meta.venueId === "loading") {
-      missing.push({ key: "venueSelect", el: venueEl, label: "Venue" });
+    // ✅ Venue rules
+    if (meta.offline) {
+      if (!venueInputEl || isBlank(meta.venueName)) {
+        missing.push({ key: "venueInput", el: venueInputEl || venueSelectEl, label: "Venue" });
+      }
+    } else {
+      const v = (meta.venueId || "").trim();
+      if (!venueSelectEl || isBlank(v) || v === "loading" || v === "other") {
+        missing.push({ key: "venueSelect", el: venueSelectEl, label: "Venue" });
+      }
     }
 
     missing.forEach((m) => markInvalid(m.el));
 
     if (missing.length) {
-      const first = missing[0].el;
+      const firstMissing = missing[0].el;
       try {
-        first?.focus();
+        firstMissing?.focus();
       } catch {}
     }
 
@@ -195,6 +246,7 @@
       "eventType",
       "themeName",
       "venueSelect",
+      "venueInput", // ✅ include offline input so it clears invalid state
     ];
 
     ids.forEach((id) => {
@@ -213,6 +265,22 @@
       });
       eventTypeEl.dataset.boundMetaFields = "1";
     }
+
+    // ✅ If online/offline flips, clear venue invalid marks so user isn’t stuck
+    if (!window.__scoresheetVenueModeListenerBound) {
+      window.__scoresheetVenueModeListenerBound = true;
+
+      const clearVenueInvalids = () => {
+        unmarkInvalid(getEl("venueInput"));
+        unmarkInvalid(getEl("venueSelect"));
+      };
+
+      window.addEventListener("online", clearVenueInvalids, { passive: true });
+      window.addEventListener("offline", clearVenueInvalids, { passive: true });
+
+      // Also clear when ScoresheetState flips (Firestore reachability)
+      window.addEventListener("scoresheet:offline-changed", clearVenueInvalids, { passive: true });
+    }
   }
 
   // Expose globals
@@ -228,7 +296,7 @@
     updateThemeFieldVisibility();
     bindMetaFieldListeners();
 
-    // ✅ apply default immediately on load (covers pre-selected value)
+    // ✅ apply default immediately on load
     applyThemeNameDefaultFromEventType();
 
     // ✅ notify current value on load too

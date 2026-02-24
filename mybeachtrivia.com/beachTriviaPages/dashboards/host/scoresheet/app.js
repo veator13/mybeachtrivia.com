@@ -25,30 +25,10 @@ function markAsModified() {
   dataModified = true;
 }
 
-
-
-function getActiveTeamRows() {
-  const table = document.getElementById("teamTable");
-  if (!table) return [];
-  const rows = Array.from(table.querySelectorAll("tbody tr[data-team-id]"));
-  return rows.filter((row) => {
-    const nameInput = row.querySelector("input.teamName");
-    return nameInput && nameInput.value.trim() !== "";
-  });
-}
-
-function getActiveTeamIds() {
-  return getActiveTeamRows()
-    .map((r) => parseInt(r.dataset.teamId || "0", 10))
-    .filter((n) => !!n);
-}
-
 /* =======================================================
-   NEW: Row “active” helpers (prevents default empty 5 rows from counting)
-   - A row is considered "active" only if:
-     1) Team name is non-empty AND
-     2) The user actually edited any score cell in that row (touched)
-   - We mark score inputs as touched only for TRUSTED user input events.
+   Row helpers
+   - Named rows: team name is non-empty
+   - Active scoresheet rows: named AND user touched at least one score input
 ======================================================= */
 function getTeamNameFromRow(row) {
   const nameInput = row?.querySelector("input.teamName");
@@ -74,8 +54,34 @@ function isActiveScoresheetRow(row) {
   return isRowNamed(row) && rowHasTouchedScores(row);
 }
 
+function getNamedTeamRows() {
+  const table = document.getElementById("teamTable");
+  if (!table) return [];
+  const rows = Array.from(table.querySelectorAll("tbody tr[data-team-id]"));
+  return rows.filter(isRowNamed);
+}
+
+function getNamedTeamIds() {
+  return getNamedTeamRows()
+    .map((r) => parseInt(r.dataset.teamId || "0", 10))
+    .filter((n) => !!n);
+}
+
+function getActiveScoresheetRows() {
+  const table = document.getElementById("teamTable");
+  if (!table) return [];
+  const rows = Array.from(table.querySelectorAll("tbody tr[data-team-id]"));
+  return rows.filter(isActiveScoresheetRow);
+}
+
+function getActiveScoresheetIds() {
+  return getActiveScoresheetRows()
+    .map((r) => parseInt(r.dataset.teamId || "0", 10))
+    .filter((n) => !!n);
+}
+
 /* =======================================================
-   NEW: meta-field required checks (top of page)
+   Meta-field required checks (top of page)
    - eventType is required
    - submitter first/last are required
    - themeName required only if eventType === 'themed_trivia'
@@ -97,18 +103,15 @@ function clearMetaInvalidState() {
 function getMissingMetaFields(meta) {
   const missing = [];
 
-  // Required: submitter name
   if (!meta.submitterFirstName) missing.push("submitterFirstName");
   if (!meta.submitterLastName) missing.push("submitterLastName");
 
-  // Required: event type
   if (!meta.eventType) missing.push("eventType");
 
-  // Required only if themed
   if (meta.eventType === "themed_trivia" && !meta.themeName)
     missing.push("themeName");
 
-  // NOTE: eventDate is auto-filled; venueSelect has a default.
+  // eventDate is auto-filled; venueSelect defaults to "other"
   return missing;
 }
 
@@ -119,10 +122,8 @@ function validateMetaFieldsBeforeSubmit() {
   const missing = getMissingMetaFields(meta);
   if (missing.length === 0) return { ok: true, meta };
 
-  // highlight missing
   missing.forEach((id) => document.getElementById(id)?.classList.add("invalid"));
 
-  // build friendly message
   const labels = {
     submitterFirstName: "First name",
     submitterLastName: "Last name",
@@ -132,19 +133,17 @@ function validateMetaFieldsBeforeSubmit() {
   const msg = missing.map((id) => labels[id] || id).join("\n• ");
   alert(`Please fill out the required field(s):\n\n• ${msg}`);
 
-  // focus first missing
   const first = document.getElementById(missing[0]);
   first?.focus?.();
   return { ok: false, meta };
 }
 
 /* =======================================================
-   UPDATED: count EMPTY scoresheet cells (for warning), then fill with 0 on submit
+   Count EMPTY scoresheet cells (for warning), then fill with 0 on submit
    - ONLY table tbody inputs (scoresheet)
    - does NOT touch meta fields above the table
-   - ✅ ONLY considers rows that are "active":
+   - ✅ ONLY considers rows that are "active scoresheet rows":
        Team Name is filled AND user touched at least one score in that row.
-   - This prevents the default 5 blank teams (autofill zeros) from counting.
 ======================================================= */
 function countEmptyScoresheetCells() {
   const table = document.getElementById("teamTable");
@@ -152,17 +151,13 @@ function countEmptyScoresheetCells() {
 
   let blanks = 0;
 
-  // Only consider "active" rows (rows with a team name)
-  const rows = getActiveTeamRows();
+  const rows = getActiveScoresheetRows();
 
   rows.forEach((row) => {
     const inputs = row.querySelectorAll("input");
     inputs.forEach((el) => {
       if (!(el instanceof HTMLInputElement)) return;
-
-      // don't touch team name text inputs
       if (el.type === "text" || el.classList.contains("teamName")) return;
-
       if (el.value === "") blanks++;
     });
   });
@@ -176,18 +171,14 @@ function fillEmptyScoresheetWithZeros() {
 
   let changed = 0;
 
-  // Only fill inside "active" rows (rows with a team name)
-  const rows = getActiveTeamRows();
+  const rows = getActiveScoresheetRows();
 
   rows.forEach((row) => {
     const inputs = row.querySelectorAll("input");
     inputs.forEach((el) => {
       if (!(el instanceof HTMLInputElement)) return;
-
-      // don't touch team name text inputs
       if (el.type === "text" || el.classList.contains("teamName")) return;
 
-      // If empty, set to "0"
       if (el.value === "") {
         el.value = "0";
         changed++;
@@ -199,12 +190,12 @@ function fillEmptyScoresheetWithZeros() {
 }
 
 /* =======================================================
-   NEW: Scoresheet meta fields (date / submitter / event type / theme / venue)
+   Scoresheet meta fields (date / submitter / event type / theme / venue)
 ======================================================= */
 function setDefaultEventDateToday() {
   const el = $("#eventDate");
   if (!el) return;
-  // <input type="date"> expects YYYY-MM-DD
+
   const today = new Date();
   const yyyy = today.getFullYear();
   const mm = String(today.getMonth() + 1).padStart(2, "0");
@@ -221,11 +212,145 @@ function updateThemeFieldVisibility() {
   const isThemed = typeSel.value === "themed_trivia";
   themeField.hidden = !isThemed;
 
-  if (!isThemed && themeInput) {
-    themeInput.value = "";
-  }
+  if (!isThemed && themeInput) themeInput.value = "";
 }
 
+// Populate Venue dropdown from Firestore: /locations (active only)
+function setupVenueDropdownFromFirestore() {
+  const venueEl = document.getElementById("venueSelect");
+  if (!venueEl) return;
+
+  const db =
+    window.db ||
+    (window.firebase?.firestore ? window.firebase.firestore() : null);
+
+  if (!db) {
+    console.warn(
+      "No Firestore instance found (window.db / firebase.firestore). Venues will not load."
+    );
+    return;
+  }
+
+  const escapeHtml = (s) =>
+    String(s ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+
+  // --- helpers ---
+  const buildOptionsHtml = (names, prevValue) => {
+    const opts = [`<option value="other">Other</option>`].concat(
+      names.map((name) => {
+        const safe = escapeHtml(name);
+        return `<option value="${safe}">${safe}</option>`;
+      })
+    );
+
+    venueEl.innerHTML = opts.join("");
+
+    // restore selection if possible
+    const prev = prevValue || "other";
+    venueEl.value = prev;
+    if (venueEl.value !== prev) venueEl.value = "other";
+  };
+
+  // Avoid multiple listeners if this function gets called twice
+  if (venueEl.__venueUnsub) {
+    try {
+      venueEl.__venueUnsub();
+    } catch (_) {}
+    venueEl.__venueUnsub = null;
+  }
+
+  // Sometimes the select exists before it’s fully rendered / styled;
+  // make sure we run population after the browser has painted once.
+  const startListening = () => {
+    try {
+      const query = db.collection("locations").orderBy("name");
+
+      const unsub = query.onSnapshot(
+        (snap) => {
+          const prev = venueEl.value || "other";
+
+          const names = [];
+          snap.forEach((doc) => {
+            const d = doc.data() || {};
+            const name = String(d.name || "").trim();
+            if (!name) return;
+            if (d.active === false) return; // only active venues
+            names.push(name);
+          });
+
+          buildOptionsHtml(names, prev);
+          venueEl.__venueLastGoodCount = names.length;
+          venueEl.__venueLoadedOnce = true;
+
+          // handy debug
+          console.log("[venues] loaded:", names.length);
+        },
+        (err) => {
+          console.error("Failed to load venues from /locations:", err);
+
+          // If we haven't successfully loaded yet, retry a few times
+          if (!venueEl.__venueLoadedOnce) scheduleRetry();
+        }
+      );
+
+      venueEl.__venueUnsub = unsub;
+    } catch (e) {
+      console.error("Venues listener setup FAILED:", e);
+      if (!venueEl.__venueLoadedOnce) scheduleRetry();
+    }
+  };
+
+  // Retry loop (handles rare timing/caching/auth hiccups)
+  let retryTimer = null;
+  let attempts = 0;
+  const MAX_ATTEMPTS = 6;
+
+  const scheduleRetry = () => {
+    if (retryTimer) return;
+    if (attempts >= MAX_ATTEMPTS) {
+      console.warn(
+        "[venues] gave up after retries. Check console errors and Firestore rules."
+      );
+      return;
+    }
+    attempts++;
+
+    const delay = Math.min(8000, 500 * Math.pow(2, attempts - 1)); // 0.5s,1s,2s,4s,8s...
+    console.warn(`[venues] retrying in ${delay}ms (attempt ${attempts})`);
+    retryTimer = setTimeout(() => {
+      retryTimer = null;
+
+      // tear down old listener if any
+      if (venueEl.__venueUnsub) {
+        try {
+          venueEl.__venueUnsub();
+        } catch (_) {}
+        venueEl.__venueUnsub = null;
+      }
+
+      startListening();
+    }, delay);
+  };
+
+  // Kick it off after the next paint (reduces “options length stays 1” weirdness)
+  requestAnimationFrame(() => {
+    startListening();
+
+    // Safety: if after ~1.5s we still only have "Other", retry once
+    setTimeout(() => {
+      const optionCount = venueEl.options?.length || 0;
+      if (!venueEl.__venueLoadedOnce && optionCount <= 1) {
+        console.warn("[venues] still empty after initial load; forcing retry");
+        scheduleRetry();
+      }
+    }, 1500);
+  });
+}
 function getMetaFields() {
   const eventDate = $("#eventDate")?.value || null;
 
@@ -237,93 +362,16 @@ function getMetaFields() {
   const themeName =
     eventType === "themed_trivia" ? ($("#themeName")?.value || "").trim() : "";
 
-  // Venue dropdown (for now only "other")
   const venue = $("#venueSelect")?.value || "other";
 
   return {
-    eventDate, // YYYY-MM-DD (string) or null
+    eventDate,
     submitterFirstName,
     submitterLastName,
     eventType,
     themeName,
     venue,
   };
-}
-
-/* =======================================================
-   NEW: Validate required meta fields before submit
-   - Alerts and highlights missing fields (does not touch table)
-======================================================= */
-function validateRequiredMetaFieldsBeforeSubmit() {
-  // Clears previous invalid highlighting
-  const ids = [
-    "eventDate",
-    "submitterFirstName",
-    "submitterLastName",
-    "eventType",
-    "themeName",
-    "venueSelect",
-  ];
-
-  ids.forEach((id) => {
-    const el = document.getElementById(id);
-    if (el) el.classList.remove("invalid");
-  });
-
-  const missing = [];
-
-  const eventDateEl = document.getElementById("eventDate");
-  const firstEl = document.getElementById("submitterFirstName");
-  const lastEl = document.getElementById("submitterLastName");
-  const typeEl = document.getElementById("eventType");
-  const themeEl = document.getElementById("themeName");
-  const venueEl = document.getElementById("venueSelect");
-
-  const v = (el) => (el?.value ?? "").trim();
-
-  // Required: Date
-  if (!v(eventDateEl)) {
-    missing.push({ el: eventDateEl, label: "Event Date" });
-  }
-
-  // Required: Submitter First/Last
-  if (!v(firstEl)) missing.push({ el: firstEl, label: "Submitter First Name" });
-  if (!v(lastEl)) missing.push({ el: lastEl, label: "Submitter Last Name" });
-
-  // Required: Event Type (select)
-  if (!v(typeEl)) missing.push({ el: typeEl, label: "Event Type" });
-
-  // Required: Venue (select)
-  if (!v(venueEl)) missing.push({ el: venueEl, label: "Venue" });
-
-  // Conditional required: Theme Name
-  if (v(typeEl) === "themed_trivia" && !v(themeEl)) {
-    missing.push({ el: themeEl, label: "Theme Name" });
-  }
-
-  if (missing.length === 0) return true;
-
-  // Highlight + focus first missing
-  missing.forEach((m) => {
-    try {
-      m.el?.classList?.add("invalid");
-    } catch (_) {}
-  });
-
-  const msg =
-    "Please fill in these required fields before submitting:\n\n" +
-    missing.map((m) => `• ${m.label}`).join("\n");
-
-  alert(msg);
-
-  // focus first missing
-  const firstMissing = missing[0]?.el;
-  try {
-    firstMissing?.focus?.();
-    firstMissing?.scrollIntoView?.({ behavior: "smooth", block: "center" });
-  } catch (_) {}
-
-  return false;
 }
 
 function bindMetaFieldListeners() {
@@ -341,7 +389,6 @@ function bindMetaFieldListeners() {
     if (!el || el.dataset.bound) return;
 
     const mark = () => {
-      // if the user fixes a previously-missing required field, clear the red outline
       el.classList.remove("invalid");
       markAsModified();
     };
@@ -353,9 +400,7 @@ function bindMetaFieldListeners() {
 
   const eventType = $("#eventType");
   if (eventType && !eventType.dataset.boundThemeToggle) {
-    eventType.addEventListener("change", () => {
-      updateThemeFieldVisibility();
-    });
+    eventType.addEventListener("change", () => updateThemeFieldVisibility());
     eventType.dataset.boundThemeToggle = "1";
   }
 }
@@ -364,7 +409,6 @@ function bindMetaFieldListeners() {
    Firebase helpers (compat SDK expected)
 ======================================================= */
 function ensureDbHandle() {
-  // If firebase compat is present but window.db is missing, create it.
   if (!window.db && window.firebase?.firestore) {
     try {
       window.db = window.firebase.firestore();
@@ -373,7 +417,6 @@ function ensureDbHandle() {
 }
 
 async function ensureSignedIn() {
-  // Requires auth-compat to be loaded BEFORE this script.
   if (!window.firebase?.auth) {
     throw new Error(
       "Auth SDK missing — load firebase-auth-compat.js before app.js"
@@ -382,7 +425,6 @@ async function ensureSignedIn() {
   const auth = window.firebase.auth();
   if (auth.currentUser) return auth.currentUser;
 
-  // Wait for an existing state or perform anonymous sign-in.
   await new Promise((resolve, reject) => {
     const unsub = auth.onAuthStateChanged((u) => {
       if (u) {
@@ -397,7 +439,88 @@ async function ensureSignedIn() {
   });
   return auth.currentUser;
 }
+/* =======================================================
+   NEW: Venues dropdown loader (Firestore locations)
+======================================================= */
+let __venueUnsub = null;
 
+function setVenueOptions(venueEl, venues) {
+  if (!venueEl) return;
+
+  const current = venueEl.value;
+
+  // wipe options
+  venueEl.innerHTML = "";
+
+  // placeholder
+  const ph = document.createElement("option");
+  ph.value = "";
+  ph.disabled = true;
+  ph.textContent = "Choose venue...";
+  venueEl.appendChild(ph);
+
+  // venues
+  venues.forEach((v) => {
+    const opt = document.createElement("option");
+    opt.value = v.id;                 // store doc id
+    opt.textContent = v.name || v.id; // display name
+    venueEl.appendChild(opt);
+  });
+
+  // always keep Other fallback at bottom
+  const other = document.createElement("option");
+  other.value = "other";
+  other.textContent = "Other";
+  venueEl.appendChild(other);
+
+  // restore selection if possible
+  const exists = Array.from(venueEl.options).some((o) => o.value === current);
+  venueEl.value = exists ? current : "other";
+
+  // if nothing selected, force other
+  if (!venueEl.value) venueEl.value = "other";
+}
+
+async function startVenuesListener() {
+  const venueEl = document.getElementById("venueSelect");
+  if (!venueEl) return;
+
+  // show loading state
+  venueEl.innerHTML = `<option value="loading" disabled selected>Loading venues...</option>`;
+
+  ensureDbHandle();
+  if (!window.db) throw new Error("Firestore not initialized (window.db missing)");
+
+  // must be signed in because rules require signedIn()
+  await ensureSignedIn();
+
+  // kill prior listener
+  if (__venueUnsub) {
+    try { __venueUnsub(); } catch (_) {}
+    __venueUnsub = null;
+  }
+
+  __venueUnsub = window.db
+    .collection("locations")
+    .orderBy("name")
+    .onSnapshot(
+      (snap) => {
+        const venues = [];
+        snap.forEach((doc) => {
+          const d = doc.data() || {};
+          const active = d.active !== false; // default true
+          if (!active) return;
+          venues.push({ id: doc.id, name: d.name || "" });
+        });
+        setVenueOptions(venueEl, venues);
+      },
+      (err) => {
+        console.error("[venues] listener error:", err);
+        // fall back to just Other
+        setVenueOptions(venueEl, []);
+      }
+    );
+}
 /* =======================================================
    BONUS input helper (first-click behavior)
 ======================================================= */
@@ -405,19 +528,16 @@ function bindBonusInput(inp) {
   if (!inp || inp.__bonusBound) return;
   inp.__bonusBound = true;
 
-  // Default value
   if (!inp.value) inp.value = "0";
   if (!inp.dataset.touched) inp.dataset.touched = "0";
 
-  // First mouse click: prevent caret from landing inside the "0", select it instead
   inp.addEventListener("mousedown", (e) => {
-    if (inp.dataset.touched === "1") return; // already edited, normal behavior
+    if (inp.dataset.touched === "1") return;
     e.preventDefault();
     inp.focus();
     inp.select();
   });
 
-  // First focus via keyboard/tab: also select the "0"
   inp.addEventListener("focus", () => {
     if (inp.dataset.touched === "1") return;
     setTimeout(() => {
@@ -427,7 +547,6 @@ function bindBonusInput(inp) {
     }, 0);
   });
 
-  // Once the user types anything, mark as touched
   inp.addEventListener("input", () => {
     inp.dataset.touched = "1";
   });
@@ -443,7 +562,6 @@ function updateStickyRightWidths() {
     return;
   }
 
-  // Representative cells
   const finalCell =
     table.querySelector("tbody td.sticky-col-right") ||
     table.querySelector("thead th.sticky-col-right");
@@ -462,12 +580,9 @@ function updateStickyRightWidths() {
   const finalRect = finalCell.getBoundingClientRect();
   const bonusRect = bonusCell.getBoundingClientRect();
 
-  // Final score: a bit thinner
   const newFinalWidth = Math.max(50, Math.round(finalRect.width * 0.6));
-  // Bonus: keep the narrower width we liked
   const newBonusWidth = Math.max(32, Math.round(bonusRect.width * 0.5));
 
-  // 1) Apply column widths
   let widthStyle = document.getElementById("bonus-final-width-style");
   if (!widthStyle) {
     widthStyle = document.createElement("style");
@@ -489,7 +604,6 @@ function updateStickyRightWidths() {
     }
   `;
 
-  // 2) Make bonus inputs slightly narrower than Q1–Q20 inputs
   const sampleQInput =
     table.querySelector("tbody input[id^='num']") ||
     table.querySelector("tbody input[type='number']");
@@ -497,7 +611,6 @@ function updateStickyRightWidths() {
   if (sampleQInput) {
     const sampleRect = sampleQInput.getBoundingClientRect();
     if (sampleRect.width) {
-      // About 75% of the regular input width, but not tiny
       bonusInputWidth = Math.max(26, Math.round(sampleRect.width * 0.75));
     }
   }
@@ -515,12 +628,11 @@ function updateStickyRightWidths() {
     }
   `;
 
-  // 3) Re-measure and adjust BONUS offset so it snugly touches FINAL
   requestAnimationFrame(() => {
     const finalRect2 = finalCell.getBoundingClientRect();
     const bonusRect2 = bonusCell.getBoundingClientRect();
 
-    const gap = finalRect2.left - bonusRect2.right; // +gap = space, -gap = overlap
+    const gap = finalRect2.left - bonusRect2.right;
 
     const cs = getComputedStyle(bonusCell);
     let currentRight = parseFloat(cs.right);
@@ -541,20 +653,6 @@ function updateStickyRightWidths() {
         right: ${newRight}px;
       }
     `;
-
-    console.log(
-      "[bonus+final-width] finalWidth:",
-      newFinalWidth,
-      "bonusWidth:",
-      newBonusWidth,
-      "gap:",
-      gap,
-      "→ bonus right:",
-      newRight,
-      "px",
-      "bonusInputWidth:",
-      bonusInputWidth
-    );
   });
 }
 
@@ -565,7 +663,6 @@ function addTeam() {
   teamCount++;
   dataModified = true;
 
-  // Ensure a <tbody> exists
   const table = $("#teamTable");
   let tbody = table.querySelector("tbody");
   if (!tbody) {
@@ -574,9 +671,8 @@ function addTeam() {
   }
 
   const tr = document.createElement("tr");
-  tr.dataset.teamId = String(teamCount); // reliable teamId source
+  tr.dataset.teamId = String(teamCount);
 
-  // --- Team name + LIKE bonus checkbox (left sticky col) ---
   const tdTeam = document.createElement("td");
   tdTeam.className = "sticky-col";
 
@@ -586,7 +682,6 @@ function addTeam() {
   nameInput.className = "teamName";
   nameInput.placeholder = `Team ${teamCount}`;
 
-  // Wrapper for checkbox + icon + LIKE label
   const bonusCheckboxWrapper = document.createElement("label");
   bonusCheckboxWrapper.className = "teamCheckboxWrapper";
 
@@ -595,17 +690,14 @@ function addTeam() {
   bonusCheckbox.id = `checkbox${teamCount}`;
   bonusCheckbox.className = "teamCheckbox";
 
-  // Icon span (favicon background handled in CSS)
   const bonusIcon = document.createElement("span");
   bonusIcon.className = "teamCheckboxIcon";
   bonusIcon.setAttribute("aria-hidden", "true");
 
-  // "LIKE" label under the icon
   const bonusLike = document.createElement("span");
   bonusLike.className = "teamCheckboxLike";
   bonusLike.textContent = "LIKE";
 
-  // Screen-reader only text
   const bonusCheckboxText = document.createElement("span");
   bonusCheckboxText.className = "sr-only";
   bonusCheckboxText.textContent = "Apply five point bonus";
@@ -620,7 +712,6 @@ function addTeam() {
   tdTeam.append(nameInput, bonusCheckboxWrapper);
   tr.appendChild(tdTeam);
 
-  // --- Round 1 (Q1-Q5): only 0 or 1 ---
   for (let j = 1; j <= 5; j++) {
     const td = document.createElement("td");
     const inp = document.createElement("input");
@@ -634,7 +725,6 @@ function addTeam() {
     tr.appendChild(td);
   }
 
-  // R1 Total
   {
     const td = document.createElement("td");
     td.className = "round1-total";
@@ -649,7 +739,6 @@ function addTeam() {
     tr.appendChild(td);
   }
 
-  // --- Round 2 (Q6-Q10): only 0 or 2 ---
   for (let j = 6; j <= 10; j++) {
     const td = document.createElement("td");
     const inp = document.createElement("input");
@@ -663,7 +752,6 @@ function addTeam() {
     tr.appendChild(td);
   }
 
-  // R2 Total
   {
     const td = document.createElement("td");
     const span = document.createElement("span");
@@ -677,7 +765,6 @@ function addTeam() {
     tr.appendChild(td);
   }
 
-  // Half Time (free integer >= 0)
   {
     const td = document.createElement("td");
     const inp = document.createElement("input");
@@ -689,7 +776,6 @@ function addTeam() {
     tr.appendChild(td);
   }
 
-  // First Half Total
   {
     const td = document.createElement("td");
     const span = document.createElement("span");
@@ -700,7 +786,6 @@ function addTeam() {
     tr.appendChild(td);
   }
 
-  // --- Round 3 (Q11-Q15): only 0 or 3 ---
   for (let j = 11; j <= 15; j++) {
     const td = document.createElement("td");
     const inp = document.createElement("input");
@@ -714,7 +799,6 @@ function addTeam() {
     tr.appendChild(td);
   }
 
-  // R3 Total
   {
     const td = document.createElement("td");
     const span = document.createElement("span");
@@ -728,7 +812,6 @@ function addTeam() {
     tr.appendChild(td);
   }
 
-  // --- Round 4 (Q16-Q20): only 0 or 4 ---
   for (let j = 16; j <= 20; j++) {
     const td = document.createElement("td");
     const inp = document.createElement("input");
@@ -742,7 +825,6 @@ function addTeam() {
     tr.appendChild(td);
   }
 
-  // R4 Total
   {
     const td = document.createElement("td");
     const span = document.createElement("span");
@@ -756,19 +838,16 @@ function addTeam() {
     tr.appendChild(td);
   }
 
-  // Final Question (allow negative)
   {
     const td = document.createElement("td");
     const inp = document.createElement("input");
     inp.type = "number";
     inp.id = `finalQuestion${teamCount}`;
-    // IMPORTANT: allow negatives (do NOT set min="0")
     inp.className = "finalquestion-input";
     td.appendChild(inp);
     tr.appendChild(td);
   }
 
-  // Second Half Total
   {
     const td = document.createElement("td");
     const span = document.createElement("span");
@@ -779,7 +858,6 @@ function addTeam() {
     tr.appendChild(td);
   }
 
-  // BONUS column (numeric, right side just left of Final Score)
   {
     const td = document.createElement("td");
     td.className = "bonus-col-right";
@@ -794,7 +872,6 @@ function addTeam() {
     bindBonusInput(inp);
   }
 
-  // Final Score (right sticky col)
   {
     const td = document.createElement("td");
     td.className = "sticky-col-right";
@@ -806,8 +883,6 @@ function addTeam() {
   }
 
   tbody.appendChild(tr);
-
-  // Re-sync sticky widths after layout changes
   updateStickyRightWidths();
 }
 
@@ -819,7 +894,6 @@ function validateInput(input, teamId) {
   const rawValue = input.value;
   dataModified = true;
 
-  // Halftime: allow any non-negative int or empty
   if (id === `halfTime${teamId}`) {
     if (
       rawValue !== "" &&
@@ -831,7 +905,6 @@ function validateInput(input, teamId) {
     return;
   }
 
-  // Final Question: allow any int (negative OK) or empty
   if (id === `finalQuestion${teamId}`) {
     if (rawValue !== "" && isNaN(parseInt(rawValue, 10))) {
       input.value = "0";
@@ -840,26 +913,21 @@ function validateInput(input, teamId) {
     return;
   }
 
-  // For numbered questions:
   const qMatch = id.match(/^num(\d+)(\d+)$/);
   if (qMatch) {
     const qNum = parseInt(qMatch[2], 10);
     if (rawValue === "") {
       // allow empty so user can clear
     } else if (qNum >= 1 && qNum <= 5) {
-      // Round 1: only 0 or 1
       const v = parseInt(rawValue, 10);
       if (isNaN(v) || (v !== 0 && v !== 1)) input.value = "1";
     } else if (qNum >= 6 && qNum <= 10) {
-      // Round 2: only 0 or 2
       const v = parseInt(rawValue, 10);
       if (isNaN(v) || (v !== 0 && v !== 2)) input.value = "2";
     } else if (qNum >= 11 && qNum <= 15) {
-      // Round 3: only 0 or 3
       const v = parseInt(rawValue, 10);
       if (isNaN(v) || (v !== 0 && v !== 3)) input.value = "3";
     } else if (qNum >= 16 && qNum <= 20) {
-      // Round 4: only 0 or 4
       const v = parseInt(rawValue, 10);
       if (isNaN(v) || (v !== 0 && v !== 4)) input.value = "4";
     }
@@ -869,26 +937,21 @@ function validateInput(input, teamId) {
 }
 
 function updateScores(teamId) {
-  const valOrZero = (el) =>
-    el?.value === "" ? 0 : parseInt(el?.value, 10) || 0;
+  const valOrZero = (el) => (el?.value === "" ? 0 : parseInt(el?.value, 10) || 0);
 
-  // Row (for BONUS & checkbox lookup)
   const row = document.querySelector(`tr[data-team-id="${teamId}"]`);
 
-  // Collect Q1..Q20
   const values = [];
   for (let j = 1; j <= 20; j++) {
     const el = document.getElementById(`num${teamId}${j}`);
     values.push(valOrZero(el));
   }
 
-  // Halftime / Final Question
   const halfTimeValue = valOrZero(document.getElementById(`halfTime${teamId}`));
   const finalQuestionValue = valOrZero(
     document.getElementById(`finalQuestion${teamId}`)
   );
 
-  // Totals
   const r1Total = values.slice(0, 5).reduce((a, b) => a + b, 0);
   const r2Total = values.slice(5, 10).reduce((a, b) => a + b, 0);
   const r3Total = values.slice(10, 15).reduce((a, b) => a + b, 0);
@@ -897,9 +960,7 @@ function updateScores(teamId) {
   const firstHalfTotal = r1Total + r2Total + halfTimeValue;
   const secondHalfTotal = r3Total + r4Total + finalQuestionValue;
 
-  // Numeric BONUS column value (>=0, blank treated as 0)
   let bonusValue = 0;
-  // Checkbox 5-point bonus
   let checkboxBonus = 0;
 
   if (row) {
@@ -908,25 +969,19 @@ function updateScores(teamId) {
       row.querySelector("td.bonus-col-right input.bonus-input");
     if (bonusInput && bonusInput.value !== "") {
       const n = parseInt(bonusInput.value, 10);
-      if (!isNaN(n) && n >= 0) {
-        bonusValue = n;
-      } else {
+      if (!isNaN(n) && n >= 0) bonusValue = n;
+      else {
         bonusInput.value = "0";
         bonusValue = 0;
       }
     }
 
     const cb = row.querySelector("input.teamCheckbox");
-    if (cb && cb.checked) {
-      checkboxBonus = 5;
-    }
+    if (cb && cb.checked) checkboxBonus = 5;
   }
 
-  // Final score (FH + SH + BONUS column + checkbox 5-pt bonus)
-  const finalScore =
-    firstHalfTotal + secondHalfTotal + bonusValue + checkboxBonus;
+  const finalScore = firstHalfTotal + secondHalfTotal + bonusValue + checkboxBonus;
 
-  // Update DOM
   const setText = (id, v) => {
     const el = document.getElementById(id);
     if (el) el.textContent = String(v);
@@ -949,13 +1004,11 @@ function updateFinalScore(teamId) {
    Standings modal
 ======================================================= */
 function showStandings() {
-  // ensure all scores current
   for (let i = 1; i <= teamCount; i++) updateScores(i);
 
   const modal = $("#standingsModal");
   if (!modal) return;
 
-  // Display the modal (support both techniques)
   modal.removeAttribute("hidden");
   modal.style.display = "block";
 
@@ -963,14 +1016,12 @@ function showStandings() {
   if (!modalList) return;
   modalList.innerHTML = "";
 
-  // Only include teams that have a real name entered
-  const activeIds = getActiveTeamIds();
+  // ✅ standings should include any NAMED team (not just "touched" rows)
+  const namedIds = getNamedTeamIds();
 
-  // Build ranking base data
   const teams = [];
-  for (const i of activeIds) {
-    const name =
-      document.getElementById(`teamName${i}`)?.value || `Team ${i}`;
+  for (const i of namedIds) {
+    const name = document.getElementById(`teamName${i}`)?.value || `Team ${i}`;
     const finalScore = parseInt(
       document.getElementById(`finalScore${i}`)?.textContent || "0",
       10
@@ -986,29 +1037,25 @@ function showStandings() {
     teams.push({ name, score: finalScore, firstHalf, secondHalf });
   }
 
-  // Sort by score descending (true ranking)
   teams.sort((a, b) => b.score - a.score);
 
-  // Tie-aware ranking: same score => same place
   let currentRank = 0;
   let lastScore = null;
 
   teams.forEach((t, idx) => {
     if (lastScore === null || t.score < lastScore) {
-      currentRank = idx + 1; // only advance rank when score drops
+      currentRank = idx + 1;
       lastScore = t.score;
     }
     t.rank = currentRank;
   });
 
-  // Decide display order: default 1st→last, inverted last→1st
   const orderedTeams = standingsAscending ? [...teams].reverse() : teams;
 
   orderedTeams.forEach((t) => {
     const li = document.createElement("li");
     li.textContent = `${t.rank}) ${t.name} - Score: ${t.score} (First Half: ${t.firstHalf}, Second Half: ${t.secondHalf})`;
 
-    // Medal styling based on rank (not list position)
     if (t.rank === 1) {
       li.style.borderLeft = "6px solid gold";
       li.style.background = "linear-gradient(to right, #3a3a3a, #4a4a3a)";
@@ -1043,9 +1090,9 @@ function levenshteinDistance(str1, str2) {
     for (let i = 1; i <= str1.length; i++) {
       const indicator = str1[i - 1] === str2[j - 1] ? 0 : 1;
       track[j][i] = Math.min(
-        track[j][i - 1] + 1, // deletion
-        track[j - 1][i] + 1, // insertion
-        track[j - 1][i - 1] + indicator // substitution
+        track[j][i - 1] + 1,
+        track[j - 1][i] + 1,
+        track[j - 1][i - 1] + indicator
       );
     }
   }
@@ -1160,10 +1207,10 @@ function scrollToTeam(teamRow) {
 function collectTeamData() {
   const teamsData = [];
 
-  // Only include teams that have a real name entered
-  const activeIds = getActiveTeamIds();
+  // ✅ export should include any NAMED team (not just "touched" rows)
+  const namedIds = getNamedTeamIds();
 
-  for (const i of activeIds) {
+  for (const i of namedIds) {
     const teamName = (document.getElementById(`teamName${i}`)?.value || "").trim();
     const bonusApplied = !!document.getElementById(`checkbox${i}`)?.checked;
 
@@ -1182,7 +1229,6 @@ function collectTeamData() {
     const finalQuestionScore =
       finalQRaw === "" ? null : parseInt(finalQRaw || "0", 10) || 0;
 
-    // BONUS numeric value
     let bonusScore = 0;
     const row = document.querySelector(`tr[data-team-id="${i}"]`);
     if (row) {
@@ -1239,7 +1285,6 @@ function collectTeamData() {
     });
   }
 
-  // include meta fields at top-level
   const meta = getMetaFields();
 
   return {
@@ -1266,44 +1311,31 @@ async function sendDataToAPI(data) {
     ensureDbHandle();
     if (!window.db) throw new Error("Firebase Firestore is not initialized");
 
-    // 1) sign in BEFORE write so rules see request.auth != null
     await ensureSignedIn();
 
-    // 2) coerce payload to satisfy rules
     const safe = { ...data };
     safe.timestamp = new Date().toISOString();
     safe.eventName =
       typeof safe.eventName === "string" && safe.eventName
         ? safe.eventName
         : "Trivia Night";
-    safe.teamCount = Number.isFinite(safe.teamCount)
-      ? Math.trunc(safe.teamCount)
-      : 0;
+    safe.teamCount = Number.isFinite(safe.teamCount) ? Math.trunc(safe.teamCount) : 0;
     safe.teams = Array.isArray(safe.teams) ? safe.teams : [];
 
-    // Meta field coercion
     safe.eventDate =
-      typeof safe.eventDate === "string" && safe.eventDate
-        ? safe.eventDate
-        : null;
+      typeof safe.eventDate === "string" && safe.eventDate ? safe.eventDate : null;
 
     if (!safe.submitter || typeof safe.submitter !== "object")
       safe.submitter = { firstName: "", lastName: "" };
     safe.submitter.firstName =
-      typeof safe.submitter.firstName === "string"
-        ? safe.submitter.firstName
-        : "";
+      typeof safe.submitter.firstName === "string" ? safe.submitter.firstName : "";
     safe.submitter.lastName =
-      typeof safe.submitter.lastName === "string"
-        ? safe.submitter.lastName
-        : "";
+      typeof safe.submitter.lastName === "string" ? safe.submitter.lastName : "";
 
     safe.eventType = typeof safe.eventType === "string" ? safe.eventType : null;
     safe.themeName = typeof safe.themeName === "string" ? safe.themeName : "";
-    safe.venue =
-      typeof safe.venue === "string" && safe.venue ? safe.venue : "other";
+    safe.venue = typeof safe.venue === "string" && safe.venue ? safe.venue : "other";
 
-    // 3) compat write via window.db
     const docRef = await window.db.collection("scores").add(safe);
     console.log("Document written with ID:", docRef.id);
 
@@ -1311,9 +1343,7 @@ async function sendDataToAPI(data) {
     return { id: docRef.id, success: true };
   } catch (error) {
     console.error("Error sending data to Firestore:", error);
-    alert(
-      "Failed to submit scores to Firebase. Please try again or save locally."
-    );
+    alert("Failed to submit scores to Firebase. Please try again or save locally.");
     throw error;
   }
 }
@@ -1354,39 +1384,35 @@ window.addEventListener("beforeunload", (e) => {
    Event delegation + initial setup
 ======================================================= */
 document.addEventListener("DOMContentLoaded", () => {
-  // initialize & bind meta fields
   setDefaultEventDateToday();
   bindMetaFieldListeners();
   updateThemeFieldVisibility();
 
-  // Ensure tbody exists
+  // ✅ Venues dropdown (Firestore locations)
+  startVenuesListener().catch((e) => console.error("[venues] init failed:", e));
+
   const table = $("#teamTable");
   if (table && !table.querySelector("tbody")) {
     table.appendChild(document.createElement("tbody"));
   }
 
-  // Add 5 default teams
   for (let i = 1; i <= 5; i++) addTeam();
   dataModified = false;
 
-  // Also bind any BONUS inputs that may exist in static HTML (safety)
   $all("td.bonus-col-right input", table).forEach(bindBonusInput);
+});
 
-  // Initial sync of sticky widths
   updateStickyRightWidths();
 
-  // Re-sync on resize/orientation changes (debounced)
   const recalcSticky = debounce(updateStickyRightWidths, 100);
   window.addEventListener("resize", recalcSticky);
   window.addEventListener("orientationchange", recalcSticky);
   window.addEventListener("load", recalcSticky);
 
-  // Delegate input events for all score inputs (CSP friendly)
   table?.addEventListener("input", (e) => {
     const target = e.target;
     if (!(target instanceof HTMLInputElement)) return;
 
-    // Team row + id
     const row = target.closest("tr[data-team-id]");
     if (!row) return;
     const teamId = parseInt(row.dataset.teamId || "0", 10);
@@ -1397,8 +1423,7 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    // ✅ mark score inputs as "touched" ONLY when the USER actually typed (trusted)
-    // This is the key to ignoring the default 5 rows where scripts set 0s.
+    // mark score inputs as "touched" ONLY when user actually typed (trusted)
     if (e.isTrusted) {
       if (
         target.classList.contains("bonus-input") ||
@@ -1410,7 +1435,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
 
-    // BONUS numeric column
     if (target.classList.contains("bonus-input")) {
       dataModified = true;
       if (
@@ -1423,7 +1447,6 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    // Only validate score-ish inputs
     if (
       target.id === `halfTime${teamId}` ||
       target.id === `finalQuestion${teamId}` ||
@@ -1433,7 +1456,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Checkbox change → recompute final score (+5 if checked)
   table?.addEventListener("change", (e) => {
     const target = e.target;
     if (!(target instanceof HTMLInputElement)) return;
@@ -1447,7 +1469,6 @@ document.addEventListener("DOMContentLoaded", () => {
     updateFinalScore(teamId);
   });
 
-  // Buttons
   const btnAddTeam = $("#btnAddTeam");
   if (btnAddTeam && !btnAddTeam.dataset.bound) {
     btnAddTeam.addEventListener("click", () => addTeam());
@@ -1466,13 +1487,10 @@ document.addEventListener("DOMContentLoaded", () => {
     btnCloseModal.dataset.bound = "1";
   }
 
-  // Click on dark overlay closes modal (but not clicks inside modal-content)
   const modal = $("#standingsModal");
   if (modal && !modal.dataset.boundOverlay) {
     modal.addEventListener("click", (e) => {
-      if (e.target === modal) {
-        closeModal();
-      }
+      if (e.target === modal) closeModal();
     });
     modal.dataset.boundOverlay = "1";
   }
@@ -1480,10 +1498,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnSubmit = $("#btnSubmitScores");
   if (btnSubmit && !btnSubmit.dataset.bound) {
     btnSubmit.addEventListener("click", async () => {
-      // ✅ required meta fields (top inputs) guard
-      if (!validateRequiredMetaFieldsBeforeSubmit()) return;
+      const metaCheck = validateMetaFieldsBeforeSubmit();
+      if (!metaCheck.ok) return;
 
-      // ✅ warn user FIRST if any scoresheet inputs are blank (ACTIVE rows only)
       const blanks = countEmptyScoresheetCells();
       if (blanks > 0) {
         const ok = confirm(
@@ -1492,11 +1509,9 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!ok) return;
       }
 
-      // Then fill blanks with zero (scoresheet only; active rows only; not meta)
       const changed = fillEmptyScoresheetWithZeros();
       if (changed > 0) markAsModified();
 
-      // Recompute totals before submit
       for (let i = 1; i <= teamCount; i++) updateScores(i);
 
       const scoresData = collectTeamData();
@@ -1524,7 +1539,6 @@ document.addEventListener("DOMContentLoaded", () => {
     btnSubmit.dataset.bound = "1";
   }
 
-  // Search field wiring
   const searchInput = $("#teamSearch");
   if (searchInput && !searchInput.dataset.bound) {
     searchInput.addEventListener("keyup", (e) => {
@@ -1547,15 +1561,11 @@ document.addEventListener("DOMContentLoaded", () => {
     btnSearch.dataset.bound = "1";
   }
 
-  // Invert standings button (inside modal)
   const btnInvert = $("#btnInvertStandings");
   if (btnInvert && !btnInvert.dataset.bound) {
     btnInvert.addEventListener("click", () => {
       standingsAscending = !standingsAscending;
-      btnInvert.setAttribute(
-        "aria-pressed",
-        standingsAscending ? "true" : "false"
-      );
+      btnInvert.setAttribute("aria-pressed", standingsAscending ? "true" : "false");
       showStandings();
     });
     btnInvert.dataset.bound = "1";
@@ -1570,9 +1580,6 @@ window.showStandings = showStandings;
 window.closeModal = closeModal;
 window.searchTeams = searchTeams;
 window.clearHighlights = clearHighlights;
-
-window.validateRequiredMetaFieldsBeforeSubmit =
-  validateRequiredMetaFieldsBeforeSubmit;
 
 /* =======================================================
    GRID ENFORCER / NAV / Q-SNAPS / FINAL NEG

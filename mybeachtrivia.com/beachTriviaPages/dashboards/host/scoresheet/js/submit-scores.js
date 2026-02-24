@@ -7,25 +7,15 @@
    3) Avoid document.getElementById("num{teamId}{q}") collisions (team 11/21 bug):
       - Always resolve num* inputs within that team's row.
 
-   Restores legacy-ish behavior:
-   - Confirm before submit
-   - If user cancels, download locally (JSON)
-   - If user closes/refreshes with unsaved changes, keep a local autosave (localStorage)
-   - On submit success, clear autosave + mark clean
-
-   Validations:
-   - Before submit:
-     1) Validate top meta fields (date/first/last/event type/venue/theme rules)
-        - Auto-fill Theme Name for Classic Trivia / Feud / Private Event (if blank)
-        - Require Theme Name for Themed Trivia (must be user input)
-     2) For rows that have a Team Name:
-        - detect missing numeric fields (Q1–Q20, halftime, final question, bonus)
-        - prompt once: fill missing with 0?
-        - if Yes → fill ONLY those missing fields in ONLY those named rows
-        - if No → abort submit
-
-   Firestore fallback:
-   - Writes to /scores
+   Offline/Venue rules:
+   - OFFLINE (ScoresheetState.isOffline() === true):
+       • venueInput is REQUIRED
+       • payload.meta.venueName is the typed venue name (venueSource: "manual")
+   - ONLINE:
+       • venueSelect is REQUIRED
+       • disallow "other" unless implemented
+       • payload.meta.venueId is the selected location doc id
+       • payload.meta.venueName is the selected option label (human name)
 
    Exposes:
      - window.handleSubmitScores()
@@ -83,6 +73,63 @@
     return v === null || v === undefined || String(v).trim() === "";
   }
 
+  // ---------- Offline + Venue helpers ----------
+  function isOfflineNow() {
+    try {
+      if (window.ScoresheetState?.isOffline) return !!window.ScoresheetState.isOffline();
+      if (typeof navigator !== "undefined") return !navigator.onLine;
+      return false;
+    } catch {
+      return false;
+    }
+  }
+
+  function getVenueEls() {
+    return {
+      selectEl: $("#venueSelect"),
+      inputEl: $("#venueInput"),
+    };
+  }
+
+  function getSelectedOptionText(selectEl) {
+    try {
+      const idx = selectEl?.selectedIndex ?? -1;
+      if (!selectEl || idx < 0) return "";
+      const opt = selectEl.options[idx];
+      return (opt?.textContent || "").trim();
+    } catch {
+      return "";
+    }
+  }
+
+  // ✅ Single source of truth for venue selection (used by BOTH validation + payload)
+  function getVenueResolved() {
+    const { selectEl, inputEl } = getVenueEls();
+    const offline = isOfflineNow();
+
+    const inputVal = String(inputEl?.value || "").trim();
+    const selectVal = String(selectEl?.value || "").trim();
+
+    if (offline) {
+      return {
+        offline,
+        venueSource: "manual",
+        venueId: "",
+        venueName: inputVal, // typed
+      };
+    }
+
+    // ONLINE: dropdown only (no "other" allowed)
+    const venueId = selectVal && selectVal !== "other" && selectVal !== "loading" ? selectVal : "";
+    const venueName = venueId ? getSelectedOptionText(selectEl) : "";
+    return {
+      offline,
+      venueSource: "dropdown",
+      venueId,
+      venueName,
+    };
+  }
+
   // ---------- Meta ----------
   function getMetaEls() {
     return {
@@ -90,7 +137,6 @@
       firstEl: $("#submitterFirstName"),
       lastEl: $("#submitterLastName"),
       eventTypeEl: $("#eventType"),
-      venueEl: $("#venueSelect"),
       themeEl: $("#themeName"),
     };
   }
@@ -121,7 +167,6 @@
     if (!eventTypeEl || !themeEl) return;
 
     const eventType = normalizeEventType(eventTypeEl.value);
-
     if (isThemedTrivia(eventType)) return;
 
     const def = defaultThemeForEventType(eventType);
@@ -137,21 +182,42 @@
   }
 
   function validateMetaOrPromptFix() {
+    // Prefer centralized validator if present, but it might not be offline-aware.
+    // If it fails only for Venue, we re-check with our resolver.
     if (typeof window.validateRequiredMetaFieldsBeforeSubmit === "function") {
       const res = window.validateRequiredMetaFieldsBeforeSubmit();
       if (res?.ok) return { ok: true };
-      alert("Please complete:\n\n• " + (res?.missing || []).join("\n• "));
-      return { ok: false, missing: res?.missing || [] };
+
+      const missing = Array.isArray(res?.missing) ? res.missing.slice() : [];
+      const venueInfo = getVenueResolved();
+
+      // If the ONLY real issue is venue (common with stale cached meta-fields.js),
+      // ensure we validate venue correctly here.
+      const venueMissing = isBlank(venueInfo.venueName) || (!venueInfo.offline && isBlank(venueInfo.venueId));
+      const missingWithoutVenue = missing.filter((m) => String(m).toLowerCase() !== "venue");
+
+      if (!venueMissing && missing.length && missingWithoutVenue.length === 0) {
+        return { ok: true };
+      }
+
+      // otherwise show the original list (plus ensure Venue is included if needed)
+      const finalMissing = missingWithoutVenue.slice();
+      if (venueMissing) finalMissing.push("Venue");
+
+      alert("Please complete:\n\n• " + finalMissing.join("\n• "));
+      return { ok: false, missing: finalMissing };
     }
 
-    const { eventDateEl, firstEl, lastEl, eventTypeEl, venueEl, themeEl } = getMetaEls();
-
+    const { eventDateEl, firstEl, lastEl, eventTypeEl, themeEl } = getMetaEls();
     const missing = [];
+
     if (!eventDateEl || isBlank(eventDateEl.value)) missing.push("Date");
     if (!firstEl || isBlank(firstEl.value)) missing.push("First Name");
     if (!lastEl || isBlank(lastEl.value)) missing.push("Last Name");
     if (!eventTypeEl || isBlank(eventTypeEl.value)) missing.push("Event Type");
-    if (!venueEl || isBlank(venueEl.value)) missing.push("Venue");
+
+    const venueInfo = getVenueResolved();
+    if (isBlank(venueInfo.venueName) || (!venueInfo.offline && isBlank(venueInfo.venueId))) missing.push("Venue");
 
     const eventType = normalizeEventType(eventTypeEl?.value);
     const themeVal = (themeEl?.value || "").trim();
@@ -173,15 +239,15 @@
   }
 
   function getMeta() {
-    const { eventDateEl, firstEl, lastEl, eventTypeEl, venueEl, themeEl } = getMetaEls();
+    const { eventDateEl, firstEl, lastEl, eventTypeEl, themeEl } = getMetaEls();
 
     const eventDate = (eventDateEl?.value || "").trim();
     const submitterFirstName = (firstEl?.value || "").trim();
     const submitterLastName = (lastEl?.value || "").trim();
     const eventType = normalizeEventType(eventTypeEl?.value);
-    const venueSelect = (venueEl?.value || "").trim();
     const themeName = (themeEl?.value || "").trim();
 
+    const venueInfo = getVenueResolved();
     const eventName = (isThemedTrivia(eventType) ? themeName : "") || eventType || "";
 
     return {
@@ -191,7 +257,10 @@
       submitterLastName,
       eventType,
       eventName,
-      venue: venueSelect,
+      venueId: venueInfo.venueId,
+      venueName: venueInfo.venueName,
+      venueSource: venueInfo.venueSource,
+      offline: venueInfo.offline,
       themeName,
     };
   }
@@ -225,7 +294,6 @@
   }
 
   function getFinalScore(row, teamId) {
-    // finalScore ids do NOT collide, but keep row-safe anyway
     const span =
       row.querySelector(`span#finalScore${teamId}`) ||
       row.querySelector("td.sticky-col-right span[id^='finalScore']") ||
@@ -349,7 +417,6 @@
   }
 
   function collectTeams() {
-    // ✅ ONLY named teams
     const rows = getNamedTeamRows();
     const teams = [];
 
@@ -388,13 +455,12 @@
 
   function buildPayloadForFirestoreScores() {
     const meta = getMeta();
-    const teams = collectTeams(); // ✅ named only
+    const teams = collectTeams();
 
     return {
       timestamp: meta.timestamp,
       eventName: meta.eventName || "Scoresheet",
 
-      // ✅ correct count: named teams only
       teamCount: teams.length,
       teams,
 
@@ -403,13 +469,21 @@
         submitterFirstName: meta.submitterFirstName,
         submitterLastName: meta.submitterLastName,
         eventType: meta.eventType,
-        venue: meta.venue,
+
+        // ✅ consistent + explicit venue fields
+        venueId: meta.venueId,
+        venueName: meta.venueName,
+        venueSource: meta.venueSource,
+        offline: meta.offline,
+
         themeName: meta.themeName,
+
+        // ✅ back-compat for older readers
+        venue: meta.venueName,
       },
+
       submittedAt: meta.timestamp,
-      standingsAscending: !!(
-        window.ScoresheetState?.state?.standingsAscending ?? window.standingsAscending
-      ),
+      standingsAscending: !!(window.ScoresheetState?.state?.standingsAscending ?? window.standingsAscending),
       page: { path: location.pathname, href: location.href },
       versionHints: { splitFiles: true },
     };
@@ -437,7 +511,7 @@
 
   function buildFilename(meta) {
     const date = (meta?.eventDate || "").replaceAll("-", "");
-    const venue = (meta?.venue || "").replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "");
+    const venue = (meta?.venueName || meta?.venue || "").replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "");
     const type = (meta?.eventType || "").replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "");
     const theme = (meta?.themeName || "").replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "");
     const base = ["scoresheet", date || "nodate", venue || "novenue", type || "notype", theme || ""]
@@ -535,7 +609,6 @@
 
   async function handleSubmitScores() {
     ensureBeforeUnloadHook();
-
     applyThemeDefaultIfNeeded();
 
     const metaCheck = validateMetaOrPromptFix();
@@ -560,6 +633,12 @@
 
     if (!payload.teams.length) {
       alert("No NAMED teams found to submit. Enter at least one Team Name first.");
+      return;
+    }
+
+    // Safety: if venue still somehow blank, block submission
+    if (isBlank(payload?.meta?.venueName) || (!payload?.meta?.offline && isBlank(payload?.meta?.venueId))) {
+      alert("Please complete:\n\n• Venue");
       return;
     }
 

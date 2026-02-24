@@ -1,66 +1,156 @@
 /* venues.js
-   Populates the #venueSelect dropdown from Firestore collection 'locations'
-   (same source as admin locations-management).
+   Populates #venueSelect from Firestore collection 'locations'
 
-   - Uses compat Firestore (window.db or firebase.firestore()).
-   - Filters out inactive locations (active === false).
-   - Keeps "Other" option.
+   ✅ Responsibilities (ONLY):
+   - Populate the Venue <select> from Firestore
+   - Detect Firestore reachability:
+       - onSnapshot "server-backed" => ONLINE
+       - onSnapshot "from cache"    => OFFLINE (real internet off / can't reach server)
+       - onSnapshot error           => OFFLINE (ONLY for network/unavailable)
+   - Notify state.js via window.ScoresheetState.setOffline(...)
+   - Ensure meta validator can see a "real" venue value ONLINE:
+       • If options refresh, keep previous selection if still valid
+       • If current value is invalid (loading/other/blank), set ""
+
+   ❌ Does NOT:
+   - Swap #venueSelect into an <input>
+   - Touch #offlineBadge / #onlineBadge
+   - Manage #venueInput (state.js owns UI)
 */
 (function () {
-    "use strict";
-  
-    function getDb() {
-      if (window.FirebaseHelpers?.getDb) return window.FirebaseHelpers.getDb();
-      if (window.db) return window.db;
-      if (window.firebase?.firestore) return window.firebase.firestore();
-      throw new Error("Firestore not available (db missing).");
+  "use strict";
+
+  let unsubscribe = null;
+  let started = false;
+
+  function getDb() {
+    if (window.FirebaseHelpers?.getDb) return window.FirebaseHelpers.getDb();
+    if (window.db) return window.db;
+    if (window.firebase?.firestore) return window.firebase.firestore();
+    throw new Error("Firestore not available (db missing).");
+  }
+
+  function getVenueSelect() {
+    return document.getElementById("venueSelect");
+  }
+
+  function setAppOffline(isOffline) {
+    try {
+      if (window.ScoresheetState?.setOffline) window.ScoresheetState.setOffline(!!isOffline);
+    } catch (_) {}
+  }
+
+  function stopListener() {
+    try {
+      if (typeof unsubscribe === "function") unsubscribe();
+    } catch (_) {}
+    unsubscribe = null;
+  }
+
+  function normalizeValue(v) {
+    return String(v || "").trim();
+  }
+
+  function setOptions(selectEl, locations) {
+    const prev = normalizeValue(selectEl.value);
+
+    const opts = [
+      { value: "", label: "Choose..." },
+      ...locations.map((loc) => ({ value: loc.id, label: loc.name })),
+      { value: "other", label: "Other" },
+    ];
+
+    selectEl.innerHTML = "";
+    for (const o of opts) {
+      const opt = document.createElement("option");
+      opt.value = o.value;
+      opt.textContent = o.label;
+      selectEl.appendChild(opt);
     }
-  
-    function setOptions(selectEl, locations) {
-      // Preserve current selection if possible
-      const prev = selectEl.value;
-  
-      // Build options
-      const opts = [];
-  
-      opts.push({ value: "", label: "Choose..." });
-      locations.forEach((loc) => {
-        opts.push({ value: loc.id, label: loc.name });
-      });
-      opts.push({ value: "other", label: "Other" });
-  
-      // Replace DOM options
-      selectEl.innerHTML = "";
-      for (const o of opts) {
-        const opt = document.createElement("option");
-        opt.value = o.value;
-        opt.textContent = o.label;
-  
-        // Default select behavior:
-        // - If previous value exists in new set, keep it
-        // - else keep "Choose..."
-        selectEl.appendChild(opt);
-      }
-  
-      // Restore selection if still valid
-      const hasPrev = opts.some((o) => o.value === prev);
-      selectEl.value = hasPrev ? prev : "";
-  
-      // If the HTML had a "loading" value selected, this makes it sane
-      if (selectEl.value === "loading") selectEl.value = "";
+
+    // restore previous selection if still valid
+    const hasPrev = opts.some((o) => o.value === prev);
+    selectEl.value = hasPrev ? prev : "";
+
+    // never leave "loading" behind
+    if (selectEl.value === "loading") selectEl.value = "";
+
+    // Meta validator rejects "other" online, so normalize it to blank.
+    if (selectEl.value === "other") selectEl.value = "";
+  }
+
+  function shouldTreatAsOfflineError(err) {
+    const code = String(err?.code || "").toLowerCase();
+
+    // ✅ Not "offline": this is auth/rules, not connectivity.
+    if (code === "permission-denied" || code === "unauthenticated") return false;
+
+    // ✅ "offline": transient connectivity / backend unavailable
+    if (
+      code === "unavailable" ||
+      code === "deadline-exceeded" ||
+      code === "resource-exhausted" ||
+      code === "internal"
+    ) {
+      return true;
     }
-  
-    function startVenuesListener() {
-      const selectEl = document.getElementById("venueSelect");
-      if (!selectEl) return;
-  
-      const db = getDb();
-  
-      // Listen to locations; filter active in JS (avoids where+orderBy index needs)
-      db.collection("locations")
+
+    // If we can't classify it, fall back to browser online signal.
+    // If browser claims online, do NOT force OFFLINE badge due to unknown error.
+    try {
+      if (typeof navigator !== "undefined" && navigator.onLine === true) return false;
+    } catch {}
+
+    return true;
+  }
+
+  function ensureSignedInIfPossible() {
+    const ensure = window.FirebaseHelpers?.ensureSignedIn || window.ensureSignedIn || null;
+    if (typeof ensure !== "function") return Promise.resolve();
+
+    try {
+      const out = ensure();
+      return out && typeof out.then === "function" ? out : Promise.resolve(out);
+    } catch (e) {
+      return Promise.resolve(); // don't hard-fail venues; listener will report what happens
+    }
+  }
+
+  function startVenuesListener() {
+    const el = getVenueSelect();
+    if (!el) return;
+
+    // If DevTools forces offline, bail quickly
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      stopListener();
+      setAppOffline(true);
+      return;
+    }
+
+    let db;
+    try {
+      db = getDb();
+    } catch (e) {
+      console.error("[venues] getDb failed:", e);
+      setAppOffline(true);
+      return;
+    }
+
+    stopListener();
+
+    try {
+      unsubscribe = db
+        .collection("locations")
         .orderBy("name")
         .onSnapshot(
+          // ✅ Critical: Firestore can "succeed" while offline by serving cache.
+          // We need metadata changes so fromCache flips are observable.
+          { includeMetadataChanges: true },
           (snap) => {
+            // ✅ ONLINE only when this snapshot is server-backed (not cache)
+            const fromCache = !!snap?.metadata?.fromCache;
+            setAppOffline(fromCache);
+
             const locations = [];
             snap.forEach((doc) => {
               const d = doc.data() || {};
@@ -68,52 +158,77 @@
               const name = (d.name || "").trim();
               if (!active) return;
               if (!name) return;
-  
               locations.push({ id: doc.id, name });
             });
-  
-            setOptions(selectEl, locations);
+
+            setOptions(el, locations);
           },
           (err) => {
-            console.error("Venue listener error:", err);
-  
-            // Fallback: remove the "loading" placeholder so user can pick Other
-            try {
-              const hasOther = Array.from(selectEl.options).some((o) => o.value === "other");
-              selectEl.innerHTML = "";
-              const optChoose = document.createElement("option");
-              optChoose.value = "";
-              optChoose.textContent = "Choose...";
-              selectEl.appendChild(optChoose);
-  
-              if (hasOther) {
-                const optOther = document.createElement("option");
-                optOther.value = "other";
-                optOther.textContent = "Other";
-                selectEl.appendChild(optOther);
-              }
-            } catch (_) {}
+            console.error("[venues] listener error:", err);
+
+            // ✅ auth/rules errors are NOT "offline"
+            if (!shouldTreatAsOfflineError(err)) {
+              // If browser is online, keep ONLINE badge; Firestore listener may recover after auth.
+              setAppOffline(false);
+              return;
+            }
+
+            // network/unavailable => OFFLINE
+            stopListener();
+            setAppOffline(true);
           }
         );
+    } catch (e) {
+      console.error("[venues] onSnapshot threw:", e);
+      stopListener();
+      setAppOffline(true);
     }
-  
-    function init() {
-      // If auth is required for reads, sign in anonymously first (if available)
-      if (typeof window.ensureSignedIn === "function") {
-        window.ensureSignedIn()
-          .then(startVenuesListener)
-          .catch((e) => {
-            console.warn("Anonymous sign-in failed; trying venues listener anyway:", e);
-            startVenuesListener();
-          });
-      } else {
-        startVenuesListener();
-      }
-    }
-  
-    if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", init, { once: true });
-    } else {
-      init();
-    }
-  })();
+  }
+
+  function restartWithAuth() {
+    // ✅ when coming back online, re-auth THEN attach listener
+    ensureSignedInIfPossible()
+      .catch(() => {})
+      .finally(() => startVenuesListener());
+  }
+
+  function bindConnectivityListeners() {
+    window.addEventListener(
+      "online",
+      () => {
+        restartWithAuth();
+      },
+      { passive: true }
+    );
+
+    window.addEventListener(
+      "offline",
+      () => {
+        stopListener();
+        setAppOffline(true);
+      },
+      { passive: true }
+    );
+  }
+
+  function init() {
+    if (started) return;
+    started = true;
+
+    if (!getVenueSelect()) return;
+
+    bindConnectivityListeners();
+
+    // Default OFFLINE until Firestore proves online
+    // (prevents “fake online” due to SW caching on first load)
+    setAppOffline(true);
+
+    restartWithAuth();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init, { once: true });
+  } else {
+    init();
+  }
+})();

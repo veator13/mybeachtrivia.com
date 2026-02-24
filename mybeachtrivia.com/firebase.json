@@ -6,7 +6,9 @@
       "firebase.json",
       "**/.*",
       "**/node_modules/**",
-      "functions_gcfv1/**"
+      "functions_gcfv1/**",
+      "app.js",
+      "app.js.*"
     ],
     "headers": [
       {

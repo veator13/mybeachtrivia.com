@@ -176,46 +176,78 @@
     return { leftGutter, rightGutter };
   }
 
+  function computeVisibleBounds(wrapper) {
+    const wrapRect = wrapper.getBoundingClientRect();
+    const { leftGutter, rightGutter } = getStickyGutters(wrapper);
+    const margin = 12;
+
+    return {
+      wrapRect,
+      leftGutter,
+      rightGutter,
+      margin,
+      visibleLeft: wrapRect.left + leftGutter + margin,
+      visibleRight: wrapRect.right - rightGutter - margin,
+      visibleTop: wrapRect.top + margin,
+      visibleBottom: wrapRect.bottom - margin,
+    };
+  }
+
   function ensureCellInView(focusEl) {
     const wrapper = findScrollWrapper();
     if (!wrapper || !focusEl) return;
 
     const cell = focusEl.closest("td,th") || focusEl;
 
-    const wrapRect = wrapper.getBoundingClientRect();
     const cellRect = cell.getBoundingClientRect();
-
-    const { leftGutter, rightGutter } = getStickyGutters(wrapper);
-    const margin = 12;
-
-    const visibleLeft = wrapRect.left + leftGutter + margin;
-    const visibleRight = wrapRect.right - rightGutter - margin;
-    const visibleTop = wrapRect.top + margin;
-    const visibleBottom = wrapRect.bottom - margin;
+    const b = computeVisibleBounds(wrapper);
 
     // Horizontal
-    if (cellRect.left < visibleLeft) {
-      wrapper.scrollLeft -= (visibleLeft - cellRect.left);
-    } else if (cellRect.right > visibleRight) {
-      wrapper.scrollLeft += (cellRect.right - visibleRight);
+    if (cellRect.left < b.visibleLeft) {
+      wrapper.scrollLeft -= (b.visibleLeft - cellRect.left);
+    } else if (cellRect.right > b.visibleRight) {
+      wrapper.scrollLeft += (cellRect.right - b.visibleRight);
     }
 
     // Vertical
-    if (cellRect.top < visibleTop) {
-      wrapper.scrollTop -= (visibleTop - cellRect.top);
-    } else if (cellRect.bottom > visibleBottom) {
-      wrapper.scrollTop += (cellRect.bottom - visibleBottom);
+    if (cellRect.top < b.visibleTop) {
+      wrapper.scrollTop -= (b.visibleTop - cellRect.top);
+    } else if (cellRect.bottom > b.visibleBottom) {
+      wrapper.scrollTop += (cellRect.bottom - b.visibleBottom);
     }
   }
 
+  // UPDATED: fixes sticky-column "scrollLeft jitter" WITHOUT breaking ensureCellInView
   function focusEl(el) {
     if (!el) return false;
+
+    const wrapper = findScrollWrapper();
+    const prevLeft = wrapper ? wrapper.scrollLeft : null;
+
     try {
-      // preventScroll so we can do our own "sticky-aware" scroll
+      // 1) Focus without letting the browser auto-scroll
       el.focus({ preventScroll: true });
+
+      // 2) Determine if horizontal scroll is actually needed to reveal the cell
+      let needHorizontalScroll = false;
+      if (wrapper) {
+        const cell = el.closest("td,th") || el;
+        const cellRect = cell.getBoundingClientRect();
+        const b = computeVisibleBounds(wrapper);
+        needHorizontalScroll =
+          cellRect.left < b.visibleLeft || cellRect.right > b.visibleRight;
+      }
+
+      // 3) Our sticky-aware scroll logic
       ensureCellInView(el);
 
-      // Keep your "select all" behavior (works great for score cells)
+      // 4) If no horizontal scroll was needed, but scrollLeft changed anyway,
+      //    it was likely browser jitter; restore.
+      if (wrapper && prevLeft != null && !needHorizontalScroll) {
+        if (wrapper.scrollLeft !== prevLeft) wrapper.scrollLeft = prevLeft;
+      }
+
+      // Keep your "select all" behavior
       if (typeof el.select === "function") el.select();
       return true;
     } catch {
