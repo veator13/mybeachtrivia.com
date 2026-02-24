@@ -60,6 +60,16 @@
     return type === "number";
   }
 
+  function isStickyControl(el) {
+    if (!el) return false;
+    if (el.classList?.contains("teamName")) return true;
+    if (el.classList?.contains("teamCheckbox")) return true;
+    const cell = el.closest?.("td,th");
+    if (!cell) return false;
+    const cs = getComputedStyle(cell);
+    return cs.position === "sticky";
+  }
+
   // ---- dirty tracking ----
   function markDirty() {
     try {
@@ -193,61 +203,57 @@
     };
   }
 
-  function ensureCellInView(focusEl) {
+  function ensureCellInView(focusEl, opts) {
     const wrapper = findScrollWrapper();
     if (!wrapper || !focusEl) return;
 
+    const options = Object.assign({ horizontal: true, vertical: true }, opts || {});
     const cell = focusEl.closest("td,th") || focusEl;
 
     const cellRect = cell.getBoundingClientRect();
     const b = computeVisibleBounds(wrapper);
 
-    // Horizontal
-    if (cellRect.left < b.visibleLeft) {
-      wrapper.scrollLeft -= (b.visibleLeft - cellRect.left);
-    } else if (cellRect.right > b.visibleRight) {
-      wrapper.scrollLeft += (cellRect.right - b.visibleRight);
+    if (options.horizontal) {
+      if (cellRect.left < b.visibleLeft) {
+        wrapper.scrollLeft -= (b.visibleLeft - cellRect.left);
+      } else if (cellRect.right > b.visibleRight) {
+        wrapper.scrollLeft += (cellRect.right - b.visibleRight);
+      }
     }
 
-    // Vertical
-    if (cellRect.top < b.visibleTop) {
-      wrapper.scrollTop -= (b.visibleTop - cellRect.top);
-    } else if (cellRect.bottom > b.visibleBottom) {
-      wrapper.scrollTop += (cellRect.bottom - b.visibleBottom);
+    if (options.vertical) {
+      if (cellRect.top < b.visibleTop) {
+        wrapper.scrollTop -= (b.visibleTop - cellRect.top);
+      } else if (cellRect.bottom > b.visibleBottom) {
+        wrapper.scrollTop += (cellRect.bottom - b.visibleBottom);
+      }
     }
   }
 
-  // UPDATED: fixes sticky-column "scrollLeft jitter" WITHOUT breaking ensureCellInView
+  function findQ1InRow(tr) {
+    if (!tr) return null;
+    return (
+      tr.querySelector("input.round1-input") ||
+      tr.querySelector('input[id^="num"][class*="round1"]') ||
+      tr.querySelector('input[id^="num"]') ||
+      tr.querySelector('input[type="number"]')
+    );
+  }
+
+  // UPDATED:
+  // - Sticky controls (team name / like) will NOT change horizontal scroll.
+  // - Non-sticky cells still auto-scroll into view (sticky-aware).
   function focusEl(el) {
     if (!el) return false;
 
-    const wrapper = findScrollWrapper();
-    const prevLeft = wrapper ? wrapper.scrollLeft : null;
-
     try {
-      // 1) Focus without letting the browser auto-scroll
       el.focus({ preventScroll: true });
 
-      // 2) Determine if horizontal scroll is actually needed to reveal the cell
-      let needHorizontalScroll = false;
-      if (wrapper) {
-        const cell = el.closest("td,th") || el;
-        const cellRect = cell.getBoundingClientRect();
-        const b = computeVisibleBounds(wrapper);
-        needHorizontalScroll =
-          cellRect.left < b.visibleLeft || cellRect.right > b.visibleRight;
-      }
+      const sticky = isStickyControl(el);
 
-      // 3) Our sticky-aware scroll logic
-      ensureCellInView(el);
+      // Sticky controls: never change horizontal scroll
+      ensureCellInView(el, { horizontal: !sticky, vertical: true });
 
-      // 4) If no horizontal scroll was needed, but scrollLeft changed anyway,
-      //    it was likely browser jitter; restore.
-      if (wrapper && prevLeft != null && !needHorizontalScroll) {
-        if (wrapper.scrollLeft !== prevLeft) wrapper.scrollLeft = prevLeft;
-      }
-
-      // Keep your "select all" behavior
       if (typeof el.select === "function") el.select();
       return true;
     } catch {
@@ -330,8 +336,33 @@
     }
   }
 
+  // UPDATED:
+  // - Always detect "bonus -> right arrow -> next row teamName" even when bonus is a number input (no selectionStart).
+  // - In ONLY that case, bring Q1 into view after focus moves.
   function handleArrowLeftRight(el, dir) {
     if (!el) return false;
+
+    const isRight = dir > 0;
+    const isBonus = !!el.classList?.contains("bonus-input");
+    const fromRow = findRow(el);
+
+    function maybeBringQ1IntoView() {
+      if (!isRight || !isBonus || !fromRow) return;
+
+      const active = document.activeElement;
+      const toRow = findRow(active);
+
+      if (
+        toRow &&
+        toRow === fromRow.nextElementSibling &&
+        active &&
+        active.classList &&
+        active.classList.contains("teamName")
+      ) {
+        const q1 = findQ1InRow(toRow);
+        if (q1) ensureCellInView(q1, { horizontal: true, vertical: false });
+      }
+    }
 
     if (canUseCaret(el)) {
       const len = getLen(el);
@@ -340,7 +371,6 @@
 
       if (ss == null || se == null) return false;
 
-      // If selection exists, collapse it toward the arrow direction
       if (ss !== se) {
         const newPos = dir < 0 ? Math.min(ss, se) : Math.max(ss, se);
         moveCaret(el, newPos);
@@ -354,29 +384,30 @@
           moveCaret(el, caret - 1);
           return true;
         }
-        // at start -> hop
         finalizeCellOnLeave(el);
-        if (!moveWithinRow(el, -1)) moveNextGridInput(el, -1);
+        moveWithinRow(el, -1) || moveNextGridInput(el, -1);
         return true;
       } else {
         if (caret < len) {
           moveCaret(el, caret + 1);
           return true;
         }
-        // at end -> hop
         finalizeCellOnLeave(el);
-        if (!moveWithinRow(el, +1)) moveNextGridInput(el, +1);
+        moveWithinRow(el, +1) || moveNextGridInput(el, +1);
+        maybeBringQ1IntoView();
         return true;
       }
     }
 
-    // fallback
+    // fallback for inputs without caret APIs (number inputs, etc.)
     finalizeCellOnLeave(el);
+
     if (dir < 0) {
-      if (!moveWithinRow(el, -1)) moveNextGridInput(el, -1);
+      moveWithinRow(el, -1) || moveNextGridInput(el, -1);
       return true;
     } else {
-      if (!moveWithinRow(el, +1)) moveNextGridInput(el, +1);
+      moveWithinRow(el, +1) || moveNextGridInput(el, +1);
+      maybeBringQ1IntoView();
       return true;
     }
   }
