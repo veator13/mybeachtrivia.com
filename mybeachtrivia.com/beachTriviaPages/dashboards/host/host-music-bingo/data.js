@@ -1,30 +1,3 @@
-
-// --- Snapshot the selected playlist into the game so players never read /playlists ---
-async function snapshotPlaylistIntoGame(db, gameId, playlistId) {
-  try {
-    const primary = await getDoc(doc(db, 'playlists', playlistId));
-    let snap = primary, source = 'playlists';
-    if (!primary.exists()) {
-      const legacy = await getDoc(doc(db, 'music_bingo', playlistId));
-      snap = legacy; source = 'music_bingo';
-    }
-    if (snap && snap.exists && snap.exists()) {
-      const pdata = snap.data();
-      await setDoc(doc(db, 'games', gameId, 'playlist', 'data'), {
-        ...pdata,
-        source,
-        sourceId: playlistId,
-        snapshotAt: serverTimestamp()
-      });
-      console.log('[data.js] snapped playlist into game:', { gameId, source, playlistId });
-    } else {
-      console.warn('[data.js] playlist not found to snapshot', playlistId);
-    }
-  } catch (e) {
-    console.warn('[data.js] snapshotPlaylistIntoGame error:', e?.message || e);
-  }
-}
-
 // data.js — Music Bingo host (Beach-Trivia-Website project)
 // Host-only module: requires employee auth to read ALL playlists.
 // Merges `/playlists` (new) + `/music_bingo` (legacy) with de-dupe.
@@ -40,6 +13,7 @@ import {
   getDoc,
   getDocs,
   updateDoc,
+  setDoc,               // ✅ ADDED
   doc,
   serverTimestamp,
   query,
@@ -128,16 +102,18 @@ export async function requireEmployee() {
     throw new Error(`Please log in to host Music Bingo. ${e.message} (Go to ${LOGIN_URL})`);
   });
 
-  
   // Ensure custom claims (roles/admin) are present for Firestore rules
-  try { await auth.currentUser.getIdToken(true); } catch (e) { console.warn('[data.js] token refresh:', e?.message || e); }
-// Verify there is an employees/{uid} doc and that this user can host
+  try { await auth.currentUser.getIdToken(true); }
+  catch (e) { console.warn('[data.js] token refresh:', e?.message || e); }
+
+  // Verify there is an employees/{uid} doc and that this user can host
   const snap = await getDoc(doc(db, 'employees', user.uid));
   if (!snap.exists()) {
     throw new Error(
       `Signed in as ${user.email}, but no employee record found (employees/${user.uid}).`
     );
   }
+
   const emp = snap.data();
   const roles = Array.isArray(emp.roles) ? emp.roles : [];
   const isActive = emp.active === true;
@@ -154,6 +130,35 @@ export async function requireEmployee() {
 
 export function getCurrentUser() {
   return auth.currentUser || null;
+}
+
+// --- Snapshot the selected playlist into the game so players never read /playlists ---
+async function snapshotPlaylistIntoGame(db, gameId, playlistId) {
+  try {
+    const primary = await getDoc(doc(db, 'playlists', playlistId));
+    let snap = primary, source = 'playlists';
+
+    if (!primary.exists()) {
+      const legacy = await getDoc(doc(db, 'music_bingo', playlistId));
+      snap = legacy;
+      source = 'music_bingo';
+    }
+
+    if (snap && snap.exists && snap.exists()) {
+      const pdata = snap.data();
+      await setDoc(doc(db, 'games', gameId, 'playlist', 'data'), {
+        ...pdata,
+        source,
+        sourceId: playlistId,
+        snapshotAt: serverTimestamp()
+      });
+      console.log('[data.js] snapped playlist into game:', { gameId, source, playlistId });
+    } else {
+      console.warn('[data.js] playlist not found to snapshot', playlistId);
+    }
+  } catch (e) {
+    console.warn('[data.js] snapshotPlaylistIntoGame error:', e?.message || e);
+  }
 }
 
 // ---------- Playlists ----------
@@ -263,13 +268,15 @@ export async function createGame({ playlistId, name, playerLimit }) {
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp()
   };
+
   const ref = await addDoc(collection(db, 'games'), game);
 
   // Copy chosen playlist into the game for player reads
-  try { await snapshotPlaylistIntoGame(db, ref.id, playlistId); } catch (e) { console.warn('[data.js] snapshot error', e?.message || e); }
-
-      // Copy chosen playlist into the game for player reads
-      try { await snapshotPlaylistIntoGame(db, ref.id, playlistId); } catch (e) { console.warn('[data.js] snapshot error', e?.message || e); }
+  try {
+    await snapshotPlaylistIntoGame(db, ref.id, playlistId);
+  } catch (e) {
+    console.warn('[data.js] snapshot error', e?.message || e);
+  }
 
   return { id: ref.id, ...game };
 }
