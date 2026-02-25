@@ -1,7 +1,10 @@
-// functions_gcfv1/index.js
+// mybeachtrivia.com/functions_gcfv1/index.js
 const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
-admin.initializeApp();
+
+// Avoid re-initialize errors if this file gets loaded twice
+try { admin.app(); } catch { admin.initializeApp(); }
+
 const db = admin.firestore();
 
 /** --------------------------------
@@ -12,6 +15,7 @@ const SENDGRID_API_KEY =
   process.env.SENDGRID_API_KEY ||
   (functions.config().sendgrid && functions.config().sendgrid.key) ||
   "";
+
 if (SENDGRID_API_KEY) {
   sgMail = require("@sendgrid/mail");
   sgMail.setApiKey(SENDGRID_API_KEY);
@@ -19,21 +23,45 @@ if (SENDGRID_API_KEY) {
 
 /** --------------------------------
  * Roles: canonicalization & sanitize
+ *  ✅ Updated to match UI roles:
+ *    host, admin, regional-manager, supply-manager, writer, social-media-manager
  * --------------------------------*/
-const ALLOWED_ROLES = new Set(["host", "admin", "regional", "supply", "writer", "social"]);
+const ALLOWED_ROLES = new Set([
+  "host",
+  "admin",
+  "regional-manager",
+  "supply-manager",
+  "writer",
+  "social-media-manager",
+]);
+
 const ROLE_ALIASES = {
-  regional_manager: "regional",
-  supply_manager: "supply",
-  social_media_manager: "social",
+  // common variants -> canonical
   host: "host",
   admin: "admin",
-  regional: "regional",
-  supply: "supply",
+
+  regional: "regional-manager",
+  regional_manager: "regional-manager",
+  "regional manager": "regional-manager",
+  "regional-manager": "regional-manager",
+
+  supply: "supply-manager",
+  supply_manager: "supply-manager",
+  "supply manager": "supply-manager",
+  "supply-manager": "supply-manager",
+
   writer: "writer",
-  social: "social",
+
+  social: "social-media-manager",
+  social_media: "social-media-manager",
+  social_media_manager: "social-media-manager",
+  "social media manager": "social-media-manager",
+  "social-media-manager": "social-media-manager",
 };
+
 const canonicalizeRole = (r) =>
-  ROLE_ALIASES[String(r || "").toLowerCase().trim()] || String(r || "").toLowerCase().trim();
+  ROLE_ALIASES[String(r || "").toLowerCase().trim()] ||
+  String(r || "").toLowerCase().trim();
 
 function sanitizeRoles(input) {
   let arr = Array.isArray(input) ? input : input ? [input] : [];
@@ -66,7 +94,10 @@ async function resolveAuth(data, context) {
 }
 
 async function assertAdminFromCaller(caller) {
+  // Allow via custom claim
   if (caller.tokenClaims?.admin === true) return;
+
+  // Fallback: check employees doc
   const snap = await db.collection("employees").doc(caller.uid).get();
   if (!snap.exists) throw new functions.https.HttpsError("permission-denied", "No employee record");
   const d = snap.data() || {};
@@ -109,6 +140,7 @@ async function syncClaimsFromDoc(uid) {
 
 /** -----------------------------
  * Admin create employee (callable)
+ *  ✅ Now fails if email already exists in Auth
  * ----------------------------*/
 exports.adminCreateEmployee = functions
   .region("us-central1")
@@ -120,17 +152,27 @@ exports.adminCreateEmployee = functions
     const roles = sanitizeRoles(data?.roles || data?.role);
     if (!email) throw new functions.https.HttpsError("invalid-argument", "email required");
 
-    // Get or create Auth user
+    // ✅ Strict uniqueness: do NOT allow existing Auth users
+    try {
+      await admin.auth().getUserByEmail(email);
+      throw new functions.https.HttpsError("already-exists", "email already in use");
+    } catch (e) {
+      if (e?.code !== "auth/user-not-found") {
+        // if it's our already-exists error, rethrow; else internal
+        if (e instanceof functions.https.HttpsError) throw e;
+        console.error("[adminCreateEmployee] getUserByEmail failed:", e);
+        throw new functions.https.HttpsError("internal", "failed checking email");
+      }
+      // user-not-found -> ok to create
+    }
+
+    // Create Auth user
     let user;
     try {
-      user = await admin.auth().getUserByEmail(email);
+      user = await admin.auth().createUser({ email, emailVerified: false, disabled: false });
     } catch (e) {
-      if (e.code === "auth/user-not-found") {
-        user = await admin.auth().createUser({ email, emailVerified: false, disabled: false });
-      } else {
-        console.error("[adminCreateEmployee] getUserByEmail failed:", e);
-        throw new functions.https.HttpsError("internal", "get/create user failed");
-      }
+      console.error("[adminCreateEmployee] createUser failed:", e);
+      throw new functions.https.HttpsError("internal", "failed to create auth user");
     }
     const uid = user.uid;
 
@@ -160,7 +202,6 @@ exports.adminCreateEmployee = functions
     }
 
     // Build continue URL (login will redirect to onboarding)
-    // NOTE: Use the domain that serves your login.html (web.app or custom domain).
     const continueUrl = new URL("https://mybeachtrivia.com/login.html");
     continueUrl.searchParams.set("return", "/beachTriviaPages/onboarding/account-setup/");
 
@@ -305,43 +346,47 @@ exports.reassertMyClaims = functions
     const uid = context.auth.uid;
     const res = await syncClaimsFromDoc(uid);
     return { ok: true, changed: res.changed, claims: res.claims };
-  });// ---- beach trivia: auto-snapshot playlist for new/updated games ----
-const btSnapshot = require('./bt-snapshot');
+  });
+
+/* ---- beach trivia: auto-snapshot playlist for new/updated games ---- */
+const btSnapshot = require("./bt-snapshot");
 exports.snapshotPlaylistOnCreate = btSnapshot.snapshotPlaylistOnCreate;
-exports.snapshotPlaylistOnUpdate  = btSnapshot.snapshotPlaylistOnUpdate;
-// --------------------------------------------------------------------
+exports.snapshotPlaylistOnUpdate = btSnapshot.snapshotPlaylistOnUpdate;
+/* ------------------------------------------------------------------- */
 
-// --- BeachTrivia: cleanup old anonymous users (scheduled) ---
-const functions_v1_bt = require('firebase-functions/v1');
-const admin_bt = require('firebase-admin');
-try { admin_bt.app(); } catch { admin_bt.initializeApp(); }
-
-exports.cleanupStaleAnonymousUsers = functions_v1_bt.pubsub
-  .schedule('every 30 minutes')
-  .timeZone('America/New_York')
+/* --- BeachTrivia: cleanup old anonymous users (scheduled) --- */
+exports.cleanupStaleAnonymousUsers = functions.pubsub
+  .schedule("every 30 minutes")
+  .timeZone("America/New_York")
   .onRun(async () => {
-    const MINUTES = 120; const cutoffMs = Date.now() - MINUTES*60*1000;
+    const MINUTES = 120;
+    const cutoffMs = Date.now() - MINUTES * 60 * 1000;
 
     let nextPageToken = undefined;
-    let scanned = 0, deleted = 0, skipped = 0;
+    let scanned = 0,
+      deleted = 0,
+      skipped = 0;
 
     do {
-      const page = await admin_bt.auth().listUsers(1000, nextPageToken);
+      const page = await admin.auth().listUsers(1000, nextPageToken);
       nextPageToken = page.pageToken;
 
       for (const u of page.users) {
         scanned++;
         // "Anonymous" in Firebase Auth = no providerData records
         const isAnon = !u.providerData || u.providerData.length === 0;
-        if (!isAnon) { skipped++; continue; }
+        if (!isAnon) {
+          skipped++;
+          continue;
+        }
 
         const last = new Date(u.metadata.lastSignInTime || u.metadata.creationTime || 0).getTime();
         if (last && last < cutoffMs) {
           try {
-            await admin_bt.auth().deleteUser(u.uid);
+            await admin.auth().deleteUser(u.uid);
             deleted++;
           } catch (e) {
-            functions_v1_bt.logger.warn('Failed to delete anon user', u.uid, e?.message || e);
+            functions.logger.warn("Failed to delete anon user", u.uid, e?.message || e);
           }
         } else {
           skipped++;
@@ -349,7 +394,9 @@ exports.cleanupStaleAnonymousUsers = functions_v1_bt.pubsub
       }
     } while (nextPageToken);
 
-    functions_v1_bt.logger.info(`cleanupStaleAnonymousUsers(120m): scanned=${scanned} deleted=${deleted} skipped=${skipped}`);
+    functions.logger.info(
+      `cleanupStaleAnonymousUsers(120m): scanned=${scanned} deleted=${deleted} skipped=${skipped}`
+    );
     return null;
   });
-// --- end cleanup ---
+/* --- end cleanup --- */

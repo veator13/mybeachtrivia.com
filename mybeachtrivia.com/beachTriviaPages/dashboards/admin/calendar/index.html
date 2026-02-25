@@ -27,6 +27,10 @@
     .btn { padding: 8px 12px; border: 0; border-radius: 6px; cursor: pointer; }
     .btn.primary { background: #2e4561; color: #fff; }
     .btn.ghost { background: transparent; color: #2e4561; border: 1px solid #2e4561; }
+
+    /* Minor modal spacing tweaks for the Create Employee modal */
+    .email-required-group { margin-top: 12px; }
+    .req-note { opacity: .7; }
   </style>
 </head>
 
@@ -255,29 +259,29 @@
     <!-- New Host Modal (Provision-style) -->
     <div class="modal" id="new-host-modal" role="dialog" aria-labelledby="new-host-title" aria-hidden="true">
       <div class="modal-content">
-        <h2 id="new-host-title">Create Employee &amp; Send Password Setup Link</h2>
+        <h2 id="new-host-title">Create Employee</h2>
 
         <form id="new-host-form">
-          <div class="form-group">
-            <label for="new-host-email">Email <span style="opacity:.7;">(required)</span>:</label>
+          <div class="form-group email-required-group">
+            <label for="new-host-email">Email <span class="req-note">(link required)</span>:</label>
             <input type="email" id="new-host-email" required aria-describedby="email-hint" placeholder="name@example.com" />
             <small id="email-hint" class="form-hint">This is required so the user can set up a password.</small>
           </div>
 
           <div class="form-group">
-            <label for="new-host-firstname">First Name <span style="opacity:.7;">(optional)</span>:</label>
+            <label for="new-host-firstname">First Name <span class="req-note">(optional)</span>:</label>
             <input type="text" id="new-host-firstname" aria-describedby="firstname-hint" placeholder="Enter first name (optional)" />
             <small id="firstname-hint" class="form-hint">Optional — you can leave this blank.</small>
           </div>
 
           <div class="form-group">
-            <label for="new-host-lastname">Last Name <span style="opacity:.7;">(optional)</span>:</label>
+            <label for="new-host-lastname">Last Name <span class="req-note">(optional)</span>:</label>
             <input type="text" id="new-host-lastname" aria-describedby="lastname-hint" placeholder="Enter last name (optional)" />
             <small id="lastname-hint" class="form-hint">Optional — you can leave this blank.</small>
           </div>
 
           <div class="form-group">
-            <label for="new-host-nickname">Nickname <span style="opacity:.7;">(optional)</span>:</label>
+            <label for="new-host-nickname">Nickname <span class="req-note">(optional)</span>:</label>
             <input type="text" id="new-host-nickname" aria-describedby="nickname-hint" placeholder="Enter nickname (optional)" />
             <small id="nickname-hint" class="form-hint">Optional — used for display in dropdowns if present.</small>
           </div>
@@ -287,8 +291,10 @@
             <div class="roles-grid" aria-label="Assign roles">
               <label class="role-item"><input type="checkbox" id="role-host" checked /> Host</label>
               <label class="role-item"><input type="checkbox" id="role-admin" /> Admin</label>
-              <label class="role-item"><input type="checkbox" id="role-superadmin" /> Super Admin</label>
-              <label class="role-item"><input type="checkbox" id="role-content" /> Content</label>
+              <label class="role-item"><input type="checkbox" id="role-regional-manager" /> Regional Manager</label>
+              <label class="role-item"><input type="checkbox" id="role-supply-manager" /> Supply Manager</label>
+              <label class="role-item"><input type="checkbox" id="role-writer" /> Writer</label>
+              <label class="role-item"><input type="checkbox" id="role-social-media-manager" /> Social Media Manager</label>
             </div>
             <small class="form-hint">Pick the roles this employee should have. (Host is checked by default.)</small>
           </div>
@@ -404,25 +410,18 @@
   </div> <!-- /dashboard-container -->
 
   <!-- ========= Scripts (order matters) ========= -->
-  <!-- Firebase SDK (compat v9, works with v8-style code) -->
   <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-firestore-compat.js"></script>
-  <!-- REQUIRED for calling Cloud Functions via compat API -->
   <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-functions-compat.js"></script>
 
-  <!-- CSP-safe Firebase init (external file) -->
   <script src="../../../firebase-init.js"></script>
-
-  <!-- ADMIN GUARD (must come AFTER Firebase init) -->
   <script src="../guard-admin.js"></script>
 
-  <!-- App scripts (load AFTER guard so UI stays hidden until authorized) -->
   <script src="js/calendar-core.js"></script>
   <script src="js/utilities.js"></script>
   <script src="js/calendar-ui.js"></script>
   <script src="js/week-operations.js"></script>
-  <!-- Firestore data access layer -->
   <script src="js/shift-service.js"></script>
   <script src="js/event-crud.js"></script>
   <script src="js/modal-handlers.js"></script>
@@ -430,7 +429,6 @@
   <script src="js/event-listeners.js"></script>
   <script src="js/main.js?v=2"></script>
 
-  <!-- Global route guard (kept last so it can redirect if needed) -->
   <script src="/beachTriviaPages/js/auth-route-guard.v2.js?v=2025-10-14a"></script>
 </body>
 </html>

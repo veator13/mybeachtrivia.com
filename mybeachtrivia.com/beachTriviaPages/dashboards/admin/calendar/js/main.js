@@ -1,6 +1,6 @@
 /**
  * Beach Trivia – Admin Calendar
- * main.js (v2025-10-21)
+ * main.js (v2026-02-25)
  * Handles Firebase loads (employees, locations, shifts) + initialization
  * Also manages cross-month dropzone visibility for drag/copy/move flows.
  */
@@ -132,24 +132,42 @@ window.employeesData = {};
 window.locationsData = {};
 let shifts = [];
 
+// Live listener unsubscribers
+let unsubscribeEmployees = null;
+
 /* ------------------------------
  * Dropdown Helpers
  * ------------------------------ */
 function addEmployeeToDropdowns(id, name) {
   const opts = [elements.employeeSelect, elements.shiftEmployeeSelect];
   opts.forEach(sel => {
+    if (!sel) return;
     if (!sel.querySelector(`option[value="${id}"]`)) {
       const o = document.createElement('option');
       o.value = id;
       o.textContent = name;
       sel.appendChild(o);
+    } else {
+      // keep label updated if changed
+      const o = sel.querySelector(`option[value="${id}"]`);
+      if (o && o.textContent !== name) o.textContent = name;
     }
+  });
+}
+
+function removeEmployeeFromDropdowns(id) {
+  const opts = [elements.employeeSelect, elements.shiftEmployeeSelect];
+  opts.forEach(sel => {
+    if (!sel) return;
+    const o = sel.querySelector(`option[value="${id}"]`);
+    if (o) o.remove();
   });
 }
 
 function addLocationToDropdowns(name) {
   const opts = [elements.locationSelect, elements.shiftLocationSelect];
   opts.forEach(sel => {
+    if (!sel) return;
     if (!sel.querySelector(`option[value="${name}"]`)) {
       const o = document.createElement('option');
       o.value = name;
@@ -202,21 +220,27 @@ function isValidDragOperation() {
 /* ------------------------------
  * Firestore Data Loads
  * ------------------------------ */
-async function fetchEmployeesFromFirebase() {
-  console.log('[calendar] Fetching employees...');
-  const db = firebase.firestore();
-  const qs = await db.collection('employees').get();
 
-  while (elements.employeeSelect.options.length > 1) elements.employeeSelect.remove(1);
-  while (elements.shiftEmployeeSelect.options.length > 1) elements.shiftEmployeeSelect.remove(1);
+/**
+ * Applies the current employees snapshot to:
+ * - employees (short labels)
+ * - window.employeesData (full doc cache)
+ * - both dropdowns (filter + shift form)
+ *
+ * This keeps admin "Create Employee" and scheduler users in sync (including deletions)
+ * without requiring a page refresh.
+ */
+function applyEmployeesSnapshot(qs) {
+  const seenIds = new Set();
 
   qs.forEach(doc => {
     const d = doc.data();
     const id = doc.id;
+    seenIds.add(id);
 
     const first = (d.firstName || '').trim();
-    const last = (d.lastName || '').trim();
-    const nick = (d.nickname || '').trim();
+    const last  = (d.lastName || '').trim();
+    const nick  = (d.nickname || '').trim();
     const email = (d.email || '').trim();
 
     const firstLast = [first, last].filter(Boolean).join(' ').trim();
@@ -244,7 +268,62 @@ async function fetchEmployeesFromFirebase() {
     addEmployeeToDropdowns(id, display);
   });
 
-  console.log(`[calendar] Employees loaded: ${qs.size}`);
+  // Remove deletions from caches + dropdowns
+  Object.keys(window.employeesData).forEach((id) => {
+    if (!seenIds.has(id)) {
+      delete window.employeesData[id];
+      delete employees[id];
+      removeEmployeeFromDropdowns(id);
+    }
+  });
+
+  // If currently-filtered employee was deleted, reset to "all"
+  if (elements.employeeSelect && state.filters?.employee && state.filters.employee !== 'all') {
+    const stillExists = !!elements.employeeSelect.querySelector(`option[value="${state.filters.employee}"]`);
+    if (!stillExists) {
+      state.filters.employee = 'all';
+      elements.employeeSelect.value = 'all';
+      try {
+        if (typeof renderCalendar === 'function') renderCalendar();
+      } catch (_) {}
+    }
+  }
+
+  console.log(`[calendar] Employees live-updated: ${qs.size}`);
+}
+
+async function fetchEmployeesFromFirebase() {
+  console.log('[calendar] Fetching employees...');
+
+  const db = firebase.firestore();
+
+  // Clear existing listener if any (safety)
+  if (typeof unsubscribeEmployees === 'function') {
+    try { unsubscribeEmployees(); } catch (_) {}
+    unsubscribeEmployees = null;
+  }
+
+  // Ensure dropdowns are reset to defaults (keep first option: "All")
+  if (elements.employeeSelect) {
+    while (elements.employeeSelect.options.length > 1) elements.employeeSelect.remove(1);
+  }
+  if (elements.shiftEmployeeSelect) {
+    while (elements.shiftEmployeeSelect.options.length > 1) elements.shiftEmployeeSelect.remove(1);
+  }
+
+  // LIVE LISTENER (key change)
+  unsubscribeEmployees = db.collection('employees').onSnapshot(
+    (qs) => applyEmployeesSnapshot(qs),
+    (err) => {
+      console.error('[calendar] Employees listener error:', err);
+      // fall back to one-time fetch if listener fails
+      db.collection('employees').get().then(applyEmployeesSnapshot).catch((e) => {
+        console.error('[calendar] Employees fallback fetch failed:', e);
+      });
+    }
+  );
+
+  console.log('[calendar] Employee live listener started');
 }
 
 async function fetchLocationsFromFirebase() {
@@ -298,7 +377,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     try {
       // Load employees + locations + shifts (admin-only)
-      await fetchEmployeesFromFirebase();
+      await fetchEmployeesFromFirebase();  // now starts a live listener
       await fetchLocationsFromFirebase();
       await loadShiftsFromFirebase();
 
