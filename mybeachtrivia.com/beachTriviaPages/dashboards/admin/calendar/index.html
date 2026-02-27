@@ -31,7 +31,6 @@
 </head>
 
 <body>
-  <!-- Guard status UI (optional, used by guard-admin.js if present) -->
   <div id="auth-loading" aria-live="polite">Checking admin access…</div>
   <div id="error-container" role="alert">
     <div id="error-text">You do not have permission to access this page.</div>
@@ -41,7 +40,6 @@
     </div>
   </div>
 
-  <!-- MAIN CONTENT (hidden until guard allows) -->
   <div class="dashboard-container">
     <div class="container">
       <header>
@@ -101,7 +99,6 @@
       </div>
 
       <div class="calendar-container">
-        <!-- Month navigation drop zones -->
         <div id="prev-month-dropzone" class="month-nav-dropzone left" aria-label="Drop to move to previous month">
           <div class="dropzone-text"><span>◄</span><br /><span>Previous<br />Month</span></div>
         </div>
@@ -124,14 +121,11 @@
               <th scope="col" class="week-copy-header"></th>
             </tr>
           </thead>
-          <tbody id="calendar-body">
-            <!-- Calendar will be generated with JavaScript -->
-          </tbody>
+          <tbody id="calendar-body"></tbody>
         </table>
       </div>
     </div>
 
-    <!-- Add Shift Modal -->
     <div class="modal" id="shift-modal" role="dialog" aria-labelledby="modal-title" aria-hidden="true">
       <div class="modal-content">
         <h2 id="modal-title">Add New Event</h2>
@@ -215,14 +209,14 @@
 
           <div class="spacer"></div>
         </form>
+
         <div class="button-group">
           <button type="button" class="cancel" id="cancel-shift">Cancel</button>
-          <button type="submit" form="shift-form">Save Event</button>
+          <button type="button" id="save-shift-btn" form="shift-form">Save Event</button>
         </div>
       </div>
     </div>
 
-    <!-- Same-Day Booking Warning Modal -->
     <div class="modal" id="warning-modal" role="dialog" aria-labelledby="warning-title" aria-hidden="true">
       <div class="modal-content warning">
         <h2 id="warning-title">Same-Day Event Warning</h2>
@@ -237,7 +231,6 @@
       </div>
     </div>
 
-    <!-- Clear Day Modal -->
     <div class="modal" id="clear-day-modal" role="dialog" aria-labelledby="clear-day-title" aria-hidden="true">
       <div class="modal-content warning">
         <h2 id="clear-day-title">Clear Events</h2>
@@ -252,7 +245,6 @@
       </div>
     </div>
 
-    <!-- New Host Modal -->
     <div class="modal" id="new-host-modal" role="dialog" aria-labelledby="new-host-title" aria-hidden="true">
       <div class="modal-content">
         <h2 id="new-host-title">Add New Host</h2>
@@ -326,7 +318,6 @@
       </div>
     </div>
 
-    <!-- New Location Modal -->
     <div class="modal" id="new-location-modal" role="dialog" aria-labelledby="new-location-title" aria-hidden="true">
       <div class="modal-content">
         <h2 id="new-location-title">Add New Location</h2>
@@ -382,7 +373,6 @@
       </div>
     </div>
 
-    <!-- Copy Shift Modal -->
     <div class="modal" id="copy-shift-modal" role="dialog" aria-labelledby="copy-shift-title" aria-hidden="true">
       <div class="modal-content">
         <h2 id="copy-shift-title">Copy Event</h2>
@@ -416,26 +406,19 @@
         </div>
       </div>
     </div>
-  </div> <!-- /dashboard-container -->
+  </div>
 
-  <!-- ========= Scripts (order matters) ========= -->
-  <!-- Firebase SDK (compat v9, works with v8-style code) -->
   <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-firestore-compat.js"></script>
 
-  <!-- CSP-safe Firebase init (external file) -->
   <script src="../../../firebase-init.js"></script>
-
-  <!-- ADMIN GUARD (must come AFTER Firebase init) -->
   <script src="../guard-admin.js"></script>
 
-  <!-- App scripts (load AFTER guard so UI stays hidden until authorized) -->
   <script src="js/calendar-core.js"></script>
   <script src="js/utilities.js"></script>
   <script src="js/calendar-ui.js"></script>
   <script src="js/week-operations.js"></script>
-  <!-- Firestore data access layer -->
   <script src="js/shift-service.js"></script>
   <script src="js/event-crud.js"></script>
   <script src="js/modal-handlers.js"></script>
@@ -443,7 +426,6 @@
   <script src="js/event-listeners.js"></script>
   <script src="js/main.js?v=2"></script>
 
-  <!-- Global route guard (kept last so it can redirect if needed) -->
   <script src="/beachTriviaPages/js/auth-route-guard.v2.js?v=2025-10-14a"></script>
 </body>
 </html>
