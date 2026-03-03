@@ -169,6 +169,11 @@ h1::after {
     flex-wrap: wrap;
     gap: 20px;
     padding: 8px 0;
+    align-items: center;
+}
+
+.copy-month-group {
+    margin-left: auto;
 }
 
 .employee-filter,
@@ -319,8 +324,8 @@ select:focus {
 .calendar td {
     border: none;
     padding: 0;
-    min-height: 130px;
-    height: 130px;
+    min-height: 165px;
+    height: 165px;
     vertical-align: top;
     background-color: var(--card-bg);
     border-radius: 4px;
@@ -481,9 +486,9 @@ select:focus {
     transition: all 0.2s ease;
     will-change: transform;
     position: absolute;
-    top: 50%;
+    top: 48px;
     left: 50%;
-    transform: translate(-50%, -50%);
+    transform: translateX(-50%);
     z-index: 1;
 }
 
@@ -503,15 +508,15 @@ select:focus {
     transition: all 0.2s ease;
     will-change: transform;
     position: absolute;
-    top: calc(50% + 30px);
+    top: 78px;
     left: 50%;
-    transform: translate(-50%, -50%);
+    transform: translateX(-50%);
     z-index: 1;
 }
 
 .week-move-button:hover {
     background-color: var(--secondary-color);
-    transform: translate(-50%, -50%) scale(1.1);
+    transform: translateX(-50%) scale(1.1);
 }
 
 .week-move-button:active {
@@ -534,15 +539,15 @@ select:focus {
     transition: all 0.2s ease;
     will-change: transform;
     position: absolute;
-    top: calc(50% + 60px); /* Moved down to make room for move button */
+    top: 108px;
     left: 50%;
-    transform: translate(-50%, -50%);
+    transform: translateX(-50%);
     z-index: 1;
 }
 
 .week-toggle-button:hover {
     background-color: var(--border-color);
-    transform: translate(-50%, -50%) scale(1.1);
+    transform: translateX(-50%) scale(1.1);
 }
 
 /* Week clear button styling - positioned below the toggle button */
@@ -561,15 +566,15 @@ select:focus {
     transition: all 0.2s ease;
     will-change: transform;
     position: absolute;
-    top: calc(50% + 90px); /* Moved down to make room for move button */
+    top: 138px;
     left: 50%;
-    transform: translate(-50%, -50%);
+    transform: translateX(-50%);
     z-index: 1;
 }
 
 .week-clear-button:hover {
     background-color: rgba(255, 77, 77, 0.7);
-    transform: translate(-50%, -50%) scale(1.1);
+    transform: translateX(-50%) scale(1.1);
 }
 
 .add-button:hover, .cell-copy-button:hover {
@@ -580,7 +585,7 @@ select:focus {
 /* FIXED: Special hover for week-copy-button to maintain center positioning */
 .week-copy-button:hover {
     background-color: var(--border-color);
-    transform: translate(-50%, -50%) scale(1.1);
+    transform: translateX(-50%) scale(1.1);
 }
 
 .week-copy-header {
@@ -597,7 +602,7 @@ select:focus {
     border-radius: 4px;
     position: relative;
     padding: 0;
-    height: 130px; /* Match the height of other cells */
+    height: 165px; /* Match the height of other cells */
 }
 
 /* Shifts */
@@ -855,7 +860,7 @@ select:focus {
 
 /* Scrollable form container */
 #shift-form, #new-host-form, #new-location-form {
-    padding: 85px 30px 65px 25px; /* Top padding matches header height, more padding on right */
+    padding: 105px 30px 65px 25px; /* Top padding matches header height, more padding on right */
     overflow-y: auto;
     max-height: 80vh;
     width: 100%;
@@ -1298,11 +1303,11 @@ input:checked + .toggle-slider:before { transform: translateX(26px); }
     }
     
     .calendar td {
-        min-height: 100px;
+        min-height: 165px;
         height: auto;
     }
     
-    .week-copy-cell { height: 100px; }
+    .week-copy-cell { height: 165px; }
     
     .time-inputs {
         flex-direction: column;
@@ -1327,7 +1332,36 @@ input:checked + .toggle-slider:before { transform: translateX(26px); }
     .button-group button { width: 100%; }
     
     /* Media query for responsive layouts */
-    .week-clear-button { top: calc(50% + 85px); }
-    .week-toggle-button { top: calc(50% + 55px); }
-    .week-move-button { top: calc(50% + 25px); }
+    .week-clear-button { top: 138px; }
+    .week-toggle-button { top: 108px; }
+    .week-move-button { top: 78px; }
+}
+/* ── Copy Previous Month ─────────────────────────────────────── */
+.copy-month-btn {
+    background-color: var(--secondary-color);
+    color: white;
+    border-color: var(--secondary-color);
+}
+
+.copy-month-btn:hover {
+    background-color: var(--secondary-color);
+    filter: brightness(1.15);
+    transform: none;
+}
+
+#copy-month-include {
+    background-color: var(--secondary-color);
+    color: white;
+}
+
+.copy-month-buttons {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+#copy-month-message p {
+    margin: 0 0 8px 0;
+    line-height: 1.5;
 }

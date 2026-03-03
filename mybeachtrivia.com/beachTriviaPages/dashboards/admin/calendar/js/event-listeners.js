@@ -90,10 +90,10 @@ function attachEventListeners() {
         document.addEventListener('keydown', handleKeyboardEvents);
     }
 
-    elements.calendarBody.addEventListener('dragstart', handleDragStart, false);
-    elements.calendarBody.addEventListener('dragend', handleDragEnd, false);
-    elements.calendarBody.addEventListener('dragover', handleDragOver, false);
-    elements.calendarBody.addEventListener('drop', handleDrop, false);
+    elements.calendarBody.addEventListener('dragstart', window.handleDragStart, false);
+    elements.calendarBody.addEventListener('dragend', window.handleDragEnd, false);
+    elements.calendarBody.addEventListener('dragover', window.handleDragOver, false);
+    elements.calendarBody.addEventListener('drop', window.handleDrop, false);
 
     initializeModalAccessibility();
 }

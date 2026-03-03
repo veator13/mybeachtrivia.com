@@ -85,9 +85,7 @@
     const tid = tr.dataset.teamId;
 
     for (let q = 1; q <= 20; q++) {
-      const inp =
-        tr.querySelector(`input#num${tid}${q}`) ||
-        document.getElementById(`num${tid}${q}`);
+      const inp = tr.querySelector(`input#num${tid}${q}`) || document.getElementById(`num${tid}${q}`);
       if (!inp) continue;
 
       if (feud) {
@@ -109,7 +107,9 @@
       rows.forEach((r) => {
         const tid = parseInt(r.dataset.teamId || "0", 10);
         if (tid) {
-          try { window.recalcRowTotals(tid); } catch {}
+          try {
+            window.recalcRowTotals(tid);
+          } catch {}
         }
       });
     }
@@ -133,10 +133,6 @@
     }
   }
 
-  /* =========================================================
-     RENumber helpers (2-pass to avoid duplicate IDs)
-     ========================================================= */
-
   function renameIdIfExists(root, fromId, toId) {
     if (!fromId || !toId) return;
     const el = root.querySelector(`#${CSS.escape(fromId)}`) || document.getElementById(fromId);
@@ -150,28 +146,26 @@
     const rows = Array.from(tbody.querySelectorAll("tr[data-team-id]"));
     const totalTeams = rows.length;
 
-    // Build mapping oldId -> newId based on DOM order
     const map = rows.map((tr, idx) => ({
       tr,
       oldId: String(tr.dataset.teamId || ""),
       newId: String(idx + 1),
     }));
 
-    // PASS 1: rename everything to TEMP ids to prevent collisions
     for (const item of map) {
       const { tr, oldId } = item;
       if (!oldId) continue;
 
-      // Team name cell ids
       renameIdIfExists(tr, `teamName${oldId}`, `__tmp_teamName_${oldId}`);
       renameIdIfExists(tr, `checkbox${oldId}`, `__tmp_checkbox_${oldId}`);
 
-      // Q inputs
+      renameIdIfExists(tr, `teamNumBtn${oldId}`, `__tmp_teamNumBtn_${oldId}`);
+      renameIdIfExists(tr, `teamNumLabel${oldId}`, `__tmp_teamNumLabel_${oldId}`);
+
       for (let q = 1; q <= 20; q++) {
         renameIdIfExists(tr, `num${oldId}${q}`, `__tmp_num_${oldId}_${q}`);
       }
 
-      // totals / specials
       renameIdIfExists(tr, `r1Total${oldId}`, `__tmp_r1_${oldId}`);
       renameIdIfExists(tr, `r2Total${oldId}`, `__tmp_r2_${oldId}`);
       renameIdIfExists(tr, `r3Total${oldId}`, `__tmp_r3_${oldId}`);
@@ -184,23 +178,23 @@
       renameIdIfExists(tr, `finalScore${oldId}`, `__tmp_finalScore_${oldId}`);
     }
 
-    // PASS 2: assign final ids + dataset teamId
     for (const item of map) {
       const { tr, oldId, newId } = item;
       if (!oldId) continue;
 
       tr.dataset.teamId = newId;
 
-      // Update delete button label + placeholder (Team X)
       const tdTeam = tr.querySelector("td.sticky-col");
       if (tdTeam) {
         const delBtn = tdTeam.querySelector("button.btnDeleteTeam");
         if (delBtn) delBtn.setAttribute("aria-label", `Delete team row ${newId}`);
       }
 
-      // Final ids
       renameIdIfExists(tr, `__tmp_teamName_${oldId}`, `teamName${newId}`);
       renameIdIfExists(tr, `__tmp_checkbox_${oldId}`, `checkbox${newId}`);
+
+      renameIdIfExists(tr, `__tmp_teamNumBtn_${oldId}`, `teamNumBtn${newId}`);
+      renameIdIfExists(tr, `__tmp_teamNumLabel_${oldId}`, `teamNumLabel${newId}`);
 
       const nameInput = tr.querySelector(`#${CSS.escape(`teamName${newId}`)}`);
       if (nameInput) nameInput.placeholder = `Team ${newId}`;
@@ -225,28 +219,33 @@
 
     applyQuestionConstraintsToAllRows();
 
-    // Recalc totals for all rows (now that ids are stable)
     if (typeof window.recalcAllTotals === "function") {
-      try { window.recalcAllTotals(); } catch {}
+      try {
+        window.recalcAllTotals();
+      } catch {}
     } else {
       const rows2 = $all("#teamTable tbody tr[data-team-id]");
       for (const r of rows2) {
         const tid = parseInt(r.dataset.teamId || "0", 10);
         if (!tid) continue;
         if (typeof window.updateScores === "function") {
-          try { window.updateScores(tid); } catch {}
+          try {
+            window.updateScores(tid);
+          } catch {}
         } else if (typeof window.recalcRowTotals === "function") {
-          try { window.recalcRowTotals(tid); } catch {}
+          try {
+            window.recalcRowTotals(tid);
+          } catch {}
         } else if (typeof window.updateFinalScore === "function") {
-          try { window.updateFinalScore(tid); } catch {}
+          try {
+            window.updateFinalScore(tid);
+          } catch {}
         }
       }
     }
 
     try {
-      window.dispatchEvent(
-        new CustomEvent("scoresheet:teams-renumbered", { detail: { count: totalTeams } })
-      );
+      window.dispatchEvent(new CustomEvent("scoresheet:teams-renumbered", { detail: { count: totalTeams } }));
     } catch (_) {}
 
     updateStickyRightWidths();
@@ -276,8 +275,96 @@
       window.dispatchEvent(new CustomEvent("scoresheet:team-removed", { detail: { teamId } }));
     } catch (_) {}
 
-    // ✅ This is where the duplication bug used to originate
     renumberAllTeams();
+  }
+
+  function openTeamNumberModalForRow(tr) {
+    if (!tr) return;
+
+    const modal = document.getElementById("teamNumberModal");
+    const input = document.getElementById("teamNumberInput");
+    const title = document.getElementById("teamNumberTitle");
+    const btnSave = document.getElementById("btnSaveTeamNumber");
+    const btnCancel = document.getElementById("btnCancelTeamNumber");
+    const btnClose = document.getElementById("btnCloseTeamNumber");
+
+    if (!modal || !input || !btnSave || !btnCancel || !btnClose) return;
+
+    const teamId = String(tr.dataset.teamId || "");
+    modal.dataset.teamId = teamId;
+
+    const existing = String(tr.dataset.teamNumber || "").trim();
+    input.value = existing;
+    if (title) {
+      title.textContent = `TEAM #`;
+    }
+    const subtitle = document.getElementById("teamNumberSubtitle");
+    if (subtitle) {
+      const nameInput = tr.querySelector("input.teamName") || tr.querySelector(`input[id^="teamName"]`);
+      subtitle.textContent = (nameInput && nameInput.value.trim()) ? nameInput.value.trim() : `Team ${teamId}`;
+    }
+
+    function closeModal() {
+      modal.style.display = "none";
+      document.body.classList.remove("modal-open");
+      window.removeEventListener("keydown", onKeyDown, true);
+    }
+
+    function save() {
+      const vRaw = String(input.value || "").trim();
+      const v = vRaw === "" ? "" : String(parseInt(vRaw, 10));
+      if (vRaw !== "" && (!v || !Number.isFinite(+v) || +v < 0)) {
+        alert("Enter a valid team number (0 or higher), or leave blank.");
+        return;
+      }
+
+      if (v === "") {
+        delete tr.dataset.teamNumber;
+      } else {
+        tr.dataset.teamNumber = v;
+      }
+
+      markModified();
+
+      try {
+        window.dispatchEvent(
+          new CustomEvent("scoresheet:team-number-changed", { detail: { teamId, teamNumber: v || "" } })
+        );
+      } catch (_) {}
+
+      closeModal();
+    }
+
+    function onKeyDown(e) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        closeModal();
+      }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        save();
+      }
+    }
+
+    btnSave.onclick = save;
+    btnCancel.onclick = closeModal;
+    btnClose.onclick = closeModal;
+
+    modal.onclick = (e) => {
+      if (e.target === modal) closeModal();
+    };
+
+    modal.style.display = "block";
+    document.body.classList.add("modal-open");
+
+    window.addEventListener("keydown", onKeyDown, true);
+
+    setTimeout(() => {
+      try {
+        input.focus();
+        input.select();
+      } catch {}
+    }, 0);
   }
 
   function addTeam() {
@@ -345,7 +432,35 @@
 
     bonusCheckboxWrapper.append(bonusCheckbox, bonusIcon, bonusLike, bonusCheckboxText);
 
-    tdTeam.append(deleteBtn, nameInput, bonusCheckboxWrapper);
+    const teamNumWrapper = document.createElement("div");
+    teamNumWrapper.className = "teamNumWrapper";
+
+    const teamNumBtn = document.createElement("button");
+    teamNumBtn.type = "button";
+    teamNumBtn.id = `teamNumBtn${teamId}`;
+    teamNumBtn.className = "teamNumBtn";
+    teamNumBtn.setAttribute("aria-label", `Set team number for Team ${teamId}`);
+    teamNumBtn.title = "Team Number";
+    teamNumBtn.textContent = "#";
+    teamNumBtn.addEventListener(
+      "click",
+      (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
+        openTeamNumberModalForRow(tr);
+      },
+      true
+    );
+
+    const teamNumLabel = document.createElement("span");
+    teamNumLabel.id = `teamNumLabel${teamId}`;
+    teamNumLabel.className = "teamNumLabel";
+    teamNumLabel.textContent = "TEAM";
+
+    teamNumWrapper.append(teamNumBtn, teamNumLabel);
+
+    tdTeam.append(deleteBtn, nameInput, bonusCheckboxWrapper, teamNumWrapper);
     tr.appendChild(tdTeam);
 
     for (let j = 1; j <= 20; j++) {

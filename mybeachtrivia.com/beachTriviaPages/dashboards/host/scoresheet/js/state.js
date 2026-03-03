@@ -15,6 +15,18 @@
        - hide/disable #venueInput
        - #venueSelect required
 
+   ✅ Venue "Other" inline field:
+   - When ONLINE:
+       - if #venueSelect value === "other":
+           - show/enable #venueOtherInput
+           - #venueOtherInput required
+       - else:
+           - hide/disable #venueOtherInput
+           - not required
+   - When OFFLINE:
+       - #venueOtherInput is always hidden/disabled/not-required
+         (offline uses #venueInput only)
+
    IMPORTANT CHANGE (fixes SW “fake online” on first load):
    - We DO NOT trust "navigator.onLine" or a fetch probe as truth (SW can satisfy from cache).
    - We default to OFFLINE until venues.js proves Firestore is reachable and calls:
@@ -138,6 +150,68 @@ var standingsAscending = false;
   }
 
   // -----------------------------
+  // Venue "Other" logic (ONLINE only)
+  // -----------------------------
+  function applyVenueOtherUI(isOffline) {
+    const venueSelect = qs("venueSelect");
+    const venueOtherInput = qs("venueOtherInput");
+
+    // If the HTML doesn't have it yet, noop safely.
+    if (!venueOtherInput) return;
+
+    // Offline mode never uses venueOtherInput
+    if (isOffline) {
+      setDisabled(venueOtherInput, true);
+      setHidden(venueOtherInput, true);
+      setRequired(venueOtherInput, false);
+      return;
+    }
+
+    // Online mode: show only when select === "other"
+    const isOther = !!venueSelect && venueSelect.value === "other";
+
+    setDisabled(venueOtherInput, !isOther);
+    setHidden(venueOtherInput, !isOther);
+    setRequired(venueOtherInput, isOther);
+
+    // If switching away from "other", clear the field so it doesn't linger
+    if (!isOther) venueOtherInput.value = "";
+  }
+
+  function bindVenueOtherListenerOnce() {
+    if (window.__scoresheetVenueOtherBound) return;
+    window.__scoresheetVenueOtherBound = true;
+
+    const bind = () => {
+      const venueSelect = qs("venueSelect");
+      if (!venueSelect) return;
+
+      venueSelect.addEventListener(
+        "change",
+        () => {
+          // Only matters when ONLINE
+          applyVenueOtherUI(state.offline);
+        },
+        { passive: true }
+      );
+
+      // In case venues are populated after load and value changes programmatically
+      // (venues.js), we can re-apply when focus leaves.
+      venueSelect.addEventListener(
+        "blur",
+        () => applyVenueOtherUI(state.offline),
+        { passive: true }
+      );
+    };
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", bind, { once: true });
+    } else {
+      bind();
+    }
+  }
+
+  // -----------------------------
   // ONLINE/OFFLINE UI wiring
   // -----------------------------
   function applyConnectivityUI(isOffline) {
@@ -155,7 +229,7 @@ var standingsAscending = false;
       setAriaHidden(inlineBadge, true);
     }
 
-    // Venue swap (ONLY uses #venueSelect + #venueInput from HTML)
+    // Venue swap (uses #venueSelect + #venueInput from HTML)
     const venueSelect = qs("venueSelect");
     const venueInput = qs("venueInput");
 
@@ -186,6 +260,9 @@ var standingsAscending = false;
         setRequired(venueInput, false);
       }
     }
+
+    // Apply the inline "Other" venue field rules (ONLINE only)
+    applyVenueOtherUI(isOffline);
   }
 
   function setOffline(v) {
@@ -254,6 +331,7 @@ var standingsAscending = false;
   window.setTeamCount = window.setTeamCount || setTeamCount;
 
   bindOnlineHooksOnce();
+  bindVenueOtherListenerOnce();
 
   // Ensure ONE badge is visible immediately on first paint
   // (default OFFLINE until Firestore proves online)

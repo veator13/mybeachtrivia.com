@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=0.8" />
     <title>Scoresheet</title>
 
     <!-- ✅ ONE place to change cache-bust version (keep in sync with sw.js ASSET_V) -->
@@ -44,6 +44,9 @@
     <script src="js/scoring.js?v=20260218-04" defer></script>
     <script src="js/search.js?v=20260218-04" defer></script>
     <script src="js/standings-modal.js?v=20260223-06" defer></script>
+
+    <!-- TEAM # modal -->
+    <script src="js/team-number-modal.js?v=20260302-01" defer></script>
 
     <!-- Submit handler -->
     <script src="js/submit-scores.js?v=20260218-04" defer></script>
@@ -93,8 +96,9 @@
                 type="text"
                 id="submitterFirstName"
                 name="submitterFirstName"
-                placeholder="First name"
-                autocomplete="given-name"
+                autocomplete="off"
+                readonly
+                aria-readonly="true"
               />
             </div>
 
@@ -104,8 +108,9 @@
                 type="text"
                 id="submitterLastName"
                 name="submitterLastName"
-                placeholder="Last name"
-                autocomplete="family-name"
+                autocomplete="off"
+                readonly
+                aria-readonly="true"
               />
             </div>
 
@@ -135,11 +140,24 @@
             <div class="meta-field">
               <label for="venueSelect">Venue</label>
 
-              <!-- ONLINE: dropdown -->
-              <select id="venueSelect" name="venueSelect">
-                <option value="loading" disabled selected>Loading venues...</option>
-                <option value="other">Other</option>
-              </select>
+              <!-- ONLINE: dropdown + (conditional) other input -->
+              <div class="venue-row">
+                <select id="venueSelect" name="venueSelect">
+                  <option value="loading" disabled selected>Loading venues...</option>
+                  <option value="other">Other</option>
+                </select>
+
+                <!-- Shown when venueSelect === "other" -->
+                <input
+                  type="text"
+                  id="venueOtherInput"
+                  name="venueOtherInput"
+                  placeholder="Enter venue name"
+                  autocomplete="organization"
+                  hidden
+                  disabled
+                />
+              </div>
 
               <!-- OFFLINE: input fallback -->
               <input
@@ -271,6 +289,46 @@
         </button>
 
         <ul id="modalRankingList"></ul>
+      </div>
+    </div>
+
+    <!-- Tiny modal for TEAM # -->
+    <div
+      id="teamNumberModal"
+      class="modal team-number-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="teamNumberTitle"
+      hidden
+    >
+      <div class="modal-content team-number-modal-content">
+        <div class="team-number-header">
+          <p id="teamNumberSubtitle" class="team-number-subtitle"></p>
+          <button type="button" id="btnCloseTeamNumber" class="close" aria-label="Close team number modal">
+            &times;
+          </button>
+        </div>
+
+        <div class="team-number-form">
+          <div class="team-number-input-row">
+            <span id="teamNumberTitle" class="sr-only">TEAM #</span>
+            <label for="teamNumberInput" class="team-number-label">TEAM #</label>
+            <input
+              type="number"
+              id="teamNumberInput"
+              inputmode="numeric"
+              min="1"
+              step="1"
+              placeholder="Enter #"
+              autocomplete="off"
+            />
+          </div>
+
+          <div class="team-number-actions">
+            <button type="button" id="btnSaveTeamNumber">Save</button>
+            <button type="button" id="btnCancelTeamNumber">Cancel</button>
+          </div>
+        </div>
       </div>
     </div>
 

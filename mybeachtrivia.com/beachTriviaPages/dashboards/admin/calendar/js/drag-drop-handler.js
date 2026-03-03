@@ -173,6 +173,14 @@
       } catch (_) {}
     }
   
+    // ✅ Force-save helper for override paths (bypasses conflict check)
+    async function _forceSave(shiftData) {
+      if (window.shiftService?.forceSaveShift) return window.shiftService.forceSaveShift(shiftData);
+      if (window.shiftService?.saveShift) return window.shiftService.saveShift(shiftData, { force: true });
+      if (typeof window.forceSaveShiftToFirebase === "function") return window.forceSaveShiftToFirebase(shiftData);
+      return saveShiftToFirebase(shiftData);
+    }
+
     async function _applyOverrideForSingleShift(op) {
       _ensureShiftsArray();
   
@@ -201,7 +209,7 @@
           notes: draggedShift.notes,
         };
   
-        const newId = await saveShiftToFirebase(newShiftData);
+        const newId = await _forceSave(newShiftData);
         const newShift = { ...newShiftData, id: newId };
   
         try {
@@ -228,7 +236,14 @@
   
       const updatedShift = { ...draggedShift, date: targetDate };
   
-      await updateShiftInFirebase(shiftId, updatedShift);
+      // ✅ Override path — must bypass conflict check
+      if (window.shiftService?.forceUpdateShift) {
+        await window.shiftService.forceUpdateShift(shiftId, updatedShift);
+      } else if (window.shiftService?.updateShift) {
+        await window.shiftService.updateShift(shiftId, updatedShift, { force: true });
+      } else {
+        await updateShiftInFirebase(shiftId, updatedShift);
+      }
   
       _upsertShiftLocal({ ...updatedShift, id: shiftId });
   
@@ -250,21 +265,30 @@
       const sourceDateStr = op.sourceDateStr;
       const isCopy = !!op.isCopy;
       const batch = Array.isArray(op.shifts) ? op.shifts : [];
-  
-      if (!targetDate || batch.length === 0) {
+      // targetDate may be null for week-copy overrides (each shift carries its own pre-mapped date)
+      const isPreMapped = !targetDate && isCopy;
+
+      if (!isPreMapped && (!targetDate || batch.length === 0)) {
         alert("Nothing to move/copy. Please try again.");
         return;
       }
-  
+      if (isPreMapped && batch.length === 0) {
+        alert("Nothing to move/copy. Please try again.");
+        return;
+      }
+
       if (sourceDateStr && sourceDateStr === targetDate) return;
-  
+
+      // Run cleanup if week copy stored one
+      const _weekCleanup = typeof op._weekCopyCleanup === "function" ? op._weekCopyCleanup : null;
+
       if (isCopy) {
         const created = [];
-  
+
         await Promise.all(
           batch.map(async (shift) => {
             const newShiftData = {
-              date: targetDate,
+              date: isPreMapped ? shift.date : targetDate,
               employeeId: shift.employeeId,
               startTime: shift.startTime,
               endTime: shift.endTime,
@@ -274,7 +298,7 @@
               notes: shift.notes,
             };
   
-            const newId = await saveShiftToFirebase(newShiftData);
+            const newId = await _forceSave(newShiftData);
             const newShift = { ...newShiftData, id: newId };
   
             try {
@@ -295,10 +319,13 @@
           const state = _getState();
           state.copyingDayShifts = [];
         } catch (_) {}
+
+        // ✅ Run week copy cleanup if present
+        try { if (_weekCleanup) _weekCleanup(); } catch (_) {}
   
         try {
           if (typeof announceForScreenReader === "function") {
-            announceForScreenReader(`Copied ${created.length} events to ${getReadableDateString(new Date(targetDate))}`);
+            announceForScreenReader(`Copied ${created.length} events`);
           }
         } catch (_) {}
   
@@ -326,7 +353,7 @@
             notes: shift.notes,
           };
   
-          const newId = await saveShiftToFirebase(newShiftData);
+          const newId = await _forceSave(newShiftData);
           const newShift = { ...newShiftData, id: newId };
   
           try {
@@ -371,18 +398,20 @@
       try {
         if (op.shiftId && op.targetDate) {
           await _applyOverrideForSingleShift(op);
-        } else if (Array.isArray(op.shifts) && op.targetDate) {
+        } else if (Array.isArray(op.shifts) && (op.targetDate || (op.isCopy && op.shifts.length > 0))) {
           await _applyOverrideForDayBatch(op);
         } else {
           alert("Nothing to override. Please try again.");
         }
+        // ✅ Close warning modal on success
+        try {
+          if (typeof window.closeWarningModal === "function") window.closeWarningModal();
+        } catch (_) {}
       } catch (err) {
         console.error("[calendar] override apply failed:", err);
         alert("Could not complete the override. Please try again.");
       } finally {
         _resetGlobalMoveOperation();
-        // NOTE: do NOT force-close the warning modal here.
-        // modal-handlers.js owns modal stack + close behavior (and will close on Proceed/Cancel).
       }
     }
   
@@ -1207,18 +1236,49 @@
   
         console.log("Date mapping for week copy:", dateMapping);
   
-        const newShifts = [];
-        const savePromises = [];
-  
+        // ✅ Conflict check before copying week
+        let hasWeekConflicts = false;
+        let conflictWeekEmployeeId = null;
+        const mappedWeekShifts = [];
+
         state.copyingWeekShifts.forEach((shift) => {
           const targetDate = dateMapping[shift.date];
-          if (!targetDate) {
-            console.log(`No mapping found for date ${shift.date}`);
-            return;
+          if (!targetDate) return;
+          mappedWeekShifts.push({ ...shift, _targetDate: targetDate });
+          const conflicts = checkForDoubleBooking({ date: targetDate, employeeId: shift.employeeId });
+          if (conflicts.length > 0) {
+            hasWeekConflicts = true;
+            conflictWeekEmployeeId = shift.employeeId;
           }
-  
+        });
+
+        if (hasWeekConflicts) {
+          // Build a batch op the override system understands
+          const batchShifts = mappedWeekShifts.map((s) => ({ ...s, date: s._targetDate }));
+          const op = _ensureGlobalMoveOperation();
+          op.targetDate = null; // week batch uses op.shifts
+          op.shifts = batchShifts;
+          op.active = true;
+          op.isCopy = true;
+          op.shiftId = null;
+          op.sourceDateStr = null;
+          op._weekCopyCleanup = () => {
+            state.copyingWeekShifts = [];
+            state.isDragWeekCopy = false;
+            state.sourceWeekIndex = null;
+            state.pendingCrossMonthDrag = null;
+          };
+          _wireConflictOverrideButtonsOnce();
+          showSimplifiedWarning(conflictWeekEmployeeId);
+          return;
+        }
+
+        const newShifts = [];
+        const savePromises = [];
+
+        mappedWeekShifts.forEach((shift) => {
           const newShiftData = {
-            date: targetDate,
+            date: shift._targetDate,
             employeeId: shift.employeeId,
             startTime: shift.startTime,
             endTime: shift.endTime,
@@ -1227,30 +1287,30 @@
             location: shift.location,
             notes: shift.notes,
           };
-  
+
           savePromises.push(
             saveShiftToFirebase(newShiftData).then((newId) => {
               const newShift = { ...newShiftData, id: newId };
-  
+
               if (state.collapsedShifts?.has?.(shift.id)) {
                 state.collapsedShifts.add(newShift.id);
               }
-  
+
               newShifts.push(newShift);
               return newShift;
             })
           );
         });
-  
+
         Promise.all(savePromises)
           .then(() => {
             _upsertManyLocal(newShifts);
-  
+
             state.copyingWeekShifts = [];
             state.isDragWeekCopy = false;
             state.sourceWeekIndex = null;
             state.pendingCrossMonthDrag = null;
-  
+
             announceForScreenReader(`Copied ${newShifts.length} events to week ${targetWeekIndex + 1}`);
             renderCalendar();
           })
@@ -1258,7 +1318,7 @@
             console.error("Error saving shifts to Firebase:", error);
             alert("Could not save some shifts. Please try again later.");
           });
-  
+
         return;
       }
   

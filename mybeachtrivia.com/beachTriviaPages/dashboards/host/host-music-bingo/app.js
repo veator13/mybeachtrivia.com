@@ -1,14 +1,13 @@
 // app.js — Host Music Bingo (QR enabled, CSS-class based)
 import {
   fetchPlaylists,
-  createGame,               // ✅ use data-layer helper to create the game
+  createGame,
   getGame,
   updateGameSongIndex,
   updateGameStatus,
-  getPlayerCount,
-  requireEmployee,          // ✅ ensure employee is signed in before reads/writes
-  watchPlayerCountRTDB,     // ✅ RTDB live player watcher
-  setGamePlayerCount        // ✅ mirror count to Firestore
+  requireEmployee,
+  watchPlayerCountRTDB,
+  setGamePlayerCount
 } from './data.js';
 import { renderJoinQRCode } from './qr.js';
 
@@ -55,12 +54,12 @@ let activeGame = null;
 let stopWatchingPlayers = null;
 
 function attachPlayerWatcher(gameId) {
-  // stop a previous subscription if any
-  if (stopWatchingPlayers) { stopWatchingPlayers(); stopWatchingPlayers = null; }
+  if (stopWatchingPlayers) {
+    stopWatchingPlayers();
+    stopWatchingPlayers = null;
+  }
 
-  // start a new one
   stopWatchingPlayers = watchPlayerCountRTDB(gameId, async (count) => {
-    // Update the UI pill
     if (els.playerCount) els.playerCount.textContent = String(count);
 
     // Mirror to Firestore so anything reading games/{id}.playerCount stays consistent
@@ -154,7 +153,7 @@ function updateGameUI(game, playlistName) {
         : 'Not started';
   }
 
-  if (els.playerCount) els.playerCount.textContent = game.playerCount ?? 0;
+  if (els.playerCount) els.playerCount.textContent = String(game.playerCount ?? 0);
 
   // ✅ Use web.app for player link/QR (works on iOS behind Cloudflare)
   const joinUrl = `${WEBAPP_JOIN_BASE}?gameId=${encodeURIComponent(game.id)}&v=${JOIN_VERSION}`;
@@ -181,13 +180,13 @@ async function handleStartGame(e) {
   }
 
   try {
-    // Ensure auth at action time too (in case session expires)
     await requireEmployee();
 
     // ✅ Create the game via data-layer helper (no global firebase usage here)
     const game = await createGame({ playlistId, name, playerLimit });
 
-    updateGameUI(game, playlistName);
+    // Ensure UI shows 0 immediately (before the first RTDB event comes in)
+    updateGameUI({ ...game, playerCount: 0 }, playlistName);
 
     // ✅ Start live player watcher (RTDB)
     attachPlayerWatcher(game.id);
@@ -235,7 +234,10 @@ async function handleEndGame(e) {
   activeGame = null;
 
   // ✅ Stop RTDB watcher
-  if (stopWatchingPlayers) { stopWatchingPlayers(); stopWatchingPlayers = null; }
+  if (stopWatchingPlayers) {
+    stopWatchingPlayers();
+    stopWatchingPlayers = null;
+  }
 
   els.gameSection?.classList.add('hidden');
   if (els.qrBox) els.qrBox.innerHTML = '';
@@ -256,9 +258,8 @@ async function init() {
   } catch (e) {
     console.warn('[app] not signed in → redirecting to login:', e.message);
     const redirectTo = location.pathname + location.search + location.hash;
-    // ✅ root login path to avoid nested 404s
     location.assign('/login.html?redirect=' + encodeURIComponent(redirectTo));
-    return; // stop init until after login
+    return;
   }
 
   // Populate playlists
@@ -281,7 +282,8 @@ async function init() {
         '<option value="" disabled selected>Error loading playlists - check console</option>';
     }
 
-    if (err.message?.toLowerCase().includes('log in') || err.message?.toLowerCase().includes('auth')) {
+    const msg = String(err?.message || '');
+    if (msg.toLowerCase().includes('log in') || msg.toLowerCase().includes('auth')) {
       alert('Please log in to access Music Bingo. You may need to visit the login page first.');
     }
   }

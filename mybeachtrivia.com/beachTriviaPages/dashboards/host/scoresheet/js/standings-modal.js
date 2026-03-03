@@ -9,6 +9,15 @@
    - IMPORTANT: Only include rows with a NON-BLANK team name
    - IMPORTANT: Rank numbers stay "competition-style":
        #1 is ALWAYS the highest score, even when viewing Low → High
+
+   Highlight integration:
+   - Uses window.clearHighlights() if available
+   - Adds:
+       • tr.highlighted-row
+       • td.sticky-col.highlighted-sticky
+       • td.bonus-col-right.highlighted-sticky
+       • td.sticky-col-right.highlighted-sticky
+     so sticky cells can be styled without pseudo-element overlays
 */
 (function () {
   "use strict";
@@ -91,6 +100,37 @@
     return $("#modalRankingList") || $("#standingsList");
   }
 
+  function markStickyCells(teamRow) {
+    if (!teamRow) return;
+
+    teamRow
+      .querySelectorAll("td.sticky-col, th.sticky-col")
+      .forEach((el) => el.classList.add("highlighted-sticky"));
+
+    teamRow
+      .querySelectorAll("td.bonus-col-right, th.bonus-col-right")
+      .forEach((el) => el.classList.add("highlighted-sticky"));
+
+    teamRow
+      .querySelectorAll("td.sticky-col-right, th.sticky-col-right")
+      .forEach((el) => el.classList.add("highlighted-sticky"));
+  }
+
+  function scrollRowIntoView(row) {
+    const wrapper = $(".table-wrapper");
+    if (!wrapper || !row) return;
+
+    const thead = $("#teamTable thead");
+    const headerH = thead ? thead.offsetHeight || 0 : 0;
+    const y = (row.offsetTop || 0) - headerH - 10;
+
+    try {
+      wrapper.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
+    } catch {
+      wrapper.scrollTop = Math.max(0, y);
+    }
+  }
+
   function renderStandings(list) {
     const ul = getStandingsListEl();
     if (!ul) return;
@@ -107,7 +147,7 @@
       li.className = "standings-item";
 
       // ✅ Rank numbers stay "highest score is #1" even when viewing Low → High
-      const rankNum = asc ? (n - i) : (i + 1);
+      const rankNum = asc ? n - i : i + 1;
 
       // Match your screenshot style: "#1 name (score)"
       li.textContent = `#${rankNum} ${item.name} (${item.total})`;
@@ -117,19 +157,10 @@
         try {
           if (typeof window.clearHighlights === "function") window.clearHighlights();
         } catch (_) {}
-        item.row?.classList?.add("highlighted-row");
 
-        const wrapper = $(".table-wrapper");
-        if (wrapper && item.row) {
-          const thead = $("#teamTable thead");
-          const headerH = thead ? thead.offsetHeight || 0 : 0;
-          const y = (item.row.offsetTop || 0) - headerH - 10;
-          try {
-            wrapper.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
-          } catch {
-            wrapper.scrollTop = Math.max(0, y);
-          }
-        }
+        item.row?.classList?.add("highlighted-row");
+        markStickyCells(item.row);
+        scrollRowIntoView(item.row);
       });
 
       ul.appendChild(li);

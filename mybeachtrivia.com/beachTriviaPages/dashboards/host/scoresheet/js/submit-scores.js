@@ -10,12 +10,25 @@
    Offline/Venue rules:
    - OFFLINE (ScoresheetState.isOffline() === true):
        • venueInput is REQUIRED
-       • payload.meta.venueName is the typed venue name (venueSource: "manual")
+       • payload.meta.venueName is the typed venue name (venueSource: "manual_offline")
    - ONLINE:
        • venueSelect is REQUIRED
-       • disallow "other" unless implemented
-       • payload.meta.venueId is the selected location doc id
-       • payload.meta.venueName is the selected option label (human name)
+       • if venueSelect === "other":
+           - venueOtherInput is REQUIRED
+           - payload.meta.venueName is venueOtherInput (venueSource: "manual_other")
+           - payload.meta.venueId is "other"
+       • else:
+           - payload.meta.venueId is selected location doc id
+           - payload.meta.venueName is the selected option label (human name)
+
+   TEAM NUMBER:
+   - Each team row may have tr.dataset.teamNumber (set via the TEAM # modal)
+   - If present, it is included in each team payload as teamNumber (number)
+
+   ✅ SUBMITTER (HOST) LOCKDOWN:
+   - submitterFirstName/submitterLastName should be auto-filled + readonly (handled in meta-fields.js)
+   - This module additionally captures auth identity for auditing:
+       meta.submitterUid, meta.submitterEmail, meta.submitterDisplayName
 
    Exposes:
      - window.handleSubmitScores()
@@ -73,6 +86,13 @@
     return v === null || v === undefined || String(v).trim() === "";
   }
 
+  function intOrNull(v) {
+    const s = String(v ?? "").trim();
+    if (!s) return null;
+    const n = parseInt(s, 10);
+    return Number.isFinite(n) ? n : null;
+  }
+
   // ---------- Offline + Venue helpers ----------
   function isOfflineNow() {
     try {
@@ -88,6 +108,7 @@
     return {
       selectEl: $("#venueSelect"),
       inputEl: $("#venueInput"),
+      otherEl: $("#venueOtherInput"),
     };
   }
 
@@ -102,25 +123,33 @@
     }
   }
 
-  // ✅ Single source of truth for venue selection (used by BOTH validation + payload)
   function getVenueResolved() {
-    const { selectEl, inputEl } = getVenueEls();
+    const { selectEl, inputEl, otherEl } = getVenueEls();
     const offline = isOfflineNow();
 
     const inputVal = String(inputEl?.value || "").trim();
     const selectVal = String(selectEl?.value || "").trim();
+    const otherVal = String(otherEl?.value || "").trim();
 
     if (offline) {
       return {
         offline,
-        venueSource: "manual",
+        venueSource: "manual_offline",
         venueId: "",
-        venueName: inputVal, // typed
+        venueName: inputVal,
       };
     }
 
-    // ONLINE: dropdown only (no "other" allowed)
-    const venueId = selectVal && selectVal !== "other" && selectVal !== "loading" ? selectVal : "";
+    if (selectVal === "other") {
+      return {
+        offline,
+        venueSource: "manual_other",
+        venueId: "other",
+        venueName: otherVal,
+      };
+    }
+
+    const venueId = selectVal && selectVal !== "loading" ? selectVal : "";
     const venueName = venueId ? getSelectedOptionText(selectEl) : "";
     return {
       offline,
@@ -182,8 +211,6 @@
   }
 
   function validateMetaOrPromptFix() {
-    // Prefer centralized validator if present, but it might not be offline-aware.
-    // If it fails only for Venue, we re-check with our resolver.
     if (typeof window.validateRequiredMetaFieldsBeforeSubmit === "function") {
       const res = window.validateRequiredMetaFieldsBeforeSubmit();
       if (res?.ok) return { ok: true };
@@ -191,16 +218,15 @@
       const missing = Array.isArray(res?.missing) ? res.missing.slice() : [];
       const venueInfo = getVenueResolved();
 
-      // If the ONLY real issue is venue (common with stale cached meta-fields.js),
-      // ensure we validate venue correctly here.
-      const venueMissing = isBlank(venueInfo.venueName) || (!venueInfo.offline && isBlank(venueInfo.venueId));
+      const venueMissing =
+        isBlank(venueInfo.venueName) || (!venueInfo.offline && isBlank(venueInfo.venueId));
+
       const missingWithoutVenue = missing.filter((m) => String(m).toLowerCase() !== "venue");
 
       if (!venueMissing && missing.length && missingWithoutVenue.length === 0) {
         return { ok: true };
       }
 
-      // otherwise show the original list (plus ensure Venue is included if needed)
       const finalMissing = missingWithoutVenue.slice();
       if (venueMissing) finalMissing.push("Venue");
 
@@ -217,7 +243,9 @@
     if (!eventTypeEl || isBlank(eventTypeEl.value)) missing.push("Event Type");
 
     const venueInfo = getVenueResolved();
-    if (isBlank(venueInfo.venueName) || (!venueInfo.offline && isBlank(venueInfo.venueId))) missing.push("Venue");
+    if (isBlank(venueInfo.venueName) || (!venueInfo.offline && isBlank(venueInfo.venueId))) {
+      missing.push("Venue");
+    }
 
     const eventType = normalizeEventType(eventTypeEl?.value);
     const themeVal = (themeEl?.value || "").trim();
@@ -238,6 +266,23 @@
     return { ok: true };
   }
 
+  function getAuthMeta() {
+    // Works with compat auth loaded on page (firebase-auth-compat.js)
+    try {
+      const auth = window.firebase?.auth?.();
+      const u = auth?.currentUser;
+      if (!u) return { submitterUid: "", submitterEmail: "", submitterDisplayName: "" };
+
+      return {
+        submitterUid: String(u.uid || ""),
+        submitterEmail: String(u.email || ""),
+        submitterDisplayName: String(u.displayName || ""),
+      };
+    } catch {
+      return { submitterUid: "", submitterEmail: "", submitterDisplayName: "" };
+    }
+  }
+
   function getMeta() {
     const { eventDateEl, firstEl, lastEl, eventTypeEl, themeEl } = getMetaEls();
 
@@ -249,6 +294,8 @@
 
     const venueInfo = getVenueResolved();
     const eventName = (isThemedTrivia(eventType) ? themeName : "") || eventType || "";
+
+    const authMeta = getAuthMeta();
 
     return {
       timestamp: nowIso(),
@@ -262,6 +309,7 @@
       venueSource: venueInfo.venueSource,
       offline: venueInfo.offline,
       themeName,
+      ...authMeta,
     };
   }
 
@@ -280,6 +328,11 @@
   function getLikeChecked(row) {
     const cb = row.querySelector("input.teamCheckbox[type='checkbox']");
     return !!cb?.checked;
+  }
+
+  function getTeamNumber(row) {
+    const n = intOrNull(row?.dataset?.teamNumber);
+    return n;
   }
 
   function getBonusInput(row) {
@@ -301,7 +354,6 @@
     return span ? num(span.textContent) : 0;
   }
 
-  // ✅ IMPORTANT: get num* input inside THIS row (avoids duplicate id collisions)
   function getNumInputInRow(row, teamId, q) {
     const id = `num${teamId}${q}`;
     try {
@@ -320,7 +372,6 @@
     });
   }
 
-  // ---------- Missing-field fill (named rows only) ----------
   function findMissingFieldsForNamedRows() {
     const namedRows = getNamedTeamRows();
     const missing = [];
@@ -404,8 +455,7 @@
       answers[`q${q}`] = el ? num(el.value) : 0;
     }
 
-    const halfTime =
-      row.querySelector(`#halfTime${teamId}`) || document.getElementById(`halfTime${teamId}`);
+    const halfTime = row.querySelector(`#halfTime${teamId}`) || document.getElementById(`halfTime${teamId}`);
     const finalQuestion =
       row.querySelector(`#finalQuestion${teamId}`) || document.getElementById(`finalQuestion${teamId}`);
 
@@ -439,10 +489,12 @@
       const bonus = getBonusValue(row);
       const finalScore = getFinalScore(row, teamId);
       const scoreDetail = collectRowScores(row, teamId);
+      const teamNumber = getTeamNumber(row);
 
       teams.push({
         teamId,
         name,
+        ...(teamNumber === null ? {} : { teamNumber }),
         like,
         bonus,
         finalScore,
@@ -470,7 +522,11 @@
         submitterLastName: meta.submitterLastName,
         eventType: meta.eventType,
 
-        // ✅ consistent + explicit venue fields
+        // ✅ auth identity (auditable)
+        submitterUid: meta.submitterUid,
+        submitterEmail: meta.submitterEmail,
+        submitterDisplayName: meta.submitterDisplayName,
+
         venueId: meta.venueId,
         venueName: meta.venueName,
         venueSource: meta.venueSource,
@@ -478,7 +534,7 @@
 
         themeName: meta.themeName,
 
-        // ✅ back-compat for older readers
+        // legacy convenience
         venue: meta.venueName,
       },
 
@@ -636,7 +692,6 @@
       return;
     }
 
-    // Safety: if venue still somehow blank, block submission
     if (isBlank(payload?.meta?.venueName) || (!payload?.meta?.offline && isBlank(payload?.meta?.venueId))) {
       alert("Please complete:\n\n• Venue");
       return;

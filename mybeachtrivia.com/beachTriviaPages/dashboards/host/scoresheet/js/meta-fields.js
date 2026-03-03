@@ -5,6 +5,7 @@
    - reading meta values
    - required-field validation + visual highlighting
    - eventType-driven themeName autofill (Classic/Feud/Private Event) + blank for Themed
+   - ✅ submitter name autofill from logged-in host (Firebase Auth) + lock fields
 
    FEUD MODE HOOK:
    - When event type changes, dispatches:
@@ -14,9 +15,15 @@
    - OFFLINE:
        • venueInput is REQUIRED
        • venueSelect is ignored
+       • venueOtherInput is ignored/hidden (offline uses venueInput only)
    - ONLINE:
        • venueSelect is REQUIRED
-       • reject "loading" and "other" (unless you explicitly support "other" online)
+       • if venueSelect === "other":
+           - venueOtherInput is REQUIRED
+           - resolved venueName comes from venueOtherInput
+           - venueId stays "other" (for analytics/debug if desired)
+       • else:
+           - venueSelect must not be "loading" (and must not be blank)
 
    IMPORTANT:
    - Offline detection MUST use ScoresheetState (Firestore reachability), not navigator.onLine,
@@ -89,6 +96,141 @@
     }
   }
 
+  // -----------------------------
+  // ✅ Submitter name autofill (host)
+  // -----------------------------
+
+  function normalizeWhitespace(s) {
+    return String(s || "").replace(/\s+/g, " ").trim();
+  }
+
+  function titleCaseWord(w) {
+    const s = String(w || "").trim();
+    if (!s) return "";
+    return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+  }
+
+  function parseNameFromDisplayName(displayName) {
+    const dn = normalizeWhitespace(displayName);
+    if (!dn) return { firstName: "", lastName: "" };
+
+    // "Last, First"
+    if (dn.includes(",")) {
+      const parts = dn.split(",").map((p) => normalizeWhitespace(p)).filter(Boolean);
+      if (parts.length >= 2) {
+        const lastName = parts[0];
+        const firstName = parts[1].split(" ")[0] || parts[1];
+        return { firstName, lastName };
+      }
+    }
+
+    // "First Last ..."
+    const tokens = dn.split(" ").filter(Boolean);
+    if (tokens.length === 1) return { firstName: tokens[0], lastName: "" };
+    return {
+      firstName: tokens[0],
+      lastName: tokens.slice(1).join(" "),
+    };
+  }
+
+  function parseNameFromEmail(email) {
+    const e = String(email || "").trim();
+    if (!e || !e.includes("@")) return { firstName: "", lastName: "" };
+
+    const local = e.split("@")[0] || "";
+    const cleaned = local.replace(/[^a-zA-Z0-9._-]/g, "");
+    const parts = cleaned.split(/[._-]+/).filter(Boolean);
+
+    const firstName = parts[0] ? titleCaseWord(parts[0]) : "";
+    const lastName = parts.length > 1 ? parts.slice(1).map(titleCaseWord).join(" ") : "";
+    return { firstName, lastName };
+  }
+
+  function setSubmitterFields(firstName, lastName) {
+    const firstEl = getEl("submitterFirstName");
+    const lastEl = getEl("submitterLastName");
+    if (!firstEl || !lastEl) return;
+
+    const fn = normalizeWhitespace(firstName);
+    const ln = normalizeWhitespace(lastName);
+
+    // Only update if values actually change (prevents caret/focus weirdness)
+    if (firstEl.value !== fn) firstEl.value = fn;
+    if (lastEl.value !== ln) lastEl.value = ln;
+
+    // Lock fields (HTML already sets readonly, but keep it enforced)
+    try {
+      firstEl.readOnly = true;
+      lastEl.readOnly = true;
+      firstEl.setAttribute("aria-readonly", "true");
+      lastEl.setAttribute("aria-readonly", "true");
+      firstEl.setAttribute("autocomplete", "off");
+      lastEl.setAttribute("autocomplete", "off");
+    } catch {}
+
+    fireUserLikeInput(firstEl);
+    fireUserLikeInput(lastEl);
+  }
+
+  function fillSubmitterFromUser(user) {
+    if (!user) return;
+
+    let firstName = "";
+    let lastName = "";
+
+    const dn = user.displayName || "";
+    const email = user.email || "";
+
+    const fromDn = parseNameFromDisplayName(dn);
+    firstName = fromDn.firstName || "";
+    lastName = fromDn.lastName || "";
+
+    if (!firstName && !lastName) {
+      const fromEmail = parseNameFromEmail(email);
+      firstName = fromEmail.firstName || "";
+      lastName = fromEmail.lastName || "";
+    }
+
+    // As a last fallback, use displayName/email raw (so it's never blank if possible)
+    if (!firstName && dn) firstName = dn;
+    if (!firstName && email) firstName = email;
+
+    setSubmitterFields(firstName, lastName);
+  }
+
+  function tryBindAuthListener(attempt) {
+    const maxAttempts = 80; // ~8s if we retry at 100ms
+    const delayMs = 100;
+
+    try {
+      if (window.firebase?.auth && typeof window.firebase.auth === "function") {
+        const auth = window.firebase.auth();
+
+        // Ensure fields are locked even before values arrive
+        setSubmitterFields(getEl("submitterFirstName")?.value || "", getEl("submitterLastName")?.value || "");
+
+        // Prefer immediate user if available
+        try {
+          if (auth.currentUser) fillSubmitterFromUser(auth.currentUser);
+        } catch {}
+
+        // Keep in sync with auth state
+        auth.onAuthStateChanged(function (user) {
+          try {
+            fillSubmitterFromUser(user);
+          } catch {}
+        });
+
+        return;
+      }
+    } catch {}
+
+    if ((attempt || 0) >= maxAttempts) return;
+    setTimeout(function () {
+      tryBindAuthListener((attempt || 0) + 1);
+    }, delayMs);
+  }
+
   // ✅ when event type changes, set themeName defaults
   function applyThemeNameDefaultFromEventType() {
     const eventTypeEl = getEl("eventType");
@@ -124,19 +266,41 @@
     themeField.hidden = !show;
   }
 
-  // ✅ Central place to resolve venue based on online/offline mode
+  // ✅ Central place to resolve venue based on online/offline mode (supports "other")
   function getVenueResolved() {
     const venueSelect = getEl("venueSelect");
     const venueInput = getEl("venueInput");
+    const venueOtherInput = getEl("venueOtherInput");
     const offline = isOfflineNow();
 
     const selectVal = (venueSelect?.value || "").trim();
     const inputVal = (venueInput?.value || "").trim();
+    const otherVal = (venueOtherInput?.value || "").trim();
 
     if (offline) {
-      return { offline, venueId: "", venueName: inputVal, source: "manual" };
+      return {
+        offline,
+        venueId: "",
+        venueName: inputVal,
+        source: "manual_offline",
+      };
     }
-    return { offline, venueId: selectVal, venueName: "", source: "dropdown" };
+
+    if (selectVal === "other") {
+      return {
+        offline,
+        venueId: "other",
+        venueName: otherVal,
+        source: "manual_other",
+      };
+    }
+
+    return {
+      offline,
+      venueId: selectVal,
+      venueName: "",
+      source: "dropdown",
+    };
   }
 
   function getMetaFields() {
@@ -155,6 +319,7 @@
       submitterLastName,
       eventType,
       themeName,
+
       venueId: venueInfo.venueId,
       venueName: venueInfo.venueName,
       venueSource: venueInfo.source,
@@ -192,6 +357,7 @@
     const themeEl = getEl("themeName");
     const venueSelectEl = getEl("venueSelect");
     const venueInputEl = getEl("venueInput");
+    const venueOtherEl = getEl("venueOtherInput");
 
     const meta = getMetaFields();
     const missing = [];
@@ -212,13 +378,20 @@
 
     // ✅ Venue rules
     if (meta.offline) {
+      // Offline: require venueInput
       if (!venueInputEl || isBlank(meta.venueName)) {
         missing.push({ key: "venueInput", el: venueInputEl || venueSelectEl, label: "Venue" });
       }
     } else {
+      // Online: require venueSelect (not blank / not loading)
       const v = (meta.venueId || "").trim();
-      if (!venueSelectEl || isBlank(v) || v === "loading" || v === "other") {
+      if (!venueSelectEl || isBlank(v) || v === "loading") {
         missing.push({ key: "venueSelect", el: venueSelectEl, label: "Venue" });
+      } else if (v === "other") {
+        // Online + Other: require venueOtherInput
+        if (!venueOtherEl || isBlank(meta.venueName)) {
+          missing.push({ key: "venueOtherInput", el: venueOtherEl || venueSelectEl, label: "Venue" });
+        }
       }
     }
 
@@ -246,7 +419,8 @@
       "eventType",
       "themeName",
       "venueSelect",
-      "venueInput", // ✅ include offline input so it clears invalid state
+      "venueInput",       // offline input
+      "venueOtherInput",  // online "Other" input (if present)
     ];
 
     ids.forEach((id) => {
@@ -273,6 +447,7 @@
       const clearVenueInvalids = () => {
         unmarkInvalid(getEl("venueInput"));
         unmarkInvalid(getEl("venueSelect"));
+        unmarkInvalid(getEl("venueOtherInput"));
       };
 
       window.addEventListener("online", clearVenueInvalids, { passive: true });
@@ -301,6 +476,9 @@
 
     // ✅ notify current value on load too
     dispatchEventTypeChanged((getEl("eventType")?.value || "").trim());
+
+    // ✅ fill submitter from logged-in host (Firebase Auth)
+    tryBindAuthListener(0);
   }
 
   if (document.readyState === "loading") {

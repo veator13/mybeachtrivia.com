@@ -5,26 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Music Bingo</title>
 
-  <!-- Page-level CSP (Cloudflare Worker also sets headers) -->
-  <meta http-equiv="Content-Security-Policy" content="
-    default-src 'self';
-    base-uri 'self';
-    object-src 'none';
-    img-src 'self' data: https:;
-    script-src 'self' 'unsafe-eval' https://www.gstatic.com https://www.googleapis.com https://*.firebaseio.com;
-    connect-src 'self'
-      https://firestore.googleapis.com
-      https://identitytoolkit.googleapis.com
-      https://securetoken.googleapis.com
-      https://www.googleapis.com
-      https://firebaseinstallations.googleapis.com
-      https://firebaseremoteconfig.googleapis.com
-      https://*.firebaseio.com
-      wss://*.firebaseio.com https://www.gstatic.com;
-    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-    font-src 'self' https://fonts.gstatic.com;
-  ">
-
   <link rel="stylesheet" href="css/styles.css" />
 
   <!-- Firebase SDKs (v8) -->
@@ -71,6 +51,6 @@
   </div>
 
   <!-- Main app logic; bump v= to bust caches after updates -->
-  <script defer src="js/script.js?v=9"></script>
+  <script defer src="js/script.js?v=10"></script>
 </body>
 </html>

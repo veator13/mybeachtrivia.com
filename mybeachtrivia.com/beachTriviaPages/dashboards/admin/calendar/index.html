@@ -27,6 +27,37 @@
     .btn { padding: 8px 12px; border: 0; border-radius: 6px; cursor: pointer; }
     .btn.primary { background: #2e4561; color: #fff; }
     .btn.ghost { background: transparent; color: #2e4561; border: 1px solid #2e4561; }
+
+    /* Roles checkbox layout */
+    .roles-grid {
+      display: grid;
+      grid-template-columns: repeat(3, auto);
+      gap: 10px 24px;
+      margin-top: 6px;
+      justify-content: start;
+    }
+    .role-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 0.95rem;
+      cursor: pointer;
+      user-select: none;
+    }
+    .role-item input[type="checkbox"] {
+      width: 15px;
+      height: 15px;
+      margin: 0;
+      flex-shrink: 0;
+      cursor: pointer;
+      accent-color: var(--primary-color, #4a9eda);
+    }
+    .roles-error {
+      color: #e74c3c;
+      font-size: 0.82rem;
+      margin-top: 4px;
+      display: none;
+    }
   </style>
 </head>
 
@@ -59,10 +90,6 @@
             <label for="employee-select">Host:</label>
             <select id="employee-select" aria-label="Filter by host">
               <option value="all">All Hosts</option>
-              <option value="1">Rob C.</option>
-              <option value="2">Grayson B.</option>
-              <option value="3">Michael S.</option>
-              <option value="4">Sarah D.</option>
             </select>
           </div>
 
@@ -82,9 +109,6 @@
             <label for="location-select">Location:</label>
             <select id="location-select" aria-label="Filter by location">
               <option value="all">All Locations</option>
-              <option value="Sly Clyde">Sly Clyde</option>
-              <option value="COVA Brewing Company">COVA Brewing Company</option>
-              <option value="Warriors Taphouse">Warriors Taphouse</option>
             </select>
           </div>
 
@@ -94,6 +118,10 @@
               <button id="expand-all-btn" class="small-btn" aria-label="Expand all shifts">Expand All</button>
               <button id="collapse-all-btn" class="small-btn" aria-label="Collapse all shifts">Collapse All</button>
             </div>
+          </div>
+
+          <div class="filter-group copy-month-group">
+            <button id="copy-prev-month-btn" class="small-btn copy-month-btn" aria-label="Copy previous month events">Copy Previous Month</button>
           </div>
         </div>
       </div>
@@ -126,6 +154,9 @@
       </div>
     </div>
 
+    <!-- =========================
+         Add / Edit Event Modal
+         ========================= -->
     <div class="modal" id="shift-modal" role="dialog" aria-labelledby="modal-title" aria-hidden="true">
       <div class="modal-content">
         <h2 id="modal-title">Add New Event</h2>
@@ -141,10 +172,6 @@
             <div class="select-with-button">
               <select id="shift-employee" required aria-describedby="host-hint">
                 <option value="">Select Host</option>
-                <option value="1">Rob C.</option>
-                <option value="2">Grayson B.</option>
-                <option value="3">Michael S.</option>
-                <option value="4">Sarah D.</option>
               </select>
               <button type="button" id="add-new-host-btn" class="add-host-btn" aria-label="Add a new host">+</button>
             </div>
@@ -192,9 +219,6 @@
             <div class="select-with-button">
               <select id="shift-location" required aria-describedby="location-hint">
                 <option value="">Select Location</option>
-                <option value="Sly Clyde">Sly Clyde</option>
-                <option value="COVA Brewing Company">COVA Brewing Company</option>
-                <option value="Warriors Taphouse">Warriors Taphouse</option>
               </select>
               <button type="button" id="add-new-location-btn" class="add-host-btn" aria-label="Add a new location">+</button>
             </div>
@@ -217,6 +241,9 @@
       </div>
     </div>
 
+    <!-- =========================
+         Conflict Warning Modal
+         ========================= -->
     <div class="modal" id="warning-modal" role="dialog" aria-labelledby="warning-title" aria-hidden="true">
       <div class="modal-content warning">
         <h2 id="warning-title">Same-Day Event Warning</h2>
@@ -231,6 +258,9 @@
       </div>
     </div>
 
+    <!-- =========================
+         Clear Day Modal
+         ========================= -->
     <div class="modal" id="clear-day-modal" role="dialog" aria-labelledby="clear-day-title" aria-hidden="true">
       <div class="modal-content warning">
         <h2 id="clear-day-title">Clear Events</h2>
@@ -245,56 +275,79 @@
       </div>
     </div>
 
+    <!-- =========================
+         Add New Host (ALIGNED to modal-handlers.js)
+         - Email REQUIRED
+         - Nickname REQUIRED (display name on calendar)
+         - First/Last OPTIONAL
+         - Roles REQUIRED (defaults to host checked)
+         ========================= -->
     <div class="modal" id="new-host-modal" role="dialog" aria-labelledby="new-host-title" aria-hidden="true">
       <div class="modal-content">
         <h2 id="new-host-title">Add New Host</h2>
+
         <form id="new-host-form">
           <div class="form-group">
+            <label for="new-host-email">Email: <span style="color:#e74c3c" aria-hidden="true">*</span></label>
+            <input type="email" id="new-host-email" required aria-describedby="email-hint" placeholder="Enter email address" />
+            <small id="email-hint" class="form-hint">Required — used to create the login</small>
+            <small id="email-error" class="roles-error" role="alert" style="display:none;">That email address is already in use. Please use a different email.</small>
+          </div>
+
+          <div class="form-group">
             <label for="new-host-firstname">First Name:</label>
-            <input type="text" id="new-host-firstname" required aria-describedby="firstname-hint" placeholder="Enter first name" />
-            <small id="firstname-hint" class="form-hint">Enter the first name of the host</small>
+            <input type="text" id="new-host-firstname" aria-describedby="firstname-hint" placeholder="Enter first name (optional)" />
+            <small id="firstname-hint" class="form-hint">Optional</small>
           </div>
 
           <div class="form-group">
             <label for="new-host-lastname">Last Name:</label>
-            <input type="text" id="new-host-lastname" required aria-describedby="lastname-hint" placeholder="Enter last name" />
-            <small id="lastname-hint" class="form-hint">Enter the last name of the host</small>
+            <input type="text" id="new-host-lastname" aria-describedby="lastname-hint" placeholder="Enter last name (optional)" />
+            <small id="lastname-hint" class="form-hint">Optional</small>
           </div>
 
           <div class="form-group">
-            <label for="new-host-nickname">Nickname:</label>
-            <input type="text" id="new-host-nickname" aria-describedby="nickname-hint" placeholder="Enter nickname (optional)" />
-            <small id="nickname-hint" class="form-hint">Enter the nickname of the host (if applicable)</small>
+            <label for="new-host-nickname">Nickname (Calendar Name): <span style="color:#e74c3c" aria-hidden="true">*</span></label>
+            <input type="text" id="new-host-nickname" required aria-describedby="nickname-hint" placeholder="Enter display name shown on calendar" />
+            <small id="nickname-hint" class="form-hint">Required — this is what appears on the calendar</small>
           </div>
 
           <div class="form-group">
             <label for="new-host-phone">Phone:</label>
             <input type="tel" id="new-host-phone" aria-describedby="phone-hint" placeholder="Enter phone number" />
-            <small id="phone-hint" class="form-hint">Enter the host's phone number</small>
+            <small id="phone-hint" class="form-hint">Optional</small>
           </div>
 
           <div class="form-group">
-            <label for="new-host-email">Email:</label>
-            <input type="email" id="new-host-email" aria-describedby="email-hint" placeholder="Enter email address" />
-            <small id="email-hint" class="form-hint">Enter the host's email address</small>
+            <label>Roles: <span style="color:#e74c3c" aria-hidden="true">*</span></label>
+            <div class="roles-grid" id="roles-grid" aria-describedby="roles-hint">
+              <label class="role-item"><input type="checkbox" name="roles" value="host" checked /> Host</label>
+              <label class="role-item"><input type="checkbox" name="roles" value="admin" /> Admin</label>
+              <label class="role-item"><input type="checkbox" name="roles" value="regional" /> Regional</label>
+              <label class="role-item"><input type="checkbox" name="roles" value="supply" /> Supply</label>
+              <label class="role-item"><input type="checkbox" name="roles" value="writer" /> Writer</label>
+              <label class="role-item"><input type="checkbox" name="roles" value="social" /> Social</label>
+            </div>
+            <small id="roles-hint" class="form-hint">At least one role required (defaults to Host)</small>
+            <small id="roles-error" class="roles-error" role="alert">Please select at least one role.</small>
           </div>
 
           <div class="form-group">
             <label for="new-host-emergency-contact">Emergency Contact:</label>
             <input type="text" id="new-host-emergency-contact" aria-describedby="emergency-contact-hint" placeholder="Enter emergency contact name" />
-            <small id="emergency-contact-hint" class="form-hint">Enter name of emergency contact</small>
+            <small id="emergency-contact-hint" class="form-hint">Optional</small>
           </div>
 
           <div class="form-group">
             <label for="new-host-emergency-phone">Emergency Phone:</label>
             <input type="tel" id="new-host-emergency-phone" aria-describedby="emergency-phone-hint" placeholder="Enter emergency contact phone" />
-            <small id="emergency-phone-hint" class="form-hint">Enter phone number of emergency contact</small>
+            <small id="emergency-phone-hint" class="form-hint">Optional</small>
           </div>
 
           <div class="form-group">
             <label for="new-host-employee-id">Employee ID:</label>
             <input type="text" id="new-host-employee-id" aria-describedby="employee-id-hint" placeholder="Enter employee ID number" />
-            <small id="employee-id-hint" class="form-hint">Enter the host's employee ID number</small>
+            <small id="employee-id-hint" class="form-hint">Optional</small>
           </div>
 
           <div class="form-group toggle-group">
@@ -311,6 +364,7 @@
 
           <div class="spacer"></div>
         </form>
+
         <div class="button-group">
           <button type="button" class="cancel" id="cancel-new-host">Cancel</button>
           <button type="submit" form="new-host-form" id="save-new-host">Save Host</button>
@@ -318,26 +372,23 @@
       </div>
     </div>
 
+    <!-- =========================
+         Add New Location
+         ========================= -->
     <div class="modal" id="new-location-modal" role="dialog" aria-labelledby="new-location-title" aria-hidden="true">
       <div class="modal-content">
         <h2 id="new-location-title">Add New Location</h2>
         <form id="new-location-form">
           <div class="form-group">
-            <label for="new-location-name">Location Name:</label>
+            <label for="new-location-name">Location Name: <span style="color:#e74c3c" aria-hidden="true">*</span></label>
             <input type="text" id="new-location-name" required aria-describedby="new-location-hint" placeholder="Enter location name" />
             <small id="new-location-hint" class="form-hint">Enter the name of the new location</small>
           </div>
 
           <div class="form-group">
-            <label for="new-location-address">Address:</label>
-            <input type="text" id="new-location-address" aria-describedby="address-hint" placeholder="Enter location address" />
-            <small id="address-hint" class="form-hint">Enter the address of the location</small>
-          </div>
-
-          <div class="form-group">
             <label for="new-location-contact">Primary Contact:</label>
             <input type="text" id="new-location-contact" aria-describedby="contact-hint" placeholder="Enter primary contact name" />
-            <small id="contact-hint" class="form-hint">Enter the name of the primary contact person</small>
+            <small id="contact-hint" class="form-hint">Stored as contactName (and legacy aliases if needed)</small>
           </div>
 
           <div class="form-group">
@@ -350,6 +401,18 @@
             <label for="new-location-email">Email:</label>
             <input type="email" id="new-location-email" aria-describedby="location-email-hint" placeholder="Enter email address" />
             <small id="location-email-hint" class="form-hint">Enter the location's email address</small>
+          </div>
+
+          <div class="form-group">
+            <label for="new-location-schedule">Schedule:</label>
+            <input type="text" id="new-location-schedule" aria-describedby="location-schedule-hint" placeholder='e.g., "Tues 7pm, Thurs 7pm"' />
+            <small id="location-schedule-hint" class="form-hint">Stored as schedule</small>
+          </div>
+
+          <div class="form-group">
+            <label for="new-location-notes">Notes:</label>
+            <textarea id="new-location-notes" rows="4" aria-describedby="location-notes-hint" placeholder="Any venue notes, instructions, or reminders..."></textarea>
+            <small id="location-notes-hint" class="form-hint">Stored as notes</small>
           </div>
 
           <div class="form-group toggle-group">
@@ -366,6 +429,7 @@
 
           <div class="spacer"></div>
         </form>
+
         <div class="button-group">
           <button type="button" class="cancel" id="cancel-new-location">Cancel</button>
           <button type="submit" form="new-location-form" id="save-new-location">Save Location</button>
@@ -373,6 +437,9 @@
       </div>
     </div>
 
+    <!-- =========================
+         Copy Event Modal
+         ========================= -->
     <div class="modal" id="copy-shift-modal" role="dialog" aria-labelledby="copy-shift-title" aria-hidden="true">
       <div class="modal-content">
         <h2 id="copy-shift-title">Copy Event</h2>
@@ -406,11 +473,32 @@
         </div>
       </div>
     </div>
+
+    <!-- =========================
+         Copy Previous Month Modal
+         ========================= -->
+    <div class="modal" id="copy-month-modal" role="dialog" aria-labelledby="copy-month-title" aria-hidden="true" style="display:none;">
+      <div class="modal-content warning">
+        <h2 id="copy-month-title">Copy Previous Month</h2>
+        <div class="warning-message">
+          <div id="copy-month-message"></div>
+        </div>
+        <div class="button-group copy-month-buttons">
+          <button type="button" class="cancel" id="copy-month-cancel">Cancel</button>
+          <button type="button" class="proceed" id="copy-month-copy-all" style="display:none;">Copy All</button>
+          <button type="button" class="proceed" id="copy-month-exclude-conflicts" style="display:none;">Skip Conflicts</button>
+          <button type="button" class="proceed copy-month-include" id="copy-month-include-conflicts" style="display:none;">Include All</button>
+        </div>
+      </div>
+    </div>
+
   </div>
 
+  <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-functions-compat.js"></script>
 
   <script src="../../../firebase-init.js"></script>
   <script src="../guard-admin.js"></script>
@@ -424,6 +512,7 @@
   <script src="js/modal-handlers.js"></script>
   <script src="js/drag-drop-handler.js"></script>
   <script src="js/event-listeners.js"></script>
+  <script src="js/copy-month.js"></script>
   <script src="js/main.js?v=2"></script>
 
   <script src="/beachTriviaPages/js/auth-route-guard.v2.js?v=2025-10-14a"></script>

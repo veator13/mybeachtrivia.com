@@ -1,5 +1,14 @@
-// --- redirect helper (added) ---
-// make any read of 'playlists/<id>' or 'music_bingo/<id>' point to 'games/<GAME_ID>/playlist/data'
+// script.js — Music Bingo Player
+// - Firestore: game + playlist snapshot (games/<id>/playlist/data)
+// - RTDB: player presence only (gated behind user tap)
+// - Anonymous Auth (player)
+// - iOS/Safari-friendly: persistence fallback + non-blocking presence write + join timeout
+
+/******************************
+ * Helpers: redirect + auth
+ ******************************/
+
+// Redirect any read of 'playlists/<id>' or 'music_bingo/<id>' to 'games/<GAME_ID>/playlist/data'
 function redirectPlaylistReads(db, gameId) {
   try {
     if (!db || db.__mbPatched) return;
@@ -8,22 +17,29 @@ function redirectPlaylistReads(db, gameId) {
     const origCollection = db.collection.bind(db);
 
     // Redirect db.doc('playlists/<id>') / db.doc('music_bingo/<id>')
-    db.doc = function(path) {
+    db.doc = function (path) {
       try {
-        if (typeof path === 'string' && gameId &&
-            (/^playlists\/[^/]+$/.test(path) || /^music_bingo\/[^/]+$/.test(path))) {
+        if (
+          typeof path === 'string' &&
+          gameId &&
+          (/^playlists\/[^/]+$/.test(path) || /^music_bingo\/[^/]+$/.test(path))
+        ) {
           return origDoc(`games/${gameId}/playlist/data`);
         }
-      } catch (e) {}
+      } catch (_) {}
       return origDoc(path);
     };
 
-    // Also intercept collection('playlists').doc(id) style
-    db.collection = function(name) {
+    // Intercept collection('playlists').doc(id) style
+    db.collection = function (name) {
       const cref = origCollection(name);
       if (gameId && (name === 'playlists' || name === 'music_bingo')) {
         const origDocMethod = cref.doc.bind(cref);
-        cref.doc = function(_id) { return origDoc(`games/${gameId}/playlist/data`); };
+        cref.doc = function (_id) {
+          return origDoc(`games/${gameId}/playlist/data`);
+        };
+        // keep a reference in case anything expects it
+        cref.__origDoc = origDocMethod;
       }
       return cref;
     };
@@ -31,35 +47,43 @@ function redirectPlaylistReads(db, gameId) {
     db.__mbPatched = true;
     console.log('[player] redirecting playlist reads to games/' + gameId + '/playlist/data');
   } catch (e) {
-    console.warn('[player] redirect patch failed:', e && e.message || e);
+    console.warn('[player] redirect patch failed:', (e && e.message) || e);
   }
 }
 
-
-// --- Added by fix: ensure anonymous auth before any Firestore reads (player only) ---
+// Ensure anonymous auth before any Firestore reads (player only)
 async function ensureAnonAuth() {
   try {
     if (!window.firebase || !firebase.auth) return null;
     const auth = firebase.auth();
     if (auth.currentUser) return auth.currentUser;
-    try { await auth.signInAnonymously(); } catch (e) { console.warn('[player] anon sign-in attempt:', e && e.message || e); }
+
+    // try sign-in (non-blocking if it fails)
+    try {
+      await auth.signInAnonymously();
+    } catch (e) {
+      console.warn('[player] anon sign-in attempt:', (e && e.message) || e);
+    }
+
+    // wait for auth state (hard timeout)
     return await new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error('auth timeout')), 8000);
-      const unsub = auth.onAuthStateChanged(u => { if (u) { clearTimeout(timer); unsub(); resolve(u); } });
+      const unsub = auth.onAuthStateChanged((u) => {
+        if (u) {
+          clearTimeout(timer);
+          unsub();
+          resolve(u);
+        }
+      });
     });
   } catch (e) {
-    console.warn('[player] ensureAnonAuth error:', e && e.message || e);
+    console.warn('[player] ensureAnonAuth error:', (e && e.message) || e);
   }
   return null;
 }
 
 /******************************
  * Music Bingo — Player client
- * - Firestore: game + playlist data
- * - RTDB: player presence only
- * - Anonymous Auth for each player (UID = playerId)
- * - Presence gated behind a user tap (previews won't count)
- * - iOS-friendly: Auth.Persistence.LOCAL with SESSION fallback + write guard
  ******************************/
 
 /* ---------- Bootstrap ---------- */
@@ -70,11 +94,14 @@ if (typeof firebase === 'undefined' || !firebase.apps?.length) {
   console.log('Firebase initialized — starting player app…');
   ensureAnonAuth()
     .then(() => {
-      try { redirectPlaylistReads(firebase.firestore(), new URLSearchParams(location.search).get('gameId')); }
-      catch (e) { console.warn('[player] redirect error:', e && e.message || e); }
+      try {
+        redirectPlaylistReads(firebase.firestore(), new URLSearchParams(location.search).get('gameId'));
+      } catch (e) {
+        console.warn('[player] redirect error:', (e && e.message) || e);
+      }
       return initializeGame();
     })
-    .catch(e => {
+    .catch((e) => {
       console.error('[player] auth/init failed:', e);
       alert('Error loading game (auth). Please retry.');
     });
@@ -85,8 +112,8 @@ let gameData = null;
 let playlistData = null;
 let currentSongIndex = -1;
 
-let playersRef = null;            // RTDB listener handle
-let unsubscribeFirestore = null;  // Firestore listener handle
+let playersRef = null; // RTDB listener handle
+let unsubscribeFirestore = null; // Firestore listener handle
 
 /* ---------- Board persistence (localStorage) ---------- */
 function saveBoardState() {
@@ -102,11 +129,11 @@ function saveBoardState() {
 function getBoardState(boardEl) {
   const cells = boardEl.querySelectorAll('.bingo-cell');
   const state = [];
-  cells.forEach(cell => {
+  cells.forEach((cell) => {
     state.push({
       content: cell.textContent,
       isMatched: cell.classList.contains('matched'),
-      isCenter: cell.classList.contains('center-cell')
+      isCenter: cell.classList.contains('center-cell'),
     });
   });
   return state;
@@ -131,7 +158,7 @@ function loadBoardState() {
 function restoreBoard(boardEl, state) {
   if (!boardEl) return;
   boardEl.innerHTML = '';
-  state.forEach(cellState => {
+  state.forEach((cellState) => {
     const cell = document.createElement('div');
     cell.classList.add('bingo-cell');
 
@@ -185,9 +212,7 @@ async function initializeGame() {
     console.log('Game doc:', gameData);
 
     updateGameTitle(gameData.name || 'Music Bingo');
-    currentSongIndex = Number.isInteger(gameData.currentSongIndex)
-      ? gameData.currentSongIndex
-      : -1;
+    currentSongIndex = Number.isInteger(gameData.currentSongIndex) ? gameData.currentSongIndex : -1;
 
     // Load playlist (redirect patched to games/<id>/playlist/data)
     const playlistId = gameData.playlistId;
@@ -207,7 +232,10 @@ async function initializeGame() {
     for (let i = 1; i <= 25; i++) {
       const s = playlistData[`song${i}`];
       const a = playlistData[`artist${i}`];
-      if (s && a) { songs.push(s); artists.push(a); }
+      if (s && a) {
+        songs.push(s);
+        artists.push(a);
+      }
     }
     console.log(`Using ${songs.length} songs / ${artists.length} artists`);
 
@@ -219,7 +247,6 @@ async function initializeGame() {
 
     // Gate presence behind a user tap (previews won't count)
     renderJoinGate(gameId);
-
   } catch (err) {
     console.error('initializeGame error:', err);
     alert('Error loading game. Using sample data.');
@@ -230,20 +257,58 @@ async function initializeGame() {
 /* ---------- Sample data fallback ---------- */
 function initializeGameWithSampleData() {
   const sampleSongs = [
-    "Oh, Pretty Woman", "California Dreamin'", "I'm a Believer", "Mr. Tambourine Man",
-    "Good Vibration", "Happy Together", "Mrs. Robinson", "House Of The Rising Sun",
-    "Somebody to Love", "Brown Eyed Girl", "I Got You Babe", "The Locomotion",
-    "Do Wah Diddy", "Sugar, Sugar", "Blue Moon", "Respect", "Stand by Me",
-    "My Girl", "Unchained Melody", "Be My Baby", "Great Balls of Fire", "Twist and Shout",
-    "Jailhouse Rock", "Sherry", "Runaround Sue"
+    'Oh, Pretty Woman',
+    'California Dreamin\'',
+    "I'm a Believer",
+    'Mr. Tambourine Man',
+    'Good Vibration',
+    'Happy Together',
+    'Mrs. Robinson',
+    'House Of The Rising Sun',
+    'Somebody to Love',
+    'Brown Eyed Girl',
+    'I Got You Babe',
+    'The Locomotion',
+    'Do Wah Diddy',
+    'Sugar, Sugar',
+    'Blue Moon',
+    'Respect',
+    'Stand by Me',
+    'My Girl',
+    'Unchained Melody',
+    'Be My Baby',
+    'Great Balls of Fire',
+    'Twist and Shout',
+    'Jailhouse Rock',
+    'Sherry',
+    'Runaround Sue',
   ];
   const sampleArtists = [
-    "Roy Orbison", "The Mamas & The Papas", "The Monkees", "The Byrds",
-    "The Beach Boys", "The Turtles", "Simon & Garfunkel", "The Animals",
-    "Jefferson Airplane", "Van Morrison", "Sonny & Cher", "Little Eva",
-    "Manfred Mann", "The Archies", "The Marcels", "Aretha Franklin", "Ben E. King",
-    "The Temptations", "The Righteous Brothers", "The Ronettes", "Jerry Lee Lewis",
-    "The Beatles", "Elvis Presley", "The Four Seasons", "Dion"
+    'Roy Orbison',
+    'The Mamas & The Papas',
+    'The Monkees',
+    'The Byrds',
+    'The Beach Boys',
+    'The Turtles',
+    'Simon & Garfunkel',
+    'The Animals',
+    'Jefferson Airplane',
+    'Van Morrison',
+    'Sonny & Cher',
+    'Little Eva',
+    'Manfred Mann',
+    'The Archies',
+    'The Marcels',
+    'Aretha Franklin',
+    'Ben E. King',
+    'The Temptations',
+    'The Righteous Brothers',
+    'The Ronettes',
+    'Jerry Lee Lewis',
+    'The Beatles',
+    'Elvis Presley',
+    'The Four Seasons',
+    'Dion',
   ];
   updateGameTitle('Music Bingo');
   initializeBoards(sampleSongs, sampleArtists);
@@ -261,39 +326,51 @@ function setupGameUpdates(gameId) {
     const db = firebase.firestore();
 
     // 1) Firestore: watch game doc
-    unsubscribeFirestore = db.collection('games').doc(gameId)
-      .onSnapshot((doc) => {
-        if (!doc.exists) return;
-        const data = doc.data();
-        if (data?.name && data.name !== gameData?.name) {
-          updateGameTitle(data.name);
-        }
-        if (Number.isInteger(data?.currentSongIndex) &&
-            data.currentSongIndex !== currentSongIndex) {
-          console.log('Current song index changed:', currentSongIndex, '→', data.currentSongIndex);
-          currentSongIndex = data.currentSongIndex;
-          if (currentSongIndex >= 0) showCurrentSong(currentSongIndex);
-        }
-        if (data?.status === 'ended') {
-          console.log('Game ended.');
-          alert('This game has ended. Thanks for playing!');
-          if (unsubscribeFirestore) unsubscribeFirestore();
-          try { if (playersRef) playersRef.off(); } catch (_) {}
-        }
-      }, (err) => console.error('Firestore game listener error:', err));
+    unsubscribeFirestore = db
+      .collection('games')
+      .doc(gameId)
+      .onSnapshot(
+        (doc) => {
+          if (!doc.exists) return;
+          const data = doc.data();
+
+          if (data?.name && data.name !== gameData?.name) {
+            updateGameTitle(data.name);
+          }
+
+          if (Number.isInteger(data?.currentSongIndex) && data.currentSongIndex !== currentSongIndex) {
+            console.log('Current song index changed:', currentSongIndex, '→', data.currentSongIndex);
+            currentSongIndex = data.currentSongIndex;
+            if (currentSongIndex >= 0) showCurrentSong(currentSongIndex);
+          }
+
+          if (data?.status === 'ended') {
+            console.log('Game ended.');
+            alert('This game has ended. Thanks for playing!');
+            if (unsubscribeFirestore) unsubscribeFirestore();
+            try {
+              if (playersRef) playersRef.off();
+            } catch (_) {}
+          }
+        },
+        (err) => console.error('Firestore game listener error:', err)
+      );
 
     // 2) RTDB: players presence count (non-critical)
     const rtdb = firebase.database();
     playersRef = rtdb.ref(`games/${gameId}/players`);
-    playersRef.on('value', (snap) => {
-      const count = snap.exists() ? Object.keys(snap.val()).length : 0;
-      console.log('Players currently joined:', count);
-      const el = document.querySelector('.player-count');
-      if (el) el.textContent = String(count);
-    }, (err) => {
-      console.warn('Players listener error (non-blocking):', err?.message || err);
-    });
-
+    playersRef.on(
+      'value',
+      (snap) => {
+        const count = snap.exists() ? Object.keys(snap.val()).length : 0;
+        console.log('Players currently joined:', count);
+        const el = document.querySelector('.player-count');
+        if (el) el.textContent = String(count);
+      },
+      (err) => {
+        console.warn('Players listener error (non-blocking):', err?.message || err);
+      }
+    );
   } catch (err) {
     console.error('setupGameUpdates error:', err);
   }
@@ -331,7 +408,8 @@ function showCurrentSong(songIndex) {
     document.head.appendChild(style);
   }
   note.innerHTML = `<strong>Now Playing:</strong><br>${song} — ${artist}`;
-  note.style.animation = 'none'; note.offsetHeight; // reflow
+  note.style.animation = 'none';
+  note.offsetHeight; // reflow
   note.style.animation = 'fadeInOut 5s forwards';
 }
 
@@ -357,6 +435,7 @@ function renderJoinGate(gameId) {
       .mb-join-btn {
         display:inline-block; padding:12px 18px; border-radius: 10px; border: 0;
         background: #6C5CE7; color:#fff; font-weight: 600; cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
       }
       .mb-join-btn[disabled] { opacity: .6; cursor: default; }
     `;
@@ -367,6 +446,7 @@ function renderJoinGate(gameId) {
   const sessionKey = `mb_joined_${gameId}`;
   if (sessionStorage.getItem(sessionKey) === '1') {
     console.log('Already joined this session — skipping gate.');
+    // Fire and forget; no overlay
     safeJoinGame(gameId, sessionKey);
     return;
   }
@@ -378,21 +458,57 @@ function renderJoinGate(gameId) {
     <div class="mb-join-card">
       <h2>Join “${(gameData?.name || 'Music Bingo').replace(/[<>&]/g, '')}”</h2>
       <p>Tap below to join the game.</p>
-      <button class="mb-join-btn" id="mb-join-btn">Tap to Join</button>
+      <button class="mb-join-btn" id="mb-join-btn" type="button">Tap to Join</button>
     </div>
   `;
   document.body.appendChild(overlay);
 
   const btn = overlay.querySelector('#mb-join-btn');
-  btn?.addEventListener('click', async () => {
+  if (!btn) return;
+
+  let fired = false;
+
+  const runJoin = async () => {
+    if (fired) return;
+    fired = true;
+
     btn.disabled = true;
+
+    // Remove overlay immediately
+    overlay.remove();
+
+    // Hard timeout so any auth/persistence hang doesn’t stall forever
     try {
-      await safeJoinGame(gameId, sessionKey);
-    } finally {
-      // Remove the overlay regardless of network acks
-      overlay.remove();
+      await Promise.race([
+        safeJoinGame(gameId, sessionKey),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('join timeout')), 8000)),
+      ]);
+    } catch (err) {
+      console.error('Join failed/timeout:', err);
+      alert('Join is taking too long. Try reloading the page.');
     }
-  }, { once: true });
+  };
+
+  // Click + iOS touch
+  btn.addEventListener(
+    'click',
+    (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      runJoin();
+    },
+    { once: true }
+  );
+
+  btn.addEventListener(
+    'touchend',
+    (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      runJoin();
+    },
+    { once: true, passive: false }
+  );
 }
 
 async function safeJoinGame(gameId, sessionKey) {
@@ -423,7 +539,7 @@ async function safeJoinGame(gameId, sessionKey) {
     const uid = user.uid;
     console.log('[auth] UID:', uid);
 
-    // (Optional) keep LS in sync with legacy behavior
+    // Keep LS in sync with legacy behavior
     const key = `bingo_player_${gameId}`;
     const existing = localStorage.getItem(key);
     if (existing !== uid) localStorage.setItem(key, uid);
@@ -433,18 +549,20 @@ async function safeJoinGame(gameId, sessionKey) {
     const playerRef = db.ref(`games/${gameId}/players/${uid}`);
 
     // Cancel any stale onDisconnects (best-effort)
-    try { await playerRef.onDisconnect().cancel(); } catch (_) {}
+    try {
+      await playerRef.onDisconnect().cancel();
+    } catch (_) {}
+
+    // IMPORTANT: write NUMERIC timestamps so host's "lastActive is number" logic counts player immediately
+    const now = Date.now();
 
     // 1) Write presence immediately; don't hang UI if slow
     const writePresence = playerRef.set({
-      joinedAt: firebase.database.ServerValue.TIMESTAMP,
-      lastActive: firebase.database.ServerValue.TIMESTAMP
+      joinedAt: now,
+      lastActive: now,
     });
 
-    await Promise.race([
-      writePresence,
-      new Promise((resolve) => setTimeout(resolve, 2500))
-    ]);
+    await Promise.race([writePresence, new Promise((resolve) => setTimeout(resolve, 2500))]);
     console.log('[presence] initial write scheduled/guarded');
 
     // 2) When connected, register onDisconnect cleanup
@@ -452,7 +570,9 @@ async function safeJoinGame(gameId, sessionKey) {
       const connRef = db.ref('.info/connected');
       connRef.on('value', (snap) => {
         if (snap.val() === true) {
-          try { playerRef.onDisconnect().remove(); } catch (_) {}
+          try {
+            playerRef.onDisconnect().remove();
+          } catch (_) {}
           console.log('[presence] onDisconnect registered');
         }
       });
@@ -460,15 +580,17 @@ async function safeJoinGame(gameId, sessionKey) {
       console.warn('[presence] onDisconnect registration failed (non-blocking)');
     }
 
-    // Heartbeat every 30s
+    // Heartbeat every 30s (NUMERIC timestamp)
     setInterval(() => {
-      playerRef.child('lastActive').set(firebase.database.ServerValue.TIMESTAMP);
+      playerRef.child('lastActive').set(Date.now());
     }, 30_000);
 
-    // Refresh lastActive when tab becomes visible again
+    // Refresh lastActive when tab becomes visible again (NUMERIC timestamp)
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
-        try { playerRef.child('lastActive').set(firebase.database.ServerValue.TIMESTAMP); } catch {}
+        try {
+          playerRef.child('lastActive').set(Date.now());
+        } catch {}
       }
     });
 
@@ -477,10 +599,13 @@ async function safeJoinGame(gameId, sessionKey) {
 
     // Best-effort ping on pagehide (iOS)
     window.addEventListener('pagehide', () => {
-      try { navigator.sendBeacon?.('/', new Uint8Array()); } catch (_) {}
-      try { playerRef.child('lastActive').set(firebase.database.ServerValue.TIMESTAMP); } catch {}
+      try {
+        navigator.sendBeacon?.('/', new Uint8Array());
+      } catch (_) {}
+      try {
+        playerRef.child('lastActive').set(Date.now());
+      } catch {}
     });
-
   } catch (err) {
     console.error('Error joining game:', err);
     alert('Could not join the game. Please reload and try again.');
@@ -493,6 +618,7 @@ function createBingoBoard(boardEl, songs, artists) {
   boardEl.innerHTML = '';
 
   const combined = [...songs, ...artists];
+
   // Fisher-Yates shuffle
   for (let i = combined.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -542,10 +668,10 @@ const boardsWrapper = document.querySelector('.boards-wrapper');
 const boardDots = document.querySelectorAll('.board-dot');
 const boardBtns = document.querySelectorAll('.board-btn');
 
-document.addEventListener('touchstart', e => {
+document.addEventListener('touchstart', (e) => {
   touchStartX = e.changedTouches[0].screenX;
 });
-document.addEventListener('touchend', e => {
+document.addEventListener('touchend', (e) => {
   touchEndX = e.changedTouches[0].screenX;
   handleSwipe();
 });
@@ -576,7 +702,7 @@ function switchToBoard(n) {
 document.querySelector('.swipe-hint.left')?.addEventListener('click', () => switchToBoard(1));
 document.querySelector('.swipe-hint.right')?.addEventListener('click', () => switchToBoard(2));
 
-boardBtns.forEach(btn => {
+boardBtns.forEach((btn) => {
   btn.addEventListener('click', () => {
     const n = parseInt(btn.getAttribute('data-board'), 10);
     switchToBoard(n);
@@ -599,7 +725,10 @@ document.getElementById('new-game-btn')?.addEventListener('click', () => {
   for (let i = 1; i <= 25; i++) {
     const s = playlistData[`song${i}`];
     const a = playlistData[`artist${i}`];
-    if (s && a) { songs.push(s); artists.push(a); }
+    if (s && a) {
+      songs.push(s);
+      artists.push(a);
+    }
   }
 
   const b1 = document.querySelector('.board-1');
@@ -632,22 +761,24 @@ function checkForBingo(board) {
   // rows
   for (let r = 0; r < 5; r++) {
     const row = arr.slice(r * 5, r * 5 + 5);
-    if (row.every(c => c.classList.contains('matched') || c.classList.contains('center-cell'))) {
+    if (row.every((c) => c.classList.contains('matched') || c.classList.contains('center-cell'))) {
       return true;
     }
   }
+
   // cols
   for (let c = 0; c < 5; c++) {
-    const col = [arr[c], arr[c+5], arr[c+10], arr[c+15], arr[c+20]];
-    if (col.every(x => x.classList.contains('matched') || x.classList.contains('center-cell'))) {
+    const col = [arr[c], arr[c + 5], arr[c + 10], arr[c + 15], arr[c + 20]];
+    if (col.every((x) => x.classList.contains('matched') || x.classList.contains('center-cell'))) {
       return true;
     }
   }
+
   // diagonals
   const d1 = [arr[0], arr[6], arr[12], arr[18], arr[24]];
   const d2 = [arr[4], arr[8], arr[12], arr[16], arr[20]];
-  if (d1.every(x => x.classList.contains('matched') || x.classList.contains('center-cell'))) return true;
-  if (d2.every(x => x.classList.contains('matched') || x.classList.contains('center-cell'))) return true;
+  if (d1.every((x) => x.classList.contains('matched') || x.classList.contains('center-cell'))) return true;
+  if (d2.every((x) => x.classList.contains('matched') || x.classList.contains('center-cell'))) return true;
 
   return false;
 }

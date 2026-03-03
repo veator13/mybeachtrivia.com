@@ -7,6 +7,15 @@
 // - Keeps existing “form conflict override” path (pendingShiftData) intact
 // - Adds defensive helpers so we never depend on a stray globalMoveOperation var
 // - Modal stack + backdrop-close only closes topmost modal
+//
+// Updated 2026-02-27 (later):
+// - Align "Add New Host" roles selector with updated index.html (name="roles" inside #new-host-form)
+//
+// Updated 2026-02-27 (latest):
+// - Pre-create check: deny creating employee if an existing employee doc has same email AND is active
+//   (allows if found but inactive)
+// - More robust functions region selection (window.FUNCTIONS_REGION / window.firebaseFunctionsRegion fallback)
+// - Roles default to ["host"] if none selected (still supports explicit selection)
 
 (function () {
     // ------------------------------------------------------------
@@ -142,6 +151,15 @@
       if (typeof window.popModal === "function") window.popModal(modalId);
     }
   
+    function _getFunctionsRegion() {
+      return (
+        window.FUNCTIONS_REGION ||
+        window.firebaseFunctionsRegion ||
+        window.FIREBASE_FUNCTIONS_REGION ||
+        "us-central1"
+      );
+    }
+  
     // ------------------------------------------------------------
     // ✅ Override state helpers (supports CalendarState OR state OR window.state)
     // ------------------------------------------------------------
@@ -217,301 +235,141 @@
       } catch (_) {}
     }
   
-    function _clearEditingContext() {
-      try {
-        if (window.CalendarState) {
-          window.CalendarState.isEditing = false;
-          window.CalendarState.editingShiftId = null;
-        }
-      } catch (_) {}
-      try {
-        if (typeof state !== "undefined" && state) {
-          state.isEditing = false;
-          state.editingShiftId = null;
-        }
-      } catch (_) {}
-      try {
-        if (window.state) {
-          window.state.isEditing = false;
-          window.state.editingShiftId = null;
-        }
-      } catch (_) {}
-    }
-  
     // ------------------------------------------------------------
-    // Drag/move override helpers
+    // ✅ Global move operation helpers
     // ------------------------------------------------------------
   
     function _getGlobalMoveOperation() {
       try {
-        // Always prefer window.globalMoveOperation
         if (window.globalMoveOperation) return window.globalMoveOperation;
       } catch (_) {}
-      // Fallback if some code still sets a bare global
       try {
-        // eslint-disable-next-line no-undef
-        if (typeof globalMoveOperation !== "undefined" && globalMoveOperation) return globalMoveOperation;
+        if (window.CalendarState && window.CalendarState.globalMoveOperation) return window.CalendarState.globalMoveOperation;
       } catch (_) {}
       return null;
     }
   
-    // ------------------------------------------------------------
-    // Firestore force helpers (ADD vs UPDATE)
-    // ------------------------------------------------------------
-  
-    async function _forceAddShiftDoc(data) {
-      if (!window.firebase?.firestore) throw new Error("Firestore not available");
-      const db = firebase.firestore();
-      const payload = { ...data, createdAt: firebase.firestore.FieldValue.serverTimestamp() };
-      const ref = await db.collection("shifts").add(payload);
-      return ref.id;
-    }
-  
-    async function _forceUpdateShiftDoc(shiftId, data) {
-      if (!window.firebase?.firestore) throw new Error("Firestore not available");
-      const db = firebase.firestore();
-      const payload = { ...data, updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
-      await db.collection("shifts").doc(String(shiftId)).update(payload);
-      return String(shiftId);
-    }
-  
-    async function _forcePersistPendingShift(pending, editingShiftId) {
-      const payload = {
-        date: pending.date,
-        employeeId: pending.employeeId,
-        startTime: pending.startTime,
-        endTime: pending.endTime,
-        type: pending.type,
-        theme: pending.theme || "",
-        location: pending.location,
-        notes: pending.notes || "",
-      };
-  
-      // ✅ EDIT MODE MUST UPDATE
-      if (editingShiftId) {
-        try {
-          if (window.shiftService?.saveShift) {
-            const maybe = await window.shiftService.saveShift({ ...payload, id: editingShiftId }, { force: true });
-            return maybe || editingShiftId;
-          }
-        } catch (_) {}
-        return await _forceUpdateShiftDoc(editingShiftId, payload);
-      }
-  
-      // ✅ ADD MODE
+    function _clearGlobalMoveOperation() {
       try {
-        if (typeof window.forceSaveShiftToFirebase === "function") {
-          const newId = await window.forceSaveShiftToFirebase(payload);
-          return newId;
-        }
-      } catch (_) {}
-  
-      try {
-        if (window.shiftService?.saveShift) {
-          const newId = await window.shiftService.saveShift(payload, { force: true });
-          return newId;
-        }
-      } catch (_) {}
-  
-      return await _forceAddShiftDoc(payload);
-    }
-  
-    async function _refreshCalendarUIAfterWrite() {
-      try {
-        if (typeof loadShiftsFromFirebase === "function") await loadShiftsFromFirebase();
+        if (window.globalMoveOperation) window.globalMoveOperation = null;
       } catch (_) {}
       try {
-        if (typeof renderCalendar === "function") renderCalendar();
+        if (window.CalendarState && window.CalendarState.globalMoveOperation) window.CalendarState.globalMoveOperation = null;
       } catch (_) {}
     }
-  
-    // ------------------------------------------------------------
-    // ✅ Proceed Anyway handler
-    // ------------------------------------------------------------
-  
-    function handleProceedAnyway() {
-      // 1) Drag/move/copy override path (globalMoveOperation)
-      const op = _getGlobalMoveOperation();
-      if (op && op.active) {
-        // ✅ drag-drop-handler.js now exposes this stable entry point
-        if (typeof window.executeOverrideFromGlobalMoveOperation === "function") {
-          window.executeOverrideFromGlobalMoveOperation();
-          return;
-        }
-  
-        // Fallback: allow older builds (if someone exposed something else)
-        if (typeof window._applyGlobalMoveOperationOverride === "function") {
-          window._applyGlobalMoveOperationOverride();
-          return;
-        }
-      }
-  
-      // 2) Form conflict override path (pendingShiftData)
-      const pending = _getPendingShiftData();
-      if (pending) {
-        _setForceBookingFlag(true);
-  
-        const ctx = _getEditingContext();
-        const editingShiftId = ctx?.editingShiftId || null;
-  
-        (async () => {
-          try {
-            await _forcePersistPendingShift(pending, editingShiftId);
-  
-            try {
-              if (typeof closeWarningModal === "function") closeWarningModal();
-            } catch (_) {}
-            try {
-              if (typeof closeShiftModal === "function") closeShiftModal();
-            } catch (_) {}
-  
-            await _refreshCalendarUIAfterWrite();
-          } catch (e) {
-            console.error("[calendar] Proceed Anyway override failed:", e);
-            alert("Override failed. Please try again.");
-            _setForceBookingFlag(false);
-          } finally {
-            _clearPendingShiftData();
-            _clearEditingContext();
-          }
-        })();
-  
-        return;
-      }
-  
-      console.warn("[calendar] Proceed Anyway clicked but no override context found.");
-    }
-  
-    (function wireProceedButtonOnce() {
-      if (window.__calendarProceedWired) return;
-      window.__calendarProceedWired = true;
-  
-      document.addEventListener(
-        "click",
-        function (e) {
-          const btn =
-            e.target &&
-            (e.target.id === "proceed-booking" ? e.target : e.target.closest && e.target.closest("#proceed-booking"));
-          if (!btn) return;
-  
-          e.preventDefault();
-          e.stopPropagation();
-          if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
-          handleProceedAnyway();
-        },
-        true
-      );
-  
-      document.addEventListener(
-        "keydown",
-        function (e) {
-          if (e.key !== "Enter") return;
-          const el = document.activeElement;
-          if (!el) return;
-          if (el.id === "proceed-booking" || (el.classList && el.classList.contains("proceed"))) {
-            e.preventDefault();
-            e.stopPropagation();
-            if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
-            handleProceedAnyway();
-          }
-        },
-        true
-      );
-    })();
   
     // ------------------------------------------------------------
     // Shift modal
     // ------------------------------------------------------------
   
-    function openShiftModal(dateStr = null) {
+    function openShiftModal(dateStr) {
       const els = _getEls();
   
+      // Reset warning state whenever opening form
+      _setForceBookingFlag(false);
+  
+      // Ensure theme field visibility correct
       try {
-        if (typeof state !== "undefined" && state) {
-          state.isEditing = false;
-          state.editingShiftId = null;
-        }
-      } catch (_) {}
-      try {
-        if (window.CalendarState) {
-          window.CalendarState.isEditing = false;
-          window.CalendarState.editingShiftId = null;
-        }
+        if (typeof toggleThemeField === "function") toggleThemeField();
       } catch (_) {}
   
-      if (els.modalTitle) els.modalTitle.textContent = "Add New Event";
-      if (els.submitButton) els.submitButton.textContent = "Save Event";
-  
+      // Default date
       try {
-        if (els.shiftForm) els.shiftForm.reset();
+        if (els.shiftDateInput) els.shiftDateInput.value = dateStr || "";
       } catch (_) {}
-      try {
-        if (els.themeField) els.themeField.style.display = "none";
-      } catch (_) {}
-  
-      const defaultDate = dateStr || (typeof formatDate === "function" ? formatDate(new Date()) : "");
-      if (els.shiftDateInput) els.shiftDateInput.value = defaultDate;
-  
-      if (typeof getDefaultTimes === "function") {
-        const defaultTimes = getDefaultTimes();
-        selectDropdownOptionByValue(els.startTimeSelect, defaultTimes.start);
-        selectDropdownOptionByValue(els.endTimeSelect, defaultTimes.end);
-      }
   
       _showModal(els.shiftModal || document.getElementById("shift-modal"), "shift-modal");
   
       setTimeout(() => {
         _scrollModalToTop(els.shiftModal || document.getElementById("shift-modal"));
-        _safeFocus(els.shiftEmployeeSelect || document.getElementById("shift-employee"));
+        _safeFocus(els.shiftDateInput || document.getElementById("shift-date"));
       }, 60);
   
       try {
-        if (typeof announceForScreenReader === "function" && typeof getReadableDateString === "function") {
-          announceForScreenReader(`Adding new event for ${getReadableDateString(new Date(defaultDate))}`);
-        }
+        if (typeof announceForScreenReader === "function") announceForScreenReader("Add new event form is open");
       } catch (_) {}
     }
   
     function closeShiftModal() {
       const els = _getEls();
-      const scrollPosition = { x: window.scrollX, y: window.scrollY };
+  
+      // Clear any pending data + flags
+      _clearPendingShiftData();
+      _setForceBookingFlag(false);
   
       _hideModal(els.shiftModal || document.getElementById("shift-modal"), "shift-modal");
-  
-      _clearEditingContext();
-  
-      setTimeout(() => window.scrollTo(scrollPosition.x, scrollPosition.y), 10);
     }
   
     // ------------------------------------------------------------
     // Warning modal
     // ------------------------------------------------------------
   
-    function closeWarningModal() {
+    function showWarningModal(conflicts, pendingData) {
       const els = _getEls();
-      const scrollPosition = { x: window.scrollX, y: window.scrollY };
   
-      _setForceBookingFlag(false);
-      _clearPendingShiftData();
-  
-      _hideModal(els.warningModal || document.getElementById("warning-modal"), "warning-modal");
-  
+      // Store pending shift data so the proceed button can use it
       try {
-        if (els.submitButton) els.submitButton.disabled = false;
+        if (window.CalendarState) window.CalendarState.pendingShiftData = pendingData;
+      } catch (_) {}
+      try {
+        if (typeof state !== "undefined" && state) state.pendingShiftData = pendingData;
+      } catch (_) {}
+      try {
+        if (window.state) window.state.pendingShiftData = pendingData;
       } catch (_) {}
   
-      const shiftModal = els.shiftModal || document.getElementById("shift-modal");
-      if (shiftModal && shiftModal.style.display === "flex") {
-        _safeFocus(els.submitButton || document.querySelector('button[form="shift-form"]'));
-      } else {
-        setTimeout(() => window.scrollTo(scrollPosition.x, scrollPosition.y), 10);
+      // Compose UI
+      if (els.warningText) {
+        const hostName =
+          (typeof getEmployeeName === "function" ? getEmployeeName(pendingData.employeeId) : null) ||
+          (window.employees && window.employees[pendingData.employeeId]) ||
+          "This host";
+  
+        els.warningText.textContent = `${hostName} already has another event scheduled on this date.`;
       }
   
+      if (els.conflictDetails) {
+        els.conflictDetails.innerHTML = "";
+  
+        (conflicts || []).forEach((c) => {
+          const div = document.createElement("div");
+          div.className = "conflict-item";
+  
+          const who =
+            (typeof getEmployeeName === "function" ? getEmployeeName(c.employeeId) : null) ||
+            (window.employees && window.employees[c.employeeId]) ||
+            "Unknown host";
+  
+          const typeName =
+            (window.eventTypes && window.eventTypes[c.type]) ||
+            (typeof getEventTypeName === "function" ? getEventTypeName(c.type) : c.type);
+  
+          const timeInfo = `${c.startTime} - ${c.endTime}`;
+          const locationInfo = c.location || "No location";
+  
+          div.innerHTML = `
+            <div class="conflict-event">${typeName}${c.theme ? ": " + c.theme : ""}</div>
+            <div class="conflict-time">${timeInfo} with ${who}</div>
+            <div class="conflict-location">${locationInfo}</div>
+          `;
+  
+          els.conflictDetails.appendChild(div);
+        });
+      }
+  
+      _showModal(els.warningModal || document.getElementById("warning-modal"), "warning-modal");
+  
+      setTimeout(() => {
+        _scrollModalToTop(els.warningModal || document.getElementById("warning-modal"));
+        _safeFocus(els.cancelBookingBtn || document.getElementById("cancel-booking"));
+      }, 60);
+  
       try {
-        if (typeof hideMonthNavigationDropzones === "function") hideMonthNavigationDropzones();
+        if (typeof announceForScreenReader === "function") {
+          announceForScreenReader("Warning: Host already has a shift scheduled on this day. Please choose to proceed or cancel.");
+        }
       } catch (_) {}
     }
-    window.closeWarningModal = closeWarningModal;
   
     function showSimplifiedWarning(employeeId) {
       const els = _getEls();
@@ -537,6 +395,11 @@
           announceForScreenReader("Warning: Host already has a shift scheduled on this day. Please choose to proceed or cancel.");
         }
       } catch (_) {}
+    }
+  
+    function closeWarningModal() {
+      const els = _getEls();
+      _hideModal(els.warningModal || document.getElementById("warning-modal"), "warning-modal");
     }
   
     // ------------------------------------------------------------
@@ -565,13 +428,17 @@
       const els = _getEls();
       try {
         if (els.newHostForm) els.newHostForm.reset();
+        const emailError = document.getElementById("email-error");
+        if (emailError) emailError.style.display = "none";
+        const rolesError = document.getElementById("roles-error");
+        if (rolesError) rolesError.style.display = "none";
       } catch (_) {}
   
       _showModal(els.newHostModal || document.getElementById("new-host-modal"), "new-host-modal");
   
       setTimeout(() => {
         _scrollModalToTop(els.newHostModal || document.getElementById("new-host-modal"));
-        _safeFocus(document.getElementById("new-host-firstname"));
+        _safeFocus(document.getElementById("new-host-email") || document.getElementById("new-host-firstname"));
       }, 60);
   
       try {
@@ -638,84 +505,185 @@
   
       const els = _getEls();
   
-      const firstName = document.getElementById("new-host-firstname").value.trim();
-      const lastName = document.getElementById("new-host-lastname").value.trim();
-      const nickname = document.getElementById("new-host-nickname").value.trim();
-      const phone = document.getElementById("new-host-phone").value.trim();
-      const email = document.getElementById("new-host-email").value.trim();
-      const emergencyContact = document.getElementById("new-host-emergency-contact").value.trim();
-      const emergencyPhone = document.getElementById("new-host-emergency-phone").value.trim();
-      const employeeId = document.getElementById("new-host-employee-id").value.trim();
-      const isActive = document.getElementById("new-host-active").checked;
+      const firstName = (document.getElementById("new-host-firstname")?.value || "").trim();
+      const lastName = (document.getElementById("new-host-lastname")?.value || "").trim();
+      const nickname = (document.getElementById("new-host-nickname")?.value || "").trim();
+      const phone = (document.getElementById("new-host-phone")?.value || "").trim();
+      const emailRaw = (document.getElementById("new-host-email")?.value || "").trim();
+      const email = emailRaw.toLowerCase();
   
-      if (!firstName) {
-        alert("Please enter a first name for the host.");
-        _safeFocus(document.getElementById("new-host-firstname"));
+      const emergencyContactName = (document.getElementById("new-host-emergency-contact")?.value || "").trim();
+      const emergencyContactPhone = (document.getElementById("new-host-emergency-phone")?.value || "").trim();
+      const employeeId = (document.getElementById("new-host-employee-id")?.value || "").trim();
+      const isActive = !!document.getElementById("new-host-active")?.checked;
+  
+      // Roles — if none selected, default to host (keeps UI simple)
+      const rolesBoxes = Array.from(document.querySelectorAll('#new-host-form input[name="roles"]:checked'));
+      let roles = rolesBoxes
+        .map((b) => (b.value || "").toLowerCase().trim())
+        .filter(Boolean);
+  
+      if (!roles.length) roles = ["host"];
+  
+      const rolesError = document.getElementById("roles-error");
+      if (rolesError) rolesError.style.display = "none";
+  
+      // Validate: email + nickname required only
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        _safeFocus(document.getElementById("new-host-email"));
+        document.getElementById("new-host-email")?.reportValidity();
+        return;
+      }
+      if (!nickname) {
+        _safeFocus(document.getElementById("new-host-nickname"));
+        document.getElementById("new-host-nickname")?.reportValidity();
         return;
       }
   
-      if (!lastName) {
-        alert("Please enter a last name for the host.");
-        _safeFocus(document.getElementById("new-host-lastname"));
-        return;
-      }
-  
-      const shortDisplayName = nickname ? nickname : firstName;
-      const fullDisplayName = nickname ? `${nickname} (${firstName} ${lastName})` : `${firstName} ${lastName}`;
-  
-      const newHost = {
-        firstName,
-        lastName,
-        nickname,
-        phone,
-        email,
-        emergencyContactName: emergencyContact,
-        emergencyContactPhone: emergencyPhone,
-        employeeID: employeeId,
-        active: isActive,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-      };
+      const shortDisplayName = nickname || firstName || email;
+      const nameSuffix = [firstName, lastName].filter(Boolean).join(" ");
+      const fullDisplayName = nickname
+        ? (nameSuffix ? `${nickname} (${nameSuffix})` : nickname)
+        : (nameSuffix || email);
   
       const saveButton = document.getElementById("save-new-host");
-      const originalButtonText = saveButton.textContent;
-      saveButton.textContent = "Saving...";
-      saveButton.disabled = true;
+      const originalButtonText = saveButton?.textContent || "Save Host";
+      if (saveButton) {
+        saveButton.textContent = "Creating...";
+        saveButton.disabled = true;
+      }
   
-      firebase
-        .firestore()
-        .collection("employees")
-        .add(newHost)
-        .then((docRef) => {
-          console.log("New host added with ID:", docRef.id);
+      // 1) Pre-check existing employee docs:
+      //    deny only if there is an existing employee doc with same email AND active === true
+      //    (allows if found but inactive)
+      (async () => {
+        const app = firebase.app();
+        const db = firebase.firestore();
   
-          const newHostId = docRef.id;
+        // ✅ Email duplicate (ACTIVE ONLY) check (no composite index required)
+        try {
+          const snap = await db.collection("employees").where("email", "==", email).limit(5).get();
+          if (!snap.empty) {
+            const activeMatch = snap.docs.find((d) => {
+              const data = d.data() || {};
+              // treat missing active as active (safer)
+              return data.email?.toLowerCase?.() === email && data.active !== false;
+            });
+  
+            if (activeMatch) {
+              const emailError = document.getElementById("email-error");
+              if (emailError) emailError.style.display = "block";
+              const emailField = document.getElementById("new-host-email");
+              if (emailField) {
+                emailField.focus();
+                emailField.select();
+              }
+              throw Object.assign(new Error("Email already in use by an active employee"), { code: "calendar/email-already-active" });
+            }
+          }
+        } catch (preErr) {
+          // If we intentionally threw the "already active" error, bubble it up.
+          if (String(preErr?.code || "") === "calendar/email-already-active") throw preErr;
+  
+          // Otherwise, if the check fails due to rules/index/network, we log and proceed to callable
+          console.warn("[new-host] Active-email precheck failed, proceeding to callable:", preErr);
+        }
+  
+        // Ensure signed-in admin
+        const user =
+          firebase.auth().currentUser ||
+          (await new Promise((resolve) => {
+            const off = firebase.auth().onAuthStateChanged((u) => {
+              off();
+              resolve(u || null);
+            });
+          }));
+        if (!user) throw new Error("Sign in required");
+  
+        // Optional idToken passthrough (callable should rely on context.auth, but keep compatibility)
+        const idToken = await user.getIdToken(true);
+  
+        const region = _getFunctionsRegion();
+        const fns = app.functions(region);
+        const callable = fns.httpsCallable("adminCreateEmployee");
+  
+        const res = await callable({ email, roles, idToken });
+        const { uid } = res.data || {};
+        if (!uid) throw new Error("Unexpected server response (missing uid).");
+  
+        // 2) Merge in profile fields to employees/{uid}
+        const profileUpdate = {
+          firstName,
+          lastName,
+          email,
+          phone,
+          nickname,
+          employeeID: employeeId,
+  
+          // Canonical fields used by employees-management
+          emergencyContact: emergencyContactName,
+          emergencyContactPhone: emergencyContactPhone,
+  
+          // Legacy compatibility (some pages may still read these)
+          emergencyContactName: emergencyContactName,
+          emergencyName: emergencyContactName,
+          emergencyPhone: emergencyContactPhone,
+  
+          active: isActive,
+          roles,
+          displayName: fullDisplayName,
+          shortDisplayName,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        };
+  
+        await db.collection("employees").doc(uid).set(
+          {
+            ...profileUpdate,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+  
+        return uid;
+      })()
+        .then((uid) => {
+          console.log("New host provisioned with UID:", uid);
   
           if (!window.employees) window.employees = {};
-          window.employees[newHostId] = shortDisplayName;
+          window.employees[uid] = shortDisplayName;
   
           if (!window.employeesData) window.employeesData = {};
-          window.employeesData[newHostId] = {
-            ...newHost,
-            id: newHostId,
+          window.employeesData[uid] = {
+            id: uid,
             displayName: fullDisplayName,
             shortDisplayName,
+            firstName,
+            lastName,
+            nickname,
+            phone,
+            email,
+            employeeID: employeeId,
+            emergencyContact: emergencyContactName,
+            emergencyContactPhone: emergencyContactPhone,
+            active: isActive,
+            roles,
           };
   
           if (typeof addEmployeeToDropdowns === "function") {
-            addEmployeeToDropdowns(newHostId, fullDisplayName);
+            addEmployeeToDropdowns(uid, fullDisplayName);
           } else {
             const newOptionForFilter = document.createElement("option");
-            newOptionForFilter.value = newHostId;
+            newOptionForFilter.value = uid;
             newOptionForFilter.textContent = fullDisplayName;
             if (els.employeeSelect) els.employeeSelect.appendChild(newOptionForFilter);
   
             const newOptionForShift = document.createElement("option");
-            newOptionForShift.value = newHostId;
+            newOptionForShift.value = uid;
             newOptionForShift.textContent = fullDisplayName;
             if (els.shiftEmployeeSelect) els.shiftEmployeeSelect.appendChild(newOptionForShift);
           }
   
-          if (els.shiftEmployeeSelect) els.shiftEmployeeSelect.value = newHostId;
+          if (els.shiftEmployeeSelect) els.shiftEmployeeSelect.value = uid;
   
           try {
             document.getElementById("new-host-form").reset();
@@ -729,23 +697,46 @@
           }
   
           try {
-            if (typeof announceForScreenReader === "function") announceForScreenReader(`New host ${shortDisplayName} has been added`);
+            if (typeof announceForScreenReader === "function") announceForScreenReader(`New host ${shortDisplayName} has been created`);
           } catch (_) {}
         })
         .catch((error) => {
-          console.error("Error adding host to Firebase:", error);
+          console.error("Error creating host:", error);
   
-          if (error.code === "permission-denied") {
-            alert("You do not have permission to add hosts. Please check your login status.");
-          } else if (error.code === "unavailable" || (error.name === "FirebaseError" && error.message.includes("network"))) {
-            alert("Network error. Please check your internet connection and try again.");
+          const code = String(error?.code || "");
+          const msg = `${code ? code + ": " : ""}${error?.message || String(error)}`;
+  
+          if (code === "calendar/email-already-active") {
+            // UI already shown
+            return;
+          }
+  
+          // Auth duplicate (from callable)
+          if (code.includes("already-exists") || code.includes("email-already") || msg.toLowerCase().includes("email")) {
+            const emailError = document.getElementById("email-error");
+            if (emailError) emailError.style.display = "block";
+            const emailField = document.getElementById("new-host-email");
+            if (emailField) {
+              emailField.focus();
+              emailField.select();
+            }
+            alert("That email address is already in use. Please use a different email.");
+            return;
+          }
+  
+          if (code.includes("permission-denied")) {
+            alert("You do not have permission to create employees. Please check your login / admin role.");
+          } else if (code.includes("unauthenticated") || msg.toLowerCase().includes("sign in")) {
+            alert("You must be signed in as an admin to create a host.");
           } else {
-            alert(`Error adding host: ${error.message}`);
+            alert(`Error creating host: ${msg}`);
           }
         })
         .finally(() => {
-          saveButton.textContent = originalButtonText;
-          saveButton.disabled = false;
+          if (saveButton) {
+            saveButton.textContent = originalButtonText;
+            saveButton.disabled = false;
+          }
         });
     }
   
@@ -758,26 +749,34 @@
   
       const els = _getEls();
   
-      const locationName = document.getElementById("new-location-name").value.trim();
-      const address = document.getElementById("new-location-address").value.trim();
-      const contact = document.getElementById("new-location-contact").value.trim();
-      const phone = document.getElementById("new-location-phone").value.trim();
-      const email = document.getElementById("new-location-email").value.trim();
-      const isActive = document.getElementById("new-location-active").checked;
+      const locationName = (document.getElementById("new-location-name")?.value || "").trim();
+      const contactName = (document.getElementById("new-location-contact")?.value || "").trim();
+      const phone = (document.getElementById("new-location-phone")?.value || "").trim();
+      const email = (document.getElementById("new-location-email")?.value || "").trim();
+      const schedule = (document.getElementById("new-location-schedule")?.value || "").trim();
+      const notes = (document.getElementById("new-location-notes")?.value || "").trim();
+      const isActive = !!document.getElementById("new-location-active")?.checked;
   
       if (!locationName) {
-        alert("Please enter a name for the new location.");
+        alert("Please enter a venue name.");
         _safeFocus(document.getElementById("new-location-name"));
         return;
       }
   
       const newLocation = {
         name: locationName,
-        address,
-        contact,
+  
+        // Canonical fields used by locations-management
+        contactName,
         phone,
         email,
-        isActive,
+        schedule,
+        notes,
+        active: isActive,
+  
+        // Legacy compatibility (some older calendar code used `contact`)
+        contact: contactName,
+  
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       };
   
@@ -791,9 +790,10 @@
         .collection("locations")
         .add(newLocation)
         .then((docRef) => {
-          console.log("New location added with ID:", docRef.id);
+          console.log("New venue added with ID:", docRef.id);
   
           if (!window.locationsData) window.locationsData = {};
+          // calendar uses venue *name* as the dropdown key; store the doc id too
           window.locationsData[locationName] = { ...newLocation, id: docRef.id };
   
           if (typeof addLocationToDropdowns === "function") {
@@ -824,18 +824,18 @@
           }
   
           try {
-            if (typeof announceForScreenReader === "function") announceForScreenReader(`New location ${locationName} has been added`);
+            if (typeof announceForScreenReader === "function") announceForScreenReader(`New venue ${locationName} has been added`);
           } catch (_) {}
         })
         .catch((error) => {
-          console.error("Error adding location to Firebase:", error);
+          console.error("Error adding venue:", error);
   
           if (error.code === "permission-denied") {
-            alert("You do not have permission to add locations. Please check your login status.");
+            alert("You do not have permission to add venues. Please check your login status.");
           } else if (error.code === "unavailable" || (error.name === "FirebaseError" && error.message.includes("network"))) {
             alert("Network error. Please check your internet connection and try again.");
           } else {
-            alert(`Error adding location: ${error.message}`);
+            alert(`Error adding venue: ${error.message}`);
           }
         })
         .finally(() => {
@@ -898,7 +898,11 @@
         }, 60);
   
         try {
-          if (typeof announceForScreenReader === "function" && typeof getEventTypeName === "function" && typeof getReadableDateString === "function") {
+          if (
+            typeof announceForScreenReader === "function" &&
+            typeof getEventTypeName === "function" &&
+            typeof getReadableDateString === "function"
+          ) {
             announceForScreenReader(`Copying event ${getEventTypeName(shift.type)} from ${getReadableDateString(originalDate)}`);
           }
         } catch (_) {}
@@ -967,10 +971,10 @@
         const locationInfo = shift.location || "No location";
   
         shiftItem.innerHTML = `
-            <div class="conflict-event">${eventType}${shift.theme ? ": " + shift.theme : ""}</div>
-            <div class="conflict-time">${timeInfo} with ${employeeName}</div>
-            <div class="conflict-location">${locationInfo}</div>
-          `;
+              <div class="conflict-event">${eventType}${shift.theme ? ": " + shift.theme : ""}</div>
+              <div class="conflict-time">${timeInfo} with ${employeeName}</div>
+              <div class="conflict-location">${locationInfo}</div>
+            `;
         eventsContainer.appendChild(shiftItem);
       });
   
@@ -984,154 +988,220 @@
         _scrollModalToTop(clearDayModal);
         _safeFocus(document.getElementById("cancel-clear-day"));
       }, 60);
-  
-      try {
-        if (typeof announceForScreenReader === "function") {
-          announceForScreenReader(`Confirm clearing ${shiftsForDay.length} events on ${formattedDate}`);
-        }
-      } catch (_) {}
     }
   
     function closeClearDayModal() {
-      const modal = document.getElementById("clear-day-modal");
-      if (modal) _hideModal(modal, "clear-day-modal");
-  
-      const confirmButton = document.getElementById("confirm-clear-day");
-      if (confirmButton) {
-        confirmButton.removeAttribute("data-date");
-        confirmButton.removeAttribute("data-week-index");
-      }
+      const clearDayModal = document.getElementById("clear-day-modal");
+      _hideModal(clearDayModal, "clear-day-modal");
     }
   
     // ------------------------------------------------------------
-    // Form handling
+    // Backdrop click to close (topmost only)
     // ------------------------------------------------------------
   
-    function toggleThemeField() {
-      const els = _getEls();
-      if (!els.shiftTypeSelect || !els.themeField || !els.shiftThemeInput) return;
+    function initBackdropClose() {
+      if (window.__calendarBackdropCloseInit) return;
+      window.__calendarBackdropCloseInit = true;
   
-      if (els.shiftTypeSelect.value === "themed-trivia") {
-        els.themeField.style.display = "block";
-        els.shiftThemeInput.setAttribute("required", "required");
-      } else {
-        els.themeField.style.display = "none";
-        els.shiftThemeInput.removeAttribute("required");
-        els.shiftThemeInput.value = "";
-      }
-    }
-  
-    function autoSelectEndTime() {
-      const els = _getEls();
-      if (els.startTimeSelect && els.startTimeSelect.value && els.endTimeSelect) {
-        const startTimeIndex = els.startTimeSelect.selectedIndex;
-        const endTimeIndex = Math.min(startTimeIndex + 8, els.endTimeSelect.options.length - 1);
-        els.endTimeSelect.selectedIndex = endTimeIndex;
-      }
-    }
-  
-    function validateShiftForm() {
-      const els = _getEls();
-  
-      if (!els.shiftDateInput || !els.shiftEmployeeSelect || !els.startTimeSelect || !els.endTimeSelect || !els.shiftTypeSelect || !els.shiftLocationSelect) {
-        console.warn("[calendar] validateShiftForm: missing form elements");
-        return false;
-      }
-  
-      if (!els.shiftDateInput.value) {
-        alert("Please select a date for the event.");
-        _safeFocus(els.shiftDateInput);
-        return false;
-      }
-  
-      if (!els.shiftEmployeeSelect.value) {
-        alert("Please select a host for the event.");
-        _safeFocus(els.shiftEmployeeSelect);
-        return false;
-      }
-  
-      if (!els.startTimeSelect.value) {
-        alert("Please select a start time for the event.");
-        _safeFocus(els.startTimeSelect);
-        return false;
-      }
-  
-      if (!els.endTimeSelect.value) {
-        alert("Please select an end time for the event.");
-        _safeFocus(els.endTimeSelect);
-        return false;
-      }
-  
-      if (!els.shiftTypeSelect.value) {
-        alert("Please select an event type.");
-        _safeFocus(els.shiftTypeSelect);
-        return false;
-      }
-  
-      if (els.shiftTypeSelect.value === "themed-trivia" && els.shiftThemeInput && !els.shiftThemeInput.value.trim()) {
-        alert("Please enter a theme for the themed trivia event.");
-        _safeFocus(els.shiftThemeInput);
-        return false;
-      }
-  
-      if (!els.shiftLocationSelect.value) {
-        alert("Please select a location for the event.");
-        _safeFocus(els.shiftLocationSelect);
-        return false;
-      }
-  
-      return true;
-    }
-  
-    // ------------------------------------------------------------
-    // Backdrop click = close ONLY the topmost modal (FIXED)
-    // ------------------------------------------------------------
-  
-    (function wireBackdropCloseOnce() {
-      if (window.__calendarBackdropCloseWired) return;
-      window.__calendarBackdropCloseWired = true;
-  
-      function getModalElById(id) {
-        return id ? document.getElementById(id) : null;
-      }
-  
-      function handleBackdrop(e) {
-        const topId = typeof window.peekModal === "function" ? window.peekModal() : null;
-        if (!topId) return;
-  
-        const topEl = getModalElById(topId);
-        if (!topEl) return;
-  
-        if (e.target !== topEl) return;
-  
-        e.preventDefault();
-        e.stopPropagation();
-        if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
-  
-        if (typeof window.closeTopModalIfAny === "function") {
-          window.closeTopModalIfAny();
+      document.addEventListener("click", (e) => {
+        const t = e.target;
+        if (!t) return;
+
+        // Close top modal when clicking the backdrop (the .modal wrapper div)
+        // but NOT when clicking inside .modal-content
+        const clickedBackdrop = t.classList && t.classList.contains("modal");
+        const clickedOutside = !t.closest(".modal-content") && t.closest(".modal");
+
+        if (clickedBackdrop || clickedOutside) {
+          if (typeof window.closeTopModalIfAny === "function") {
+            window.closeTopModalIfAny();
+          }
         }
-      }
-  
-      document.addEventListener("mousedown", handleBackdrop, true);
-      document.addEventListener("click", handleBackdrop, true);
-    })();
+      });
+    }
   
     // ------------------------------------------------------------
-    // Expose functions used by other files
+    // Attach event listeners once
+    // ------------------------------------------------------------
+  
+    function initModalHandlers() {
+      const els = _getEls();
+  
+      // Backdrop close
+      initBackdropClose();
+  
+      // Shift modal close buttons
+      const cancelShiftBtn = els.cancelShiftBtn || document.getElementById("cancel-shift");
+      if (cancelShiftBtn && !cancelShiftBtn.__bound) {
+        cancelShiftBtn.__bound = true;
+        cancelShiftBtn.addEventListener("click", closeShiftModal);
+      }
+  
+      // Warning modal buttons
+      const cancelBookingBtn = els.cancelBookingBtn || document.getElementById("cancel-booking");
+      if (cancelBookingBtn && !cancelBookingBtn.__bound) {
+        cancelBookingBtn.__bound = true;
+        cancelBookingBtn.addEventListener("click", () => {
+          // If the warning came from a drag-drop move, clear the operation
+          _clearGlobalMoveOperation();
+  
+          // If it came from form submission, clear pending shift data
+          _clearPendingShiftData();
+  
+          closeWarningModal();
+        });
+      }
+  
+      const proceedBookingBtn = els.proceedBookingBtn || document.getElementById("proceed-booking");
+      if (proceedBookingBtn && !proceedBookingBtn.__bound) {
+        proceedBookingBtn.__bound = true;
+        proceedBookingBtn.addEventListener("click", async () => {
+          try {
+            // 1) If we have a globalMoveOperation, always route through that
+            const moveOp = _getGlobalMoveOperation();
+            if (moveOp) {
+              console.log("Proceeding with override for global move operation:", moveOp);
+  
+              // Preferred path: handler provided by drag-drop-handler.js
+              if (typeof window.executeOverrideFromGlobalMoveOperation === "function") {
+                await window.executeOverrideFromGlobalMoveOperation();
+              } else if (typeof window.executeMoveOperationWithOverride === "function") {
+                // legacy fallback if you ever had this
+                await window.executeMoveOperationWithOverride(moveOp);
+              } else {
+                // last resort: try calling performShiftMove if present
+                if (typeof window.performShiftMove === "function") {
+                  await window.performShiftMove(moveOp.shiftId, moveOp.targetDateStr, true);
+                } else {
+                  throw new Error("No move-override executor found (executeOverrideFromGlobalMoveOperation/performShiftMove missing).");
+                }
+              }
+  
+              _clearGlobalMoveOperation();
+              closeWarningModal();
+              return;
+            }
+  
+            // 2) Otherwise we are in the form conflict override path (pendingShiftData)
+            const pending = _getPendingShiftData();
+            if (!pending) {
+              console.warn("No pendingShiftData found when proceeding; closing modal.");
+              closeWarningModal();
+              return;
+            }
+  
+            // Set force booking and attempt save
+            _setForceBookingFlag(true);
+  
+            if (typeof saveShift === "function") {
+              await saveShift(true);
+            } else if (typeof handleShiftFormSubmit === "function") {
+              await handleShiftFormSubmit(true);
+            } else {
+              throw new Error("No save handler found (saveShift/handleShiftFormSubmit).");
+            }
+  
+            // Clean up
+            _clearPendingShiftData();
+            closeWarningModal();
+          } catch (err) {
+            console.error("Proceed override failed:", err);
+            alert(`Could not proceed with override: ${err?.message || String(err)}`);
+          }
+        });
+      }
+  
+      // Clear day modal buttons
+      const cancelClearDayBtn = document.getElementById("cancel-clear-day");
+      if (cancelClearDayBtn && !cancelClearDayBtn.__bound) {
+        cancelClearDayBtn.__bound = true;
+        cancelClearDayBtn.addEventListener("click", closeClearDayModal);
+      }
+  
+      const confirmClearDayBtn = document.getElementById("confirm-clear-day");
+      if (confirmClearDayBtn && !confirmClearDayBtn.__bound) {
+        confirmClearDayBtn.__bound = true;
+        confirmClearDayBtn.addEventListener("click", async () => {
+          const dateStr = confirmClearDayBtn.getAttribute("data-date");
+          if (!dateStr) return;
+  
+          try {
+            if (typeof deleteAllShiftsForDay === "function") {
+              await deleteAllShiftsForDay(dateStr);
+            } else if (typeof window.deleteAllShiftsForDay === "function") {
+              await window.deleteAllShiftsForDay(dateStr);
+            } else {
+              throw new Error("deleteAllShiftsForDay() not found");
+            }
+            closeClearDayModal();
+          } catch (err) {
+            console.error("Error deleting all events for day:", err);
+            alert(`Could not delete events: ${err?.message || String(err)}`);
+          }
+        });
+      }
+  
+      // New host modal buttons
+      const cancelNewHostBtn = els.cancelNewHostBtn || document.getElementById("cancel-new-host");
+      if (cancelNewHostBtn && !cancelNewHostBtn.__bound) {
+        cancelNewHostBtn.__bound = true;
+        cancelNewHostBtn.addEventListener("click", closeNewHostModal);
+      }
+  
+      const newHostForm = els.newHostForm || document.getElementById("new-host-form");
+      if (newHostForm && !newHostForm.__bound) {
+        newHostForm.__bound = true;
+        newHostForm.addEventListener("submit", saveNewHost);
+      }
+  
+      // Clear inline email error when user edits the email field
+      const emailField = document.getElementById("new-host-email");
+      if (emailField && !emailField.__errorBound) {
+        emailField.__errorBound = true;
+        emailField.addEventListener("input", () => {
+          const emailError = document.getElementById("email-error");
+          if (emailError) emailError.style.display = "none";
+        });
+      }
+  
+      // New location modal buttons
+      const cancelNewLocationBtn = els.cancelNewLocationBtn || document.getElementById("cancel-new-location");
+      if (cancelNewLocationBtn && !cancelNewLocationBtn.__bound) {
+        cancelNewLocationBtn.__bound = true;
+        cancelNewLocationBtn.addEventListener("click", closeNewLocationModal);
+      }
+  
+      const newLocationForm = els.newLocationForm || document.getElementById("new-location-form");
+      if (newLocationForm && !newLocationForm.__bound) {
+        newLocationForm.__bound = true;
+        newLocationForm.addEventListener("submit", saveNewLocation);
+      }
+  
+      // Copy shift modal cancel
+      const cancelCopyShiftBtn = document.getElementById("cancel-copy-shift");
+      if (cancelCopyShiftBtn && !cancelCopyShiftBtn.__bound) {
+        cancelCopyShiftBtn.__bound = true;
+        cancelCopyShiftBtn.addEventListener("click", closeCopyShiftModal);
+      }
+    }
+  
+    // ------------------------------------------------------------
+    // Public exports (used by other modules)
     // ------------------------------------------------------------
   
     window.openShiftModal = openShiftModal;
     window.closeShiftModal = closeShiftModal;
+  
+    window.showWarningModal = showWarningModal;
     window.showSimplifiedWarning = showSimplifiedWarning;
+    window.closeWarningModal = closeWarningModal;
   
     window.openNewHostModal = openNewHostModal;
     window.closeNewHostModal = closeNewHostModal;
+    window.saveNewHost = saveNewHost;
   
     window.openNewLocationModal = openNewLocationModal;
     window.closeNewLocationModal = closeNewLocationModal;
-  
-    window.saveNewHost = saveNewHost;
     window.saveNewLocation = saveNewLocation;
   
     window.openCopyShiftModal = openCopyShiftModal;
@@ -1140,10 +1210,12 @@
     window.clearAllShiftsForDay = clearAllShiftsForDay;
     window.closeClearDayModal = closeClearDayModal;
   
-    window.toggleThemeField = toggleThemeField;
-    window.autoSelectEndTime = autoSelectEndTime;
-    window.validateShiftForm = validateShiftForm;
-  
-    window.handleProceedAnyway = handleProceedAnyway;
-    window.selectDropdownOptionByValue = selectDropdownOptionByValue;
+    window.initModalHandlers = initModalHandlers;
+
+    // Auto-initialize so backdrop close and button wiring work without an explicit call
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initModalHandlers);
+    } else {
+      initModalHandlers();
+    }
   })();
