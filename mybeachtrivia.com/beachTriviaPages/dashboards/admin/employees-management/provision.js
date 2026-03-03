@@ -1,10 +1,10 @@
 // beachTriviaPages/dashboards/admin/employees-management/provision.js
 
 function collectSelectedRoles() {
-  const boxes = Array.from(document.querySelectorAll('input[name="roles"]:checked'));
-  let roles = boxes.map(b => (b.value || '').toLowerCase().trim());
+  const boxes = Array.from(document.querySelectorAll('#roles-fieldset input[name="roles"]:checked'));
+  let roles = boxes.map(b => (b.value || '').toLowerCase().trim()).filter(Boolean);
   if (!roles.length) roles = ['host'];
-  return roles;
+  return [...new Set(roles)];
 }
 
 (function () {
@@ -142,8 +142,8 @@ function collectSelectedRoles() {
 
       // Reset form & default Host checked
       if (emailEl) emailEl.value = "";
-      document.querySelectorAll('input[name="roles"]:checked').forEach(cb => cb.checked = false);
-      const host = document.querySelector('input[name="roles"][value="host"]');
+      document.querySelectorAll('#roles-fieldset input[name="roles"]:checked').forEach(cb => cb.checked = false);
+      const host = document.querySelector('#roles-fieldset input[name="roles"][value="host"]');
       if (host) host.checked = true;
 
     } catch (err) {
@@ -159,6 +159,6 @@ function collectSelectedRoles() {
   // --- Wire up ---------------------------------------------------------------
   document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("provision-btn")?.addEventListener("click", createAndSend);
-    console.log("provision.js v7 (labels + restored copy link)");
+    console.log("provision.js v7 (scoped roles selector)");
   });
 })();

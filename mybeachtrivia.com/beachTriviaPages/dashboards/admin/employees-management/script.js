@@ -30,6 +30,29 @@ function displayRole(docData = {}) {
 }
 
 /////////////////////////
+// Edit-modal Roles UI helpers
+/////////////////////////
+function collectEditRoles() {
+  const boxes = Array.from(document.querySelectorAll('#edit-roles-fieldset input[name="editRoles"]:checked'));
+  let roles = boxes.map(b => (b.value || '').toLowerCase().trim()).filter(Boolean);
+
+  if (!roles.length) roles = ['host'];
+  return [...new Set(roles)];
+}
+function setEditRoles(rolesArr = []) {
+  const roles = (Array.isArray(rolesArr) ? rolesArr : []).map(r => String(r).toLowerCase().trim());
+  const boxes = Array.from(document.querySelectorAll('#edit-roles-fieldset input[name="editRoles"]'));
+  boxes.forEach(cb => {
+    cb.checked = roles.includes(String(cb.value).toLowerCase());
+  });
+
+  if (!boxes.some(cb => cb.checked)) {
+    const host = boxes.find(cb => String(cb.value).toLowerCase() === 'host');
+    if (host) host.checked = true;
+  }
+}
+
+/////////////////////////
 // Small helpers
 /////////////////////////
 const esc = (s) =>
@@ -82,9 +105,13 @@ function openModal() {
 }
 function closeModal() {
   if (!modal) return;
+
+  try { document.activeElement?.blur?.(); } catch {}
+
   modal.classList.remove('is-open');
   modal.setAttribute('aria-hidden', 'true');
   modal.style.display = 'none';
+
   try { document.body.style.overflow = ''; } catch {}
   if (form) form.reset();
   const idEl = document.getElementById('employeeId');
@@ -121,6 +148,10 @@ async function saveEmployee(e) {
 
     active: (document.getElementById('active')?.value === 'true')
   };
+
+  const roles = collectEditRoles();
+  employeeData.roles = roles;
+  employeeData.role  = roles.includes('admin') ? 'admin' : (roles[0] || 'host');
 
   try {
     if (!employeeId) {
@@ -163,6 +194,8 @@ async function editEmployee(id) {
     setVal('emergencyContactPhone', e.emergencyContactPhone || e.emergencyPhone || '');
 
     setVal('active', e.active === true ? 'true' : 'false');
+
+    setEditRoles(extractRoles(e));
 
     const idEl = document.getElementById('employeeId');
     if (idEl) idEl.value = id;

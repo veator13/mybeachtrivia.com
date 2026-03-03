@@ -147,7 +147,15 @@ exports.adminCreateEmployee = functions
       user = await admin.auth().getUserByEmail(email);
     } catch (e) {
       if (e.code === "auth/user-not-found") {
-        user = await admin.auth().createUser({ email, emailVerified: false, disabled: false });
+        try {
+          user = await admin.auth().createUser({ email, emailVerified: false, disabled: false });
+        } catch (ce) {
+          console.error("[adminCreateEmployee] createUser failed:", ce);
+          throw new functions.https.HttpsError(
+            "internal",
+            `failed to create auth user: ${ce?.message || ce?.code || "unknown"}`
+          );
+        }
       } else {
         console.error("[adminCreateEmployee] getUserByEmail failed:", e);
         throw new functions.https.HttpsError("internal", "get/create user failed");

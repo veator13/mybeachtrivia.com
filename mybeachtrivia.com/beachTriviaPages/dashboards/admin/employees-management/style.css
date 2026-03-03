@@ -251,7 +251,11 @@ textarea:focus {
   display: grid;
   grid-template-columns: repeat(2, minmax(220px, 1fr));
   gap: 14px;
+  align-items: start;
 }
+.form-grid > .form-group,
+.form-grid > fieldset { align-self: start; }
+
 @media (max-width: 720px) { .form-grid { grid-template-columns: 1fr; } }
 
 #employeeForm .form-group { display: grid; gap: 8px; }
