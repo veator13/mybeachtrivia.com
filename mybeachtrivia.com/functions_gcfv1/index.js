@@ -1,7 +1,15 @@
-// functions_gcfv1/index.js
+// mybeachtrivia.com/functions_gcfv1/index.js
+// Cloud Functions (v1) – consolidated init + employees provisioning + misc jobs
+
 const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
-admin.initializeApp();
+
+// Initialize Admin SDK exactly once
+try {
+  admin.app();
+} catch (e) {
+  admin.initializeApp();
+}
 const db = admin.firestore();
 
 /** --------------------------------
@@ -12,6 +20,7 @@ const SENDGRID_API_KEY =
   process.env.SENDGRID_API_KEY ||
   (functions.config().sendgrid && functions.config().sendgrid.key) ||
   "";
+
 if (SENDGRID_API_KEY) {
   sgMail = require("@sendgrid/mail");
   sgMail.setApiKey(SENDGRID_API_KEY);
@@ -32,14 +41,17 @@ const ROLE_ALIASES = {
   writer: "writer",
   social: "social",
 };
+
 const canonicalizeRole = (r) =>
   ROLE_ALIASES[String(r || "").toLowerCase().trim()] || String(r || "").toLowerCase().trim();
 
 function sanitizeRoles(input) {
   let arr = Array.isArray(input) ? input : input ? [input] : [];
   arr = arr.map(canonicalizeRole).filter(Boolean);
+
   const out = [];
   for (const r of arr) if (ALLOWED_ROLES.has(r) && !out.includes(r)) out.push(r);
+
   if (out.length === 0) out.push("host");
   return out;
 }
@@ -55,8 +67,10 @@ async function resolveAuth(data, context) {
       tokenClaims: context.auth.token || {},
     };
   }
+
   const idTok = typeof data?.idToken === "string" ? data.idToken.trim() : "";
   if (!idTok) throw new functions.https.HttpsError("unauthenticated", "Sign in required");
+
   try {
     const decoded = await admin.auth().verifyIdToken(idTok, false);
     return { uid: decoded.uid, email: decoded.email || null, tokenClaims: decoded };
@@ -66,11 +80,16 @@ async function resolveAuth(data, context) {
 }
 
 async function assertAdminFromCaller(caller) {
+  // Fast path: custom claim
   if (caller.tokenClaims?.admin === true) return;
+
+  // Fallback: employees doc
   const snap = await db.collection("employees").doc(caller.uid).get();
   if (!snap.exists) throw new functions.https.HttpsError("permission-denied", "No employee record");
+
   const d = snap.data() || {};
   const roles = Array.isArray(d.roles) ? d.roles : d.role ? [d.role] : [];
+
   if (!(d.active === true && roles.includes("admin"))) {
     throw new functions.https.HttpsError("permission-denied", "Admin only");
   }
@@ -102,8 +121,10 @@ async function syncClaimsFromDoc(uid) {
 
   const current = user.customClaims || {};
   const next = mergeClaims(current, desired);
+
   const changed = JSON.stringify(current) !== JSON.stringify(next);
   if (changed) await admin.auth().setCustomUserClaims(uid, next);
+
   return { changed, claims: next };
 }
 
@@ -132,6 +153,7 @@ exports.adminCreateEmployee = functions
         throw new functions.https.HttpsError("internal", "get/create user failed");
       }
     }
+
     const uid = user.uid;
 
     // Write employees doc (array-only roles) and remove legacy 'role'
@@ -159,12 +181,11 @@ exports.adminCreateEmployee = functions
       console.error("[adminCreateEmployee] syncClaimsFromDoc failed:", e);
     }
 
-    // Build continue URL (login will redirect to onboarding)
-    // NOTE: Use the domain that serves your login.html (web.app or custom domain).
+    // Continue URL (login redirects to onboarding)
     const continueUrl = new URL("https://mybeachtrivia.com/login.html");
     continueUrl.searchParams.set("return", "/beachTriviaPages/onboarding/account-setup/");
 
-    // Generate password reset link (absolute, complete URL)
+    // Generate password reset link
     let resetLink;
     try {
       resetLink = await admin.auth().generatePasswordResetLink(email, {
@@ -244,6 +265,7 @@ exports.adminDeleteEmployee = functions
         throw new functions.https.HttpsError("internal", "Failed to delete auth user");
       }
     }
+
     return { ok: true, uid: targetUid };
   });
 
@@ -272,7 +294,7 @@ exports.onEmployeeWrite = functions
   .onWrite(async (change, context) => {
     const { uid } = context.params;
 
-    // If the document was deleted, delete the Auth user (idempotent)
+    // If deleted, delete Auth user (idempotent)
     if (!change.after.exists) {
       try {
         await admin.auth().deleteUser(uid);
@@ -284,7 +306,7 @@ exports.onEmployeeWrite = functions
       }
     }
 
-    // Else, sync claims from doc
+    // Else, sync claims
     try {
       return await syncClaimsFromDoc(uid);
     } catch (e) {
@@ -299,49 +321,55 @@ exports.onEmployeeWrite = functions
 exports.reassertMyClaims = functions
   .region("us-central1")
   .https.onCall(async (_data, context) => {
-    if (!context.auth) {
-      throw new functions.https.HttpsError("unauthenticated", "Sign in required");
-    }
+    if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Sign in required");
     const uid = context.auth.uid;
     const res = await syncClaimsFromDoc(uid);
     return { ok: true, changed: res.changed, claims: res.claims };
-  });// ---- beach trivia: auto-snapshot playlist for new/updated games ----
-const btSnapshot = require('./bt-snapshot');
+  });
+
+/** ------------------------------------------
+ * Beach Trivia: auto-snapshot playlist jobs
+ * ----------------------------------------- */
+const btSnapshot = require("./bt-snapshot");
 exports.snapshotPlaylistOnCreate = btSnapshot.snapshotPlaylistOnCreate;
-exports.snapshotPlaylistOnUpdate  = btSnapshot.snapshotPlaylistOnUpdate;
-// --------------------------------------------------------------------
+exports.snapshotPlaylistOnUpdate = btSnapshot.snapshotPlaylistOnUpdate;
 
-// --- BeachTrivia: cleanup old anonymous users (scheduled) ---
-const functions_v1_bt = require('firebase-functions/v1');
-const admin_bt = require('firebase-admin');
-try { admin_bt.app(); } catch { admin_bt.initializeApp(); }
-
-exports.cleanupStaleAnonymousUsers = functions_v1_bt.pubsub
-  .schedule('every 30 minutes')
-  .timeZone('America/New_York')
+/** ------------------------------------------
+ * BeachTrivia: cleanup old anonymous users (scheduled)
+ * ----------------------------------------- */
+exports.cleanupStaleAnonymousUsers = functions.pubsub
+  .schedule("every 30 minutes")
+  .timeZone("America/New_York")
   .onRun(async () => {
-    const MINUTES = 120; const cutoffMs = Date.now() - MINUTES*60*1000;
+    const MINUTES = 120;
+    const cutoffMs = Date.now() - MINUTES * 60 * 1000;
 
     let nextPageToken = undefined;
-    let scanned = 0, deleted = 0, skipped = 0;
+    let scanned = 0,
+      deleted = 0,
+      skipped = 0;
 
     do {
-      const page = await admin_bt.auth().listUsers(1000, nextPageToken);
+      const page = await admin.auth().listUsers(1000, nextPageToken);
       nextPageToken = page.pageToken;
 
       for (const u of page.users) {
         scanned++;
+
         // "Anonymous" in Firebase Auth = no providerData records
         const isAnon = !u.providerData || u.providerData.length === 0;
-        if (!isAnon) { skipped++; continue; }
+        if (!isAnon) {
+          skipped++;
+          continue;
+        }
 
         const last = new Date(u.metadata.lastSignInTime || u.metadata.creationTime || 0).getTime();
         if (last && last < cutoffMs) {
           try {
-            await admin_bt.auth().deleteUser(u.uid);
+            await admin.auth().deleteUser(u.uid);
             deleted++;
           } catch (e) {
-            functions_v1_bt.logger.warn('Failed to delete anon user', u.uid, e?.message || e);
+            functions.logger.warn("Failed to delete anon user", u.uid, e?.message || e);
           }
         } else {
           skipped++;
@@ -349,7 +377,8 @@ exports.cleanupStaleAnonymousUsers = functions_v1_bt.pubsub
       }
     } while (nextPageToken);
 
-    functions_v1_bt.logger.info(`cleanupStaleAnonymousUsers(120m): scanned=${scanned} deleted=${deleted} skipped=${skipped}`);
+    functions.logger.info(
+      `cleanupStaleAnonymousUsers(120m): scanned=${scanned} deleted=${deleted} skipped=${skipped}`
+    );
     return null;
   });
-// --- end cleanup ---

@@ -27,6 +27,14 @@
      - Editing any team name (.teamName) re-runs search if query non-empty (debounced)
      - Adding/removing rows in tbody re-runs search if query non-empty (MutationObserver)
      - Nav index is preserved when possible (by stable key: teamId + nameRaw)
+
+   NOTE:
+     - When highlighting, we add:
+         • tr.highlighted-row
+         • td.sticky-col.highlighted-sticky
+         • td.bonus-col-right.highlighted-sticky
+         • td.sticky-col-right.highlighted-sticky
+       (CSS can choose to style sticky cells differently without relying on ::after overlays)
 */
 (function () {
   "use strict";
@@ -127,16 +135,43 @@
   }
 
   function clearHighlights() {
+    // remove row highlight
     $all("#teamTable tbody tr.highlighted-row").forEach((row) =>
       row.classList.remove("highlighted-row")
     );
+
+    // remove sticky-cell highlight helper class
+    $all(
+      "#teamTable tbody td.highlighted-sticky, #teamTable tbody th.highlighted-sticky"
+    ).forEach((el) => el.classList.remove("highlighted-sticky"));
+
     removeExistingSuggestions();
+  }
+
+  function markStickyCells(teamRow) {
+    if (!teamRow) return;
+
+    // LEFT sticky
+    teamRow
+      .querySelectorAll("td.sticky-col, th.sticky-col")
+      .forEach((el) => el.classList.add("highlighted-sticky"));
+
+    // RIGHT stickies
+    teamRow
+      .querySelectorAll("td.bonus-col-right, th.bonus-col-right")
+      .forEach((el) => el.classList.add("highlighted-sticky"));
+
+    teamRow
+      .querySelectorAll("td.sticky-col-right, th.sticky-col-right")
+      .forEach((el) => el.classList.add("highlighted-sticky"));
   }
 
   function highlightTeam(teamNameInput) {
     const teamRow = teamNameInput?.closest?.("tr");
     if (!teamRow) return;
+
     teamRow.classList.add("highlighted-row");
+    markStickyCells(teamRow);
     scrollToTeam(teamRow);
   }
 
@@ -170,8 +205,9 @@
   function buildKey(el, nameRaw) {
     const row = el?.closest?.("tr");
     const teamId = row?.dataset?.teamId || "";
-    // include teamId when possible; fallback to normalized name + dom position
-    return teamId ? `${teamId}::${String(nameRaw || "")}` : `__noid__::${norm(nameRaw)}::${el?.id || ""}`;
+    return teamId
+      ? `${teamId}::${String(nameRaw || "")}`
+      : `__noid__::${norm(nameRaw)}::${el?.id || ""}`;
   }
 
   function setMatches(queryNorm, matches, indexOrKey) {
@@ -184,7 +220,6 @@
       return;
     }
 
-    // If indexOrKey is a number, use it. If it's a key, try to preserve.
     if (typeof indexOrKey === "number" && Number.isFinite(indexOrKey)) {
       Nav.index = Math.max(0, Math.min(indexOrKey, Nav.matches.length - 1));
       updateNavUI();
@@ -281,8 +316,7 @@
       }
     }
 
-    // keep DOM order (top-to-bottom)
-    return matches;
+    return matches; // DOM order preserved
   }
 
   function showSuggestions(matches) {
@@ -323,7 +357,6 @@
     const input = $("#teamSearch");
     const qNorm = norm(query != null ? query : input?.value || "");
 
-    // preserve current selected match if possible
     const currentKey = options.preserveIndex ? Nav.matches?.[Nav.index]?.key : null;
 
     if (!qNorm) {
@@ -360,7 +393,6 @@
   }
 
   function searchTeams(query) {
-    // IMPORTANT: if called with no args, treat as "use current input value"
     return doSearch(query, { silent: false, preserveIndex: false });
   }
 
@@ -414,7 +446,6 @@
     bindNavButtonsOnce();
     updateNavUI();
 
-    // Keyboard behavior on the search input itself
     searchInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         doSearch(searchInput.value, { silent: false, preserveIndex: false });
@@ -454,7 +485,6 @@
         const q = (searchInput.value || "").trim();
         if (!q) return;
         if (q.length < CFG.liveMinChars) return;
-        // preserve current selection if possible
         doSearch(q, { silent: true, preserveIndex: true });
       }, Math.max(60, Math.min(200, CFG.liveDebounceMs)));
 

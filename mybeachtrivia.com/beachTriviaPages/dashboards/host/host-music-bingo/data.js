@@ -13,7 +13,7 @@ import {
   getDoc,
   getDocs,
   updateDoc,
-  setDoc,               // ✅ ADDED
+  setDoc,
   doc,
   serverTimestamp,
   query,
@@ -57,6 +57,7 @@ let app, db, auth, rtdb;
     setPersistence(auth, browserLocalPersistence).catch((e) =>
       console.warn('[data.js] setPersistence warning:', e?.message || e)
     );
+
     console.log('[data.js] Firebase ready for project:', app.options.projectId);
   } catch (e) {
     console.error('[data.js] Firebase init failed:', e);

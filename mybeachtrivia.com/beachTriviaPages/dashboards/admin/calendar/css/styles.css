@@ -169,6 +169,11 @@ h1::after {
     flex-wrap: wrap;
     gap: 20px;
     padding: 8px 0;
+    align-items: center;
+}
+
+.copy-month-group {
+    margin-left: auto;
 }
 
 .employee-filter,
@@ -319,8 +324,8 @@ select:focus {
 .calendar td {
     border: none;
     padding: 0;
-    min-height: 130px;
-    height: 130px;
+    min-height: 165px;
+    height: 165px;
     vertical-align: top;
     background-color: var(--card-bg);
     border-radius: 4px;
@@ -481,9 +486,9 @@ select:focus {
     transition: all 0.2s ease;
     will-change: transform;
     position: absolute;
-    top: 50%;
+    top: 48px;
     left: 50%;
-    transform: translate(-50%, -50%);
+    transform: translateX(-50%);
     z-index: 1;
 }
 
@@ -503,15 +508,15 @@ select:focus {
     transition: all 0.2s ease;
     will-change: transform;
     position: absolute;
-    top: calc(50% + 30px);
+    top: 78px;
     left: 50%;
-    transform: translate(-50%, -50%);
+    transform: translateX(-50%);
     z-index: 1;
 }
 
 .week-move-button:hover {
     background-color: var(--secondary-color);
-    transform: translate(-50%, -50%) scale(1.1);
+    transform: translateX(-50%) scale(1.1);
 }
 
 .week-move-button:active {
@@ -534,15 +539,15 @@ select:focus {
     transition: all 0.2s ease;
     will-change: transform;
     position: absolute;
-    top: calc(50% + 60px); /* Moved down to make room for move button */
+    top: 108px;
     left: 50%;
-    transform: translate(-50%, -50%);
+    transform: translateX(-50%);
     z-index: 1;
 }
 
 .week-toggle-button:hover {
     background-color: var(--border-color);
-    transform: translate(-50%, -50%) scale(1.1);
+    transform: translateX(-50%) scale(1.1);
 }
 
 /* Week clear button styling - positioned below the toggle button */
@@ -561,15 +566,15 @@ select:focus {
     transition: all 0.2s ease;
     will-change: transform;
     position: absolute;
-    top: calc(50% + 90px); /* Moved down to make room for move button */
+    top: 138px;
     left: 50%;
-    transform: translate(-50%, -50%);
+    transform: translateX(-50%);
     z-index: 1;
 }
 
 .week-clear-button:hover {
     background-color: rgba(255, 77, 77, 0.7);
-    transform: translate(-50%, -50%) scale(1.1);
+    transform: translateX(-50%) scale(1.1);
 }
 
 .add-button:hover, .cell-copy-button:hover {
@@ -580,7 +585,7 @@ select:focus {
 /* FIXED: Special hover for week-copy-button to maintain center positioning */
 .week-copy-button:hover {
     background-color: var(--border-color);
-    transform: translate(-50%, -50%) scale(1.1);
+    transform: translateX(-50%) scale(1.1);
 }
 
 .week-copy-header {
@@ -597,7 +602,7 @@ select:focus {
     border-radius: 4px;
     position: relative;
     padding: 0;
-    height: 130px; /* Match the height of other cells */
+    height: 165px; /* Match the height of other cells */
 }
 
 /* Shifts */
@@ -779,25 +784,11 @@ select:focus {
 }
 
 /* Shift types */
-.classic-trivia {
-    border-left-color: var(--classic-trivia-color);
-}
-
-.themed-trivia {
-    border-left-color: var(--themed-trivia-color);
-}
-
-.classic-bingo {
-    border-left-color: var(--classic-bingo-color);
-}
-
-.music-bingo {
-    border-left-color: var(--music-bingo-color);
-}
-
-.beach-feud {
-    border-left-color: var(--beach-feud-color);
-}
+.classic-trivia { border-left-color: var(--classic-trivia-color); }
+.themed-trivia  { border-left-color: var(--themed-trivia-color); }
+.classic-bingo  { border-left-color: var(--classic-bingo-color); }
+.music-bingo    { border-left-color: var(--music-bingo-color); }
+.beach-feud     { border-left-color: var(--beach-feud-color); }
 
 /* Modal */
 .modal {
@@ -812,6 +803,13 @@ select:focus {
     justify-content: center;
     align-items: center;
     backdrop-filter: blur(5px);
+
+    /* ✅ allow backdrop clicks (used by your click-outside-to-close wiring) */
+    pointer-events: auto;
+
+    /* ✅ keep the page from doing weird scroll-chaining while the modal is open */
+    overscroll-behavior: contain;
+
     overflow: hidden;
     padding: 20px;
     box-sizing: border-box;
@@ -828,6 +826,9 @@ select:focus {
     border: 1px solid var(--border-color);
     overflow: hidden;
     margin: auto;
+
+    /* ✅ ensure content is clickable even when backdrop handlers exist */
+    pointer-events: auto;
 }
 
 /* Absolute header that covers the entire top of the modal */
@@ -859,11 +860,14 @@ select:focus {
 
 /* Scrollable form container */
 #shift-form, #new-host-form, #new-location-form {
-    padding: 85px 30px 65px 25px; /* Top padding matches header height, more padding on right */
+    padding: 105px 30px 65px 25px; /* Top padding matches header height, more padding on right */
     overflow-y: auto;
     max-height: 80vh;
     width: 100%;
     box-sizing: border-box;
+
+    /* ✅ prevents “bounce scroll” and helps your “start at top” feel consistent */
+    overscroll-behavior: contain;
 }
 
 /* Absolute footer that covers the entire bottom of the modal */
@@ -901,9 +905,7 @@ select:focus {
     pointer-events: auto !important;
 }
 
-.spacer {
-    height: 20px; /* Smaller spacer as we're using absolute positioning */
-}
+.spacer { height: 20px; }
 
 /* Warning modal styling */
 .modal-content.warning {
@@ -920,6 +922,7 @@ select:focus {
     background-color: rgba(255, 157, 0, 0.05);
     width: 100%;
     box-sizing: border-box;
+    overscroll-behavior: contain;
 }
 
 .conflict-details {
@@ -937,9 +940,7 @@ select:focus {
     position: relative;
 }
 
-.conflict-item:last-child {
-    border-bottom: none;
-}
+.conflict-item:last-child { border-bottom: none; }
 
 .conflict-time, .conflict-event, .conflict-location {
     display: block;
@@ -947,18 +948,9 @@ select:focus {
     font-size: 13px;
 }
 
-.conflict-time {
-    color: var(--text-secondary);
-}
-
-.conflict-event {
-    color: var(--primary-color);
-    font-weight: 500;
-}
-
-.conflict-location {
-    color: var(--secondary-color);
-}
+.conflict-time { color: var(--text-secondary); }
+.conflict-event { color: var(--primary-color); font-weight: 500; }
+.conflict-location { color: var(--secondary-color); }
 
 /* Clear Day Modal */
 .day-details {
@@ -988,9 +980,7 @@ button.proceed {
     border: none;
 }
 
-button.proceed:hover {
-    background-color: #ffb340;
-}
+button.proceed:hover { background-color: #ffb340; }
 
 button.danger-proceed {
     background-color: rgba(255, 77, 77, 0.9);
@@ -998,13 +988,9 @@ button.danger-proceed {
     border: none;
 }
 
-button.danger-proceed:hover {
-    background-color: rgba(255, 77, 77, 1);
-}
+button.danger-proceed:hover { background-color: rgba(255, 77, 77, 1); }
 
-.form-group {
-    margin-bottom: 20px;
-}
+.form-group { margin-bottom: 20px; }
 
 label {
     display: block;
@@ -1047,9 +1033,7 @@ input:focus, select:focus {
     outline: none;
 }
 
-#new-host-form .form-group {
-    margin-bottom: 20px;
-}
+#new-host-form .form-group { margin-bottom: 20px; }
 
 #new-host-form label {
     display: block;
@@ -1074,9 +1058,7 @@ input:focus, select:focus {
     padding: 10px 20px;
 }
 
-#save-new-host:hover, #save-new-location:hover {
-    background-color: #2487ea;
-}
+#save-new-host:hover, #save-new-location:hover { background-color: #2487ea; }
 
 /* Form hints */
 .form-hint {
@@ -1087,9 +1069,7 @@ input:focus, select:focus {
 }
 
 /* Host select with add button */
-.host-input-group {
-    margin-bottom: 4px;
-}
+.host-input-group { margin-bottom: 4px; }
 
 .select-with-button {
     display: flex;
@@ -1129,10 +1109,7 @@ input:focus, select:focus {
     margin-bottom: 20px;
 }
 
-.time-select {
-    flex: 1;
-    margin-bottom: 0;
-}
+.time-select { flex: 1; margin-bottom: 0; }
 
 /* Time dropdown styling */
 select option {
@@ -1146,9 +1123,7 @@ select option {
     border: 1px solid var(--border-color);
 }
 
-.cancel:hover {
-    background-color: var(--border-color);
-}
+.cancel:hover { background-color: var(--border-color); }
 
 button[type="submit"] {
     background-color: var(--input-bg);
@@ -1156,9 +1131,7 @@ button[type="submit"] {
     border: 1px solid var(--border-color);
 }
 
-button[type="submit"]:hover {
-    background-color: var(--border-color);
-}
+button[type="submit"]:hover { background-color: var(--border-color); }
 
 /* Hide/Show conditional fields */
 .conditional-field {
@@ -1171,14 +1144,11 @@ button[type="submit"]:hover {
 
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(-10px); }
-    to { opacity: 1; transform: translateY(0); }
+    to   { opacity: 1; transform: translateY(0); }
 }
 
 /* Toggle Switch Styling - New Addition */
-.toggle-group {
-    display: flex;
-    flex-direction: column;
-}
+.toggle-group { display: flex; flex-direction: column; }
 
 .toggle-switch-container {
     display: flex;
@@ -1194,11 +1164,7 @@ button[type="submit"]:hover {
     height: 24px;
 }
 
-.toggle-switch input {
-    opacity: 0;
-    width: 0;
-    height: 0;
-}
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
 
 .toggle-slider {
     position: absolute;
@@ -1224,17 +1190,9 @@ button[type="submit"]:hover {
     border-radius: 50%;
 }
 
-input:checked + .toggle-slider {
-    background-color: #3699ff;
-}
-
-input:focus + .toggle-slider {
-    box-shadow: 0 0 1px #3699ff;
-}
-
-input:checked + .toggle-slider:before {
-    transform: translateX(26px);
-}
+input:checked + .toggle-slider { background-color: #3699ff; }
+input:focus + .toggle-slider { box-shadow: 0 0 1px #3699ff; }
+input:checked + .toggle-slider:before { transform: translateX(26px); }
 
 .toggle-label {
     color: var(--text-primary);
@@ -1242,23 +1200,10 @@ input:checked + .toggle-slider:before {
 }
 
 /* Custom scrollbar */
-::-webkit-scrollbar {
-    width: 5px;
-    height: 5px;
-}
-
-::-webkit-scrollbar-track {
-    background: var(--card-bg);
-}
-
-::-webkit-scrollbar-thumb {
-    background: var(--primary-color);
-    border-radius: 10px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-    background: #2487ea;
-}
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--card-bg); }
+::-webkit-scrollbar-thumb { background: var(--primary-color); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: #2487ea; }
 
 /* Visual feedback for drag and drop */
 .drop-indicator {
@@ -1329,9 +1274,7 @@ input:checked + .toggle-slider:before {
 
 /* Responsive */
 @media (max-width: 768px) {
-    h1 {
-        font-size: 24px;
-    }
+    h1 { font-size: 24px; }
     
     .header-controls {
         margin-top: 0;
@@ -1339,9 +1282,7 @@ input:checked + .toggle-slider:before {
         width: 100%;
     }
     
-    .employee-filter, .filter-group {
-        width: 100%;
-    }
+    .employee-filter, .filter-group { width: 100%; }
     
     .controls {
         flex-direction: column;
@@ -1362,13 +1303,11 @@ input:checked + .toggle-slider:before {
     }
     
     .calendar td {
-        min-height: 100px;
+        min-height: 165px;
         height: auto;
     }
     
-    .week-copy-cell {
-        height: 100px; /* Match the responsive height of other cells */
-    }
+    .week-copy-cell { height: 165px; }
     
     .time-inputs {
         flex-direction: column;
@@ -1386,28 +1325,43 @@ input:checked + .toggle-slider:before {
         max-height: 85vh;
     }
     
-    .modal h2 {
-        font-size: 20px;
-    }
+    .modal h2 { font-size: 20px; }
     
-    .button-group {
-        flex-direction: column;
-    }
+    .button-group { flex-direction: column; }
     
-    .button-group button {
-        width: 100%;
-    }
+    .button-group button { width: 100%; }
     
     /* Media query for responsive layouts */
-    .week-clear-button {
-        top: calc(50% + 85px); /* Adjust position for smaller screens */
-    }
-    
-    .week-toggle-button {
-        top: calc(50% + 55px); /* Adjust position for smaller screens */
-    }
-    
-    .week-move-button {
-        top: calc(50% + 25px); /* Adjust position for smaller screens */
-    }
+    .week-clear-button { top: 138px; }
+    .week-toggle-button { top: 108px; }
+    .week-move-button { top: 78px; }
+}
+/* ── Copy Previous Month ─────────────────────────────────────── */
+.copy-month-btn {
+    background-color: var(--secondary-color);
+    color: white;
+    border-color: var(--secondary-color);
+}
+
+.copy-month-btn:hover {
+    background-color: var(--secondary-color);
+    filter: brightness(1.15);
+    transform: none;
+}
+
+#copy-month-include {
+    background-color: var(--secondary-color);
+    color: white;
+}
+
+.copy-month-buttons {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+#copy-month-message p {
+    margin: 0 0 8px 0;
+    line-height: 1.5;
 }

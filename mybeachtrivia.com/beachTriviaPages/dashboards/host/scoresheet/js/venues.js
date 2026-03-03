@@ -8,14 +8,16 @@
        - onSnapshot "from cache"    => OFFLINE (real internet off / can't reach server)
        - onSnapshot error           => OFFLINE (ONLY for network/unavailable)
    - Notify state.js via window.ScoresheetState.setOffline(...)
-   - Ensure meta validator can see a "real" venue value ONLINE:
-       • If options refresh, keep previous selection if still valid
-       • If current value is invalid (loading/other/blank), set ""
+   - Preserve previous selection on refresh where possible
+
+   ✅ Supports ONLINE "Other":
+   - Keeps option value "other" if selected (does NOT normalize to "")
+   - Does NOT validate the "other" text input (meta-fields.js + submit-scores.js do that)
 
    ❌ Does NOT:
    - Swap #venueSelect into an <input>
    - Touch #offlineBadge / #onlineBadge
-   - Manage #venueInput (state.js owns UI)
+   - Manage #venueInput / #venueOtherInput (state.js + meta-fields.js own UI)
 */
 (function () {
   "use strict";
@@ -74,9 +76,6 @@
 
     // never leave "loading" behind
     if (selectEl.value === "loading") selectEl.value = "";
-
-    // Meta validator rejects "other" online, so normalize it to blank.
-    if (selectEl.value === "other") selectEl.value = "";
   }
 
   function shouldTreatAsOfflineError(err) {
@@ -162,6 +161,11 @@
             });
 
             setOptions(el, locations);
+
+            // 🔔 Let meta-fields.js (or other UI code) react to list refresh if desired
+            try {
+              window.dispatchEvent(new CustomEvent("scoresheet:venues-refreshed"));
+            } catch {}
           },
           (err) => {
             console.error("[venues] listener error:", err);

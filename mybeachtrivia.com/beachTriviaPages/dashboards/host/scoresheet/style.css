@@ -5,8 +5,7 @@
    - Modal always overlays sticky table layers (z-index + isolation)
    - body.modal-open class support (used by JS)
    - Team search highlight + suggestion dropdown styling (restored search UX)
-   - FIX: highlighted-row no longer causes bleed-through on sticky columns
-   - FIX: highlighted-row no longer gets funky on RIGHT sticky cols (no double paint/shadow)
+   - ✅ FIX: eliminate 1–2px “team name col shift” on highlighted rows by NOT overlaying sticky seams/borders
    - NEW: search match nav UI (‹ › + count)
    - NEW: standings modal list styling (so items actually show)
    - UPDATED: modern standings modal UI (title, close button, list items)
@@ -15,12 +14,6 @@
    - NEW: offline badge + venue select/input toggle UI polish
    - NEW: online badge (green) + header badge layout
    - FIX: add missing fadeIn keyframes
-   - FIX: make highlighted sticky overlays position correctly (relative)
-   - FIX: ensure badge pills render even if some earlier CSS is cached (fallback display)
-   - UPDATE: button row layout (left buttons, centered search, right submit)
-   - UPDATE: submit scores aligns with RIGHT edge of table (remove side margin + full-width row)
-   - ✅ FIX (NEW): highlight overlay now preserves LEFT sticky (team name) stickiness
-   - ✅ FIX (NEW): RIGHT sticky highlight no longer interferes with sticky paint/shadow
    ========================= */
 
 /* General Page Styling */
@@ -31,12 +24,13 @@ body {
     text-align: center;
     margin: 0;
     padding: 0;
+    zoom: 0.8;
 }
 
 /* Custom properties for sticky right columns */
 :root {
-    --final-col-width: 170px;  /* fit "FINAL SCORE" without truncation */
-    --bonus-col-width: 70px;
+    --final-col-width: 165px;  /* fit "FINAL SCORE" without truncation */
+    --bonus-col-width: 90px;
 }
 
 /* Visually-hidden text (for screen readers only) */
@@ -147,6 +141,17 @@ body {
     .meta-grid{ justify-content: flex-start; }
     .meta-grid input,
     .meta-grid select{ min-width: 220px; }
+}
+
+/* Venue row (select + other input inline) */
+.venue-row{
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.meta-grid #venueOtherInput{
+    min-width: 240px;
 }
 
 /* =========================
@@ -474,46 +479,36 @@ button {
    SEARCH UX (restored)
    ========================= */
 
-/* ✅ Highlight ONLY non-sticky cells (prevents funky right-side layering) */
-.highlighted-row td:not(.sticky-col):not(.bonus-col-right):not(.sticky-col-right) {
+/* ✅ Highlight ONLY non-sticky cells */
+#teamTable tbody tr.highlighted-row td:not(.sticky-col):not(.bonus-col-right):not(.sticky-col-right) {
     background: rgba(0, 255, 204, 0.12) !important;
     box-shadow: inset 0 0 0 2px rgba(0, 255, 204, 0.35);
 }
 
-/* Sticky cells: force opaque base paint + keep highlight as overlay */
-.highlighted-row td.sticky-col,
-.highlighted-row td.bonus-col-right,
-.highlighted-row td.sticky-col-right {
-    background-color: #2a2a2a !important; /* OPAQUE base */
-    isolation: isolate;                  /* isolate overlay paint */
-    position: relative;                  /* required for ::after overlay positioning */
+/* ✅ LEFT sticky (Team Name): do NOT use pseudo-element overlay (prevents seam/border “shift”) */
+#teamTable tbody tr.highlighted-row td.sticky-col {
+    background-color: #2a2a2a !important; /* opaque base */
+    position: sticky;
+    left: 0;
+
+    /* highlight WITHOUT affecting border/shadow seam */
+    outline: 2px solid rgba(0, 255, 204, 0.35);
+    outline-offset: -2px;
+
+    /* keep your existing sticky seam/shadow */
+    border-right: 3px solid #777;
+    box-shadow: 5px 0 12px rgba(0, 0, 0, 0.5);
 }
 
-/* ✅ NEW: keep overlay BEHIND content + do not interfere with sticky positioning */
-.highlighted-row td.sticky-col::after,
-.highlighted-row td.bonus-col-right::after,
-.highlighted-row td.sticky-col-right::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: rgba(0, 255, 204, 0.16);
-    box-shadow: inset 0 0 0 2px rgba(0, 255, 204, 0.35);
-    pointer-events: none;
-    z-index: 0; /* overlay sits behind real content */
-}
+/* ✅ RIGHT stickies (Bonus/Final): fully opaque + no overlay */
+#teamTable tbody tr.highlighted-row td.bonus-col-right,
+#teamTable tbody tr.highlighted-row td.sticky-col-right {
+    background-color: #2a2a2a !important;
+    background-image: none !important;
+    outline: none !important;
 
-/* ✅ NEW: ensure actual cell content paints above the overlay */
-.highlighted-row td.sticky-col > *,
-.highlighted-row td.bonus-col-right > *,
-.highlighted-row td.sticky-col-right > * {
-    position: relative;
-    z-index: 1;
-}
-
-/* ✅ NEW: RIGHT sticky columns - keep overlay from affecting sticky seam/shadow */
-.highlighted-row td.bonus-col-right,
-.highlighted-row td.sticky-col-right {
-    overflow: hidden !important;
+    /* restore sticky shadows */
+    box-shadow: -5px 0 12px rgba(0, 0, 0, 0.5) !important;
 }
 
 /* Suggestions dropdown */
@@ -666,8 +661,9 @@ thead::after {
     z-index: 55;
     background-color: #2a2a2a;
     border-left: 3px solid #777;
-    min-width: var(--final-col-width);
-    width: var(--final-col-width);
+    min-width: var(--final-col-width) !important;
+    width: var(--final-col-width) !important;
+    max-width: var(--final-col-width) !important;
     box-shadow: -5px 0 12px rgba(0, 0, 0, 0.5);
     white-space: nowrap;
     overflow: visible;
@@ -677,12 +673,13 @@ thead::after {
 /* BONUS column just left of Final Score */
 .bonus-col-right {
     position: sticky;
-    right: var(--final-col-width);
+    right: var(--final-col-width) !important;
     z-index: 50;
     background-color: #2a2a2a;
     border-left: 3px solid #777;
-    min-width: var(--bonus-col-width);
-    width: var(--bonus-col-width);
+    min-width: var(--bonus-col-width) !important;
+    width: var(--bonus-col-width) !important;
+    max-width: var(--bonus-col-width) !important;
     box-shadow: -5px 0 12px rgba(0, 0, 0, 0.5);
     white-space: nowrap;
     overflow: visible;
@@ -766,12 +763,19 @@ td:nth-child(7), td:nth-child(13), td:nth-child(21), td:nth-child(27) {
 /* Half-time and Final Question input styling */
 .halftime-input, .finalquestion-input {
     background-color: #2a2a2a;
-    width: 45px;
-    color: #ffcc00;
+    width: 55px;
+    min-width: 55px;
+    color: #ff9900;
     font-weight: bold;
     border: 2px solid #666;
+    box-sizing: border-box;
 }
-.finalquestion-input { color: #ff9900; }
+
+td:has(.halftime-input),
+td:has(.finalquestion-input) {
+    min-width: 65px;
+    width: 65px;
+}
 
 /* First Half and Second Half Total styling */
 .first-half-total, .second-half-total {
@@ -832,10 +836,8 @@ input:focus {
    NEW: Delete Team Row Button (subtle gray X)
    ========================= */
 
-/* Layout: make the sticky cell a flex row so X + input + like align cleanly */
+/* Layout: keep TD as table-cell so sticky works */
 #teamTable td.sticky-col {
-  /* IMPORTANT: keep TD as a table-cell so sticky works */
-  /* (do NOT set display:flex on a <td>) */
   position: sticky;
   left: 0;
   z-index: 200;
@@ -981,6 +983,74 @@ input:focus {
     outline-offset: 2px;
 }
 
+/* TEAM # button wrapper + button + label */
+.teamNumWrapper{
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 2px;
+    margin-left: 12px;
+    vertical-align: middle;
+}
+
+.teamNumBtn{
+    -webkit-appearance: none;
+    appearance: none;
+    width: 30px;
+    height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    margin: 0;
+    padding: 0 !important;
+
+    cursor: pointer;
+
+    /* ✅ REMOVE BG FILL (transparent button) */
+    background: transparent !important;
+
+    border: 2px solid rgba(255, 204, 0, 0.75);
+    border-radius: 6px;
+
+    color: #ffcc00;
+    font-weight: 1000;
+    font-size: 18px;
+    line-height: 1;
+
+    box-shadow: 0 0 6px rgba(0,0,0,0.60);
+    transition: transform 0.14s ease, background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+    text-transform: none !important;
+    letter-spacing: 0 !important;
+}
+
+.teamNumBtn:hover{
+    background: rgba(255, 204, 0, 0.10) !important;
+    border-color: rgba(255, 204, 0, 0.85);
+    transform: translateY(-1px);
+    box-shadow: 0 0 10px rgba(255,204,0,0.18), 0 0 6px rgba(0,0,0,0.60);
+}
+
+.teamNumBtn:active{
+    transform: translateY(0);
+    background: rgba(255, 204, 0, 0.08) !important;
+}
+
+.teamNumBtn:focus-visible{
+    outline: 2px solid rgba(255, 204, 0, 0.85);
+    outline-offset: 2px;
+}
+
+.teamNumLabel{
+    font-size: 9px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #ffe08a;
+    opacity: 0.95;
+    line-height: 1;
+}
+
 /* Score Display */
 span {
     font-weight: bold;
@@ -1018,6 +1088,17 @@ td.sticky-col-right span {
     overflow: auto;
     background-color: rgba(0, 0, 0, 0.8);
     animation: fadeIn 0.3s ease-in-out;
+    /* Use flexbox centering so zoom doesn't offset the modal */
+    align-items: center;
+    justify-content: center;
+}
+
+/* Works whether JS sets display:block or display:flex */
+.modal[style*="display: block"],
+.modal[style*="display:block"],
+.modal[style*="display: flex"],
+.modal[style*="display:flex"] {
+    display: flex !important;
 }
 
 /* If your JS adds body.modal-open, force underlying stack low */
@@ -1035,7 +1116,7 @@ body.modal-open #teamTable th {
     isolation: isolate;
 
     background: linear-gradient(135deg, #222, #333);
-    margin: 10% auto;
+    margin: auto;
     padding: 28px 26px;
     border: 2px solid #00ffcc;
     width: 50%;
@@ -1205,6 +1286,152 @@ body.modal-open #teamTable th {
 #modalRankingList li { letter-spacing: 0.2px; }
 
 /* =========================
+   Tiny modal: TEAM #
+   ========================= */
+
+#teamNumberModal.modal{
+    z-index: 11000;
+}
+
+.team-number-modal-content{
+    width: min(380px, 92vw);
+    height: auto;
+    max-height: 80vh;
+    padding: 18px 18px 16px;
+    border-color: rgba(255, 204, 0, 0.75);
+    box-shadow: 0 0 25px rgba(255, 204, 0, 0.20);
+}
+
+#teamNumberTitle, .team-number-label {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 900;
+    letter-spacing: 0.3px;
+    color: #ffffff;
+    white-space: nowrap;
+    text-shadow: 0 10px 24px rgba(0,0,0,0.55);
+}
+
+.team-number-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    gap: 8px;
+}
+
+.team-number-subtitle {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 800;
+    color: rgba(255, 204, 0, 0.95);
+    text-align: left;
+    word-break: break-word;
+    flex: 1;
+}
+
+.team-number-input-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.team-number-input-row .team-number-label {
+    display: inline-block !important;
+    flex-shrink: 0;
+    width: auto !important;
+    font-size: 20px;
+    font-weight: 900;
+    color: #ffffff;
+    white-space: nowrap;
+}
+
+.team-number-input-row #teamNumberInput {
+    flex: 1;
+    min-width: 0;
+}
+
+/* ✅ shrink ONLY the TEAM # modal close button */
+#teamNumberModal .close,
+#btnCloseTeamNumber{
+    position: static !important;
+    flex-shrink: 0;
+
+    width: 36px !important;
+    height: 36px !important;
+
+    border-radius: 10px !important;
+
+    padding: 0 !important;
+    font-size: 20px !important;
+    line-height: 1 !important;
+
+    text-transform: none !important;
+    letter-spacing: 0 !important;
+}
+
+#btnCloseTeamNumber{
+    color: #ffcc66;
+}
+
+.team-number-form{
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+}
+
+#teamNumberInput{
+    width: auto;
+    flex: 1;
+    height: 46px;
+    border-radius: 10px;
+    border: 2px solid rgba(255, 204, 0, 0.55);
+    background: rgba(0,0,0,0.28);
+    color: #ffffff;
+    font-size: 18px;
+    font-weight: 900;
+    text-align: center;
+    box-shadow: 0 10px 22px rgba(0,0,0,0.45);
+}
+
+#teamNumberInput:focus{
+    outline: none;
+    border-color: rgba(255, 204, 0, 0.85);
+    box-shadow: 0 0 14px rgba(255, 204, 0, 0.18), 0 10px 22px rgba(0,0,0,0.45);
+}
+
+.team-number-actions{
+    display: flex;
+    gap: 10px;
+    justify-content: space-between;
+}
+
+#btnSaveTeamNumber,
+#btnCancelTeamNumber{
+    flex: 1 1 auto;
+    padding: 10px 14px;
+    font-size: 14px;
+    border-radius: 10px;
+    text-transform: none;
+    letter-spacing: 0.2px;
+    box-shadow: 0 10px 22px rgba(0,0,0,0.45);
+}
+
+#btnSaveTeamNumber{
+    background: linear-gradient(135deg, rgba(255,204,0,0.95), rgba(255,153,0,0.95));
+    color: #1a1a1a;
+    font-weight: 1000;
+}
+
+#btnCancelTeamNumber{
+    background: rgba(255,255,255,0.10);
+    color: rgba(255,255,255,0.88);
+    border: 1px solid rgba(255,255,255,0.18);
+}
+
+/* =========================
    Modal scrolling polish
    ========================= */
 .modal-content {
@@ -1252,6 +1479,19 @@ body.modal-open #teamTable th {
 
     /* delete btn slightly smaller at this breakpoint */
     #teamTable td.sticky-col .btnDeleteTeam { width: 34px; height: 34px; min-width: 34px; }
+
+    /* Force sticky right columns to respect their defined widths at this breakpoint */
+    td.sticky-col-right, th.sticky-col-right {
+        width: var(--final-col-width) !important;
+        min-width: var(--final-col-width) !important;
+        max-width: var(--final-col-width) !important;
+    }
+    td.bonus-col-right, th.bonus-col-right {
+        width: var(--bonus-col-width) !important;
+        min-width: var(--bonus-col-width) !important;
+        max-width: var(--bonus-col-width) !important;
+        right: var(--final-col-width) !important;
+    }
 }
 
 @media (max-width: 1000px) {
@@ -1397,67 +1637,6 @@ body.modal-open #teamTable th {
 #teamTable td.sticky-col { vertical-align: top; }
 #teamTable td.sticky-col .teamName { vertical-align: top; margin-top: 0; }
 #teamTable td.sticky-col .teamCheckboxWrapper { align-self: flex-start; margin-top: 0; }
-/* ==========================================================
-   HOTFIX: prevent highlighted rows from affecting RIGHT stickies
-   (BONUS + FINAL). Keeps seams/shadows clean.
-   ========================================================== */
-.highlighted-row td.bonus-col-right,
-.highlighted-row td.sticky-col-right {
-  background-color: #2a2a2a !important; /* fully opaque paint */
-}
-
-/* kill highlight overlay on RIGHT stickies */
-.highlighted-row td.bonus-col-right::after,
-.highlighted-row td.sticky-col-right::after {
-  content: none !important;
-  display: none !important;
-}
-
-/* also ensure no highlight box-shadow/outline leaks in */
-.highlighted-row td.bonus-col-right,
-.highlighted-row td.sticky-col-right {
-  box-shadow: -5px 0 12px rgba(0, 0, 0, 0.5) !important; /* restore sticky shadow */
-  outline: none !important;
-  filter: none !important;
-}
-
-/* ==========================================================
-   HARD FIX v2: highlighted rows must NOT affect RIGHT stickies
-   (BONUS + FINAL) — stop bleed-through + keep seam/shadow clean
-   ========================================================== */
-
-/* If any browser paints TR background, kill it */
-#teamTable tbody tr.highlighted-row {
-  background: transparent !important;
-}
-
-/* Force RIGHT stickies to be fully opaque + on top */
-#teamTable tbody tr.highlighted-row td.bonus-col-right,
-#teamTable tbody tr.highlighted-row td.sticky-col-right {
-  background: #2a2a2a !important;
-  background-image: none !important;
-  outline: none !important;
-
-  /* kill any inherited/inset highlight visuals */
-  box-shadow: -5px 0 12px rgba(0, 0, 0, 0.5) !important;
-
-  /* be absolutely sure they paint above the highlighted cells */
-  position: sticky !important;
-  z-index: 999 !important;
-
-  /* prevent anything behind from showing at seams */
-  background-clip: padding-box !important;
-  overflow: hidden !important;
-}
-
-/* If your earlier highlight used ::after overlays anywhere, kill them here */
-#teamTable tbody tr.highlighted-row td.bonus-col-right::before,
-#teamTable tbody tr.highlighted-row td.bonus-col-right::after,
-#teamTable tbody tr.highlighted-row td.sticky-col-right::before,
-#teamTable tbody tr.highlighted-row td.sticky-col-right::after {
-  content: none !important;
-  display: none !important;
-}
 
 /* ==========================================================
    UI POLISH: spacing in TEAM NAME sticky cell
@@ -1482,7 +1661,17 @@ body.modal-open #teamTable th {
   margin-left: 12px !important;
 }
 
+/* Space between LIKE and TEAM wrappers if both present */
+#teamTable td.sticky-col .teamNumWrapper{
+  margin-left: 12px !important;
+}
+
 /* Give LIKE label a touch of separation from the checkbox */
 #teamTable td.sticky-col .teamCheckboxLike {
+  margin-top: 4px !important;
+}
+
+/* Give TEAM label a touch of separation from the button */
+#teamTable td.sticky-col .teamNumLabel{
   margin-top: 4px !important;
 }
