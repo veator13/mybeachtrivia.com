@@ -42,7 +42,8 @@
 
     <!-- IMPORTANT: sticky/bonus utilities must load BEFORE table-build.js -->
     <script src="js/ui-sticky-bonus.js?v=20260218-04" defer></script>
-    <script src="js/table-build.js?v=20260218-04" defer></script>
+    <script src="js/table-build.js?v=20260403-01" defer></script>
+    <script src="js/sort-teams.js?v=20260403-01" defer></script>
 
     <script src="js/scoring.js?v=20260218-04" defer></script>
     <script src="js/search.js?v=20260218-04" defer></script>
@@ -239,7 +240,12 @@
 
             <thead>
               <tr class="top_row">
-                <th class="sticky-col" rowspan="2">Team Name</th>
+                <th class="sticky-col" rowspan="2">
+                  Team Name
+                  <button type="button" id="btnSortTeamNames" aria-label="Sort team names A to Z">
+                    <span class="sort-icon">A→Z</span>
+                  </button>
+                </th>
                 <th colspan="5">Round 1</th>
                 <th rowspan="2">R1 Total</th>
                 <th colspan="5">Round 2</th>
