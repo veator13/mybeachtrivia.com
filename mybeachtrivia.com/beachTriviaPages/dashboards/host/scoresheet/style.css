@@ -24,6 +24,10 @@ body {
     text-align: center;
     margin: 0;
     padding: 0;
+}
+
+/* Zoom page content without affecting the injected nav bar */
+main {
     zoom: 0.8;
 }
 
@@ -1198,6 +1202,64 @@ body.modal-open #teamTable th {
 .modal-content .close:focus-visible {
     outline: 2px solid rgba(0, 255, 204, 0.75);
     outline-offset: 3px;
+}
+
+/* ===== Fullscreen Toggle Button ===== */
+#btnFullscreenStandings {
+    position: absolute;
+    top: 18px;
+    left: 18px;
+
+    width: 56px;
+    height: 56px;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+
+    background: rgba(255, 255, 255, 0.07);
+    color: #00ffcc;
+    font-size: 26px;
+    line-height: 1;
+
+    cursor: pointer;
+    transition: background 0.18s ease, transform 0.12s ease;
+}
+#btnFullscreenStandings:hover {
+    background: rgba(255, 255, 255, 0.14);
+    transform: translateY(-1px) scale(1.02);
+}
+#btnFullscreenStandings:active {
+    transform: translateY(0) scale(0.99);
+}
+#btnFullscreenStandings:focus-visible {
+    outline: 2px solid rgba(0, 255, 204, 0.75);
+    outline-offset: 3px;
+}
+
+/* ===== Fullscreen standings state ===== */
+#standingsModal .modal-content.standings-fullscreen {
+    width: 96vw;
+    height: 96vh;
+}
+#standingsModal .modal-content.standings-fullscreen #standingsTitle {
+    font-size: 64px;
+}
+#standingsModal .modal-content.standings-fullscreen #modalRankingList {
+    width: min(1400px, 94%);
+}
+#standingsModal .modal-content.standings-fullscreen #modalRankingList li {
+    font-size: 42px;
+    padding: 24px 28px;
+    margin: 16px 0;
+    border-radius: 20px;
+}
+#standingsModal .modal-content.standings-fullscreen #btnInvertStandings {
+    font-size: 22px;
+    padding: 12px 28px;
 }
 
 /* =========================

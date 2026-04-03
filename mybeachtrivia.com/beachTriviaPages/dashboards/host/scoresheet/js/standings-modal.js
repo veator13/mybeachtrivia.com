@@ -203,6 +203,28 @@
     modal.classList.add("hidden");
     modal.style.display = "none";
     document.body.classList.remove("modal-open");
+    // Reset fullscreen when closing
+    const content = modal.querySelector(".modal-content");
+    if (content) content.classList.remove("standings-fullscreen");
+    const fsBtn = $("#btnFullscreenStandings");
+    if (fsBtn) {
+      fsBtn.setAttribute("aria-pressed", "false");
+      fsBtn.textContent = "⛶";
+    }
+  }
+
+  function toggleFullscreen() {
+    const modal = $("#standingsModal");
+    if (!modal) return;
+    const content = modal.querySelector(".modal-content");
+    if (!content) return;
+    const fsBtn = $("#btnFullscreenStandings");
+    const isFullscreen = content.classList.toggle("standings-fullscreen");
+    if (fsBtn) {
+      fsBtn.setAttribute("aria-pressed", isFullscreen ? "true" : "false");
+      fsBtn.textContent = isFullscreen ? "⛶" : "⛶";
+      fsBtn.title = isFullscreen ? "Exit full screen" : "Full screen";
+    }
   }
 
   function showStandings() {
@@ -234,6 +256,7 @@
 
     const closeBtn = $("#btnCloseStandings") || $("#closeStandings") || modal.querySelector(".close");
     const flipBtn = $("#btnInvertStandings");
+    const fsBtn = $("#btnFullscreenStandings");
 
     // Close button
     if (closeBtn && !closeBtn.dataset.boundClose) {
@@ -248,6 +271,22 @@
         true
       );
       closeBtn.dataset.boundClose = "1";
+    }
+
+    // Fullscreen button
+    if (fsBtn && !fsBtn.dataset.boundFullscreen) {
+      fsBtn.title = "Full screen";
+      fsBtn.addEventListener(
+        "click",
+        (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
+          toggleFullscreen();
+        },
+        true
+      );
+      fsBtn.dataset.boundFullscreen = "1";
     }
 
     // Flip button (capture + stopImmediatePropagation)
