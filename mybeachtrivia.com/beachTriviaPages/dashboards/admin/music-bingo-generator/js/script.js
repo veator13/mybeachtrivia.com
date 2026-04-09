@@ -505,6 +505,16 @@ const PlaylistManager = (() => {
     alert(`Successfully imported ${entries.length} songs from CSV`);
   };
 
+  // Handle validation modal results
+  document.addEventListener('validationCompleted', (event) => {
+    const validatedEntries = event.detail.entries;
+    populateTableFromCsv(validatedEntries);
+  });
+
+  document.addEventListener('validationCanceled', () => {
+    csvImportData = [];
+  });
+
   // Expose public methods
   return {
     // public for event wiring

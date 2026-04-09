@@ -6,6 +6,9 @@
   <title>Music Bingo Playlist Creator</title>
 
   <!-- Page styles (optional) -->
+  <!-- Unified nav bar -->
+  <link rel="stylesheet" href="/beachTriviaPages/js/bt-nav.css">
+  <script src="/beachTriviaPages/js/bt-nav.js" defer></script>
   <style>
     body { background:#111; color:#eee; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
     .wrap { max-width: 980px; margin: 40px auto; background:#171717; border-radius:14px; padding:24px 28px; box-shadow: 0 8px 24px rgba(0,0,0,.35); }
@@ -39,6 +42,17 @@
   tbody td + td{padding-left:12px}
   tbody tr + tr td{padding-top:14px}
   tbody input{padding:10px 12px;box-sizing:border-box}
+  /* --- validation modal --- */
+  #validationModal .card { max-width: min(720px, 94vw); }
+  #validationModal table { width:100%; border-collapse:collapse; margin-top:10px; font-size:.9em; }
+  #validationModal thead th { background:#262626; color:#b388ff; padding:8px 10px; text-align:left; }
+  #validationModal tbody td { padding:8px 10px; border-top:1px solid #2c2c2c; }
+  .validation-input { width:100%; background:#222; color:#eee; border:1px solid #333; padding:6px 8px; border-radius:5px; box-sizing:border-box; }
+  .length-indicator { font-weight:700; }
+  .length-valid   { color:#22c55e; }
+  .length-invalid { color:#ef4444; }
+  .override-btn { background:#444; color:#eee; border:0; padding:5px 10px; border-radius:5px; cursor:pointer; font-size:.85em; }
+  .override-btn.active { background:#f59e0b; color:#111; }
 </style>
 
   <!-- DO NOT include auth-gate.css/js here (redundant overlay) -->
@@ -81,6 +95,26 @@
 
     <div class="footer-actions">
       <button id="savePlaylistBtn">Save Playlist</button>
+    </div>
+  </div>
+
+  <!-- Validation modal for long text entries -->
+  <div id="validationModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="validationTitle">
+    <div class="card">
+      <h3 id="validationTitle">Long Text Warning</h3>
+      <p style="color:#fca5a5; margin:0 0 8px;">The following entries exceed the 40-character limit and may display incorrectly. Edit them below or click Override to accept as-is.</p>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr><th>Type</th><th>Content</th><th>Length</th><th>Actions</th></tr>
+          </thead>
+          <tbody id="validationTableBody"></tbody>
+        </table>
+      </div>
+      <div class="actions">
+        <button id="cancelValidationBtn">Cancel</button>
+        <button id="approveBtn" class="purple" disabled>Approve All</button>
+      </div>
     </div>
   </div>
 
