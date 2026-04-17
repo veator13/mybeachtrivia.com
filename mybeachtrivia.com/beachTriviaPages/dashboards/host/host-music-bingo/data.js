@@ -16,6 +16,7 @@ import {
   setDoc,
   doc,
   serverTimestamp,
+  arrayUnion,
   query,
   limit
 } from 'https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js';
@@ -34,7 +35,10 @@ import {
 // ------- Project config: Beach-Trivia-Website -------
 const firebaseConfig = {
   apiKey: "AIzaSyDBKCotY1F943DKfVQqKOGPPkAkQe2Zgog",
-  authDomain: "beach-trivia-website.firebaseapp.com",
+  // Must match /firebase-init.js (employee login) — same IndexedDB auth key as login.html.
+  authDomain: "mybeachtrivia.com",
+  // Required for Realtime Database (same URL as play-music-bingo); without it the host never sees /games/.../players.
+  databaseURL: "https://beach-trivia-website-default-rtdb.firebaseio.com",
   projectId: "beach-trivia-website",
   storageBucket: "beach-trivia-website.appspot.com",
   messagingSenderId: "459479368322",
@@ -231,8 +235,8 @@ export async function fetchPlaylists() {
 export const getPlaylists = fetchPlaylists;
 
 // ---------- Games ----------
-export async function createGame({ playlistId, name, playerLimit }) {
-  console.log('[data.js] createGame', { playlistId, name, playerLimit });
+export async function createGame({ playlistId, name }) {
+  console.log('[data.js] createGame', { playlistId, name });
 
   await requireEmployee();
 
@@ -263,8 +267,8 @@ export async function createGame({ playlistId, name, playerLimit }) {
     playlistId,
     playlistName: playlistTitle,
     status: 'active',
-    playerLimit: playerLimit ?? null,
     playerCount: 0,
+    sessionJoinTotal: 0,
     currentSongIndex: -1,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp()
@@ -312,39 +316,225 @@ export async function getPlayerCount(id) {
 }
 
 // ---------- RTDB Live Player Watcher + Mirror ----------
-/**
- * Listen to RTDB players under /games/{gameId}/players and invoke `callback(count)`
- * whenever the active-player count changes. Returns an unsubscribe function.
- * An "active" player is lastActive within the last 2 minutes.
- */
-export function watchPlayerCountRTDB(gameId, callback) {
-  const playersRef = rtdbRef(rtdb, `games/${gameId}/players`);
-  const unsub = onValue(playersRef, (snap) => {
-    const data = snap.val() || {};
-    const now = Date.now();
-    const ACTIVE_WINDOW_MS = 2 * 60 * 1000; // 2 minutes
-    let count = 0;
-    for (const key in data) {
-      const p = data[key];
-      const t = (p && typeof p.lastActive === 'number') ? p.lastActive : 0;
-      if (now - t < ACTIVE_WINDOW_MS) count++;
-    }
-    try {
-      callback(count);
-    } catch (e) {
-      console.warn('[data.js] playerCount callback error:', e?.message || e);
-    }
-  });
-  return unsub; // call to stop listening
+const ACTIVE_PLAYER_WINDOW_MS = 2 * 60 * 1000; // 2 minutes
+
+function countActivePlayers(data) {
+  const now = Date.now();
+  let n = 0;
+  for (const key of Object.keys(data || {})) {
+    const p = data[key];
+    if (!p || typeof p !== 'object') continue;
+    const t = typeof p.lastActive === 'number' ? p.lastActive : 0;
+    if (t && now - t < ACTIVE_PLAYER_WINDOW_MS) n++;
+  }
+  return n;
 }
 
 /**
- * Mirror the RTDB-derived player count back into Firestore (best effort).
+ * Active = /players with recent lastActive. Total = unique UIDs in /joinLog (written once per join; persists for the session).
  */
-export async function setGamePlayerCount(id, count) {
-  await requireEmployee(); // keep writes host-only
+export function watchSessionPlayerStats(gameId, callback) {
+  const playersRef = rtdbRef(rtdb, `games/${gameId}/players`);
+  const joinLogRef = rtdbRef(rtdb, `games/${gameId}/joinLog`);
+  let playersVal = {};
+  let joinLogVal = {};
+
+  const emit = () => {
+    try {
+      callback({
+        active: countActivePlayers(playersVal),
+        totalJoined: Object.keys(joinLogVal || {}).length,
+      });
+    } catch (e) {
+      console.warn('[data.js] watchSessionPlayerStats callback error:', e?.message || e);
+    }
+  };
+
+  const unsubP = onValue(playersRef, (snap) => {
+    playersVal = snap.val() || {};
+    emit();
+  });
+  const unsubJ = onValue(joinLogRef, (snap) => {
+    joinLogVal = snap.val() || {};
+    emit();
+  }, (err) => {
+    console.warn('[data.js] joinLog listener denied (totalJoined will use Firestore fallback):', err?.message || err);
+  });
+  return () => {
+    unsubP();
+    unsubJ();
+  };
+}
+
+/** @deprecated Use watchSessionPlayerStats — kept for one-arg callbacks */
+export function watchPlayerCountRTDB(gameId, callback) {
+  return watchSessionPlayerStats(gameId, ({ active }) => callback(active));
+}
+
+/**
+ * Mirror RTDB-derived counts to Firestore (best effort).
+ */
+export async function setGameSessionPlayerStats(id, { active, totalJoined }) {
+  await requireEmployee();
   const ref = doc(db, 'games', id);
-  await updateDoc(ref, { playerCount: count, updatedAt: serverTimestamp() });
+  const payload = { updatedAt: serverTimestamp() };
+  if (typeof active === 'number') payload.playerCount = active;
+  if (typeof totalJoined === 'number') payload.sessionJoinTotal = totalJoined;
+  await updateDoc(ref, payload);
+}
+
+export async function setGamePlayerCount(id, count) {
+  await requireEmployee();
+  await updateDoc(doc(db, 'games', id), { playerCount: count, updatedAt: serverTimestamp() });
+}
+
+// ---------- Playlist raw data (for Spotify queue building) ----------
+/**
+ * Fetch the raw playlist document data (song1/artist1/uri1...).
+ * Tries `playlists` first, then falls back to `music_bingo`.
+ */
+export async function fetchPlaylistData(playlistId) {
+  let snap = await getDoc(doc(db, 'playlists', playlistId));
+  if (!snap.exists()) {
+    snap = await getDoc(doc(db, 'music_bingo', playlistId));
+  }
+  if (!snap.exists()) throw new Error(`Playlist not found: ${playlistId}`);
+  return snap.data();
+}
+
+/**
+ * Parse the numbered song1/artist1/uri1... format into a flat array.
+ * Returns [{title, artist, uri}], skipping entries with no title and no uri.
+ */
+export function parsePlaylistTracks(data) {
+  const tracks = [];
+  let i = 1;
+  while (data[`song${i}`] !== undefined || data[`uri${i}`] !== undefined) {
+    const title  = data[`song${i}`]   || '';
+    const artist = data[`artist${i}`] || '';
+    const uri    = data[`uri${i}`]    || '';
+    if (title || uri) tracks.push({ title, artist, uri });
+    i++;
+    if (i > 500) break; // safety
+  }
+  return tracks;
+}
+
+// ---------- Spotify session helpers (stored on the game doc) ----------
+
+export async function saveSpotifyDeviceId(gameId, deviceId) {
+  await requireEmployee();
+  await updateDoc(doc(db, 'games', gameId), { spotifyDeviceId: deviceId, updatedAt: serverTimestamp() });
+}
+
+export async function savePlayedLog(gameId, log) {
+  await requireEmployee();
+  // Firestore arrays have a 1 MiB document size limit; for very long sessions
+  // this is fine (each entry is ~100 bytes → ~10 000 songs before concern).
+  await updateDoc(doc(db, 'games', gameId), { spotifyLog: log, updatedAt: serverTimestamp() });
+}
+
+export async function loadPlayedLog(gameId) {
+  const snap = await getDoc(doc(db, 'games', gameId));
+  return snap.exists() ? (snap.data().spotifyLog ?? []) : [];
+}
+
+// ---------- Sessions + Rounds (multi-round session architecture) ----------
+
+/**
+ * Create a new session doc. Returns { id, name }.
+ */
+export async function createSession({ name }) {
+  await requireEmployee();
+  const ref = await addDoc(collection(db, 'sessions'), {
+    name: name || 'Music Bingo',
+    status: 'active',
+    currentRoundId: null,
+    currentRoundName: null,
+    currentRoundNumber: 0,
+    usedPlaylistIds: [],
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return { id: ref.id, name: name || 'Music Bingo' };
+}
+
+/**
+ * Start a new round within a session. Creates a game doc, snapshots the playlist,
+ * and updates session.currentRoundId. Returns { id, ...gameFields }.
+ */
+export async function startRound({ sessionId, roundNumber, playlistId, playlistTitle }) {
+  await requireEmployee();
+
+  let title = playlistTitle || playlistId;
+  if (!playlistTitle) {
+    try {
+      let snap = await getDoc(doc(db, 'playlists', playlistId));
+      if (!snap.exists()) snap = await getDoc(doc(db, 'music_bingo', playlistId));
+      if (snap.exists()) {
+        const d = snap.data();
+        title = d.playlistTitle || d.title || d.name || title;
+      }
+    } catch (_) {}
+  }
+
+  const gamePayload = {
+    name: title,
+    playlistId,
+    playlistName: title,
+    sessionId,
+    roundNumber,
+    status: 'active',
+    playerCount: 0,
+    currentSongIndex: -1,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+
+  const ref = await addDoc(collection(db, 'games'), gamePayload);
+
+  // Snapshot playlist tracks into the game doc for player-side reads
+  try {
+    await snapshotPlaylistIntoGame(db, ref.id, playlistId);
+  } catch (_) {}
+
+  // Update session doc
+  await updateDoc(doc(db, 'sessions', sessionId), {
+    currentRoundId: ref.id,
+    currentRoundName: title,
+    currentRoundNumber: roundNumber,
+    usedPlaylistIds: arrayUnion(playlistId),
+    updatedAt: serverTimestamp(),
+  });
+
+  return { id: ref.id, ...gamePayload };
+}
+
+/**
+ * End the current round — marks game as 'round-ended' and clears session.currentRoundId.
+ */
+export async function endRound(sessionId, roundId) {
+  await requireEmployee();
+  await updateDoc(doc(db, 'games', roundId), {
+    status: 'round-ended',
+    updatedAt: serverTimestamp(),
+  });
+  await updateDoc(doc(db, 'sessions', sessionId), {
+    currentRoundId: null,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/**
+ * End the entire session.
+ */
+export async function endSession(sessionId) {
+  await requireEmployee();
+  await updateDoc(doc(db, 'sessions', sessionId), {
+    status: 'ended',
+    currentRoundId: null,
+    updatedAt: serverTimestamp(),
+  });
 }
 
 // ---------- Optional: tiny debug surface in dev tools ----------

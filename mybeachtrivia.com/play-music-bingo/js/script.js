@@ -94,10 +94,17 @@ if (typeof firebase === 'undefined' || !firebase.apps?.length) {
   console.log('Firebase initialized — starting player app…');
   ensureAnonAuth()
     .then(() => {
-      try {
-        redirectPlaylistReads(firebase.firestore(), new URLSearchParams(location.search).get('gameId'));
-      } catch (e) {
-        console.warn('[player] redirect error:', (e && e.message) || e);
+      // Only redirect now if ?gameId= is in the URL.
+      // When the URL uses ?sessionId=, loadRoundById handles the redirect
+      // with the correct roundId — doing it here with null would lock
+      // db.__mbPatched = true and prevent the proper re-patch later.
+      const urlGameId = new URLSearchParams(location.search).get('gameId');
+      if (urlGameId) {
+        try {
+          redirectPlaylistReads(firebase.firestore(), urlGameId);
+        } catch (e) {
+          console.warn('[player] redirect error:', (e && e.message) || e);
+        }
       }
       return initializeGame();
     })
@@ -115,15 +122,37 @@ let currentSongIndex = -1;
 let playersRef = null; // RTDB listener handle
 let unsubscribeFirestore = null; // Firestore listener handle
 
+// Boards are generated when the player explicitly joins the round.
+let _pendingSongs = null;
+let _pendingArtists = null;
+let _boardsReady = false;
+
+function ensureBoardsInitialized() {
+  if (_boardsReady) return;
+  if (!_pendingSongs || !_pendingArtists) return;
+  initializeBoards(_pendingSongs, _pendingArtists);
+  _boardsReady = true;
+}
+
 /* ---------- Board persistence (localStorage) ---------- */
+
+// The active round ID — set once we resolve gameId (supports both ?gameId= and ?sessionId= URLs)
+let _resolvedGameId = null;
+
+function getBoardStorageKey() {
+  // Use the resolved round ID so each round gets its own storage slot.
+  // Falls back to URL ?gameId= for direct links; 'default' only as last resort.
+  return _resolvedGameId || getUrlParameter('gameId') || 'default';
+}
+
 function saveBoardState() {
   const board1 = document.querySelector('.board-1');
   const board2 = document.querySelector('.board-2');
   if (!board1 || !board2) return;
-  const gameId = getUrlParameter('gameId') || 'default';
-  localStorage.setItem(`musicBingo_${gameId}_board1`, JSON.stringify(getBoardState(board1)));
-  localStorage.setItem(`musicBingo_${gameId}_board2`, JSON.stringify(getBoardState(board2)));
-  console.log('Board state saved.');
+  const key = getBoardStorageKey();
+  localStorage.setItem(`musicBingo_${key}_board1`, JSON.stringify(getBoardState(board1)));
+  localStorage.setItem(`musicBingo_${key}_board2`, JSON.stringify(getBoardState(board2)));
+  console.log('Board state saved for round:', key);
 }
 
 function getBoardState(boardEl) {
@@ -140,9 +169,9 @@ function getBoardState(boardEl) {
 }
 
 function loadBoardState() {
-  const gameId = getUrlParameter('gameId') || 'default';
-  const s1 = localStorage.getItem(`musicBingo_${gameId}_board1`);
-  const s2 = localStorage.getItem(`musicBingo_${gameId}_board2`);
+  const key = getBoardStorageKey();
+  const s1 = localStorage.getItem(`musicBingo_${key}_board1`);
+  const s2 = localStorage.getItem(`musicBingo_${key}_board2`);
   if (!s1 || !s2) return false;
 
   const board1 = document.querySelector('.board-1');
@@ -191,14 +220,41 @@ async function initializeGame() {
   try {
     console.log('Initializing game…');
 
-    const gameId = getUrlParameter('gameId');
+    const db = firebase.firestore();
+
+    // Support both ?gameId=xxx (direct) and ?sessionId=xxx (session-based)
+    let gameId = getUrlParameter('gameId');
+    if (!gameId) {
+      const sessionId = getUrlParameter('sessionId');
+      if (sessionId) {
+        console.log('[player] resolving sessionId →', sessionId);
+        const sessSnap = await db.collection('sessions').doc(sessionId).get();
+        if (!sessSnap.exists) {
+          console.error('[player] session not found:', sessionId);
+          alert('Session not found. Please check your link.');
+          initializeGameWithSampleData();
+          return;
+        }
+        gameId = sessSnap.data().currentRoundId || null;
+        console.log('[player] resolved gameId from session:', gameId);
+      }
+    }
+
     if (!gameId) {
       console.warn('No gameId in URL — using sample data.');
       initializeGameWithSampleData();
       return;
     }
 
-    const db = firebase.firestore();
+    // Store resolved round ID so board persistence uses the right key
+    _resolvedGameId = gameId;
+
+    // Patch Firestore so music_bingo reads go to the game's embedded playlist
+    try {
+      redirectPlaylistReads(db, gameId);
+    } catch (e) {
+      console.warn('[player] redirectPlaylistReads error:', (e && e.message) || e);
+    }
 
     // Load game
     const gameSnap = await db.collection('games').doc(gameId).get();
@@ -239,8 +295,16 @@ async function initializeGame() {
     }
     console.log(`Using ${songs.length} songs / ${artists.length} artists`);
 
-    // Build boards (from saved state if available)
-    initializeBoards(songs, artists);
+    // Defer board generation until the player explicitly joins the round
+    _pendingSongs = songs;
+    _pendingArtists = artists;
+    _boardsReady = false;
+    try {
+      const b1 = document.querySelector('.board-1');
+      const b2 = document.querySelector('.board-2');
+      if (b1) b1.innerHTML = '';
+      if (b2) b2.innerHTML = '';
+    } catch (_) {}
 
     // Live updates: Firestore game doc + RTDB players only
     setupGameUpdates(gameId);
@@ -420,15 +484,39 @@ function renderJoinGate(gameId) {
     const style = document.createElement('style');
     style.id = 'mb-join-style';
     style.textContent = `
+      @keyframes mbOverlayIn {
+        from { opacity: 0; }
+        to   { opacity: 1; }
+      }
+      @keyframes mbCardIn {
+        from { opacity: 0; transform: translateY(22px) scale(0.96); }
+        to   { opacity: 1; transform: translateY(0)    scale(1);    }
+      }
+      @keyframes mbOverlayOut {
+        from { opacity: 1; }
+        to   { opacity: 0; }
+      }
+      @keyframes mbCardOut {
+        from { opacity: 1; transform: translateY(0)    scale(1);    }
+        to   { opacity: 0; transform: translateY(-14px) scale(0.97); }
+      }
       .mb-join-overlay {
         position: fixed; inset: 0; background: rgba(0,0,0,.72);
         display: flex; align-items: center; justify-content: center;
         z-index: 2000;
+        animation: mbOverlayIn 0.9s cubic-bezier(0.22,1,0.36,1) both;
+      }
+      .mb-join-overlay.mb-leaving {
+        animation: mbOverlayOut 0.7s cubic-bezier(0.4,0,1,1) both;
       }
       .mb-join-card {
         background: #151627; color: #fff; border-radius: 14px;
         padding: 20px 22px; width: min(92vw, 460px); box-shadow: 0 10px 30px rgba(0,0,0,.35);
         text-align: center;
+        animation: mbCardIn 1.0s cubic-bezier(0.22,1,0.36,1) both;
+      }
+      .mb-join-overlay.mb-leaving .mb-join-card {
+        animation: mbCardOut 0.6s cubic-bezier(0.4,0,1,1) both;
       }
       .mb-join-card h2 { margin: 0 0 10px; font-size: 20px; }
       .mb-join-card p { opacity: .85; margin: 0 0 16px; }
@@ -436,20 +524,14 @@ function renderJoinGate(gameId) {
         display:inline-block; padding:12px 18px; border-radius: 10px; border: 0;
         background: #6C5CE7; color:#fff; font-weight: 600; cursor: pointer;
         -webkit-tap-highlight-color: transparent;
+        transition: transform 0.12s ease, opacity 0.12s ease;
       }
+      .mb-join-btn:active { transform: scale(0.95); }
       .mb-join-btn[disabled] { opacity: .6; cursor: default; }
     `;
     document.head.appendChild(style);
-  }
-
-  // If we already joined in this tab session, auto-skip the gate
+  }  // Always require an explicit tap to join (prevents accidental counts and ensures iOS allows audio/network).
   const sessionKey = `mb_joined_${gameId}`;
-  if (sessionStorage.getItem(sessionKey) === '1') {
-    console.log('Already joined this session — skipping gate.');
-    // Fire and forget; no overlay
-    safeJoinGame(gameId, sessionKey);
-    return;
-  }
 
   // Build overlay
   const overlay = document.createElement('div');
@@ -457,8 +539,8 @@ function renderJoinGate(gameId) {
   overlay.innerHTML = `
     <div class="mb-join-card">
       <h2>Join “${(gameData?.name || 'Music Bingo').replace(/[<>&]/g, '')}”</h2>
-      <p>Tap below to join the game.</p>
-      <button class="mb-join-btn" id="mb-join-btn" type="button">Tap to Join</button>
+      <p>Tap below to join this round and generate your boards.</p>
+      <button class="mb-join-btn" id="mb-join-btn" type="button">Join Round</button>
     </div>
   `;
   document.body.appendChild(overlay);
@@ -474,11 +556,13 @@ function renderJoinGate(gameId) {
 
     btn.disabled = true;
 
-    // Remove overlay immediately
-    overlay.remove();
+    // Fade overlay out, then remove
+    overlay.classList.add('mb-leaving');
+    setTimeout(() => overlay.remove(), 720);
 
     // Hard timeout so any auth/persistence hang doesn’t stall forever
     try {
+      ensureBoardsInitialized();
       await Promise.race([
         safeJoinGame(gameId, sessionKey),
         new Promise((_, rej) => setTimeout(() => rej(new Error('join timeout')), 8000)),
@@ -564,6 +648,13 @@ async function safeJoinGame(gameId, sessionKey) {
 
     await Promise.race([writePresence, new Promise((resolve) => setTimeout(resolve, 2500))]);
     console.log('[presence] initial write scheduled/guarded');
+
+    // Cumulative session joins (host reads joinLog count; survives tab close until game ends)
+    try {
+      await db.ref(`games/${gameId}/joinLog/${uid}`).set({ joinedAt: now });
+    } catch (e) {
+      console.warn('[presence] joinLog write (non-blocking):', e?.message || e);
+    }
 
     // 2) When connected, register onDisconnect cleanup
     try {

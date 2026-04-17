@@ -1,77 +1,327 @@
-// app.js — Host Music Bingo (QR enabled, CSS-class based)
+// app.js — Host Music Bingo (redirect Spotify OAuth, CSS-class based)
 import {
   fetchPlaylists,
+  fetchPlaylistData,
+  parsePlaylistTracks,
   createGame,
   getGame,
   updateGameSongIndex,
   updateGameStatus,
   requireEmployee,
-  watchPlayerCountRTDB,
-  setGamePlayerCount
-} from './data.js';
+  watchSessionPlayerStats,
+  setGameSessionPlayerStats,
+  createSession,
+  startRound,
+  endRound,
+  endSession,
+} from './data.js?v=3';
 import { renderJoinQRCode } from './qr.js';
+import {
+  SpotifyController,
+  SpotifyCompanionController,
+  initiateSpotifyAuth,
+  getValidToken,
+  getStoredTokens,
+  clearSpotifySession,
+  getSpotifyUser,
+  spotifyApi,
+} from './spotify.js?v=5';
 
-// ------- Config: force player link to web.app (iOS-friendly) -------
+// ------- Spotify loading overlay -------
+let _overlayPlaylistsDone = false;
+let _overlayPlayerDone    = false;
+let _overlayActive        = false;
+
+function showSpotifyOverlay() {
+  const el = document.getElementById('sp-loading-overlay');
+  if (!el) return;
+  _overlayActive = true;
+  el.classList.remove('sp-loading-overlay--hidden');
+  el.removeAttribute('aria-hidden');
+}
+
+function checkHideSpotifyOverlay() {
+  if (!_overlayActive) return;
+  if (!_overlayPlaylistsDone || !_overlayPlayerDone) return;
+  const el = document.getElementById('sp-loading-overlay');
+  if (!el) return;
+  el.classList.add('sp-loading-overlay--hidden');
+  el.setAttribute('aria-hidden', 'true');
+  _overlayActive = false;
+}
+
+// ------- Config -------
 const WEBAPP_JOIN_BASE =
-  'https://beach-trivia-website.web.app/play-music-bingo/index.html'; // use this for QR/link
-const JOIN_VERSION = 9; // bump to bust caches when script/index changes
+  'https://beach-trivia-website.web.app/play-music-bingo/index.html';
+const JOIN_VERSION = 9;
 
 // ------- Element lookups (match host-music-bingo.html) -------
 const els = {
-  // Form
-  playlist: document.querySelector('#playlist-select'),
-  gameName: document.querySelector('#game-name'),
-  playerLimit: document.querySelector('#player-limit'),
-  startBtn: document.querySelector('#start-game-btn'),
+  // Setup form
+  playlist:       document.querySelector('#playlist-select'),
+  gameName:       document.querySelector('#game-name'),
+  gameNameField:  document.querySelector('#game-name-field'),
+  startBtn:       document.querySelector('#start-game-btn'),
+  setupForm:      document.querySelector('#setup-form'),
+  setupEyebrow:   document.querySelector('#setup-eyebrow'),
+  setupTitle:     document.querySelector('#setup-title'),
+  sessionControls: document.querySelector('#session-controls'),
 
-  // Join/QR UI
-  qrBox: document.querySelector('#qr-code-container'),
-  copyJoinBtn: document.querySelector('#copy-join-link-btn'),
+  // Join / QR UI
+  qrBox:           document.querySelector('#qr-code-container'),
+  copyJoinBtn:     document.querySelector('#copy-join-link-btn'),
   joinLinkDisplay: document.querySelector('#join-link-display'),
 
   // Game panel
-  gameSection: document.querySelector('#game-section'),
+  gameSection:     document.querySelector('#game-section'),
+  gameSectionJoin: document.querySelector('#game-section-join'),
+  gameInfoRow:     document.querySelector('#game-info-row'),
+  playerCountPill: document.querySelector('#player-count-pill'),
   currentGameName: document.querySelector('#current-game-name'),
   currentPlaylist: document.querySelector('#current-playlist'),
-  gameId: document.querySelector('#game-id'),
-  currentSong: document.querySelector('#current-song'),
-  playerCount: document.querySelector('#player-count'),
+  gameId:          document.querySelector('#game-id'),
+  currentSong:     document.querySelector('#current-song'),
+  playerCountActive: document.querySelector('#player-count-active'),
+  playerCountJoined: document.querySelector('#player-count-joined'),
 
-  // Transport controls
-  playBtn: document.querySelector('#play-song-btn'),
-  nextBtn: document.querySelector('#next-song-btn'),
-  pauseBtn: document.querySelector('#pause-game-btn'),
+  // Bingo transport
+  playBtn:   document.querySelector('#play-song-btn'),
+  nextBtn:   document.querySelector('#next-song-btn'),
+  pauseBtn:  document.querySelector('#pause-game-btn'),
   resumeBtn: document.querySelector('#resume-game-btn'),
-  endBtn: document.querySelector('#end-game-btn'),
+  endRoundBtn: document.querySelector('#end-round-btn'),
+  endBtn:      document.querySelector('#end-game-btn'),
 
-  // Any forms on the page
-  forms: Array.from(document.querySelectorAll('form'))
+  // Played-log tabs
+  playedLogTabs:  document.querySelector('#played-log-tabs'),
+  playedLogTitle: document.querySelector('#played-log-title'),
+
+  // Spotify auth card
+  connectBtn:    document.querySelector('#spotify-connect-btn'),
+  disconnectBtn: document.querySelector('#spotify-disconnect-btn'),
+  connectedRow:  document.querySelector('#spotify-connected-row'),
+  displayName:   document.querySelector('#spotify-display-name'),
+  statusText:    document.querySelector('#spotify-status-text'),
+  playerStatus:  document.querySelector('#sp-player-status'),
+
+  // Spotify player section
+  playerSection: document.querySelector('#spotify-player-section'),
+  trackName:     document.querySelector('#sp-track-name'),
+  artistName:    document.querySelector('#sp-artist-name'),
+  playPauseBtn:  document.querySelector('#sp-play-pause-btn'),
+  playIcon:      document.querySelector('#sp-play-icon'),
+  pauseIcon:     document.querySelector('#sp-pause-icon'),
+  prevBtn:       document.querySelector('#sp-prev-btn'),
+  nextSpBtn:     document.querySelector('#sp-next-btn'),
+  seekSlider:    document.querySelector('#sp-seek'),
+  currentTime:   document.querySelector('#sp-current-time'),
+  duration:      document.querySelector('#sp-duration'),
+  volumeSlider:  document.querySelector('#sp-volume'),
+  volumeLabel:   document.querySelector('#sp-volume-label'),
+
+  // Played log
+  playedLogSection: document.querySelector('#played-log-section'),
+  playedLogList:    document.querySelector('#played-log-list'),
+  playedLogCount:   document.querySelector('#played-log-count'),
+
+  // Mobile companion modal
+  mobileCompanionBtn: document.querySelector('#mobile-companion-btn'),
+  mobileModal:        document.querySelector('#mobile-modal'),
+  mobileModalClose:   document.querySelector('#mobile-modal-close'),
+  companionQrBtn:     document.querySelector('#companion-qr-btn'),
+  companionQrModal:   document.querySelector('#companion-qr-modal'),
+  companionQrClose:   document.querySelector('#companion-qr-close'),
+  companionQrCopy:    document.querySelector('#companion-qr-copy'),
+  companionQrBox:     document.querySelector('#companion-qr-box'),
+  mobConnectBtn:      document.querySelector('#mob-connect-btn'),
+  mobAuthPrompt:      document.querySelector('#mob-auth-prompt'),
+  mobPlayerUi:        document.querySelector('#mob-player-ui'),
+  mobPlayPauseBtn:    document.querySelector('#mob-play-pause-btn'),
+  mobPlayIcon:        document.querySelector('#mob-play-icon'),
+  mobPauseIcon:       document.querySelector('#mob-pause-icon'),
+  mobPrevBtn:         document.querySelector('#mob-prev-btn'),
+  mobNextBtn:         document.querySelector('#mob-next-btn'),
+  mobVolumeSlider:    document.querySelector('#mob-volume'),
+  mobTrackName:       document.querySelector('#mob-track-name'),
+  mobArtistName:      document.querySelector('#mob-artist-name'),
+  mobLogList:         document.querySelector('#mob-log-list'),
+
+  mobSeekSlider:     document.querySelector('#mob-seek'),
+  mobCurrentTime:    document.querySelector('#mob-current-time'),
+  mobDuration:       document.querySelector('#mob-duration'),
+
+  // Mobile toggles
+  mobShuffleToggle:    document.querySelector('#mob-shuffle'),
+  mobFadeToggle:       document.querySelector('#mob-fade'),
+  mobRandomStartToggle:document.querySelector('#mob-random-start'),
+
+  randomStartToggle: document.querySelector('#sp-random-start'),
+  fadeToggle:        document.querySelector('#sp-fade'),
+
+  forms: Array.from(document.querySelectorAll('form')),
 };
 
-let activeGame = null;
+// ─── State ────────────────────────────────────────────────────────────────────
 
-// ---- RTDB Player Watcher ----
+let activeGame      = null;
+let spotifyCtrl     = null;
+let seekDragging    = false;
+let positionTimer   = null;
+let playedSongs     = []; // { title, artist }
+let playlistTracks  = []; // { title, artist, uri } — loaded when game starts
+
+/** While set, main-player title/artist stay frozen until SDK reports this URI (avoids fade cross-talk flicker). */
+let playTransition  = null; // { uri, title, artist, logged: boolean } | null
+
+// Prevent duplicate logging when using mobile controls / SDK fallbacks.
+let _lastLoggedUri = null;
+
+// ─── Session / Round state ────────────────────────────────────────────────────
+let sessionState    = 'idle'; // 'idle' | 'round-active' | 'between-rounds'
+let activeSession   = null;
+let currentRoundNumber = 0;
+let usedPlaylistIds = new Set();
+let roundHistory    = []; // [{ roundNumber, name, songs: [{title,artist}] }]
+let activeRoundTab  = 0;  // roundNumber of the tab currently displayed
+
+const LS_RANDOM_START = 'mb:randomStart';
+const LS_FADE = 'mb:fade';
+
+function isRandomStartEnabled() {
+  // Use checkbox as source of truth, but fall back to persisted value if the UI
+  // is temporarily out of sync (e.g. hidden section not yet interacted with).
+  if (els.randomStartToggle && typeof els.randomStartToggle.checked === 'boolean') {
+    return els.randomStartToggle.checked;
+  }
+  try {
+    return localStorage.getItem(LS_RANDOM_START) !== '0';
+  } catch {
+    return false;
+  }
+}
+
+function isFadeEnabled() {
+  if (els.fadeToggle && typeof els.fadeToggle.checked === 'boolean') {
+    return els.fadeToggle.checked;
+  }
+  try {
+    return localStorage.getItem(LS_FADE) !== '0';
+  } catch {
+    return true;
+  }
+}
+
+function getTargetVolumePct() {
+  const v = parseInt(els.volumeSlider?.value || els.mobVolumeSlider?.value || '75', 10);
+  return Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : 75;
+}
+
+let _fadeSeq = 0;
+let _currentVolumePct = getTargetVolumePct();
+
+// Updates the Spotify SDK volume without touching UI controls.
+// Used internally by fadeTo so the slider stays pinned to the user's chosen level.
+async function setAudioVolume(pct) {
+  const clamped = Math.max(0, Math.min(100, Math.round(pct)));
+  _currentVolumePct = clamped;
+  await spotifyCtrl?.setVolume(clamped).catch(() => {});
+}
+
+// Updates both SDK volume and the UI controls (slider + label).
+// Call this for user-driven changes and when restoring to the target after a fade.
+async function setVolumePct(pct) {
+  const clamped = Math.max(0, Math.min(100, Math.round(pct)));
+  _currentVolumePct = clamped;
+  if (els.volumeSlider) els.volumeSlider.value = String(clamped);
+  if (els.mobVolumeSlider) els.mobVolumeSlider.value = String(clamped);
+  if (els.volumeLabel) els.volumeLabel.textContent = String(clamped);
+  await spotifyCtrl?.setVolume(clamped).catch(() => {});
+}
+
+// Animates volume between _currentVolumePct and targetPct.
+// Uses setAudioVolume (no UI) so the slider stays at the user's set value.
+async function fadeTo(targetPct, durationMs = 800) {
+  if (!spotifyCtrl) return;
+  const seq = ++_fadeSeq;
+  const startPct = _currentVolumePct;
+  const endPct = Math.max(0, Math.min(100, targetPct));
+  const steps = Math.max(8, Math.floor(durationMs / 60));
+  for (let i = 1; i <= steps; i++) {
+    if (seq !== _fadeSeq) return; // cancelled by a newer fade
+    const t = i / steps;
+    const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    const pct = Math.round(startPct + (endPct - startPct) * eased);
+    await setAudioVolume(pct);
+    await new Promise((r) => setTimeout(r, Math.floor(durationMs / steps)));
+  }
+  if (seq === _fadeSeq) await setAudioVolume(endPct);
+}
+
+async function logSpotifyNow(label) {
+  if (!spotifyCtrl) {
+    console.log(`[dbg][${label}] spotifyCtrl = null`);
+    return;
+  }
+  const st = await spotifyCtrl.getCurrentState().catch(() => null);
+  const uri = st?.track_window?.current_track?.uri || null;
+  const name = st?.track_window?.current_track?.name || null;
+  const pos = st?.position ?? null;
+  const dur = st?.duration ?? null;
+  console.log(`[dbg][${label}]`, { uri, name, pos, dur, paused: st?.paused ?? null });
+}
+
+async function manualAdvanceFromPlaylist(delta = 1) {
+  if (!spotifyCtrl) return false;
+  await ensurePlaylistTracksLoaded();
+  if (!playlistTracks.length) {
+    console.warn('[dbg][manualAdvance] no playlistTracks loaded');
+    return false;
+  }
+  const st = await spotifyCtrl.getCurrentState().catch(() => null);
+  const curUri = st?.track_window?.current_track?.uri || null;
+  const curIdx = curUri ? playlistTracks.findIndex((t) => t?.uri === curUri) : -1;
+  const base = curIdx >= 0 ? curIdx : -1;
+  const nextIdx = (base + delta + playlistTracks.length) % playlistTracks.length;
+  const next = playlistTracks[nextIdx];
+  console.log('[dbg][manualAdvance]', { curUri, curIdx, nextIdx, nextUri: next?.uri });
+  if (!next?.uri) return false;
+  const startMode = isRandomStartEnabled() ? 'random' : 0;
+  await playTrackAtPosition(next.uri, startMode).catch((e) =>
+    console.warn('[dbg][manualAdvance] play failed:', e?.message || e)
+  );
+  await new Promise((r) => setTimeout(r, 250));
+  await logSpotifyNow('after manualAdvance');
+  return true;
+}
+
+// ─── RTDB Player Watcher ──────────────────────────────────────────────────────
+
 let stopWatchingPlayers = null;
 
 function attachPlayerWatcher(gameId) {
-  if (stopWatchingPlayers) {
-    stopWatchingPlayers();
-    stopWatchingPlayers = null;
-  }
+  if (stopWatchingPlayers) { stopWatchingPlayers(); stopWatchingPlayers = null; }
 
-  stopWatchingPlayers = watchPlayerCountRTDB(gameId, async (count) => {
-    if (els.playerCount) els.playerCount.textContent = String(count);
-
-    // Mirror to Firestore so anything reading games/{id}.playerCount stays consistent
+  stopWatchingPlayers = watchSessionPlayerStats(gameId, async ({ active, totalJoined }) => {
+    if (els.playerCountActive) els.playerCountActive.textContent = String(active);
+    if (els.playerCountJoined) els.playerCountJoined.textContent = String(totalJoined);
     try {
-      await setGamePlayerCount(gameId, count);
+      await setGameSessionPlayerStats(gameId, { active, totalJoined });
     } catch (e) {
-      console.debug('setGamePlayerCount failed:', e?.message || e);
+      console.debug('setGameSessionPlayerStats failed:', e?.message || e);
     }
   });
 }
 
-// ---------------- UI HELPERS ----------------
+// ─── Formatting helpers ───────────────────────────────────────────────────────
+
+function fmtTime(ms) {
+  if (!ms || ms < 0) return '0:00';
+  const s = Math.floor(ms / 1000);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+// ─── Join-link / QR helpers ───────────────────────────────────────────────────
+
 function ensureJoinLinkDisplay() {
   if (!els.joinLinkDisplay) {
     const host = els.qrBox?.parentElement || document.body;
@@ -83,38 +333,14 @@ function ensureJoinLinkDisplay() {
   }
 }
 
-// Render QR above the link (uses CSS classes; minimal inline)
 function renderJoinLink(url) {
   if (!els.qrBox) return;
-
   els.qrBox.innerHTML = '';
-
-  // Outer panel
-  const container = document.createElement('div');
-  container.className = 'qr-box';
-
-  // White pad behind QR
-  const qrWrap = document.createElement('div');
-  qrWrap.className = 'qr-wrap';
-
-  // Render QR (falls back silently if lib missing)
   try {
-    renderJoinQRCode(qrWrap, url, 196);
+    renderJoinQRCode(els.qrBox, url, 196);
   } catch (e) {
-    console.warn('QR render failed; showing link only:', e);
+    console.warn('QR render failed:', e);
   }
-
-  // Clickable join link under QR
-  const link = document.createElement('a');
-  link.href = url;
-  link.textContent = url;
-  link.target = '_blank';
-  link.rel = 'noopener noreferrer';
-  link.className = 'join-url';
-
-  container.appendChild(qrWrap);
-  container.appendChild(link);
-  els.qrBox.appendChild(container);
 }
 
 function wireCopyJoin() {
@@ -123,17 +349,14 @@ function wireCopyJoin() {
     ensureJoinLinkDisplay();
     try {
       const value = (els.joinLinkDisplay?.innerText || els.joinLinkDisplay?.textContent || '').trim();
-      if (!value) {
-        alert('No join link available yet.');
-        return;
-      }
+      if (!value) { alert('No join link available yet.'); return; }
       await navigator.clipboard.writeText(value);
       const orig = els.copyJoinBtn.textContent;
       els.copyJoinBtn.textContent = 'Copied!';
       setTimeout(() => (els.copyJoinBtn.textContent = orig), 1200);
     } catch (e) {
       console.error('Copy failed:', e);
-      alert('Copy failed. Try manually copying the link above.');
+      alert('Copy failed. Please try again.');
     }
   });
 }
@@ -141,78 +364,990 @@ function wireCopyJoin() {
 function updateGameUI(game, playlistName) {
   activeGame = game;
   els.gameSection?.classList.remove('hidden');
+  els.gameSectionJoin?.classList.remove('hidden');
+  els.gameInfoRow?.classList.remove('hidden');
+  els.playerCountPill?.classList.remove('hidden');
+  // endBtn visibility is managed by setSessionState — don't override it here
 
   if (els.currentGameName) els.currentGameName.textContent = game.name || 'Music Bingo Game';
   if (els.currentPlaylist) els.currentPlaylist.textContent = playlistName || game.playlistName || game.playlistId || '';
-  if (els.gameId) els.gameId.textContent = game.id || '';
-
+  if (els.gameId)          els.gameId.textContent = game.id || '';
   if (els.currentSong) {
+    const idx = game.currentSongIndex;
     els.currentSong.textContent =
-      typeof game.currentSongIndex === 'number'
-        ? `Song ${game.currentSongIndex + 1}`
+      typeof idx === 'number' && idx >= 0
+        ? `Song ${idx + 1}`
         : 'Not started';
   }
+  if (els.playerCountActive) els.playerCountActive.textContent = String(game.playerCount ?? 0);
+  if (els.playerCountJoined) {
+    els.playerCountJoined.textContent = String(game.sessionJoinTotal ?? 0);
+  }
 
-  if (els.playerCount) els.playerCount.textContent = String(game.playerCount ?? 0);
-
-  // ✅ Use web.app for player link/QR (works on iOS behind Cloudflare)
-  const joinUrl = `${WEBAPP_JOIN_BASE}?gameId=${encodeURIComponent(game.id)}&v=${JOIN_VERSION}`;
-
+  const joinUrl = (typeof activeSession !== 'undefined' && activeSession)
+    ? `${WEBAPP_JOIN_BASE}?sessionId=${encodeURIComponent(activeSession.id)}&v=${JOIN_VERSION}`
+    : `${WEBAPP_JOIN_BASE}?gameId=${encodeURIComponent(game.id)}&v=${JOIN_VERSION}`;
   ensureJoinLinkDisplay();
   els.joinLinkDisplay.textContent = joinUrl;
   window.currentJoinLink = joinUrl;
-
   renderJoinLink(joinUrl);
 }
 
-// ---------------- EVENT HANDLERS ----------------
+// ─── Played-log ───────────────────────────────────────────────────────────────
+
+function renderPlayedLogList(list, songs) {
+  if (!list) return;
+  const src = songs || playedSongs;
+  list.innerHTML = '';
+  if (!src.length) {
+    const empty = document.createElement('p');
+    empty.className = 'hc-muted hc-log-empty';
+    empty.textContent = 'No songs played yet';
+    list.appendChild(empty);
+    return;
+  }
+  src.forEach(({ title, artist }, index) => {
+    const item = document.createElement('div');
+    item.className = 'hc-log-item';
+
+    const badge = document.createElement('span');
+    badge.className = 'hc-log-index';
+    badge.textContent = String(src.length - index);
+
+    const copy = document.createElement('div');
+    copy.className = 'hc-log-copy';
+
+    const track = document.createElement('span');
+    track.className = 'hc-log-track';
+    track.textContent = title || 'Unknown track';
+
+    const artistEl = document.createElement('span');
+    artistEl.className = 'hc-log-artist';
+    artistEl.textContent = artist || 'Unknown artist';
+
+    copy.appendChild(track);
+    copy.appendChild(artistEl);
+    item.appendChild(badge);
+    item.appendChild(copy);
+    list.appendChild(item);
+  });
+}
+
+/** True when the user is browsing an archived round tab (not the live round). */
+function isViewingHistoricalRound() {
+  return roundHistory.some(r => r.roundNumber === activeRoundTab);
+}
+
+function addToPlayedLog(title, artist) {
+  // Always record the song — no render guard on the data.
+  playedSongs.unshift({ title, artist });
+
+  // Keep the current round view fresh immediately after a track advance.
+  // Historical tabs remain frozen until the user clicks them again.
+  if (!isViewingHistoricalRound()) {
+    renderActiveRoundTab();
+    renderPlayedLogList(els.mobLogList, playedSongs);
+  }
+
+  els.playedLogSection?.classList.remove('hidden');
+}
+
+function logSdkTrackIfNew(sdkTrack) {
+  const uri = sdkTrack?.uri || null;
+  if (!uri || uri === _lastLoggedUri) return;
+  _lastLoggedUri = uri;
+  const title  = sdkTrack?.name || '—';
+  const artist = sdkTrack?.artists?.map((a) => a.name).join(', ') || '—';
+  addToPlayedLog(title, artist);
+}
+
+function beginPlayTransition(playlistTrack) {
+  if (!playlistTrack?.uri) return;
+  playTransition = {
+    uri: playlistTrack.uri,
+    title: playlistTrack.title || '',
+    artist: playlistTrack.artist || '',
+    logged: false,
+  };
+}
+
+/** When SDK shows the target track: reveal title/artist + session log once, then clear transition. */
+function finalizePlayTransitionFromSdkTrack(sdkTrack) {
+  if (!playTransition || !sdkTrack || sdkTrack.uri !== playTransition.uri) return;
+  if (!playTransition.logged) {
+    addToPlayedLog(playTransition.title, playTransition.artist);
+    playTransition.logged = true;
+  }
+  _lastLoggedUri = sdkTrack?.uri || _lastLoggedUri;
+  const title =
+    sdkTrack.name || playTransition.title || '—';
+  const artist =
+    sdkTrack.artists?.map((a) => a.name).join(', ') || playTransition.artist || '—';
+  if (els.trackName) els.trackName.textContent = title;
+  if (els.artistName) els.artistName.textContent = artist;
+  if (els.mobTrackName) els.mobTrackName.textContent = title;
+  if (els.mobArtistName) els.mobArtistName.textContent = artist;
+  playTransition = null;
+}
+
+function applySpotifyTransportUi(state) {
+  const { paused, position, duration } = state;
+  const playing = !paused;
+  if (els.playIcon) els.playIcon.classList.toggle('hidden', playing);
+  if (els.pauseIcon) els.pauseIcon.classList.toggle('hidden', !playing);
+  if (els.mobPlayIcon) els.mobPlayIcon.classList.toggle('hidden', playing);
+  if (els.mobPauseIcon) els.mobPauseIcon.classList.toggle('hidden', !playing);
+
+  if (!seekDragging && els.seekSlider) {
+    const pct = duration > 0 ? (position / duration) * 1000 : 0;
+    els.seekSlider.value = String(Math.round(pct));
+  }
+  if (!seekDragging && els.mobSeekSlider) {
+    const pct = duration > 0 ? (position / duration) * 1000 : 0;
+    els.mobSeekSlider.value = String(Math.round(pct));
+  }
+  if (els.currentTime) els.currentTime.textContent = fmtTime(position);
+  if (els.duration) els.duration.textContent = fmtTime(duration);
+  if (els.mobCurrentTime) els.mobCurrentTime.textContent = fmtTime(position);
+  if (els.mobDuration) els.mobDuration.textContent = fmtTime(duration);
+}
+
+// ─── Spotify status text ──────────────────────────────────────────────────────
+
+function setSpotifyStatus(text) {
+  if (els.statusText)   els.statusText.textContent   = text;
+  if (els.playerStatus) els.playerStatus.textContent = text;
+}
+
+// ─── Spotify player-state UI update ──────────────────────────────────────────
+
+function updateSpotifyState(state) {
+  if (!state) {
+    if (els.playIcon)    els.playIcon.classList.remove('hidden');
+    if (els.pauseIcon)   els.pauseIcon.classList.add('hidden');
+    if (els.mobPlayIcon) els.mobPlayIcon.classList.remove('hidden');
+    if (els.mobPauseIcon)els.mobPauseIcon.classList.add('hidden');
+    return;
+  }
+
+  const { paused, track_window, position, duration } = state;
+  const track = track_window?.current_track;
+  const curUri = track?.uri ?? null;
+
+  if (playTransition && track && curUri === playTransition.uri) {
+    finalizePlayTransitionFromSdkTrack(track);
+  }
+
+  if (playTransition) {
+    applySpotifyTransportUi(state);
+    return;
+  }
+
+  if (track) {
+    const title  = track.name || '—';
+    const artist = track.artists?.map((a) => a.name).join(', ') || '—';
+
+    if (els.trackName)    els.trackName.textContent    = title;
+    if (els.artistName)   els.artistName.textContent   = artist;
+    if (els.mobTrackName) els.mobTrackName.textContent = title;
+    if (els.mobArtistName)els.mobArtistName.textContent= artist;
+  }
+
+  applySpotifyTransportUi(state);
+}
+
+// ─── Seek position polling (0.5 s) ───────────────────────────────────────────
+
+function startPositionPolling() {
+  clearInterval(positionTimer);
+  positionTimer = setInterval(async () => {
+    if (!spotifyCtrl || seekDragging) return;
+    const state = await spotifyCtrl.getCurrentState().catch(() => null);
+    if (state) updateSpotifyState(state);
+  }, 500);
+}
+
+function stopPositionPolling() {
+  clearInterval(positionTimer);
+  positionTimer = null;
+}
+
+// ─── initSpotify ─────────────────────────────────────────────────────────────
+
+async function initSpotify() {
+  setSpotifyStatus('Connecting…');
+
+  const isCompanion = new URLSearchParams(location.search).get('companion') === '1';
+
+  try {
+    spotifyCtrl = isCompanion ? new SpotifyCompanionController() : new SpotifyController();
+
+    spotifyCtrl.onReady = async (deviceId) => {
+      console.log('[app] Spotify ready, device:', deviceId);
+      _overlayPlayerDone = true;
+      checkHideSpotifyOverlay();
+      setSpotifyStatus('Connected');
+      els.playerSection?.classList.remove('hidden');
+      startPositionPolling();
+      // Ensure volume isn't left at 0 by a prior fade.
+      await setVolumePct(getTargetVolumePct());
+
+      // Fetch and display Spotify user name
+      try {
+        const me = await getSpotifyUser();
+        if (els.displayName) els.displayName.textContent = me?.display_name || me?.email || 'Spotify';
+        els.connectedRow?.classList.remove('hidden');
+        els.connectBtn?.classList.add('hidden');
+        if (els.mobAuthPrompt) els.mobAuthPrompt.classList.add('hidden');
+        if (els.mobPlayerUi)   els.mobPlayerUi.classList.remove('hidden');
+      } catch (e) {
+        console.warn('[app] Could not fetch Spotify user:', e);
+      }
+    };
+
+    spotifyCtrl.onStateChange = (state) => updateSpotifyState(state);
+
+    spotifyCtrl.onError = (msg) => {
+      console.error('[app] Spotify error:', msg);
+      setSpotifyStatus('⚠ ' + msg);
+    };
+
+    await spotifyCtrl.init(getValidToken);
+
+  } catch (e) {
+    console.error('[app] initSpotify failed:', e);
+    setSpotifyStatus('Connection failed — try reconnecting');
+    spotifyCtrl = null;
+    _overlayPlayerDone = true;
+    checkHideSpotifyOverlay();
+  }
+}
+
+// ─── disconnectSpotify ────────────────────────────────────────────────────────
+
+function disconnectSpotify() {
+  spotifyCtrl?.disconnect();
+  spotifyCtrl = null;
+  stopPositionPolling();
+  playTransition = null;
+  clearSpotifySession();
+
+  els.playerSection?.classList.add('hidden');
+  els.connectedRow?.classList.add('hidden');
+  els.connectBtn?.classList.remove('hidden');
+  if (els.displayName)  els.displayName.textContent  = '';
+  if (els.trackName)    els.trackName.textContent    = '—';
+  if (els.artistName)   els.artistName.textContent   = '—';
+  if (els.mobAuthPrompt) els.mobAuthPrompt.classList.remove('hidden');
+  if (els.mobPlayerUi)   els.mobPlayerUi.classList.add('hidden');
+  setSpotifyStatus('Connect to control music');
+}
+
+// ─── Wire Spotify controls ────────────────────────────────────────────────────
+
+
+
+async function setSpotifyShuffle(on) {
+  try {
+    const deviceId = spotifyCtrl?.deviceId;
+    const qs = new URLSearchParams({ state: on ? 'true' : 'false' });
+    if (deviceId) qs.set('device_id', deviceId);
+    await spotifyApi('/me/player/shuffle?' + qs.toString(), { method: 'PUT' });
+  } catch (e) {
+    console.warn('[app] setSpotifyShuffle failed:', e?.message || e);
+  }
+}
+function wireSpotifyControls() {
+  // Auth
+  els.connectBtn?.addEventListener('click',    () => initiateSpotifyAuth());
+  els.mobConnectBtn?.addEventListener('click', () => initiateSpotifyAuth());
+  els.disconnectBtn?.addEventListener('click', () => disconnectSpotify());
+
+
+  // Shuffle (Spotify) — desktop + mobile
+  const shuffleEls = [document.querySelector('#sp-shuffle'), els.mobShuffleToggle].filter(Boolean);
+  const getShuffle = () => !!document.querySelector('#sp-shuffle')?.checked;
+
+  // Keep mobile in sync with desktop initial state
+  if (els.mobShuffleToggle && document.querySelector('#sp-shuffle')) {
+    els.mobShuffleToggle.checked = getShuffle();
+  }
+
+  shuffleEls.forEach((el) => {
+    el.addEventListener('change', async () => {
+      const on = !!el.checked;
+      const desk = document.querySelector('#sp-shuffle');
+      if (desk && desk !== el) desk.checked = on;
+      if (els.mobShuffleToggle && els.mobShuffleToggle !== el) els.mobShuffleToggle.checked = on;
+      await setSpotifyShuffle(on);
+    });
+  });
+
+  // Fade — mobile mirrors desktop + persistence
+  if (els.mobFadeToggle && els.fadeToggle) {
+    els.mobFadeToggle.checked = !!els.fadeToggle.checked;
+    els.mobFadeToggle.addEventListener('change', () => {
+      els.fadeToggle.checked = !!els.mobFadeToggle.checked;
+      els.fadeToggle.dispatchEvent(new Event('change'));
+    });
+    els.fadeToggle.addEventListener('change', () => {
+      els.mobFadeToggle.checked = !!els.fadeToggle.checked;
+    });
+  }
+
+  // Random start — mobile mirrors desktop + persistence
+  if (els.mobRandomStartToggle && els.randomStartToggle) {
+    els.mobRandomStartToggle.checked = !!els.randomStartToggle.checked;
+    els.mobRandomStartToggle.addEventListener('change', () => {
+      els.randomStartToggle.checked = !!els.mobRandomStartToggle.checked;
+      els.randomStartToggle.dispatchEvent(new Event('change'));
+    });
+    els.randomStartToggle.addEventListener('change', () => {
+      els.mobRandomStartToggle.checked = !!els.randomStartToggle.checked;
+    });
+  }
+
+  // Persist + debug random-start toggle (forced default ON)
+  if (els.randomStartToggle) {
+    try {
+      // Force ON every load (matches desktop + mobile expectation).
+      els.randomStartToggle.checked = true;
+      localStorage.setItem(LS_RANDOM_START, '1');
+    } catch { /* ignore */ }
+
+    // Ensure mobile mirrors immediately.
+    if (els.mobRandomStartToggle) els.mobRandomStartToggle.checked = true;
+
+    els.randomStartToggle.addEventListener('change', () => {
+      const on = !!els.randomStartToggle.checked;
+      console.log('[app] Rand. start toggled:', on);
+      try {
+        localStorage.setItem(LS_RANDOM_START, on ? '1' : '0');
+      } catch { /* ignore */ }
+    });
+  }
+
+  // Persist fade toggle (default on)
+  if (els.fadeToggle) {
+    try {
+      const saved = localStorage.getItem(LS_FADE);
+      if (saved === '1') els.fadeToggle.checked = true;
+      if (saved === '0') els.fadeToggle.checked = false;
+    } catch { /* ignore */ }
+    els.fadeToggle.addEventListener('change', () => {
+      const on = !!els.fadeToggle.checked;
+      console.log('[app] Fade toggled:', on);
+      try {
+        localStorage.setItem(LS_FADE, on ? '1' : '0');
+      } catch { /* ignore */ }
+    });
+  }
+
+  // Desktop transport — if nothing is playing yet, use the same shared start helper
+  // so the random-start toggle is respected here too
+  els.playPauseBtn?.addEventListener('click', async () => {
+    if (!spotifyCtrl) return;
+    const state = await spotifyCtrl.getCurrentState().catch(() => null);
+    if (!state) {
+      await startSelectedSong();
+    } else {
+      const wasPaused = state.paused;
+      if (!wasPaused && isFadeEnabled()) {
+        await fadeTo(0, 1000);
+      }
+      await spotifyCtrl.togglePlay().catch(console.error);
+      if (wasPaused && isFadeEnabled()) {
+        await fadeTo(getTargetVolumePct(), 1300);
+      } else if (!wasPaused) {
+        await setVolumePct(getTargetVolumePct());
+      }
+    }
+  });
+  els.prevBtn?.addEventListener('click',   () => spotifyCtrl?.previousTrack().catch(console.error));
+  els.nextSpBtn?.addEventListener('click', async () => {
+    console.log('[dbg][click] sp-next-btn');
+    await logSpotifyNow('before sp-next');
+    if (activeGame) {
+      await handleNextSong();
+      const st = await spotifyCtrl?.getCurrentState().catch(() => null);
+      const cur = st?.track_window?.current_track;
+      if (cur) logSdkTrackIfNew(cur);
+      return;
+    }
+    if (!spotifyCtrl) return;
+    // SDK nextTrack() does not reliably work when we're playing single-track URIs.
+    // When no game is active, advance within the selected playlist ourselves.
+    const ok = await manualAdvanceFromPlaylist(1);
+    if (!ok) {
+      const prevSt0 = await spotifyCtrl.getCurrentState().catch(() => null);
+      const prevUri0 = prevSt0?.track_window?.current_track?.uri ?? null;
+      if (isFadeEnabled()) await fadeTo(0, 1200);
+      await spotifyCtrl.nextTrack().catch(console.error);
+      await new Promise((r) => setTimeout(r, 250));
+      await logSpotifyNow('after sp-next (fallback)');
+      if (isFadeEnabled()) await fadeTo(getTargetVolumePct(), 1500);
+      await maybeApplyRandomStartToCurrentTrack(prevUri0);
+    }
+  });
+
+  // Mobile transport — mirror desktop behavior
+  els.mobPlayPauseBtn?.addEventListener('click', async () => {
+    if (!spotifyCtrl) return;
+    const state = await spotifyCtrl.getCurrentState().catch(() => null);
+    if (!state) {
+      await startSelectedSong();
+    } else {
+      const wasPaused = state.paused;
+      if (!wasPaused && isFadeEnabled()) {
+        await fadeTo(0, 1000);
+      }
+      await spotifyCtrl.togglePlay().catch(console.error);
+      if (wasPaused && isFadeEnabled()) {
+        await fadeTo(getTargetVolumePct(), 1300);
+      } else if (!wasPaused) {
+        await setVolumePct(getTargetVolumePct());
+      }
+    }
+  });
+  els.mobPrevBtn?.addEventListener('click', () => spotifyCtrl?.previousTrack().catch(console.error));
+  els.mobNextBtn?.addEventListener('click', async () => {
+    console.log('[dbg][click] mob-next-btn');
+    await logSpotifyNow('before mob-next');
+    // Companion mode: pure transport — skip game logic, just advance the track
+    const isCompanion = new URLSearchParams(location.search).get('companion') === '1';
+    if (isCompanion) {
+      if (!spotifyCtrl) return;
+      await spotifyCtrl.nextTrack().catch(console.error);
+      return;
+    }
+    if (activeGame) {
+      await handleNextSong();
+      const st = await spotifyCtrl?.getCurrentState().catch(() => null);
+      const cur = st?.track_window?.current_track;
+      if (cur) logSdkTrackIfNew(cur);
+      return;
+    }
+    if (!spotifyCtrl) return;
+    const ok = await manualAdvanceFromPlaylist(1);
+    if (!ok) {
+      const prevSt = await spotifyCtrl.getCurrentState().catch(() => null);
+      const prevUri = prevSt?.track_window?.current_track?.uri ?? null;
+      if (isFadeEnabled()) await fadeTo(0, 1200);
+      await spotifyCtrl.nextTrack().catch(console.error);
+      await new Promise((r) => setTimeout(r, 250));
+      await logSpotifyNow('after mob-next (fallback)');
+      if (isFadeEnabled()) await fadeTo(getTargetVolumePct(), 1500);
+      await maybeApplyRandomStartToCurrentTrack(prevUri);
+    }
+  });
+
+  // Volume (desktop + mobile stay in sync)
+  const applyVolume = async (pct) => {
+    await setVolumePct(pct);
+  };
+
+  els.volumeSlider?.addEventListener('input', () =>
+    applyVolume(parseInt(els.volumeSlider.value, 10)));
+  els.mobVolumeSlider?.addEventListener('input', () =>
+    applyVolume(parseInt(els.mobVolumeSlider.value, 10)));
+
+  // Seek
+  els.seekSlider?.addEventListener('mousedown',  () => { seekDragging = true; });
+  els.seekSlider?.addEventListener('touchstart', () => { seekDragging = true; }, { passive: true });
+  els.seekSlider?.addEventListener('change', async () => {
+    seekDragging = false;
+    if (!spotifyCtrl?.state) return;
+    const pct   = parseInt(els.seekSlider.value, 10); // 0–1000
+    const posMs = Math.round((pct / 1000) * spotifyCtrl.state.duration);
+    await spotifyCtrl.seek(posMs).catch(console.error);
+  });
+
+  els.mobSeekSlider?.addEventListener('mousedown',  () => { seekDragging = true; });
+  els.mobSeekSlider?.addEventListener('touchstart', () => { seekDragging = true; }, { passive: true });
+  els.mobSeekSlider?.addEventListener('change', async () => {
+    seekDragging = false;
+    if (!spotifyCtrl?.state) return;
+    const pct   = parseInt(els.mobSeekSlider.value, 10); // 0–1000
+    const posMs = Math.round((pct / 1000) * spotifyCtrl.state.duration);
+    await spotifyCtrl.seek(posMs).catch(console.error);
+  });
+
+  // Mobile companion modal
+  els.mobileCompanionBtn?.addEventListener('click', () =>
+    els.mobileModal?.classList.remove('hidden'));
+  els.mobileModalClose?.addEventListener('click', () =>
+    els.mobileModal?.classList.add('hidden'));
+  els.mobileModal?.addEventListener('click', (e) => {
+    if (e.target === els.mobileModal) els.mobileModal.classList.add('hidden');
+  });
+
+  // Companion QR button — show QR code pointing to this page in phone mode
+  els.companionQrBtn?.addEventListener('click', () => {
+    if (!els.companionQrModal || !els.companionQrBox) return;
+    const url = location.origin + location.pathname + '?companion=1';
+    els.companionQrBox.innerHTML = '';
+    renderJoinQRCode(els.companionQrBox, url, 200);
+    els.companionQrModal.classList.remove('hidden');
+  });
+  els.companionQrClose?.addEventListener('click', () =>
+    els.companionQrModal?.classList.add('hidden'));
+  els.companionQrModal?.addEventListener('click', (e) => {
+    if (e.target === els.companionQrModal) els.companionQrModal.classList.add('hidden');
+  });
+  els.companionQrCopy?.addEventListener('click', () => {
+    const url = location.origin + location.pathname + '?companion=1';
+    navigator.clipboard.writeText(url).then(() => {
+      const btn = els.companionQrCopy;
+      const orig = btn.textContent;
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.textContent = orig; }, 2000);
+    }).catch(() => {
+      prompt('Copy this link:', url);
+    });
+  });
+}
+
+// ─── Session / Round helpers ──────────────────────────────────────────────────
+
+function setSessionState(state) {
+  sessionState = state;
+
+  const isIdle          = state === 'idle';
+  const isRoundActive   = state === 'round-active';
+  const isBetweenRounds = state === 'between-rounds';
+
+  // ── Sidebar setup card ───────────────────────────────────────────
+  // idle / between-rounds: show the form so the host can pick a playlist
+  // round-active: hide the form, show End Round + End Game instead
+  els.setupForm?.classList.toggle('hidden', isRoundActive);
+  els.sessionControls?.classList.toggle('hidden', !isRoundActive);
+
+  // Game-name field only makes sense when starting the very first round
+  els.gameNameField?.classList.toggle('hidden', isBetweenRounds);
+
+  // Label + title change based on state
+  if (els.setupEyebrow) els.setupEyebrow.textContent = isBetweenRounds ? 'Round Over' : 'Setup';
+  if (els.setupTitle)   els.setupTitle.textContent   = isBetweenRounds ? 'Start Next Round' : 'New Game';
+  if (els.startBtn)     els.startBtn.textContent     = isBetweenRounds ? 'Start Next Round' : 'Start Game';
+
+  // End Round only visible when a round is actively running
+  els.endRoundBtn?.classList.toggle('hidden', !isRoundActive);
+  // End Game visible whenever a session exists (round-active OR between-rounds)
+  els.endBtn?.classList.toggle('hidden', isIdle);
+}
+
+function updatePlaylistUsedState() {
+  if (!els.playlist) return;
+  Array.from(els.playlist.options).forEach((opt) => {
+    opt.disabled = usedPlaylistIds.has(opt.value);
+  });
+}
+
+// ─── Round tab helpers ────────────────────────────────────────────────────────
+
+function addRoundTab(roundNumber, name, makeActive) {
+  if (!els.playedLogTabs) return;
+  els.playedLogTabs.classList.remove('hidden');
+
+  // Deactivate all existing tabs before marking the new one active
+  if (makeActive) {
+    els.playedLogTabs.querySelectorAll('.hc-log-tab').forEach(t => t.classList.remove('active'));
+  }
+
+  const tab = document.createElement('button');
+  tab.type = 'button';
+  tab.className = 'hc-log-tab' + (makeActive ? ' active' : '');
+  tab.dataset.round = String(roundNumber);
+  tab.textContent = name || `Round ${roundNumber}`;
+
+  tab.addEventListener('click', () => {
+    activeRoundTab = roundNumber;
+    Array.from(els.playedLogTabs.querySelectorAll('.hc-log-tab')).forEach(t =>
+      t.classList.toggle('active', t === tab));
+    renderActiveRoundTab();
+  });
+
+  els.playedLogTabs.appendChild(tab);
+  if (makeActive) {
+    activeRoundTab = roundNumber;
+    renderActiveRoundTab();
+  }
+}
+
+function renderActiveRoundTab() {
+  const round = roundHistory.find(r => r.roundNumber === activeRoundTab);
+  const songs = round ? round.songs : playedSongs;
+  const title = round ? (round.name || `Round ${activeRoundTab}`) : 'This Round';
+
+  if (els.playedLogTitle) els.playedLogTitle.textContent = title;
+  renderPlayedLogList(els.playedLogList, songs);
+  const n = songs.length;
+  if (els.playedLogCount) els.playedLogCount.textContent = `${n} song${n !== 1 ? 's' : ''}`;
+}
+
+// ─── Bingo game event handlers ────────────────────────────────────────────────
+
 async function handleStartGame(e) {
   e?.preventDefault();
 
-  const playlistId = els.playlist?.value || '';
-  const playlistName = els.playlist?.options[els.playlist.selectedIndex]?.textContent || '';
-  const name = els.gameName?.value.trim() || 'Music Bingo Game';
-  const playerLimit = els.playerLimit?.value ? parseInt(els.playerLimit.value, 10) : null;
-
-  if (!playlistId) {
-    alert('Please select a playlist.');
-    return;
-  }
+  const playlistId   = els.playlist?.value || '';
+  const playlistName = (els.playlist?.options[els.playlist.selectedIndex]?.textContent || '').trim();
+  const name         = els.gameName?.value.trim() || 'Music Bingo Game';
+  if (!playlistId) { alert('Please select a playlist.'); return; }
 
   try {
     await requireEmployee();
 
-    // ✅ Create the game via data-layer helper (no global firebase usage here)
-    const game = await createGame({ playlistId, name, playerLimit });
+    if (sessionState === 'idle') {
+      // ── Brand-new session + Round 1 ──────────────────────────────
+      const session = await createSession({ name });
+      activeSession      = session;
+      currentRoundNumber = 1;
+      usedPlaylistIds    = new Set([playlistId]);
+      roundHistory       = [];
+      playedSongs        = [];
 
-    // Ensure UI shows 0 immediately (before the first RTDB event comes in)
-    updateGameUI({ ...game, playerCount: 0 }, playlistName);
+      const game = await startRound({
+        sessionId: session.id,
+        roundNumber: 1,
+        playlistId,
+        playlistTitle: playlistName,
+      });
+      activeGame = game;
 
-    // ✅ Start live player watcher (RTDB)
-    attachPlayerWatcher(game.id);
+    } else if (sessionState === 'between-rounds') {
+      // ── Next round in existing session ────────────────────────────
+      currentRoundNumber++;
+      usedPlaylistIds.add(playlistId);
+      playedSongs = [];
+
+      const game = await startRound({
+        sessionId: activeSession.id,
+        roundNumber: currentRoundNumber,
+        playlistId,
+        playlistTitle: playlistName,
+      });
+      activeGame = game;
+    }
+
+    updateGameUI({ ...activeGame, playerCount: 0, sessionJoinTotal: 0 }, playlistName);
+    attachPlayerWatcher(activeGame.id);
+    setSessionState('round-active');
+    addRoundTab(currentRoundNumber, playlistName, true);
+    updatePlaylistUsedState();
+
+    // Load playlist tracks for Spotify queuing
+    playlistTracks = [];
+    try {
+      const data = await fetchPlaylistData(playlistId);
+      playlistTracks = parsePlaylistTracks(data);
+      console.log('[app] Loaded', playlistTracks.length, 'tracks for Spotify');
+    } catch (e) {
+      console.warn('[app] Could not load playlist tracks:', e?.message || e);
+    }
   } catch (err) {
-    console.error('Error creating game:', err);
-    alert('Error creating game: ' + (err?.message || String(err)));
+    console.error('Error starting game/round:', err);
+    alert('Error: ' + (err?.message || String(err)));
   }
+}
+
+async function handleEndRound(e) {
+  e?.preventDefault();
+  if (!activeGame || !activeSession) return;
+
+  // Archive current round's songs to history
+  roundHistory.push({
+    roundNumber: currentRoundNumber,
+    name: activeGame.playlistName || activeGame.name || `Round ${currentRoundNumber}`,
+    songs: [...playedSongs],
+  });
+
+  await endRound(activeSession.id, activeGame.id);
+  activeGame = null;
+  if (stopWatchingPlayers) { stopWatchingPlayers(); stopWatchingPlayers = null; }
+  setSessionState('between-rounds');
+  updatePlaylistUsedState();
+}
+
+// ─── Shared song-start helpers ───────────────────────────────────────────────
+
+async function ensurePlaylistTracksLoaded() {
+  if (playlistTracks.length > 0) return playlistTracks;
+  const playlistId = activeGame?.playlistId || els.playlist?.value || '';
+  if (!playlistId) return [];
+  try {
+    const data = await fetchPlaylistData(playlistId);
+    playlistTracks = parsePlaylistTracks(data);
+    console.log('[app] ensurePlaylistTracksLoaded: loaded', playlistTracks.length, 'tracks');
+  } catch (e) {
+    console.warn('[app] ensurePlaylistTracksLoaded failed:', e?.message || e);
+  }
+  return playlistTracks;
+}
+
+function getInitialSongIndex() {
+  // Always pick a random song — the game should never start on the same track twice
+  if (!playlistTracks.length) return 0;
+  return Math.floor(Math.random() * playlistTracks.length);
+}
+
+function randomStartPositionFromDuration(durationMs) {
+  const maxStart = Math.max(0, (durationMs || 0) - 60_000);
+  // Starting at 0 is a valid random outcome too.
+  return maxStart > 0 ? Math.floor(Math.random() * (maxStart + 1)) : 0;
+}
+
+async function seekWithRetry(targetMs, attempts = 4) {
+  if (!spotifyCtrl || !targetMs || targetMs <= 0) return;
+  for (let i = 0; i < attempts; i++) {
+    await spotifyCtrl.seek(targetMs).catch(() => {});
+    await new Promise((r) => setTimeout(r, 350));
+    const st = await spotifyCtrl.getCurrentState().catch(() => null);
+    const pos = st?.position ?? 0;
+    // Consider it good if we're within ~1s of target.
+    if (Math.abs(pos - targetMs) <= 1000) return;
+  }
+}
+
+async function resolvePlayTransitionAfterPlay(playlistTrack) {
+  if (!playlistTrack?.uri || !playTransition || playTransition.uri !== playlistTrack.uri) return;
+  const st = await spotifyCtrl?.getCurrentState().catch(() => null);
+  const sdkTrack = st?.track_window?.current_track;
+  if (sdkTrack?.uri === playlistTrack.uri) {
+    finalizePlayTransitionFromSdkTrack(sdkTrack);
+    return;
+  }
+  if (!playTransition.logged) {
+    addToPlayedLog(playTransition.title, playTransition.artist);
+    playTransition.logged = true;
+  }
+  _lastLoggedUri = sdkTrack?.uri || _lastLoggedUri;
+  playTransition = null;
+  if (st) updateSpotifyState(st);
+}
+
+async function startSelectedSong() {
+  await ensurePlaylistTracksLoaded();
+  if (!playlistTracks.length) return;
+
+  const startIndex = getInitialSongIndex();
+
+  // Update Firestore index (best-effort — don't block Spotify if write fails)
+  if (activeGame?.id) {
+    try {
+      await updateGameSongIndex(activeGame.id, startIndex);
+      const game = await getGame(activeGame.id);
+      activeGame = game;
+    } catch (err) {
+      console.warn('[app] startSelectedSong: could not update game index:', err?.message || err);
+      activeGame.currentSongIndex = startIndex;
+    }
+  }
+
+  if (els.currentSong) els.currentSong.textContent = `Song ${startIndex + 1}`;
+
+  const track = playlistTracks[startIndex];
+  if (spotifyCtrl && track?.uri) {
+    const startMode = isRandomStartEnabled() ? 'random' : 0;
+    console.log('[app] startSelectedSong: playing', track.uri, 'startMode =', startMode, 'checked =', !!els.randomStartToggle?.checked);
+    beginPlayTransition(track);
+    try {
+      await playTrackAtPosition(track.uri, startMode);
+    } catch (err) {
+      console.warn('[app] startSelectedSong: play failed:', err?.message || err);
+      playTransition = null;
+      return;
+    }
+    await resolvePlayTransitionAfterPlay(track);
+  }
+}
+
+// Poll getCurrentState() until the given track URI is active and playing,
+// or until timeoutMs elapses. Returns true if the track became active.
+async function waitForTrackActive(uri, timeoutMs = 4000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const state = await spotifyCtrl.getCurrentState().catch(() => null);
+    if (state && state.track_window?.current_track?.uri === uri) {
+      return true;
+    }
+    await new Promise((r) => setTimeout(r, 150));
+  }
+  console.warn('[app] waitForTrackActive: timed out waiting for', uri);
+  return false;
+}
+
+// Floor for track-switch fades. Must stay above 0 — setVolume(0) before playUri
+// causes the Spotify SDK to permanently mute the device (the new track's audio
+// node inherits the zero gain). 2% is inaudible but avoids that bug.
+const FADE_FLOOR_PCT = 2;
+
+// Two-stage playback: start the track at 0, wait until the SDK confirms it
+// is active on this device, then seek to the desired offset.
+// Spotify does not reliably honor position_ms in the initial play command
+// on Web Playback SDK devices, so the explicit seek is the reliable path.
+async function playTrackAtPosition(uri, positionMsOrMode) {
+  const target = getTargetVolumePct();
+
+  // Detect whether a different track is currently playing so we can fade it out.
+  const st0 = await spotifyCtrl.getCurrentState().catch(() => null);
+  const curUri = st0?.track_window?.current_track?.uri;
+  const isSwitching = !!(curUri && curUri !== uri);
+
+  // Fade out to floor (never to 0 — see FADE_FLOOR_PCT comment above).
+  if (isFadeEnabled() && isSwitching) {
+    await fadeTo(FADE_FLOOR_PCT, 1600);
+  }
+
+  await spotifyCtrl.playUri(uri, 0);
+
+  console.log('[app] playTrackAtPosition: waiting for track to become active…');
+  const active = await waitForTrackActive(uri);
+
+  // Let the SDK finish delivering player_state_changed events before touching volume.
+  await new Promise((r) => setTimeout(r, 200));
+
+  // Keep volume at floor while we seek — this hides the brief playback from
+  // position 0 before the seek lands. Fade-in only starts after the seek settles.
+  if (isFadeEnabled()) {
+    await setAudioVolume(FADE_FLOOR_PCT); // re-confirm floor after track init
+  }
+
+  if (!active) {
+    console.warn('[app] playTrackAtPosition: track did not become active; skipping seek');
+    await (isFadeEnabled() ? fadeTo(target, 1800) : setVolumePct(target));
+    return;
+  }
+
+  // Re-check current track before seeking.
+  const stateNow = await spotifyCtrl.getCurrentState().catch(() => null);
+  const currentUri = stateNow?.track_window?.current_track?.uri;
+  if (currentUri && currentUri !== uri) {
+    console.warn('[app] playTrackAtPosition: current track mismatch; skipping seek', { currentUri, uri });
+    await (isFadeEnabled() ? fadeTo(target, 1800) : setVolumePct(target));
+    return;
+  }
+
+  // Track is confirmed active — update the name + log immediately so it doesn't
+  // wait for onStateChange (which may not fire until after the fade completes,
+  // especially when starting from position 0 with no seek).
+  const confirmedSdkTrack = stateNow?.track_window?.current_track;
+  if (confirmedSdkTrack?.uri === uri) {
+    finalizePlayTransitionFromSdkTrack(confirmedSdkTrack);
+  }
+
+  const shouldRandomStart = positionMsOrMode === 'random';
+  const desiredPosMs = shouldRandomStart
+    ? randomStartPositionFromDuration(stateNow?.duration || spotifyCtrl?.state?.duration || 0)
+    : Number(positionMsOrMode || 0);
+
+  if (desiredPosMs > 0) {
+    try {
+      console.log('[app] playTrackAtPosition: seeking to', desiredPosMs, 'ms');
+      await seekWithRetry(desiredPosMs);
+      // Brief pause so the seek lands before we start the fade-in.
+      await new Promise((r) => setTimeout(r, 200));
+    } catch (e) {
+      console.warn('[app] playTrackAtPosition: seek failed:', e?.message || e);
+    }
+  }
+
+  // Fade in AFTER seek has settled — the jump is now inaudible.
+  if (isFadeEnabled()) {
+    await fadeTo(target, 1800);
+  } else {
+    await setVolumePct(target);
+  }
+}
+
+async function maybeApplyRandomStartToCurrentTrack(prevUri = null) {
+  if (!spotifyCtrl) return;
+  if (!isRandomStartEnabled()) return;
+
+  // Poll until the track URI changes (handles REST-polling delay on companion).
+  // Falls through immediately if prevUri is unknown (normal SDK mode).
+  const deadline = Date.now() + 2500;
+  let state, uri;
+  do {
+    await new Promise((r) => setTimeout(r, 300));
+    if (typeof spotifyCtrl.refreshState === 'function') await spotifyCtrl.refreshState();
+    state = await spotifyCtrl.getCurrentState().catch(() => null);
+    uri   = state?.track_window?.current_track?.uri;
+    if (!prevUri || uri !== prevUri) break;
+  } while (Date.now() < deadline);
+
+  if (!uri || uri === prevUri) return; // track didn't change — skip seek
+  const posMs = randomStartPositionFromDuration(state?.duration || 0);
+  if (posMs <= 0) return;
+  await seekWithRetry(posMs).catch(console.error);
 }
 
 async function handlePlaySong(e) {
   e?.preventDefault();
   if (!activeGame) return;
-  await updateGameSongIndex(activeGame.id, 0);
-  const game = await getGame(activeGame.id);
-  activeGame = game;
-  if (els.currentSong) els.currentSong.textContent = `Song ${game.currentSongIndex + 1}`;
+  await startSelectedSong();
 }
 
 async function handleNextSong(e) {
   e?.preventDefault();
-  if (!activeGame) return;
-  const nextIndex = (activeGame.currentSongIndex ?? -1) + 1;
-  await updateGameSongIndex(activeGame.id, nextIndex);
-  const game = await getGame(activeGame.id);
-  activeGame = game;
-  if (els.currentSong) els.currentSong.textContent = `Song ${game.currentSongIndex + 1}`;
+  console.log('[dbg][click] next-song-btn (bingo)');
+  await logSpotifyNow('before bingo-next');
+  // If the host page was refreshed, activeGame may not be hydrated anymore.
+  // In that case, treat Next as a pure Spotify control.
+  if (!activeGame) {
+    if (!spotifyCtrl) return;
+    const prevStB = await spotifyCtrl.getCurrentState().catch(() => null);
+    const prevUriB = prevStB?.track_window?.current_track?.uri ?? null;
+    await spotifyCtrl.nextTrack().catch(console.error);
+    await new Promise((r) => setTimeout(r, 250));
+    await logSpotifyNow('after bingo-next (spotify-only)');
+    await maybeApplyRandomStartToCurrentTrack(prevUriB);
+    return;
+  }
+
+  await ensurePlaylistTracksLoaded();
+  if (!playlistTracks.length) return;
+
+  const cur = Number.isFinite(activeGame.currentSongIndex) ? activeGame.currentSongIndex : -1;
+  const nextIndex = (cur + 1) % playlistTracks.length;
+  console.log('[app] handleNextSong:', {
+    gameId: activeGame?.id,
+    cur,
+    nextIndex,
+    randomStart: isRandomStartEnabled(),
+    nextUri: playlistTracks?.[nextIndex]?.uri,
+  });
+
+  // Update Firestore index (best-effort — don't block playback if write fails)
+  try {
+    await updateGameSongIndex(activeGame.id, nextIndex);
+    const game = await getGame(activeGame.id);
+    activeGame = game;
+  } catch (err) {
+    console.warn('[app] handleNextSong: could not update game index:', err?.message || err);
+    activeGame.currentSongIndex = nextIndex;
+  }
+
+  if (els.currentSong) els.currentSong.textContent = `Song ${nextIndex + 1}`;
+
+  const track = playlistTracks[nextIndex];
+  if (spotifyCtrl && track?.uri) {
+    const startMode = isRandomStartEnabled() ? 'random' : 0;
+    console.log('[dbg][bingo-next] attempting play', { uri: track.uri, startMode });
+    beginPlayTransition(track);
+    try {
+      await playTrackAtPosition(track.uri, startMode);
+    } catch (err) {
+      console.warn('[app] handleNextSong: play failed:', err?.message || err);
+      playTransition = null;
+      await new Promise((r) => setTimeout(r, 250));
+      await logSpotifyNow('after bingo-next play');
+      return;
+    }
+    await resolvePlayTransitionAfterPlay(track);
+    await new Promise((r) => setTimeout(r, 250));
+    await logSpotifyNow('after bingo-next play');
+  }
 }
 
 async function handlePauseGame(e) {
@@ -229,29 +1364,69 @@ async function handleResumeGame(e) {
 
 async function handleEndGame(e) {
   e?.preventDefault();
-  if (!activeGame) return;
-  await updateGameStatus(activeGame.id, 'ended');
-  activeGame = null;
 
-  // ✅ Stop RTDB watcher
-  if (stopWatchingPlayers) {
-    stopWatchingPlayers();
-    stopWatchingPlayers = null;
+  // End current round first (if one is active)
+  if (activeGame) {
+    await updateGameStatus(activeGame.id, 'ended');
+    activeGame = null;
   }
 
+  // End session
+  if (activeSession) {
+    try { await endSession(activeSession.id); } catch (_) {}
+    activeSession = null;
+  }
+
+  if (stopWatchingPlayers) { stopWatchingPlayers(); stopWatchingPlayers = null; }
+
+  // Reset session state
+  sessionState       = 'idle';
+  currentRoundNumber = 0;
+  usedPlaylistIds    = new Set();
+  roundHistory       = [];
+  playedSongs        = [];
+  activeRoundTab     = 0;
+
+  setSessionState('idle');
+
+  // Reset UI
   els.gameSection?.classList.add('hidden');
-  if (els.qrBox) els.qrBox.innerHTML = '';
+  els.gameSectionJoin?.classList.add('hidden');
+  els.gameInfoRow?.classList.add('hidden');
+  els.playerCountPill?.classList.add('hidden');
+  if (els.playedLogTabs)  { els.playedLogTabs.innerHTML = ''; els.playedLogTabs.classList.add('hidden'); }
+  if (els.playedLogSection) els.playedLogSection.classList.add('hidden');
+  if (els.qrBox)           els.qrBox.innerHTML           = '';
   if (els.joinLinkDisplay) els.joinLinkDisplay.textContent = '';
+  // startBtn text + sidebar state are reset by setSessionState('idle') above
 }
 
-// ---------------- INIT ----------------
+// ─── Init ─────────────────────────────────────────────────────────────────────
+
 async function init() {
   console.log('Initializing Music Bingo Host...');
 
-  // Prevent any accidental form submit refresh
+  // Companion phone mode: ?companion=1 — skip Firebase auth, fullscreen mobile controls only
+  if (new URLSearchParams(location.search).get('companion') === '1') {
+    document.body.classList.add('companion-mode');
+    els.mobileModal?.classList.remove('hidden');
+    wireSpotifyControls();
+    if (getStoredTokens()) {
+      _overlayPlaylistsDone = true; // skip playlist step — companion doesn't need it
+      showSpotifyOverlay();
+      initSpotify();
+    } else {
+      // No tokens yet — show the Connect Spotify prompt
+      if (els.mobAuthPrompt) els.mobAuthPrompt.classList.remove('hidden');
+    }
+    console.log('[app] Companion mode — skipping employee auth');
+    return;
+  }
+
+  // Prevent accidental form-submit refresh
   els.forms.forEach((f) => f.addEventListener('submit', (e) => e.preventDefault()));
 
-  // ----- require employee sign-in before any Firestore reads -----
+  // Require employee sign-in
   try {
     const me = await requireEmployee();
     console.log('[app] signed in as:', me.email || me.uid);
@@ -262,41 +1437,84 @@ async function init() {
     return;
   }
 
-  // Populate playlists
+  // Populate playlists and load tracks on selection
   try {
     const playlists = await fetchPlaylists();
-
+    _overlayPlaylistsDone = true;
+    checkHideSpotifyOverlay();
     if (els.playlist) {
       els.playlist.innerHTML = '<option value="" disabled selected>Select a playlist...</option>';
       playlists.forEach((pl) => {
         const opt = document.createElement('option');
-        opt.value = pl.id;
+        opt.value       = pl.id;
         opt.textContent = pl.playlistTitle || pl.name || pl.id;
         els.playlist.appendChild(opt);
+      });
+
+      els.playlist.addEventListener('change', async () => {
+        const id = els.playlist.value;
+        if (!id) return;
+        playlistTracks = [];
+        try {
+          const data = await fetchPlaylistData(id);
+          playlistTracks = parsePlaylistTracks(data);
+          console.log('[app] Loaded', playlistTracks.length, 'tracks for', id);
+        } catch (e) {
+          console.warn('[app] Could not load playlist tracks:', e?.message || e);
+        }
       });
     }
   } catch (err) {
     console.error('Failed to load playlists:', err);
+    _overlayPlaylistsDone = true;
+    checkHideSpotifyOverlay();
     if (els.playlist) {
       els.playlist.innerHTML =
-        '<option value="" disabled selected>Error loading playlists - check console</option>';
+        '<option value="" disabled selected>Error loading playlists — check console</option>';
     }
-
     const msg = String(err?.message || '');
     if (msg.toLowerCase().includes('log in') || msg.toLowerCase().includes('auth')) {
       alert('Please log in to access Music Bingo. You may need to visit the login page first.');
     }
   }
 
-  // Wire controls
-  els.startBtn?.addEventListener('click', handleStartGame);
-  els.playBtn?.addEventListener('click', handlePlaySong);
-  els.nextBtn?.addEventListener('click', handleNextSong);
-  els.pauseBtn?.addEventListener('click', handlePauseGame);
-  els.resumeBtn?.addEventListener('click', handleResumeGame);
-  els.endBtn?.addEventListener('click', handleEndGame);
+  // Wire bingo game controls
+  els.startBtn?.addEventListener('click',    handleStartGame);
+  els.playBtn?.addEventListener('click',     handlePlaySong);
+  els.nextBtn?.addEventListener('click',     handleNextSong);
+  els.pauseBtn?.addEventListener('click',    handlePauseGame);
+  els.resumeBtn?.addEventListener('click',   handleResumeGame);
+  els.endRoundBtn?.addEventListener('click', handleEndRound);
+
+  // End Game — show confirmation modal instead of acting immediately
+  const endGameModal   = document.querySelector('#end-game-modal');
+  const endGameConfirm = document.querySelector('#end-game-confirm-btn');
+  const endGameCancel  = document.querySelector('#end-game-cancel-btn');
+
+  els.endBtn?.addEventListener('click', () => {
+    endGameModal?.classList.remove('hidden');
+  });
+  endGameCancel?.addEventListener('click', () => {
+    endGameModal?.classList.add('hidden');
+  });
+  endGameConfirm?.addEventListener('click', async () => {
+    endGameModal?.classList.add('hidden');
+    await handleEndGame();
+  });
+  // Close on backdrop click
+  endGameModal?.addEventListener('click', (e) => {
+    if (e.target === endGameModal) endGameModal.classList.add('hidden');
+  });
 
   wireCopyJoin();
+  wireSpotifyControls();
+
+  // Auto-init Spotify if tokens already exist (returning from OAuth redirect)
+  if (getStoredTokens()) {
+    console.log('[app] Spotify tokens found — initializing player...');
+    showSpotifyOverlay();
+    initSpotify(); // intentionally not awaited
+  }
 
   console.log('Music Bingo Host initialized');
 }

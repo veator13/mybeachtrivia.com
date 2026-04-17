@@ -5,163 +5,452 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Music Bingo — Host Console</title>
 
-  <!-- Your site styles -->
   <link rel="stylesheet" href="host-music-bingo.css" />
+  <link rel="stylesheet" href="/beachTriviaPages/js/bt-nav.css">
+  <script src="/beachTriviaPages/js/bt-nav.js" defer></script>
 
-  <!-- Firebase compat (globals: window.firebase) -->
   <script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-app-compat.js" defer></script>
   <script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-auth-compat.js" defer></script>
   <script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore-compat.js" defer></script>
   <script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-database-compat.js" defer></script>
-
-  <!-- Creates Firebase DEFAULT compat app (firebase.initializeApp(...)) -->
   <script src="/beachTriviaPages/js/firebase-compat-init.js" defer></script>
-
-  <!-- Your shim (if it patches modular APIs / globals) -->
   <script src="/beachTriviaPages/js/firebase-modular-shims.js" defer></script>
-
-  <!-- Auth guard must run BEFORE app.js -->
   <script src="/beachTriviaPages/js/auth-route-guard.v2.js?v=2025-10-14a" defer></script>
-
-  <!-- QR library (global window.QRCode) -->
   <script src="lib/qrcode.min.js" defer></script>
-
-  <!-- App logic -->
-  <script type="module" src="app.js"></script>
+  <script type="module" src="app.js?v=48"></script>
 </head>
-
 <body>
-  <div class="app-shell">
-    <!-- Topbar -->
-    <header class="topbar">
-      <div class="brand">
-        <span class="logo-dot"></span>
-        <h1 class="brand-title">Music Bingo — Host</h1>
-      </div>
-      <div class="muted">Signed in employee required to host</div>
-    </header>
 
-    <!-- Main layout -->
-    <main class="content">
-      <!-- LEFT: Controls -->
-      <aside class="card card--panel">
-        <div class="card-header">
-          <h2 class="card-title">Start or Resume a Game</h2>
-          <p class="card-subtitle">Choose a playlist and set basic options</p>
+<div class="hc-page hc-page--revamp">
+
+  <!-- APP HEADER -->
+  <header class="hc-shell-header">
+    <div class="hc-shell-header__content">
+      <div class="hc-shell-brand">
+        <div class="hc-shell-kicker">Host Console</div>
+        <h1 class="hc-shell-title">Music Bingo</h1>
+        <p class="hc-shell-subtitle">Run the room, control playback, and keep players moving.</p>
+      </div>
+
+      <button id="mobile-companion-btn" type="button" class="hc-btn hc-btn--ghost hc-btn--sm">
+        📱 Mobile Controls
+      </button>
+
+    </div>
+  </header>
+
+  <div class="hc-shell-grid">
+
+    <!-- MAIN COLUMN -->
+    <main class="hc-main">
+
+      <!-- HERO / NOW PLAYING -->
+      <section class="hc-stage">
+
+        <div class="hc-player-hero">
+          <div class="hc-player-top">
+            <div class="hc-player-brand">
+              <svg class="hc-sp-logo" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
+              </svg>
+              <div class="hc-player-brand-copy">
+                <span class="hc-player-brand-text">Spotify Playback</span>
+                <span class="hc-player-brand-subtext">Live transport and playback controls</span>
+                <div id="game-info-row" class="hc-game-info-row hidden">
+                  <span id="current-game-name" class="hidden"></span>
+                  <span class="hc-game-info-chip-label">Game ID:</span>
+                  <code id="game-id" class="hc-game-info-id"></code>
+                </div>
+              </div>
+            </div>
+
+            <div id="player-count-pill" class="hc-player-count-pill hidden" aria-label="Player counts">
+              <span class="hc-live-dot" aria-hidden="true"></span>
+              <div class="hc-player-count-segment">
+                <span id="player-count-active" class="hc-player-count-num">0</span>
+                <span class="hc-player-count-label">active</span>
+              </div>
+              <span class="hc-player-count-sep" aria-hidden="true">·</span>
+              <div class="hc-player-count-segment">
+                <span id="player-count-joined" class="hc-player-count-num">0</span>
+                <span class="hc-player-count-label">total</span>
+              </div>
+            </div>
+
+            <div class="hc-player-auth">
+              <div id="spotify-connected-row" class="hc-connected-row hidden">
+                <span class="hc-live-dot"></span>
+                <span id="spotify-display-name" class="hc-connected-name"></span>
+                <button id="spotify-disconnect-btn" class="hc-btn hc-btn--ghost hc-btn--xs">
+                  Disconnect
+                </button>
+              </div>
+              <button id="spotify-connect-btn" class="hc-btn hc-btn--spotify hc-btn--sm">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" aria-hidden="true">
+                  <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
+                </svg>
+                Connect Spotify
+              </button>
+            </div>
+          </div>
+
+          <div class="hc-stage-grid">
+            <div class="hc-stage-main">
+              <!-- Now playing -->
+              <div id="spotify-player-section" class="hc-now-playing hidden">
+
+                <div class="hc-now-playing-head">
+                  <span class="hc-eyebrow">Now Playing</span>
+                </div>
+
+                <div class="hc-track-block">
+                  <div id="sp-track-name" class="hc-track-name">—</div>
+                  <div id="sp-artist-name" class="hc-artist-name">—</div>
+                </div>
+
+                <div class="hc-seek-row">
+                  <span id="sp-current-time" class="hc-time">0:00</span>
+                  <input type="range" id="sp-seek" class="hc-range hc-range--seek"
+                         min="0" max="1000" value="0" aria-label="Song position" />
+                  <span id="sp-duration" class="hc-time">0:00</span>
+                </div>
+
+                <div class="hc-transport">
+                  <button id="sp-prev-btn" class="hc-transport-btn hc-transport-btn--sm"
+                          aria-label="Previous track">
+                    <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
+                      <path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/>
+                    </svg>
+                  </button>
+                  <button id="sp-play-pause-btn" class="hc-transport-btn hc-transport-btn--play"
+                          aria-label="Play or pause">
+                    <svg id="sp-play-icon" viewBox="0 0 24 24" fill="currentColor" width="30" height="30">
+                      <path d="M8 5v14l11-7z"/>
+                    </svg>
+                    <svg id="sp-pause-icon" viewBox="0 0 24 24" fill="currentColor" width="30" height="30" class="hidden">
+                      <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+                    </svg>
+                  </button>
+                  <button id="sp-next-btn" class="hc-transport-btn hc-transport-btn--sm"
+                          aria-label="Next track">
+                    <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
+                      <path d="M6 18l8.5-6L6 6v12zM16 6h2v12h-2z"/>
+                    </svg>
+                  </button>
+                </div>
+
+                <div class="hc-player-footer">
+                  <div class="hc-volume-row">
+                    <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"
+                         aria-hidden="true" class="hc-muted">
+                      <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
+                    </svg>
+                    <input type="range" id="sp-volume" class="hc-range hc-range--volume"
+                           min="0" max="100" value="75" aria-label="Volume" />
+                    <span id="sp-volume-label" class="hc-muted hc-vol-num">75</span>
+                  </div>
+
+                  <div class="hc-toggles">
+                    <label class="hc-toggle">
+                      <input type="checkbox" id="sp-shuffle" checked />
+                      <span class="hc-toggle-track"></span>
+                      <span class="hc-toggle-text" aria-label="Shuffle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                             stroke-linecap="round" stroke-linejoin="round" width="15" height="15" aria-hidden="true">
+                          <polyline points="16 3 21 3 21 8" />
+                          <line x1="4" y1="20" x2="21" y2="3" />
+                          <polyline points="21 16 21 21 16 21" />
+                          <line x1="15" y1="15" x2="21" y2="21" />
+                          <line x1="4" y1="4" x2="9" y2="9" />
+                        </svg></span>
+                      <span class="hc-toggle-text-label" aria-hidden="true">♫</span>
+                    </label>
+                    <label class="hc-toggle">
+                      <input type="checkbox" id="sp-fade" checked />
+                      <span class="hc-toggle-track"></span>
+                      <span class="hc-toggle-text">Fade</span>
+                    </label>
+                    <label class="hc-toggle hc-toggle--random-start" title="Random start position">
+                      <input type="checkbox" id="sp-random-start" aria-label="Random start position" />
+                      <span class="hc-toggle-track"></span>
+                      <span class="hc-toggle-text hc-toggle-text--random-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                             stroke-linecap="round" stroke-linejoin="round" width="15" height="15" aria-hidden="true">
+                          <polyline points="16 3 21 3 21 8" />
+                          <line x1="4" y1="20" x2="21" y2="3" />
+                          <polyline points="21 16 21 21 16 21" />
+                          <line x1="15" y1="15" x2="21" y2="21" />
+                          <line x1="4" y1="4" x2="9" y2="9" />
+                        </svg>
+                        <span class="hc-toggle-text-label" aria-label="Random start">⏱</span>
+                      </span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Pre-connect placeholder -->
+              <div class="hc-player-placeholder">
+                <div class="hc-placeholder-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"
+                       width="48" height="48">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M8 12l3 3 5-5" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </div>
+                <p class="hc-placeholder-text">Connect Spotify to begin playback</p>
+              </div>
+            </div>
+
+            <!-- Played log — right column, shown during active game -->
+            <div id="played-log-section" class="hc-log-panel hidden">
+              <!-- Round tabs (added dynamically when a session has multiple rounds) -->
+              <div id="played-log-tabs" class="hc-log-tabs hidden"></div>
+              <div class="hc-log-header">
+                <div class="hc-log-heading">
+                  <span class="hc-log-kicker">Session History</span>
+                  <span id="played-log-title" class="hc-log-title">Played This Session</span>
+                </div>
+                <span id="played-log-count" class="hc-log-count">0 songs</span>
+              </div>
+              <div id="played-log-list" class="hc-log-list">
+                <p class="hc-muted hc-log-empty">No songs played yet</p>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+      </section>
+
+      <!-- Legacy compat -->
+      <section id="game-section" class="hidden">
+        <div id="now-playing" class="hidden"></div>
+      </section>
+
+    </main>
+
+    <!-- SIDEBAR -->
+    <aside class="hc-sidebar">
+
+      <div class="hc-card hc-card--setup">
+        <div class="hc-card-head">
+          <div>
+            <div class="hc-eyebrow" id="setup-eyebrow">Setup</div>
+            <div class="hc-card-title" id="setup-title">New Game</div>
+          </div>
         </div>
 
-        <div class="setup-form">
-          <div class="form-row">
-            <label for="playlist-select">Playlist</label>
-            <select id="playlist-select" class="input">
+        <!-- Form fields: shown in idle + between-rounds so host can pick next playlist -->
+        <div class="hc-form" id="setup-form">
+          <div class="hc-field">
+            <label class="hc-label" for="playlist-select">Playlist</label>
+            <select id="playlist-select" class="hc-input">
               <!-- populated by app.js -->
             </select>
           </div>
 
-          <div class="form-row">
-            <label for="game-name">Game Name</label>
-            <input
-              id="game-name"
-              class="input"
-              type="text"
-              placeholder="e.g., Friday Night @ Sandbar"
-            />
+          <div class="hc-field" id="game-name-field">
+            <label class="hc-label" for="game-name">Game Name</label>
+            <input id="game-name" class="hc-input" type="text"
+                   placeholder="e.g., Friday Night @ Sandbar" />
           </div>
 
-          <div class="form-row">
-            <label for="player-limit">Player Limit</label>
-            <input
-              id="player-limit"
-              class="input"
-              type="number"
-              min="1"
-              step="1"
-              placeholder="e.g., 150"
-            />
-          </div>
-
-          <div class="actions">
-            <button id="start-game-btn" type="button" class="btn btn-primary">
-              Start Game
-            </button>
-          </div>
+          <button id="start-game-btn" type="button" class="hc-btn hc-btn--primary hc-btn--full">
+            Start Game
+          </button>
         </div>
 
-        <hr class="divider" />
+        <!-- Session controls: replaces Start Game button during an active round -->
+        <div id="session-controls" class="hc-session-controls hidden">
+          <button id="end-round-btn" type="button" class="hc-btn hc-btn--warning hc-btn--full">
+            End Round
+          </button>
+          <button id="end-game-btn" type="button" class="hc-btn hc-btn--danger hc-btn--full">
+            End Game
+          </button>
+        </div>
+      </div>
 
-        <h3 class="card-title" style="margin-top:8px">Join Link &amp; QR</h3>
-        <section id="join-section" aria-live="polite">
-          <div id="qr-code-container"></div>
-
-          <div class="join-actions">
-            <button id="copy-join-link-btn" type="button" class="btn btn-ghost">
-              Copy Join Link
-            </button>
-            <span id="join-link-display" class="muted"></span>
+      <div id="game-section-join" class="hc-card hc-card--join hidden" aria-label="Players join here">
+        <div class="hc-join-panel-head">
+          <div>
+            <div class="hc-eyebrow">Player Access</div>
+            <h3 class="hc-join-heading">Join the Game</h3>
           </div>
-
-          <div class="muted" style="text-align:center;margin-top:6px">
-            Players can scan the QR or use the link
-          </div>
-        </section>
-      </aside>
-
-      <!-- RIGHT: Live game panel -->
-      <section id="game-section" class="card card--panel hidden">
-        <div class="card-header">
-          <h2 class="card-title">Current Game</h2>
+          <button id="copy-join-link-btn" type="button"
+                  class="hc-btn hc-btn--primary hc-btn--sm">
+            Copy Join Link
+          </button>
         </div>
 
-        <div class="pill-group" style="margin-bottom:10px">
-          <span class="pill">
-            <span class="pill-label">Name</span>
-            <span class="pill-value" id="current-game-name">—</span>
-          </span>
-          <span class="pill">
-            <span class="pill-label">Playlist</span>
-            <span class="pill-value" id="current-playlist">—</span>
-          </span>
-          <span class="pill">
-            <span class="pill-label">Game ID</span>
-            <span class="pill-value"><code id="game-id">—</code></span>
-          </span>
-        </div>
-
-        <div class="control-grid">
-          <div class="control-card">
-            <div class="control-head">
-              <h4 class="control-title">Player Count</h4>
-            </div>
-            <div id="player-count" class="pill-value" style="font-size:1.4rem">0</div>
-          </div>
-
-          <div class="control-card">
-            <div class="control-head">
-              <h4 class="control-title">Current Song</h4>
-            </div>
-            <div id="current-song" class="pill-value">Not started</div>
+        <div class="hc-join-body">
+          <div class="hc-join-qr">
+            <div class="hc-join-title">Scan</div>
+            <div id="qr-code-container" class="hc-qr-wrap"></div>
           </div>
         </div>
+        <!-- Kept for copy button + game UI logic (textContent only; not shown) -->
+        <span id="join-link-display" class="hidden" aria-hidden="true"></span>
+      </div>
 
-        <div class="btn-row" style="margin-top:12px">
-          <button id="play-song-btn" type="button" class="btn btn-primary">Start</button>
-          <button id="next-song-btn" type="button" class="btn btn-primary">Next</button>
-          <button id="pause-game-btn" type="button" class="btn btn-ghost">Pause</button>
-          <button id="resume-game-btn" type="button" class="btn btn-ghost">Resume</button>
-          <button id="end-game-btn" type="button" class="btn btn-danger">End Game</button>
-        </div>
+    </aside>
 
-        <div id="now-playing" class="now-playing"></div>
-      </section>
-    </main>
-
-    <footer class="footer">Music Bingo Host Console — © 2025</footer>
   </div>
+</div>
 
-  <noscript>
-    <p class="muted" style="text-align:center;margin-top:16px">
-      JavaScript is required to run the Music Bingo host console.
+<!-- END GAME CONFIRMATION MODAL -->
+<div id="end-game-modal" class="hc-confirm-backdrop hidden"
+     role="dialog" aria-modal="true" aria-labelledby="end-game-modal-title">
+  <div class="hc-confirm-card">
+    <h2 class="hc-confirm-title" id="end-game-modal-title">End Game?</h2>
+    <p class="hc-confirm-body">
+      This will close the session for all players and clear the round history.
+      This action cannot be undone.
     </p>
-  </noscript>
+    <div class="hc-confirm-actions">
+      <button id="end-game-cancel-btn" type="button" class="hc-btn hc-btn--ghost">
+        Cancel
+      </button>
+      <button id="end-game-confirm-btn" type="button" class="hc-btn hc-btn--danger">
+        Yes, End Game
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- COMPANION QR MODAL -->
+<div id="companion-qr-modal" class="hc-confirm-backdrop hidden"
+     role="dialog" aria-modal="true" aria-labelledby="companion-qr-title">
+  <div class="companion-qr-card">
+    <h2 class="companion-qr-title" id="companion-qr-title">Open on Your Phone</h2>
+    <p class="companion-qr-hint">Scan to control playback from your phone.</p>
+    <div id="companion-qr-box" class="companion-qr-box"></div>
+    <div class="companion-qr-actions">
+      <button id="companion-qr-copy" type="button" class="hc-btn hc-btn--ghost hc-btn--sm">Copy Link</button>
+      <button id="companion-qr-close" type="button" class="hc-btn hc-btn--ghost hc-btn--sm">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- MOBILE COMPANION MODAL -->
+<div id="mobile-modal" class="mobile-modal hidden"
+     role="dialog" aria-modal="true" aria-label="Mobile Playback Controls">
+  <div class="mobile-modal-inner">
+
+    <div class="mobile-modal-header">
+      <span class="mobile-modal-title">Music Bingo</span>
+      <div class="mobile-modal-header-actions">
+        <button id="companion-qr-btn" class="mob-qr-btn"
+                aria-label="Open on phone" title="Scan QR to open on your phone">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
+            <path d="M17 2H7c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H7V6h10v10zm-5 4c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"/>
+          </svg>
+        </button>
+        <button id="mobile-modal-close" class="hc-btn hc-btn--ghost hc-btn--sm"
+                aria-label="Close">✕</button>
+      </div>
+    </div>
+
+    <div id="mob-auth-prompt" class="mob-auth-prompt hidden">
+      <p class="hc-muted">Connect Spotify to control playback from this device</p>
+      <button id="mob-connect-btn" class="hc-btn hc-btn--spotify">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">
+          <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
+        </svg>
+        Connect Spotify
+      </button>
+    </div>
+
+    <div id="mob-player-ui" class="hidden">
+      <div class="mob-now-playing">
+        <div id="mob-track-name" class="mob-track-name">—</div>
+        <div id="mob-artist-name" class="mob-artist-name hc-muted">—</div>
+      </div>
+      <div class="hc-seek-row mob-seek-row" aria-label="Song progress">
+        <span id="mob-current-time" class="hc-time">0:00</span>
+        <input type="range" id="mob-seek" class="hc-range hc-range--seek"
+               min="0" max="1000" value="0" aria-label="Song position" />
+        <span id="mob-duration" class="hc-time">0:00</span>
+      </div>
+      <div class="mob-controls">
+        <button id="mob-prev-btn" class="mob-icon-btn" aria-label="Previous">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
+            <path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/>
+          </svg>
+        </button>
+        <button id="mob-play-pause-btn" class="hc-btn hc-btn--spotify mob-play-btn" aria-label="Play/Pause">
+          <svg id="mob-play-icon" viewBox="0 0 24 24" fill="currentColor" width="34" height="34">
+            <path d="M8 5v14l11-7z"/>
+          </svg>
+          <svg id="mob-pause-icon" viewBox="0 0 24 24" fill="currentColor" width="34" height="34" class="hidden">
+            <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+          </svg>
+        </button>
+        <button id="mob-next-btn" class="mob-icon-btn" aria-label="Next">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
+            <path d="M6 18l8.5-6L6 6v12zM16 6h2v12h-2z"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="mob-toggles">
+        <label class="hc-toggle">
+          <input type="checkbox" id="mob-shuffle" checked />
+          <span class="hc-toggle-track"></span>
+          <span class="hc-toggle-text">Shuffle</span>
+        </label>
+        <label class="hc-toggle">
+          <input type="checkbox" id="mob-fade" checked />
+          <span class="hc-toggle-track"></span>
+          <span class="hc-toggle-text">Fade</span>
+        </label>
+        <label class="hc-toggle hc-toggle--random-start" title="Random start position">
+          <input type="checkbox" id="mob-random-start" aria-label="Random start position" />
+          <span class="hc-toggle-track"></span>
+          <span class="hc-toggle-text hc-toggle-text--random-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round" width="15" height="15" aria-hidden="true">
+              <polyline points="16 3 21 3 21 8" />
+              <line x1="4" y1="20" x2="21" y2="3" />
+              <polyline points="21 16 21 21 16 21" />
+              <line x1="15" y1="15" x2="21" y2="21" />
+              <line x1="4" y1="4" x2="9" y2="9" />
+            </svg>
+            <span class="hc-toggle-text-label" aria-label="Random start">⏱</span>
+          </span>
+        </label>
+      </div>
+      </div>
+      <div class="mob-volume-row">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" class="hc-muted" aria-hidden="true">
+          <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
+        </svg>
+        <input type="range" id="mob-volume" class="hc-range hc-range--volume"
+               min="0" max="100" value="80" aria-label="Volume" />
+      </div>
+      <div class="mob-log-section">
+        <h4 class="mob-log-title">Songs Played</h4>
+        <div id="mob-log-list" class="hc-log-list mob-log-list"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<noscript>
+  <p style="text-align:center;color:#a6b3c7;margin-top:20px">
+    JavaScript is required to run the Music Bingo host console.
+  </p>
+</noscript>
+
+<!-- Spotify loading overlay — shown while player + playlists initialize after OAuth redirect -->
+<div id="sp-loading-overlay" class="sp-loading-overlay sp-loading-overlay--hidden" aria-hidden="true">
+  <div class="sp-loading-card">
+    <div class="sp-loading-spinner" aria-hidden="true"></div>
+    <p class="sp-loading-text">Connecting to Spotify…</p>
+    <p class="sp-loading-sub">Loading playlists and initializing player</p>
+  </div>
+</div>
+
 </body>
 </html>

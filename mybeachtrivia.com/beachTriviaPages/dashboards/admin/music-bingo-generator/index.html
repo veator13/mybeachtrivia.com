@@ -32,11 +32,63 @@
     .footer-actions button { background:#a855f7; color:white; border:0; padding:10px 14px; border-radius:8px; font-weight:700; cursor:pointer; }
     /* Modal */
     .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); place-items:center; z-index:1000; }
-    .modal > .card { width:min(520px, 92vw); background:#171717; border:1px solid #2b2b2b; border-radius:14px; padding:18px; }
+    .modal > .card { width:min(520px, 92vw); max-height:90vh; display:flex; flex-direction:column; background:#171717; border:1px solid #2b2b2b; border-radius:14px; padding:18px; overflow:hidden; }
+    .modal-scroll-body { overflow:auto; flex:1; min-height:0; }
     .modal h3 { margin:0 0 10px; }
     .modal .actions { display:flex; gap:10px; justify-content:flex-end; margin-top:12px; }
     .modal input { width:100px; }
   
+  /* --- rocker button --- */
+  .rocker {
+    display: inline-flex;
+    perspective: 500px;
+  }
+  .rocker-inner {
+    position: relative;
+    display: flex;
+    border-radius: 10px;
+    overflow: hidden;
+    transform-style: preserve-3d;
+    transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+    transform-origin: center center;
+    background: linear-gradient(to bottom, #4f96ff, #2563eb);
+    box-shadow:
+      0 6px 18px rgba(0,0,0,.5),
+      0 2px 4px rgba(0,0,0,.3),
+      inset 0 1px 0 rgba(255,255,255,0.18),
+      inset 0 -1px 0 rgba(0,0,0,0.2);
+  }
+  .rocker-left, .rocker-right {
+    padding: 11px 22px;
+    font-weight: 700;
+    font-size: 0.88rem;
+    border: 0;
+    outline: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
+    color: white;
+    background: transparent;
+    user-select: none;
+    -webkit-user-select: none;
+    letter-spacing: 0.01em;
+    transition: filter 0.15s ease;
+    position: relative;
+    z-index: 1;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .rocker-left  { border-right: 1px solid rgba(255,255,255,0.25); }
+  .rocker-right:focus { outline: none; box-shadow: none; }
+  /* rock states */
+  .rocker-inner.rock-left  { transform: rotateY(-3deg); }
+  .rocker-inner.rock-left  .rocker-left  { filter: brightness(0.88); }
+  .rocker-inner.rock-left  .rocker-right { filter: brightness(1.06); }
+  .rocker-inner.rock-right { transform: rotateY(3deg); }
+  .rocker-inner.rock-right .rocker-right { filter: brightness(0.88); }
+  .rocker-inner.rock-right .rocker-left  { filter: brightness(1.06); }
   /* --- spacing tweaks for song table --- */
   tbody td{padding:14px 16px}
   tbody td + td{padding-left:12px}
@@ -63,7 +115,12 @@
 
     <div class="toolbar">
       <button id="createNewPlaylistBtn" class="primary">Create New Playlist</button>
-      <button id="importCsvBtn" class="blue">Import CSV</button>
+      <div class="rocker" id="spotifyRocker">
+        <div class="rocker-inner" id="rockerInner">
+          <a href="https://exportify.net/" target="_blank" rel="noopener" class="rocker-left" id="exportifyBtn">Open Exportify ↗</a>
+          <button class="rocker-right" id="importCsvBtn">Import CSV</button>
+        </div>
+      </div>
       <button id="createBoardBtn" class="purple">Create Printable Board</button>
       <button id="deletePlaylistBtn" class="danger">Delete Playlist</button>
       <input id="csvFileInput" type="file" accept=".csv" style="display:none" />
@@ -103,7 +160,7 @@
     <div class="card">
       <h3 id="validationTitle">Long Text Warning</h3>
       <p style="color:#fca5a5; margin:0 0 8px;">The following entries exceed the 40-character limit and may display incorrectly. Edit them below or click Override to accept as-is.</p>
-      <div style="overflow-x:auto;">
+      <div class="modal-scroll-body">
         <table>
           <thead>
             <tr><th>Type</th><th>Content</th><th>Length</th><th>Actions</th></tr>
@@ -139,6 +196,25 @@
 
   <!-- Keep jspdf as classic script so pdfGenerator can use window.jspdf -->
   <script src="./vendor/jspdf.umd.min.js"></script>
+
+  <!-- Rocker button animation -->
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const inner = document.getElementById('rockerInner');
+      const left  = document.getElementById('exportifyBtn');
+      const right = document.getElementById('importCsvBtn');
+      function rock(side) {
+        inner.classList.remove('rock-left', 'rock-right');
+        inner.classList.add(side === 'left' ? 'rock-left' : 'rock-right');
+      }
+      function release() {
+        inner.classList.remove('rock-left', 'rock-right');
+      }
+      left.addEventListener('mousedown',  () => rock('left'));
+      right.addEventListener('mousedown', () => rock('right'));
+      document.addEventListener('mouseup', release);
+    });
+  </script>
 
   <!-- Page scripts (modules) -->
   <script type="module" src="./js/script.js"></script>

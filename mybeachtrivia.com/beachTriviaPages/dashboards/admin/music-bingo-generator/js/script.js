@@ -552,7 +552,7 @@ const PlaylistManager = (() => {
           const uri = row.querySelector('.track-uri')?.value.trim() || '';
           if (song && artist) songArtistPairs.push({ song, artist, album, uri });
         });
-        if (songArtistPairs.length < 40) return { sufficientSongs: false, songCount: songArtistPairs.length };
+        if (songArtistPairs.length < 25) return { sufficientSongs: false, songCount: songArtistPairs.length };
         return { sufficientSongs: true, playlistName, songArtistPairs };
       })();
 
@@ -560,7 +560,7 @@ const PlaylistManager = (() => {
 
       if (!playlistData.sufficientSongs) {
         if (playlistWarning) {
-          playlistWarning.textContent = `You need at least 40 songs in your playlist to create bingo boards. Current count: ${playlistData.songCount}`;
+          playlistWarning.textContent = `You need at least 25 songs in your playlist to create bingo boards. Current count: ${playlistData.songCount}`;
           playlistWarning.style.display = 'block';
         }
         if (generateBoardsBtn) generateBoardsBtn.disabled = true;
@@ -568,7 +568,7 @@ const PlaylistManager = (() => {
         if (playlistWarning) playlistWarning.style.display = 'none';
         if (generateBoardsBtn) generateBoardsBtn.disabled = false;
       }
-      if (boardCopiesModal) boardCopiesModal.style.display = 'block';
+      if (boardCopiesModal) boardCopiesModal.style.display = 'grid';
     },
     closeBoardCopiesModal: () => {
       const boardCopiesModal = document.getElementById('boardCopiesModal');
@@ -593,8 +593,8 @@ const PlaylistManager = (() => {
         const uri = row.querySelector('.track-uri')?.value.trim() || '';
         if (song && artist) pairs.push({ song, artist, album, uri });
       });
-      if (!playlistName || pairs.length < 40) {
-        alert('Unable to generate boards. Please ensure your playlist has at least 40 songs.');
+      if (!playlistName || pairs.length < 25) {
+        alert('Unable to generate boards. Please ensure your playlist has at least 25 songs.');
         return;
       }
       try {
@@ -636,6 +636,7 @@ function initUI() {
     csvFileInput.addEventListener('change', (e) => {
       const file = e.target.files?.[0];
       if (file) PlaylistManager.importFromCsv(file);
+      e.target.value = ''; // reset so the same file can be re-selected
     });
   }
   if (createBoardBtn)  createBoardBtn.addEventListener('click',  PlaylistManager.showBoardCopiesModal);
