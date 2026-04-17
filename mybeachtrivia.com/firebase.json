@@ -2,6 +2,7 @@
   "hosting": {
     "site": "beach-trivia-website",
     "public": ".",
+    "cleanUrls": true,
     "ignore": [
       "firebase.json",
       "**/.*",
