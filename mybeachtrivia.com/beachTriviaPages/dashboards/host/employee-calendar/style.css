@@ -1,0 +1,951 @@
+/* mybeachtrivia.com/beachTriviaPages/dashboards/host/employee-calendar/style.css */
+/* Host/Employee Calendar — host-only override layer
+   - Reuses admin calendar base styles from ../../admin/calendar/css/styles.css
+   - Keeps host calendar visually aligned with admin styling
+   - Removes edit / CRUD affordances
+   - Preserves read-only shift details modal
+   - Preserves week collapse UI visuals (old triangle + new eye row styling)
+*/
+
+/* =========================================================
+   Hide admin edit / CRUD controls
+   ========================================================= */
+
+.copy-button,
+.delete-button,
+.add-button,
+.clear-day-button,
+.cell-copy-button,
+.cell-move-button,
+.edit-button,
+.duplicate-button,
+
+/* old week op buttons */
+.week-copy-button,
+.week-clear-button,
+.week-move-button,
+.week-clear-cell,
+.week-move-cell,
+.week-copy-btn,
+.week-move-btn,
+.week-clear-btn,
+.week-actions,
+.week-toolbar,
+.week-operations,
+.week-ops,
+
+/* month copy UI */
+.copy-month-group,
+.copy-month-btn,
+#copyPrevMonthBtn,
+#copyPreviousMonthBtn,
+#copyPrevMonthButton,
+#copyPreviousMonth,
+#copy-prev-month,
+#copy-prev-month-btn,
+
+/* drag-to-navigate month dropzones */
+.month-nav-dropzone,
+#prev-month-dropzone,
+#next-month-dropzone,
+
+/* drag / move affordances */
+.week-drag-handle,
+.week-move-handle,
+.week-move-tool,
+.week-move-indicator,
+.move-week,
+[data-action="move-week"],
+[data-tool="move"],
+.drag-handle,
+.drag-handle-week,
+.drag-handle-cell,
+.drag-day-button,
+
+/* generic admin action bars */
+/* NOTE: .shift-controls is intentionally NOT hidden here — it contains the
+   per-shift collapse toggle button (.toggle-button) which hosts need.
+   The copy/delete buttons inside it are removed by boot.js (nukeAdminControls). */
+.shift-actions,
+.day-actions,
+.admin-controls {
+  display: none !important;
+}
+
+/* extra defensive */
+#save-shift-btn,
+#add-new-host-btn,
+#add-new-location-btn {
+  display: none !important;
+}
+
+/* prevent drag UI hints */
+[draggable="true"] {
+  cursor: default !important;
+}
+
+/* =========================================================
+   Host page layout polish
+   ========================================================= */
+
+.container {
+  max-width: 1280px;
+}
+
+header {
+  align-items: flex-end;
+  gap: 12px;
+}
+
+header > div[style] {
+  color: var(--text-secondary) !important;
+  font-size: 0.95rem !important;
+}
+
+.controls {
+  gap: 18px;
+}
+
+.date-nav {
+  align-items: center;
+  margin-bottom: 2px;
+}
+
+.filters {
+  align-items: flex-end;
+  gap: 14px;
+}
+
+.filter-group {
+  min-height: 58px;
+}
+
+.employee-filter,
+.event-filter,
+.location-filter,
+.view-buttons {
+  align-items: flex-end;
+}
+
+.employee-filter label,
+.event-filter label,
+.location-filter label,
+.view-buttons label,
+.filter-group label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+/* keep selects / searchable triggers looking consistent */
+.employee-filter select,
+.event-filter select,
+.location-filter select,
+.filter-group select,
+.employee-filter .ss-trigger,
+.event-filter .ss-trigger,
+.location-filter .ss-trigger,
+.filter-group .ss-trigger {
+  min-height: 38px;
+}
+
+.employee-filter .ss-trigger,
+.location-filter .ss-trigger {
+  min-width: 250px;
+}
+
+.event-filter .ss-trigger,
+.filter-group .ss-trigger {
+  min-width: 190px;
+}
+
+/* Host-only actions row */
+.host-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  margin-top: -2px;
+}
+
+.host-actions .small-btn,
+#open-shift-offers.small-btn {
+  min-width: 120px;
+}
+
+#open-shift-offers {
+  background-color: var(--secondary-color);
+  color: #fff;
+  border-color: var(--secondary-color);
+}
+
+#open-shift-offers:hover {
+  filter: brightness(1.08);
+  background-color: var(--secondary-color);
+  color: #fff;
+}
+
+.shift-offers-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  color: var(--secondary-color);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  padding: 0 5px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+/* Inline button rows */
+.button-group-inline {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.small-btn {
+  min-width: 92px;
+  height: 32px;
+  padding: 6px 12px;
+  font-size: 12px;
+  line-height: 1;
+  border-radius: 6px;
+}
+
+/* =========================================================
+   Calendar / week control alignment
+   ========================================================= */
+
+.week-copy-header {
+  width: 30px;
+  min-width: 30px;
+  max-width: 30px;
+}
+
+/* Match the date-number area height to week-eye-top (42px) so the dotted
+   border-bottom in each day cell forms one continuous horizontal line
+   with the dotted border-bottom in the eye-top section of the week columns.
+   Re-declares all admin props with !important to win any cascade conflict. */
+.calendar td .date {
+  display: block !important;
+  padding: 8px !important;
+  min-height: 42px !important;
+  box-sizing: border-box !important;
+  color: var(--text-secondary) !important;
+  font-weight: 600 !important;
+  border-bottom: 1px dotted #444 !important;
+  position: relative !important;
+}
+
+.week-copy-cell {
+  position: relative;
+  overflow: hidden;
+}
+
+/* keep old triangle visible if JS still uses it */
+.week-copy-cell .week-toggle-button {
+  display: inline-flex !important;
+  top: 50px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  z-index: 2;
+}
+
+.week-copy-cell .week-toggle-button:hover {
+  transform: translateX(-50%) scale(1.1) !important;
+}
+
+/* =========================================================
+   Eye button — use admin styles as-is (loaded via admin styles.css).
+   No host overrides needed; admin CSS drives the full collapse system.
+   ========================================================= */
+
+/* Day cells must expand to fit any number of shifts */
+html body .calendar td:not(.week-copy-cell) {
+  height: auto !important;
+  overflow: visible !important;
+}
+
+/* =========================================================
+   Shift cards — host organization aligned to admin styling
+   ========================================================= */
+
+.shift-container {
+  padding: 8px;
+}
+
+.shift {
+  cursor: pointer !important;
+  user-select: text;
+  margin-bottom: 8px;
+  padding: 6px 6px 6px 8px !important;
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1.3;
+  background-color: var(--input-bg);
+  border-left-width: 3px;
+  box-shadow: none;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.shift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow);
+}
+
+.shift.collapsed {
+  padding: 6px 6px 6px 8px !important;
+}
+
+.shift-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 2px;
+  min-width: 0;
+}
+
+.shift .employee {
+  font-weight: 600;
+  color: #fff;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shift .time,
+.shift .location,
+.shift .event-type {
+  font-size: 11px;
+  line-height: 1.1;
+  margin-bottom: 0;
+}
+
+.shift .time {
+  color: var(--text-secondary);
+}
+
+.shift .location {
+  color: var(--secondary-color);
+}
+
+.shift .event-type {
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+/* toggle inline with host name row */
+.shift .toggle-button {
+  position: static !important;
+  top: auto !important;
+  right: auto !important;
+  margin-left: auto;
+  width: 14px;
+  height: 14px;
+  background-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  border-radius: 50%;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+  z-index: 2;
+}
+
+.shift:hover .toggle-button {
+  opacity: 1;
+}
+
+.shift-details {
+  max-height: 120px;
+  overflow: hidden;
+  transition: max-height 0.25s ease, opacity 0.25s ease;
+}
+
+.shift.collapsed .shift-details {
+  max-height: 0;
+  opacity: 0;
+}
+
+.multi-shift-badge {
+  top: 5px;
+  left: 5px;
+  z-index: 3;
+}
+
+/* keep event color strips */
+.classic-trivia { border-left-color: var(--classic-trivia-color); }
+.themed-trivia  { border-left-color: var(--themed-trivia-color); }
+.classic-bingo  { border-left-color: var(--classic-bingo-color); }
+.music-bingo    { border-left-color: var(--music-bingo-color); }
+.beach-feud     { border-left-color: var(--beach-feud-color); }
+
+/* temp flags preserved */
+.shift.temp-host {
+  border-left-color: #f0a500 !important;
+  opacity: 0.92;
+}
+
+.shift.temp-venue {
+  border-left-color: #f97316 !important;
+  opacity: 0.92;
+}
+
+/* =========================================================
+   Read-only modal handling
+   ========================================================= */
+
+/* hide other admin modals */
+#warning-modal,
+#clear-day-modal,
+#new-host-modal,
+#new-location-modal,
+#copy-shift-modal,
+#copy-month-modal {
+  display: none !important;
+}
+
+/* Shift Offers modal */
+#shift-offers-modal[aria-hidden="true"] {
+  display: none !important;
+}
+
+#shift-offers-modal[aria-hidden="false"] {
+  display: flex !important;
+}
+
+#shift-offers-modal.simple-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+#shift-offers-modal .panel {
+  width: min(900px, 95vw);
+  max-height: 85vh;
+  overflow: auto;
+  border-radius: 12px;
+  padding: 16px;
+  background: #0f1720;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.45);
+}
+
+/* Shift details modal */
+#shift-modal[aria-hidden="true"] {
+  display: none !important;
+}
+
+#shift-modal[aria-hidden="false"] {
+  display: flex !important;
+}
+
+#shift-modal.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(5px);
+}
+
+#shift-modal .modal-content {
+  width: min(720px, 95vw);
+  max-height: 85vh;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+#shift-modal #shift-form {
+  padding-top: 105px;
+  padding-bottom: 72px;
+}
+
+#shift-modal .button-group {
+  justify-content: flex-end;
+}
+
+#shift-modal #cancel-shift {
+  min-width: 100px;
+}
+
+/* read-only field polish */
+#shift-modal input[disabled],
+#shift-modal select[disabled],
+#shift-modal textarea[disabled] {
+  opacity: 1;
+  color: var(--text-primary);
+  background-color: rgba(30, 43, 60, 0.7);
+  border-color: var(--border-color);
+  cursor: default;
+}
+
+#shift-modal textarea[disabled] {
+  resize: none;
+}
+
+/* =========================================================
+   Utility / polish
+   ========================================================= */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* NOTE: Do NOT set any overflow on .calendar-container.
+   overflow-x:auto/hidden creates a scroll container that breaks position:sticky on <th>.
+   overflow-x:clip forces overflow-y:clip too, cutting off tall shift columns.
+   The admin calendar has no overflow rule here and works correctly — match that. */
+
+#calendar-loading td {
+  vertical-align: top;
+}
+
+/* =========================================================
+   Responsive
+   ========================================================= */
+
+@media (max-width: 980px) {
+  .filters {
+    gap: 12px;
+  }
+
+  .host-actions {
+    justify-content: flex-start;
+  }
+
+  .month-display {
+    position: static;
+    transform: none;
+  }
+
+  .date-nav {
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 768px) {
+  .filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .employee-filter,
+  .event-filter,
+  .location-filter,
+  .view-buttons,
+  .filter-group {
+    width: 100%;
+    align-items: stretch;
+  }
+
+  .button-group-inline {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .button-group-inline .small-btn {
+    flex: 1 1 140px;
+  }
+
+  .host-actions {
+    width: 100%;
+  }
+
+  #open-shift-offers {
+    width: 100%;
+  }
+
+  .shift {
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+  }
+
+  #shift-modal.modal,
+  #shift-offers-modal.simple-modal {
+    padding: 12px;
+  }
+
+  #shift-modal .modal-content,
+  #shift-offers-modal .panel {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+/* =========================================================
+   Coverage Request Modal
+   ========================================================= */
+
+#coverage-request-modal[aria-hidden="true"] {
+  display: none !important;
+}
+
+#coverage-request-modal[aria-hidden="false"] {
+  display: flex !important;
+}
+
+#coverage-request-modal.simple-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10001; /* above shift-offers-modal */
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.65);
+}
+
+.coverage-request-panel {
+  width: min(560px, 95vw);
+  max-height: 85vh;
+  overflow: auto;
+  border-radius: 12px;
+  padding: 20px;
+  background: #0f1720;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
+}
+
+.coverage-request-panel header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.coverage-request-panel header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* Shift summary block inside request modal */
+.coverage-shift-summary {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+
+.coverage-summary-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.coverage-summary-date {
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.coverage-summary-detail {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+}
+
+.coverage-summary-sep {
+  opacity: 0.5;
+}
+
+.coverage-summary-loc {
+  color: var(--secondary-color);
+}
+
+/* Note textarea */
+.coverage-note-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.coverage-note-group label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.coverage-note-group textarea {
+  resize: vertical;
+  min-height: 72px;
+  background: var(--input-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.coverage-note-group textarea:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+/* Button row */
+.coverage-request-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+/* Status message */
+.coverage-status-msg {
+  font-size: 12px;
+  color: #f87171;
+  min-height: 18px;
+  margin: 0;
+}
+
+/* Request Coverage button injected into shift modal */
+#host-request-coverage-btn {
+  background-color: var(--primary-color);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.15s;
+}
+
+#host-request-coverage-btn:hover {
+  filter: brightness(1.1);
+}
+
+#host-request-coverage-btn.coverage-requested {
+  background-color: #c8960a;
+  color: #fff;
+}
+
+#host-request-coverage-btn.coverage-requested:hover {
+  background-color: #b08308;
+  filter: none;
+}
+
+/* =========================================================
+   Shift Offers Panel — coverage cards
+   ========================================================= */
+
+#shift-offers-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 0;
+}
+
+.coverage-empty,
+.coverage-error {
+  text-align: center;
+  padding: 24px 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.coverage-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-left-width: 3px;
+  border-radius: 8px;
+  padding: 12px 14px;
+  padding-right: 52px; /* room for the cancel button */
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+}
+
+/* Event color strip on card matches shift card colors */
+.coverage-card.classic-trivia { border-left-color: var(--classic-trivia-color); }
+.coverage-card.themed-trivia  { border-left-color: var(--themed-trivia-color); }
+.coverage-card.classic-bingo  { border-left-color: var(--classic-bingo-color); }
+.coverage-card.music-bingo    { border-left-color: var(--music-bingo-color); }
+.coverage-card.beach-feud     { border-left-color: var(--beach-feud-color); }
+
+.coverage-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.coverage-date {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}
+
+/* Event type pill badge */
+.coverage-type-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
+}
+
+.coverage-type-badge.classic-trivia { color: var(--classic-trivia-color); background: rgba(54,153,255,.12); }
+.coverage-type-badge.themed-trivia  { color: var(--themed-trivia-color);  background: rgba(157,78,221,.12); }
+.coverage-type-badge.classic-bingo  { color: var(--classic-bingo-color);  background: rgba(76,201,240,.12); }
+.coverage-type-badge.music-bingo    { color: var(--music-bingo-color);    background: rgba(247,37,133,.12); }
+.coverage-type-badge.beach-feud     { color: var(--beach-feud-color);     background: rgba(20,184,166,.12); }
+
+.coverage-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 13px;
+}
+
+.coverage-time {
+  color: var(--text-secondary);
+}
+
+.coverage-location {
+  color: var(--secondary-color);
+}
+
+.coverage-host {
+  color: var(--text-primary);
+}
+
+.coverage-note {
+  font-style: italic;
+  color: var(--text-secondary);
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.coverage-timestamp {
+  font-size: 11px;
+  color: var(--text-secondary);
+  opacity: 0.6;
+  margin-top: 4px;
+}
+
+.coverage-card-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+/* Accept button */
+.coverage-accept-btn {
+  background-color: var(--primary-color);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.15s;
+}
+
+.coverage-accept-btn:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.coverage-accept-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* "Your Request" label + cancel row */
+.coverage-own-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.coverage-cancel-btn {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  transform: translateY(-50%);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: var(--text-secondary);
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.coverage-cancel-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.5);
+  color: #ef4444;
+}
+
+
+@media (prefers-reduced-motion: reduce) {
+  .shift,
+  .week-eye-button,
+  .week-toggle-button,
+  button {
+    transition: none !important;
+    animation: none !important;
+  }
+
+  .shift:hover {
+    transform: none;
+  }
+
+  .week-copy-cell .week-toggle-button:hover {
+    transform: translateX(-50%) translateY(-50%) !important;
+  }
+
+  .week-eye-button:hover {
+    transform: none;
+  }
+}

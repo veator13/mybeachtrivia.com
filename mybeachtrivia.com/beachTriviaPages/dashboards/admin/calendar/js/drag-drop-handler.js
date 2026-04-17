@@ -1,16 +1,33 @@
-// drag-drop-handler.js
-// Functions for handling drag and drop operations in the calendar
-// Updated 2026-02-27:
-// - Uses window.globalMoveOperation ONLY (no stray globals)
-// - Exposes window._applyGlobalMoveOperationOverride() AND window.executeOverrideFromGlobalMoveOperation()
-//   for modal-handlers "Proceed Anyway" flow
-// - Stores full override context for shift/day/week operations (shiftId/targetDate/sourceDateStr/shifts/isCopy)
-// - Adds safe upsert helpers to prevent duplicate IDs in the local shifts array
-// - Local-state updates are replace-by-id (never push duplicates)
-// - ✅ Uses window.getShifts()/window.setShifts() when available (prevents stale references)
-// - ✅ Fixes TDZ bug: do NOT reference bare `elements` / `state` identifiers during initialization
+/* mybeachtrivia.com/beachTriviaPages/dashboards/admin/calendar/js/drag-drop-handler.js
+   Drop-in replacement.
 
+   Updated 2026-02-27:
+   - Uses window.globalMoveOperation ONLY (no stray globals)
+   - Exposes window._applyGlobalMoveOperationOverride() AND window.executeOverrideFromGlobalMoveOperation()
+     for modal-handlers "Proceed Anyway" flow
+   - Stores full override context for shift/day/week operations (shiftId/targetDate/sourceDateStr/shifts/isCopy)
+   - Adds safe upsert helpers to prevent duplicate IDs in the local shifts array
+   - Local-state updates are replace-by-id (never push duplicates)
+   - ✅ Uses window.getShifts()/window.setShifts() when available (prevents stale references)
+   - ✅ Fixes TDZ bug: do NOT reference bare `elements` / `state` identifiers during initialization
+
+   Updated 2026-03-04:
+   - ✅ Prevents DOUBLE execution of override (Proceed Anyway) which was causing duplicate copies
+     (re-entrancy guard + mark op inactive immediately)
+
+   Updated 2026-03-05:
+   - ✅ SAFER isCopyOperation detection (avoid `.getData()` truthiness pitfalls)
+   - ✅ Guard if `.calendar-container` missing in dragOver
+   - ✅ Ensure state array fields exist to avoid undefined `.length` access
+
+   Updated 2026-03-05 (SKIP CONFLICTS):
+   - ✅ Exposes window.executeSkipConflictsFromGlobalMoveOperation()
+   - ✅ Marks batch ops with op.isBatch/op.mode so modal-handlers shows "Skip Conflicts"
+   - ✅ Skip Conflicts continues batch copy/move but silently skips conflicting shifts
+*/
 (function () {
+    "use strict";
+  
     // ---- Safe access to shared globals (avoid TDZ / stray globals) ----
     function _getElements() {
       try {
@@ -26,6 +43,14 @@
       } catch (_) {
         return {};
       }
+    }
+  
+    function _ensureStateArrays(state) {
+      if (!state) return;
+      if (!Array.isArray(state.copyingDayShifts)) state.copyingDayShifts = [];
+      if (!Array.isArray(state.copyingWeekShifts)) state.copyingWeekShifts = [];
+      if (!Array.isArray(state.movingDayShifts)) state.movingDayShifts = [];
+      if (!Array.isArray(state.movingWeekShifts)) state.movingWeekShifts = [];
     }
   
     // Use short-name map (main.js exposes window.employees)
@@ -156,6 +181,16 @@
           sourceDateStr: null,
           shifts: null,
           isCopy: false,
+  
+          // batch metadata so modal-handlers shows Skip Conflicts
+          isBatch: false,
+          mode: null, // "week-copy" | "week-move" | "day-copy" | "day-move"
+          allowSkipConflicts: true,
+  
+          // flags set by modal-handlers
+          skipConflicts: false,
+          override: false,
+          force: false,
         };
       }
       return window.globalMoveOperation;
@@ -170,6 +205,17 @@
         op.sourceDateStr = null;
         op.shifts = null;
         op.isCopy = false;
+  
+        op.isBatch = false;
+        op.mode = null;
+        op.allowSkipConflicts = true;
+  
+        op.skipConflicts = false;
+        op.override = false;
+        op.force = false;
+  
+        // internal helper
+        if (op._weekCopyCleanup) op._weekCopyCleanup = null;
       } catch (_) {}
     }
   
@@ -180,7 +226,23 @@
       if (typeof window.forceSaveShiftToFirebase === "function") return window.forceSaveShiftToFirebase(shiftData);
       return saveShiftToFirebase(shiftData);
     }
-
+  
+    // ✅ normal save (non-force) helper for skip-conflicts path
+    async function _normalSave(shiftData) {
+      if (window.shiftService?.saveShift) return window.shiftService.saveShift(shiftData, { force: false });
+      return saveShiftToFirebase(shiftData);
+    }
+  
+    function _hasConflictFor(dateStr, employeeId, excludeShiftId) {
+      try {
+        const conflicts = checkForDoubleBooking({ date: dateStr, employeeId }, excludeShiftId || null);
+        return Array.isArray(conflicts) && conflicts.length > 0;
+      } catch (_) {
+        // fail "closed" — if check function errors, treat as conflict to avoid accidental overlaps
+        return true;
+      }
+    }
+  
     async function _applyOverrideForSingleShift(op) {
       _ensureShiftsArray();
   
@@ -267,7 +329,7 @@
       const batch = Array.isArray(op.shifts) ? op.shifts : [];
       // targetDate may be null for week-copy overrides (each shift carries its own pre-mapped date)
       const isPreMapped = !targetDate && isCopy;
-
+  
       if (!isPreMapped && (!targetDate || batch.length === 0)) {
         alert("Nothing to move/copy. Please try again.");
         return;
@@ -276,15 +338,15 @@
         alert("Nothing to move/copy. Please try again.");
         return;
       }
-
+  
       if (sourceDateStr && sourceDateStr === targetDate) return;
-
+  
       // Run cleanup if week copy stored one
       const _weekCleanup = typeof op._weekCopyCleanup === "function" ? op._weekCopyCleanup : null;
-
+  
       if (isCopy) {
         const created = [];
-
+  
         await Promise.all(
           batch.map(async (shift) => {
             const newShiftData = {
@@ -319,9 +381,11 @@
           const state = _getState();
           state.copyingDayShifts = [];
         } catch (_) {}
-
+  
         // ✅ Run week copy cleanup if present
-        try { if (_weekCleanup) _weekCleanup(); } catch (_) {}
+        try {
+          if (_weekCleanup) _weekCleanup();
+        } catch (_) {}
   
         try {
           if (typeof announceForScreenReader === "function") {
@@ -391,18 +455,219 @@
       } catch (_) {}
     }
   
+    // ✅ Skip Conflicts executor (batch only)
+    async function _applySkipConflictsForBatch(op) {
+      _ensureShiftsArray();
+  
+      const isCopy = !!op.isCopy;
+      const batch = Array.isArray(op.shifts) ? op.shifts : [];
+      if (!batch.length) return { created: 0, skipped: 0, moved: 0 };
+  
+      const state = _getState();
+      _ensureStateArrays(state);
+  
+      // pre-mapped week-copy batch uses shift.date already
+      const isPreMapped = !op.targetDate && isCopy;
+  
+      const targetDate = op.targetDate;
+  
+      let createdCount = 0;
+      let movedCount = 0;
+      let skippedCount = 0;
+  
+      // week cleanup hook (for week-copy)
+      const _weekCleanup = typeof op._weekCopyCleanup === "function" ? op._weekCopyCleanup : null;
+  
+      if (isCopy) {
+        const created = [];
+  
+        for (const shift of batch) {
+          const destDate = isPreMapped ? shift.date : targetDate;
+          if (!destDate) {
+            skippedCount++;
+            continue;
+          }
+  
+          // if conflict exists at destination, skip silently
+          if (_hasConflictFor(destDate, shift.employeeId, null)) {
+            skippedCount++;
+            continue;
+          }
+  
+          const newShiftData = {
+            date: destDate,
+            employeeId: shift.employeeId,
+            startTime: shift.startTime,
+            endTime: shift.endTime,
+            type: shift.type,
+            theme: shift.theme,
+            location: shift.location,
+            notes: shift.notes,
+          };
+  
+          try {
+            const newId = await _normalSave(newShiftData);
+            const newShift = { ...newShiftData, id: newId };
+  
+            try {
+              if (state.collapsedShifts?.has?.(shift.id)) state.collapsedShifts.add(newShift.id);
+            } catch (_) {}
+  
+            created.push(newShift);
+            createdCount++;
+          } catch (saveErr) {
+            // if save fails (rules/network), treat as skipped
+            console.warn("[calendar][skip-conflicts] save failed, skipping:", saveErr);
+            skippedCount++;
+          }
+        }
+  
+        if (created.length) _upsertManyLocal(created);
+  
+        // cleanup state
+        try {
+          state.copyingDayShifts = [];
+          state.copyingWeekShifts = [];
+          state.isDragWeekCopy = false;
+          state.sourceWeekIndex = null;
+          state.pendingCrossMonthDrag = null;
+        } catch (_) {}
+  
+        try {
+          if (_weekCleanup) _weekCleanup();
+        } catch (_) {}
+  
+        try {
+          if (typeof announceForScreenReader === "function") {
+            announceForScreenReader(`Copied ${createdCount} events. Skipped ${skippedCount} conflicts.`);
+          }
+        } catch (_) {}
+  
+        try {
+          if (typeof renderCalendar === "function") renderCalendar();
+        } catch (_) {}
+  
+        return { created: createdCount, skipped: skippedCount, moved: 0 };
+      }
+  
+      // MOVE batch: create non-conflicting copies on targetDate then delete originals for moved ones only
+      if (!targetDate) return { created: 0, skipped: batch.length, moved: 0 };
+  
+      const created = [];
+      const movedOriginalIds = [];
+  
+      for (const shift of batch) {
+        // if conflict exists at destination, skip silently (do NOT delete original)
+        if (_hasConflictFor(targetDate, shift.employeeId, null)) {
+          skippedCount++;
+          continue;
+        }
+  
+        const newShiftData = {
+          date: targetDate,
+          employeeId: shift.employeeId,
+          startTime: shift.startTime,
+          endTime: shift.endTime,
+          type: shift.type,
+          theme: shift.theme,
+          location: shift.location,
+          notes: shift.notes,
+        };
+  
+        try {
+          const newId = await _normalSave(newShiftData);
+          const newShift = { ...newShiftData, id: newId };
+  
+          try {
+            if (state.collapsedShifts?.has?.(shift.id)) state.collapsedShifts.add(newShift.id);
+          } catch (_) {}
+  
+          created.push(newShift);
+          movedOriginalIds.push(shift.id);
+          movedCount++;
+        } catch (saveErr) {
+          console.warn("[calendar][skip-conflicts] move-save failed, skipping:", saveErr);
+          skippedCount++;
+        }
+      }
+  
+      if (movedOriginalIds.length) {
+        try {
+          await Promise.all(movedOriginalIds.map((id) => deleteShiftFromFirebase(id)));
+        } catch (delErr) {
+          console.error("[calendar][skip-conflicts] delete originals failed:", delErr);
+          // If deletes fail, we still keep UI consistent with what we *did* create,
+          // but we should not remove locals unless deletes succeeded. So: bail early.
+          alert("Some events were created, but deleting originals failed. Please refresh to verify.");
+          if (created.length) _upsertManyLocal(created);
+          try {
+            if (typeof renderCalendar === "function") renderCalendar();
+          } catch (_) {}
+          return { created: created.length, skipped: skippedCount, moved: movedCount };
+        }
+  
+        // update local after successful delete
+        _removeIdsLocal(movedOriginalIds);
+      }
+  
+      if (created.length) _upsertManyLocal(created);
+  
+      // cleanup state
+      try {
+        state.movingDayShifts = [];
+        state.movingWeekShifts = [];
+        state.isDragWeekMove = false;
+        state.isDragDayMove = false;
+        state.sourceWeekIndex = null;
+        state.sourceDateStr = null;
+        state.pendingCrossMonthDrag = null;
+      } catch (_) {}
+  
+      try {
+        if (typeof announceForScreenReader === "function") {
+          announceForScreenReader(`Moved ${movedCount} events. Skipped ${skippedCount} conflicts.`);
+        }
+      } catch (_) {}
+  
+      try {
+        if (typeof renderCalendar === "function") renderCalendar();
+      } catch (_) {}
+  
+      return { created: 0, skipped: skippedCount, moved: movedCount };
+    }
+  
     async function _applyGlobalMoveOperationOverride() {
       const op = _ensureGlobalMoveOperation();
       if (!op || !op.active) return;
   
+      // ✅ HARD GUARD: prevent double-run from multiple listeners / double-clicks
+      if (window.__CALENDAR_OVERRIDE_BUSY__) return;
+      window.__CALENDAR_OVERRIDE_BUSY__ = true;
+  
+      // ✅ Mark inactive immediately so any re-entrant call becomes a no-op
+      op.active = false;
+  
+      // snapshot payload (so later mutations don’t affect this run)
+      const snap = {
+        shiftId: op.shiftId,
+        targetDate: op.targetDate,
+        sourceDateStr: op.sourceDateStr,
+        shifts: Array.isArray(op.shifts) ? op.shifts.slice() : null,
+        isCopy: !!op.isCopy,
+        isBatch: !!op.isBatch,
+        mode: op.mode || null,
+        _weekCopyCleanup: typeof op._weekCopyCleanup === "function" ? op._weekCopyCleanup : null,
+      };
+  
       try {
-        if (op.shiftId && op.targetDate) {
-          await _applyOverrideForSingleShift(op);
-        } else if (Array.isArray(op.shifts) && (op.targetDate || (op.isCopy && op.shifts.length > 0))) {
-          await _applyOverrideForDayBatch(op);
+        if (snap.shiftId && snap.targetDate) {
+          await _applyOverrideForSingleShift(snap);
+        } else if (Array.isArray(snap.shifts) && (snap.targetDate || (snap.isCopy && snap.shifts.length > 0))) {
+          await _applyOverrideForDayBatch(snap);
         } else {
           alert("Nothing to override. Please try again.");
         }
+  
         // ✅ Close warning modal on success
         try {
           if (typeof window.closeWarningModal === "function") window.closeWarningModal();
@@ -412,6 +677,7 @@
         alert("Could not complete the override. Please try again.");
       } finally {
         _resetGlobalMoveOperation();
+        window.__CALENDAR_OVERRIDE_BUSY__ = false;
       }
     }
   
@@ -419,6 +685,50 @@
     window._applyGlobalMoveOperationOverride = _applyGlobalMoveOperationOverride;
     window.executeOverrideFromGlobalMoveOperation = function executeOverrideFromGlobalMoveOperation() {
       return _applyGlobalMoveOperationOverride();
+    };
+  
+    // ✅ Expose SKIP CONFLICTS hook for modal-handlers.js
+    window.executeSkipConflictsFromGlobalMoveOperation = async function executeSkipConflictsFromGlobalMoveOperation() {
+      const op = _ensureGlobalMoveOperation();
+      if (!op || !op.active) return;
+  
+      if (window.__CALENDAR_OVERRIDE_BUSY__) return;
+      window.__CALENDAR_OVERRIDE_BUSY__ = true;
+  
+      // mark inactive immediately
+      op.active = false;
+  
+      const snap = {
+        targetDate: op.targetDate,
+        sourceDateStr: op.sourceDateStr,
+        shifts: Array.isArray(op.shifts) ? op.shifts.slice() : null,
+        isCopy: !!op.isCopy,
+        isBatch: !!op.isBatch,
+        mode: op.mode || null,
+        _weekCopyCleanup: typeof op._weekCopyCleanup === "function" ? op._weekCopyCleanup : null,
+      };
+  
+      try {
+        // only meaningful for batch
+        if (!snap.isBatch || !Array.isArray(snap.shifts) || !snap.shifts.length) {
+          try {
+            if (typeof window.closeWarningModal === "function") window.closeWarningModal();
+          } catch (_) {}
+          return;
+        }
+  
+        await _applySkipConflictsForBatch(snap);
+  
+        try {
+          if (typeof window.closeWarningModal === "function") window.closeWarningModal();
+        } catch (_) {}
+      } catch (err) {
+        console.error("[calendar] skip-conflicts failed:", err);
+        alert("Could not skip conflicts. Please try again.");
+      } finally {
+        _resetGlobalMoveOperation();
+        window.__CALENDAR_OVERRIDE_BUSY__ = false;
+      }
     };
   
     // Optional: legacy direct wiring (kept lightweight / non-invasive)
@@ -491,6 +801,7 @@
     function handleDragStart(e) {
       const elements = _getElements();
       const state = _getState();
+      _ensureStateArrays(state);
   
       console.log("Drag start event target:", e.target);
       console.log("Drag start event target classList:", e.target.classList);
@@ -736,9 +1047,7 @@
         e.dataTransfer.setData("application/x-copy-week", weekIndex.toString());
         e.dataTransfer.effectAllowed = "copy";
   
-        announceForScreenReader(
-          `Started copying week with ${weekShifts.length} events. Drop on another week to create copies.`
-        );
+        announceForScreenReader(`Started copying week with ${weekShifts.length} events. Drop on another week to create copies.`);
   
         e.stopPropagation();
         return;
@@ -900,6 +1209,7 @@
     function handleDragOver(e) {
       const elements = _getElements();
       const state = _getState();
+      _ensureStateArrays(state);
   
       e.preventDefault();
   
@@ -912,7 +1222,10 @@
       )
         return;
   
-      const calendarRect = document.querySelector(".calendar-container").getBoundingClientRect();
+      const calEl = document.querySelector(".calendar-container");
+      if (!calEl) return;
+  
+      const calendarRect = calEl.getBoundingClientRect();
       const mouseX = e.clientX;
       const thresholdLeft = calendarRect.left + 40;
       const thresholdRight = calendarRect.right - 40;
@@ -1022,6 +1335,7 @@
      * ========================= */
     function handleDragEnd(e) {
       const state = _getState();
+      _ensureStateArrays(state);
   
       const shiftElement = e.target.closest(".shift");
       if (shiftElement) {
@@ -1089,8 +1403,8 @@
       e.preventDefault();
       _ensureShiftsArray();
   
-      const elements = _getElements();
       const state = _getState();
+      _ensureStateArrays(state);
   
       if (typeof hideMonthNavigationDropzones === "function") hideMonthNavigationDropzones();
   
@@ -1240,7 +1554,7 @@
         let hasWeekConflicts = false;
         let conflictWeekEmployeeId = null;
         const mappedWeekShifts = [];
-
+  
         state.copyingWeekShifts.forEach((shift) => {
           const targetDate = dateMapping[shift.date];
           if (!targetDate) return;
@@ -1251,9 +1565,9 @@
             conflictWeekEmployeeId = shift.employeeId;
           }
         });
-
+  
         if (hasWeekConflicts) {
-          // Build a batch op the override system understands
+          // Build a batch op the override/skip system understands
           const batchShifts = mappedWeekShifts.map((s) => ({ ...s, date: s._targetDate }));
           const op = _ensureGlobalMoveOperation();
           op.targetDate = null; // week batch uses op.shifts
@@ -1262,20 +1576,27 @@
           op.isCopy = true;
           op.shiftId = null;
           op.sourceDateStr = null;
+  
+          // ✅ mark batch metadata so modal-handlers shows Skip Conflicts
+          op.isBatch = true;
+          op.mode = "week-copy";
+          op.allowSkipConflicts = true;
+  
           op._weekCopyCleanup = () => {
             state.copyingWeekShifts = [];
             state.isDragWeekCopy = false;
             state.sourceWeekIndex = null;
             state.pendingCrossMonthDrag = null;
           };
+  
           _wireConflictOverrideButtonsOnce();
           showSimplifiedWarning(conflictWeekEmployeeId);
           return;
         }
-
+  
         const newShifts = [];
         const savePromises = [];
-
+  
         mappedWeekShifts.forEach((shift) => {
           const newShiftData = {
             date: shift._targetDate,
@@ -1287,30 +1608,30 @@
             location: shift.location,
             notes: shift.notes,
           };
-
+  
           savePromises.push(
             saveShiftToFirebase(newShiftData).then((newId) => {
               const newShift = { ...newShiftData, id: newId };
-
+  
               if (state.collapsedShifts?.has?.(shift.id)) {
                 state.collapsedShifts.add(newShift.id);
               }
-
+  
               newShifts.push(newShift);
               return newShift;
             })
           );
         });
-
+  
         Promise.all(savePromises)
           .then(() => {
             _upsertManyLocal(newShifts);
-
+  
             state.copyingWeekShifts = [];
             state.isDragWeekCopy = false;
             state.sourceWeekIndex = null;
             state.pendingCrossMonthDrag = null;
-
+  
             announceForScreenReader(`Copied ${newShifts.length} events to week ${targetWeekIndex + 1}`);
             renderCalendar();
           })
@@ -1318,7 +1639,7 @@
             console.error("Error saving shifts to Firebase:", error);
             alert("Could not save some shifts. Please try again later.");
           });
-
+  
         return;
       }
   
@@ -1358,6 +1679,11 @@
           op.active = true;
           op.isCopy = false;
           op.shiftId = null;
+  
+          // ✅ mark batch metadata so modal-handlers shows Skip Conflicts
+          op.isBatch = true;
+          op.mode = "day-move";
+          op.allowSkipConflicts = true;
   
           _wireConflictOverrideButtonsOnce();
           showSimplifiedWarning(conflictEmployeeId);
@@ -1443,6 +1769,11 @@
           op.isCopy = true;
           op.shiftId = null;
   
+          // ✅ mark batch metadata so modal-handlers shows Skip Conflicts
+          op.isBatch = true;
+          op.mode = "day-copy";
+          op.allowSkipConflicts = true;
+  
           _wireConflictOverrideButtonsOnce();
           showSimplifiedWarning(conflictEmployeeId);
           return;
@@ -1493,7 +1824,10 @@
         return;
       }
   
-      const isCopyOperation = state.isDragCopy || e.dataTransfer.getData("application/x-copy-shift") !== "";
+      // ✅ Safer: detect copy by checking if the custom MIME types are present (not by truthiness)
+      const hasCopyShift = !!e.dataTransfer.getData("application/x-copy-shift");
+      const hasMoveShift = !!e.dataTransfer.getData("application/x-move-shift");
+      const isCopyOperation = state.isDragCopy || (hasCopyShift && !hasMoveShift);
   
       let shiftId;
       if (isCopyOperation) {
@@ -1526,6 +1860,10 @@
         op.shifts = null;
         op.active = true;
         op.isCopy = isCopyOperation;
+  
+        // single-shift: NOT a batch, so skip button should remain hidden
+        op.isBatch = false;
+        op.mode = null;
   
         _wireConflictOverrideButtonsOnce();
         showSimplifiedWarning(draggedShift.employeeId);
@@ -1584,6 +1922,7 @@
     function handleCrossMonthDragNavigation(direction) {
       const elements = _getElements();
       const state = _getState();
+      _ensureStateArrays(state);
   
       console.log(`Navigating to ${direction} month during drag operation`);
   

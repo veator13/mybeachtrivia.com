@@ -5,6 +5,10 @@
    - Prevent “stuck old CSS” by using stale-while-revalidate for assets
    - Bump VERSION to force a new cache on deploy
    - Keep precache list aligned with index.html (incl querystrings)
+
+   Updated 2026-03-05:
+   - ✅ DO NOT hijack site-wide navigations. Only handle NAVIGATE requests under SCORESHEET_PREFIX.
+     (Fixes "Unexpected token '<'" on other pages when SW serves scoresheet index.html as fallback)
 */
 
 (() => {
@@ -32,6 +36,7 @@
     `/beachTriviaPages/dashboards/host/scoresheet/js/state.js?v=${ASSET_V}`,
     `/beachTriviaPages/dashboards/host/scoresheet/js/firebase.js?v=${ASSET_V}`,
     `/beachTriviaPages/dashboards/host/scoresheet/js/venues.js?v=${ASSET_V}`,
+    `/beachTriviaPages/dashboards/host/scoresheet/js/meta-fields.js?v=${ASSET_V}`,
     `/beachTriviaPages/dashboards/host/scoresheet/js/meta-fields.js?v=${ASSET_V}`,
     `/beachTriviaPages/dashboards/host/scoresheet/js/ui-sticky-bonus.js?v=${ASSET_V}`,
     `/beachTriviaPages/dashboards/host/scoresheet/js/table-build.js?v=${ASSET_V}`,
@@ -126,10 +131,7 @@
     try {
       const canonUrl = stripVParam(request.url);
       if (canonUrl !== request.url) {
-        await cache.put(
-          new Request(canonUrl, { credentials: "same-origin" }),
-          response.clone()
-        );
+        await cache.put(new Request(canonUrl, { credentials: "same-origin" }), response.clone());
       }
     } catch (_) {}
   }
@@ -239,8 +241,19 @@
     // Only same-origin
     if (!isSameOrigin(url)) return;
 
-    // Only handle scoresheet + its shared deps (avoid caching whole site)
-    if (!isScoresheetAsset(url) && req.mode !== "navigate") return;
+    const isNav = req.mode === "navigate";
+    const path = url.pathname || "";
+    const inScoresheet = path.startsWith(SCORESHEET_PREFIX);
+    const isAsset = isScoresheetAsset(url);
+
+    // ✅ Only control the scoresheet area:
+    // - Navigations ONLY under /beachTriviaPages/dashboards/host/scoresheet/
+    // - Assets only for scoresheet + shared deps
+    if (isNav) {
+      if (!inScoresheet) return;
+    } else {
+      if (!isAsset) return;
+    }
 
     // Bind safe waitUntil for THIS fetch event (used by SWR background refresh)
     eventWaitUntilSafe = (p) => {
@@ -249,7 +262,7 @@
       } catch (_) {}
     };
 
-    if (req.mode === "navigate") {
+    if (isNav) {
       event.respondWith(networkFirstNavigate(req));
       return;
     }

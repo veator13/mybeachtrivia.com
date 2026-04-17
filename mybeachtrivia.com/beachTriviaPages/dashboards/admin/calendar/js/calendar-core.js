@@ -40,9 +40,28 @@ function renderCalendar() {
         row.setAttribute('role', 'row');
         row.setAttribute('data-week-index', weekIndex);
         
-        // Create week copy button cell
+        // Apply hidden class if this week is toggled off via the eye button
+        const isHidden = state.hiddenWeeks?.has(weekIndex) || false;
+        if (isHidden) row.classList.add('week-hidden');
+
+        // Create week copy button cell (eye button lives at the top)
         const weekCopyCell = document.createElement('td');
         weekCopyCell.classList.add('week-copy-cell');
+
+        // --- EYE BUTTON (top of left week-copy-cell) ---
+        const leftEyeTop = document.createElement('div');
+        leftEyeTop.classList.add('week-eye-top');
+        const leftEyeBtn = document.createElement('span');
+        leftEyeBtn.classList.add('week-eye-button');
+        leftEyeBtn.setAttribute('tabindex', '0');
+        leftEyeBtn.setAttribute('role', 'button');
+        leftEyeBtn.setAttribute('data-week-index', weekIndex);
+        leftEyeBtn.setAttribute('aria-label', isHidden ? `Show week ${weekIndex + 1}` : `Hide week ${weekIndex + 1}`);
+        leftEyeBtn.innerHTML = isHidden
+            ? '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>'
+            : '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
+        leftEyeTop.appendChild(leftEyeBtn);
+        weekCopyCell.appendChild(leftEyeTop);
         
         // Create copy button for the week
         const weekStartDate = new Date(state.currentYear, state.currentMonth, date - (weekIndex === 0 ? startingDayOfWeek : 0));
@@ -55,8 +74,6 @@ function renderCalendar() {
         weekCopyButton.setAttribute('data-week-index', weekIndex);
         weekCopyButton.innerHTML = '⧉';
         
-        weekCopyCell.appendChild(weekCopyButton);
-        
         // NEW: Add week move button
         const weekMoveButton = document.createElement('span');
         weekMoveButton.classList.add('week-move-button');
@@ -66,9 +83,7 @@ function renderCalendar() {
         weekMoveButton.setAttribute('draggable', 'true');
         weekMoveButton.setAttribute('data-week-index', weekIndex);
         weekMoveButton.innerHTML = '✥';
-        
-        weekCopyCell.appendChild(weekMoveButton);
-        
+
         // Add week toggle button for collapsing/expanding all events in the week
         const weekToggleButton = document.createElement('span');
         weekToggleButton.classList.add('week-toggle-button');
@@ -85,9 +100,7 @@ function renderCalendar() {
         weekTriangle.className = isWeekCollapsed ? 'triangle-right' : 'triangle-down';
         weekToggleButton.appendChild(weekTriangle);
 
-        weekCopyCell.appendChild(weekToggleButton);
-        
-        // ADD NEW CODE: Week clear button
+        // Week clear button
         const weekClearButton = document.createElement('span');
         weekClearButton.classList.add('week-clear-button');
         weekClearButton.setAttribute('tabindex', '0');
@@ -95,9 +108,16 @@ function renderCalendar() {
         weekClearButton.setAttribute('aria-label', `Clear all events for week starting ${getReadableDateString(weekStartDate)}`);
         weekClearButton.setAttribute('data-week-index', weekIndex);
         weekClearButton.innerHTML = '×';
-        
-        weekCopyCell.appendChild(weekClearButton);
-        
+
+        // Wrap all buttons in a content div so week-hidden can collapse them cleanly
+        const weekCopyContent = document.createElement('div');
+        weekCopyContent.classList.add('week-row-content');
+        weekCopyContent.appendChild(weekCopyButton);
+        weekCopyContent.appendChild(weekMoveButton);
+        weekCopyContent.appendChild(weekToggleButton);
+        weekCopyContent.appendChild(weekClearButton);
+        weekCopyCell.appendChild(weekCopyContent);
+
         row.appendChild(weekCopyCell);
         
         // Create cells for each day of the week
@@ -135,8 +155,6 @@ function renderCalendar() {
         rightWeekCopyButton.setAttribute('data-week-index', weekIndex);
         rightWeekCopyButton.innerHTML = '⧉';
         
-        rightWeekCopyCell.appendChild(rightWeekCopyButton);
-        
         // NEW: Add week move button for right side
         const rightWeekMoveButton = document.createElement('span');
         rightWeekMoveButton.classList.add('week-move-button');
@@ -146,9 +164,7 @@ function renderCalendar() {
         rightWeekMoveButton.setAttribute('draggable', 'true');
         rightWeekMoveButton.setAttribute('data-week-index', weekIndex);
         rightWeekMoveButton.innerHTML = '✥';
-        
-        rightWeekCopyCell.appendChild(rightWeekMoveButton);
-        
+
         // Add week toggle button for right side
         const rightWeekToggleButton = document.createElement('span');
         rightWeekToggleButton.classList.add('week-toggle-button');
@@ -162,9 +178,7 @@ function renderCalendar() {
         rightWeekTriangle.className = isWeekCollapsed ? 'triangle-right' : 'triangle-down';
         rightWeekToggleButton.appendChild(rightWeekTriangle);
 
-        rightWeekCopyCell.appendChild(rightWeekToggleButton);
-        
-        // ADD NEW CODE: Week clear button for right side
+        // Week clear button for right side
         const rightWeekClearButton = document.createElement('span');
         rightWeekClearButton.classList.add('week-clear-button');
         rightWeekClearButton.setAttribute('tabindex', '0');
@@ -172,9 +186,30 @@ function renderCalendar() {
         rightWeekClearButton.setAttribute('aria-label', `Clear all events for week starting ${getReadableDateString(weekStartDate)}`);
         rightWeekClearButton.setAttribute('data-week-index', weekIndex);
         rightWeekClearButton.innerHTML = '×';
-        
-        rightWeekCopyCell.appendChild(rightWeekClearButton);
-        
+
+        // Wrap all buttons in a content div so week-hidden can collapse them cleanly
+        const rightWeekCopyContent = document.createElement('div');
+        rightWeekCopyContent.classList.add('week-row-content');
+        rightWeekCopyContent.appendChild(rightWeekCopyButton);
+        rightWeekCopyContent.appendChild(rightWeekMoveButton);
+        rightWeekCopyContent.appendChild(rightWeekToggleButton);
+        rightWeekCopyContent.appendChild(rightWeekClearButton);
+        // --- EYE BUTTON (top of right week-copy-cell) ---
+        const rightEyeTop = document.createElement('div');
+        rightEyeTop.classList.add('week-eye-top');
+        const rightEyeBtn = document.createElement('span');
+        rightEyeBtn.classList.add('week-eye-button');
+        rightEyeBtn.setAttribute('tabindex', '0');
+        rightEyeBtn.setAttribute('role', 'button');
+        rightEyeBtn.setAttribute('data-week-index', weekIndex);
+        rightEyeBtn.setAttribute('aria-label', isHidden ? `Show week ${weekIndex + 1}` : `Hide week ${weekIndex + 1}`);
+        rightEyeBtn.innerHTML = isHidden
+            ? '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>'
+            : '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
+        rightEyeTop.appendChild(rightEyeBtn);
+        rightWeekCopyCell.appendChild(rightEyeTop);
+        rightWeekCopyCell.appendChild(rightWeekCopyContent);
+
         row.appendChild(rightWeekCopyCell);
 
         fragment.appendChild(row);
@@ -221,14 +256,14 @@ function renderPreviousMonthDay(cell, startingDayOfWeek, dayIndex) {
     const prevMonthLastDay = new Date(state.currentYear, state.currentMonth, 0).getDate();
     const prevDate = prevMonthLastDay - (startingDayOfWeek - dayIndex - 1);
     
-    cell.innerHTML = `<div class="date">${prevDate}</div>`;
+    cell.innerHTML = `<div class="week-row-content"><div class="date">${prevDate}</div></div>`;
 }
 
 function renderNextMonthDay(cell, date, daysInMonth) {
     cell.classList.add('other-month');
     const nextDate = date - daysInMonth;
     
-    cell.innerHTML = `<div class="date">${nextDate}</div>`;
+    cell.innerHTML = `<div class="week-row-content"><div class="date">${nextDate}</div></div>`;
 }
 
 function renderCurrentMonthDay(cell, date) {
@@ -241,14 +276,16 @@ function renderCurrentMonthDay(cell, date) {
     
     // Create the cell content with ARIA attributes for accessibility
     cell.innerHTML = `
-        <div class="${dateClass}" aria-label="${getReadableDateString(dateObj)}">
-            ${date}
-            <span class="cell-copy-button" data-date="${dateStr}" tabindex="0" role="button" aria-label="Copy button for ${getReadableDateString(dateObj)}" draggable="true">⧉</span>
-            <span class="clear-day-button" data-date="${dateStr}" tabindex="0" role="button" aria-label="Clear all events on ${getReadableDateString(dateObj)}">×</span>
-            <span class="drag-day-button" data-date="${dateStr}" tabindex="0" role="button" aria-label="Drag all events on ${getReadableDateString(dateObj)}" draggable="true">✥</span>
-            <span class="add-button" data-date="${dateStr}" tabindex="0" role="button" aria-label="Add event on ${getReadableDateString(dateObj)}">+</span>
+        <div class="week-row-content">
+            <div class="${dateClass}" aria-label="${getReadableDateString(dateObj)}">
+                ${date}
+                <span class="cell-copy-button" data-date="${dateStr}" tabindex="0" role="button" aria-label="Copy button for ${getReadableDateString(dateObj)}" draggable="true">⧉</span>
+                <span class="clear-day-button" data-date="${dateStr}" tabindex="0" role="button" aria-label="Clear all events on ${getReadableDateString(dateObj)}">×</span>
+                <span class="drag-day-button" data-date="${dateStr}" tabindex="0" role="button" aria-label="Drag all events on ${getReadableDateString(dateObj)}" draggable="true">✥</span>
+                <span class="add-button" data-date="${dateStr}" tabindex="0" role="button" aria-label="Add event on ${getReadableDateString(dateObj)}">+</span>
+            </div>
+            <div class="shift-container" id="shifts-${dateStr}" data-date="${dateStr}"></div>
         </div>
-        <div class="shift-container" id="shifts-${dateStr}" data-date="${dateStr}"></div>
     `;
     
     // Set date attribute for identifying the cell
@@ -288,6 +325,9 @@ function goToPrevMonth(preserveDragState = false) {
         state.isHoveringNextMonth = false;
     }
     
+    // Clear week visibility when changing months
+    if (state.hiddenWeeks) state.hiddenWeeks.clear();
+
     // Then proceed with normal month navigation
     state.currentMonth--;
     if (state.currentMonth < 0) {
@@ -342,6 +382,9 @@ function goToNextMonth(preserveDragState = false) {
         state.isHoveringNextMonth = false;
     }
     
+    // Clear week visibility when changing months
+    if (state.hiddenWeeks) state.hiddenWeeks.clear();
+
     // Then proceed with normal month navigation
     state.currentMonth++;
     if (state.currentMonth > 11) {

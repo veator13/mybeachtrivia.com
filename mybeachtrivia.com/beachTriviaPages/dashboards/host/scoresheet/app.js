@@ -215,7 +215,7 @@ function updateThemeFieldVisibility() {
   if (!isThemed && themeInput) themeInput.value = "";
 }
 
-// Populate Venue dropdown from Firestore: /locations (active only)
+// Populate Venue dropdown from Firestore: /publicLocations (active only)
 function setupVenueDropdownFromFirestore() {
   const venueEl = document.getElementById("venueSelect");
   if (!venueEl) return;
@@ -268,7 +268,7 @@ function setupVenueDropdownFromFirestore() {
   // make sure we run population after the browser has painted once.
   const startListening = () => {
     try {
-      const query = db.collection("locations").orderBy("name");
+      const query = db.collection("publicLocations").orderBy("name");
 
       const unsub = query.onSnapshot(
         (snap) => {
@@ -291,7 +291,7 @@ function setupVenueDropdownFromFirestore() {
           console.log("[venues] loaded:", names.length);
         },
         (err) => {
-          console.error("Failed to load venues from /locations:", err);
+          console.error("Failed to load venues from /publicLocations:", err);
 
           // If we haven't successfully loaded yet, retry a few times
           if (!venueEl.__venueLoadedOnce) scheduleRetry();
@@ -440,7 +440,7 @@ async function ensureSignedIn() {
   return auth.currentUser;
 }
 /* =======================================================
-   NEW: Venues dropdown loader (Firestore locations)
+   NEW: Venues dropdown loader (Firestore publicLocations)
 ======================================================= */
 let __venueUnsub = null;
 
@@ -501,7 +501,7 @@ async function startVenuesListener() {
   }
 
   __venueUnsub = window.db
-    .collection("locations")
+    .collection("publicLocations")
     .orderBy("name")
     .onSnapshot(
       (snap) => {
@@ -1388,7 +1388,7 @@ document.addEventListener("DOMContentLoaded", () => {
   bindMetaFieldListeners();
   updateThemeFieldVisibility();
 
-  // ✅ Venues dropdown (Firestore locations)
+  // ✅ Venues dropdown (Firestore publicLocations)
   startVenuesListener().catch((e) => console.error("[venues] init failed:", e));
 
   const table = $("#teamTable");
@@ -1400,7 +1400,6 @@ document.addEventListener("DOMContentLoaded", () => {
   dataModified = false;
 
   $all("td.bonus-col-right input", table).forEach(bindBonusInput);
-});
 
   updateStickyRightWidths();
 
@@ -1815,33 +1814,36 @@ window.clearHighlights = clearHighlights;
   }
 
   function indexTable(table) {
-    const { cols, labels } = buildHeaderGrid(table);
-    const rows = [];
-    for (const tb of table.tBodies) for (const tr of tb.rows) rows.push(tr);
+    const { rows, cols, navCols } = (() => {
+      const { cols, labels } = buildHeaderGrid(table);
+      const rows = [];
+      for (const tb of table.tBodies) for (const tr of tb.rows) rows.push(tr);
 
-    const navCols = Array(cols).fill(false);
-    const labelIsNav = (txt = "") => {
-      const t = txt.toLowerCase();
-      return (
-        /\bq\s*\d+\b/.test(t) ||
-        /team(\s*name)?/.test(t) ||
-        /half[\s-]?time/.test(t) ||
-        /\bfinal\b/.test(t)
-      );
-    };
-    for (let c = 0; c < cols; c++) {
-      if (labelIsNav(labels[c])) {
-        navCols[c] = true;
-        continue;
-      }
-      for (let r = 0; r < rows.length; r++) {
-        const td = getCellAtCol(rows[r], c);
-        if (td && isEditor(td)) {
+      const navCols = Array(cols).fill(false);
+      const labelIsNav = (txt = "") => {
+        const t = txt.toLowerCase();
+        return (
+          /\bq\s*\d+\b/.test(t) ||
+          /team(\s*name)?/.test(t) ||
+          /half[\s-]?time/.test(t) ||
+          /\bfinal\b/.test(t)
+        );
+      };
+      for (let c = 0; c < cols; c++) {
+        if (labelIsNav(labels[c])) {
           navCols[c] = true;
-          break;
+          continue;
+        }
+        for (let r = 0; r < rows.length; r++) {
+          const td = getCellAtCol(rows[r], c);
+          if (td && isEditor(td)) {
+            navCols[c] = true;
+            break;
+          }
         }
       }
-    }
+      return { rows, cols, navCols };
+    })();
     return { rows, cols, navCols };
   }
 
@@ -2324,8 +2326,7 @@ window.clearHighlights = clearHighlights;
     el.setAttribute("pattern", "[0-9]*");
 
     const snap = () => {
-      let s = String(el.value ?? "");
-      s = s.replace(/[^\d]/g, ""); // digits only for Q-cells
+      let s = String(el.value ?? "").replace(/[^\d]/g, "");
       if (s === "") {
         if (el.value !== "0") el.value = "0";
         return;

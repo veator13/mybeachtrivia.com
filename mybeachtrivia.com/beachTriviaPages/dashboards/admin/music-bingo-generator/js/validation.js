@@ -11,12 +11,16 @@ const TextValidator = (() => {
     const approveBtn = document.getElementById('approveBtn');
     const cancelBtn = document.getElementById('cancelValidationBtn');
 
+    // ESC key and backdrop-click handlers (attached only while modal is open)
+    const handleEscKey = (e) => { if (e.key === 'Escape') closeModal(); };
+    const handleBackdropClick = (e) => { if (e.target === modal) closeModal(); };
+
     // Initialize event listeners
     const init = () => {
         if (cancelBtn) {
             cancelBtn.addEventListener('click', closeModal);
         }
-        
+
         if (approveBtn) {
             approveBtn.addEventListener('click', approveEntries);
         }
@@ -101,7 +105,9 @@ const TextValidator = (() => {
         
         // Show the modal
         if (modal) {
-            modal.style.display = 'block';
+            modal.style.display = 'grid';
+            document.addEventListener('keydown', handleEscKey);
+            modal.addEventListener('click', handleBackdropClick);
         }
         
         // Check if all entries are valid or overridden
@@ -231,6 +237,8 @@ const TextValidator = (() => {
     const closeModal = () => {
         if (modal) {
             modal.style.display = 'none';
+            document.removeEventListener('keydown', handleEscKey);
+            modal.removeEventListener('click', handleBackdropClick);
         }
         
         // Clear the pending entries
@@ -245,6 +253,8 @@ const TextValidator = (() => {
     const approveEntries = () => {
         if (modal) {
             modal.style.display = 'none';
+            document.removeEventListener('keydown', handleEscKey);
+            modal.removeEventListener('click', handleBackdropClick);
         }
         
         // Update the pending entries with the edited values from the modal

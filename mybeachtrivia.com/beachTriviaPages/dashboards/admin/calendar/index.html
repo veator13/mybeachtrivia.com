@@ -6,6 +6,9 @@
   <title>Beach Trivia Calendar</title>
 
   <link rel="stylesheet" href="css/styles.css" />
+  <!-- Unified nav bar -->
+  <link rel="stylesheet" href="/beachTriviaPages/js/bt-nav.css">
+  <script src="/beachTriviaPages/js/bt-nav.js" defer></script>
 
   <style>
     /* Toggle Switch Styling */
@@ -75,7 +78,6 @@
     <div class="container">
       <header>
         <h1>Beach Trivia Calendar</h1>
-        <div style="opacity:.8; font-size:.9rem;">Welcome, <span id="user-display-name">Admin</span></div>
       </header>
 
       <div class="controls">
@@ -120,11 +122,29 @@
             </div>
           </div>
 
-          <div class="filter-group copy-month-group">
-            <button id="copy-prev-month-btn" class="small-btn copy-month-btn" aria-label="Copy previous month events">Copy Previous Month</button>
-          </div>
+        </div>
+
+        <div class="admin-actions">
+          <button id="copy-prev-month-btn" class="small-btn copy-month-btn" aria-label="Copy previous month events">Copy Previous Month</button>
+          <button id="admin-open-shift-offers" class="small-btn primary" type="button" aria-label="View shift swap notifications">
+            Shift Offers
+            <span id="admin-shift-offers-badge" class="shift-offers-badge" hidden></span>
+          </button>
         </div>
       </div>
+
+    <!-- Shift Swap Notifications Modal -->
+    <div class="simple-modal" id="admin-shift-offers-modal" aria-hidden="true" role="dialog" aria-labelledby="admin-shift-offers-title">
+      <div class="panel admin-swap-panel" role="document">
+        <header>
+          <h2 id="admin-shift-offers-title">Shift Swap Notifications</h2>
+          <button id="admin-close-shift-offers" class="btn ghost" type="button" aria-label="Close notifications">Close</button>
+        </header>
+        <div id="admin-shift-offers-container">
+          <p class="admin-swap-empty">Loading…</p>
+        </div>
+      </div>
+    </div>
 
       <div class="calendar-container">
         <div id="prev-month-dropzone" class="month-nav-dropzone left" aria-label="Drop to move to previous month">
@@ -172,8 +192,23 @@
             <div class="select-with-button">
               <select id="shift-employee" required aria-describedby="host-hint">
                 <option value="">Select Host</option>
+                <!-- Write-in option appended by main.js after real employees load -->
               </select>
               <button type="button" id="add-new-host-btn" class="add-host-btn" aria-label="Add a new host">+</button>
+            </div>
+            <!-- Write-in name input: shown when __write_in__ is selected -->
+            <div id="write-in-host-field" style="display:none; margin-top:6px;">
+              <input
+                type="text"
+                id="write-in-host-name"
+                placeholder="Enter temporary host name…"
+                autocomplete="off"
+                maxlength="60"
+                aria-label="Temporary host name"
+              />
+              <small class="form-hint" style="color:var(--warning-color, #f0a500);">
+                ⚠ This creates a temporary placeholder — reassign to a real host later.
+              </small>
             </div>
             <small id="host-hint" class="form-hint">Choose who will host this event</small>
           </div>
@@ -219,8 +254,23 @@
             <div class="select-with-button">
               <select id="shift-location" required aria-describedby="location-hint">
                 <option value="">Select Location</option>
+                <!-- Write-in option appended by main.js after real locations load -->
               </select>
               <button type="button" id="add-new-location-btn" class="add-host-btn" aria-label="Add a new location">+</button>
+            </div>
+            <!-- Write-in venue input: shown when __write_in_venue__ is selected -->
+            <div id="write-in-venue-field" style="display:none; margin-top:6px;">
+              <input
+                type="text"
+                id="write-in-venue-name"
+                placeholder="Enter temporary venue name…"
+                autocomplete="off"
+                maxlength="80"
+                aria-label="Temporary venue name"
+              />
+              <small class="form-hint" style="color:var(--warning-color, #f0a500);">
+                ⚠ This creates a temporary placeholder — update to a real venue later.
+              </small>
             </div>
             <small id="location-hint" class="form-hint">Where the event will be held</small>
           </div>
@@ -253,6 +303,8 @@
         </div>
         <div class="button-group">
           <button type="button" class="cancel" id="cancel-booking">Cancel</button>
+          <!-- Hidden by default; modal-handlers.js will show it ONLY for bulk copy/move -->
+          <button type="button" class="proceed" id="skip-conflicts" style="display:none;">Skip Conflicts</button>
           <button type="button" class="proceed" id="proceed-booking">Proceed Anyway</button>
         </div>
       </div>
@@ -363,11 +415,16 @@
           </div>
 
           <div class="spacer"></div>
+
+          <!-- Success notice — injected by modal-handlers.js after employee creation -->
+          <div id="new-host-result" style="display:none;"></div>
         </form>
 
         <div class="button-group">
           <button type="button" class="cancel" id="cancel-new-host">Cancel</button>
           <button type="submit" form="new-host-form" id="save-new-host">Save Host</button>
+          <button type="button" class="btn-update-host" id="update-new-host" style="display:none;">Update</button>
+          <button type="button" class="btn-done-host" id="done-new-host" style="display:none;">Done</button>
         </div>
       </div>
     </div>
@@ -383,6 +440,12 @@
             <label for="new-location-name">Location Name: <span style="color:#e74c3c" aria-hidden="true">*</span></label>
             <input type="text" id="new-location-name" required aria-describedby="new-location-hint" placeholder="Enter location name" />
             <small id="new-location-hint" class="form-hint">Enter the name of the new location</small>
+          </div>
+
+          <div class="form-group">
+            <label for="new-location-address">Address:</label>
+            <input type="text" id="new-location-address" aria-describedby="new-location-address-hint" placeholder="e.g., 123 Main St, Virginia Beach, VA 23451" />
+            <small id="new-location-address-hint" class="form-hint">Used to place a pin on the public locations map</small>
           </div>
 
           <div class="form-group">
@@ -508,12 +571,14 @@
   <script src="js/calendar-ui.js"></script>
   <script src="js/week-operations.js"></script>
   <script src="js/shift-service.js"></script>
-  <script src="js/event-crud.js"></script>
-  <script src="js/modal-handlers.js"></script>
+  <script src="js/event-crud.js?v=3"></script>
+  <script src="js/modal-handlers.js?v=3"></script>
   <script src="js/drag-drop-handler.js"></script>
-  <script src="js/event-listeners.js"></script>
+  <script src="js/combobox.js"></script>
+  <script src="js/event-listeners.js?v=3"></script>
   <script src="js/copy-month.js"></script>
   <script src="js/main.js?v=2"></script>
+  <script src="js/shift-swap-admin.js"></script>
 
   <script src="/beachTriviaPages/js/auth-route-guard.v2.js?v=2025-10-14a"></script>
 </body>

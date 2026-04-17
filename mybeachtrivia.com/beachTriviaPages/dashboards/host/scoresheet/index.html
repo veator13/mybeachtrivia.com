@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=0.8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Scoresheet</title>
 
     <!-- ✅ ONE place to change cache-bust version (keep in sync with sw.js ASSET_V) -->
@@ -12,6 +12,9 @@
 
     <!-- Main stylesheet (versioned) -->
     <link rel="stylesheet" href="style.css?v=20260223-07" />
+  <!-- Unified nav bar -->
+  <link rel="stylesheet" href="/beachTriviaPages/js/bt-nav.css">
+  <script src="/beachTriviaPages/js/bt-nav.js" defer></script>
 
     <!-- Favicon -->
     <link rel="icon" href="/favicon.ico" />
@@ -39,11 +42,12 @@
 
     <!-- IMPORTANT: sticky/bonus utilities must load BEFORE table-build.js -->
     <script src="js/ui-sticky-bonus.js?v=20260218-04" defer></script>
-    <script src="js/table-build.js?v=20260218-04" defer></script>
+    <script src="js/table-build.js?v=20260403-01" defer></script>
+    <script src="js/sort-teams.js?v=20260403-01" defer></script>
 
     <script src="js/scoring.js?v=20260218-04" defer></script>
     <script src="js/search.js?v=20260218-04" defer></script>
-    <script src="js/standings-modal.js?v=20260223-06" defer></script>
+    <script src="js/standings-modal.js?v=20260403-01" defer></script>
 
     <!-- TEAM # modal -->
     <script src="js/team-number-modal.js?v=20260302-01" defer></script>
@@ -236,7 +240,12 @@
 
             <thead>
               <tr class="top_row">
-                <th class="sticky-col" rowspan="2">Team Name</th>
+                <th class="sticky-col" rowspan="2">
+                  Team Name
+                  <button type="button" id="btnSortTeamNames" aria-label="Sort team names A to Z">
+                    <span class="sort-icon">A→Z</span>
+                  </button>
+                </th>
                 <th colspan="5">Round 1</th>
                 <th rowspan="2">R1 Total</th>
                 <th colspan="5">Round 2</th>
@@ -280,6 +289,9 @@
       <div class="modal-content">
         <button type="button" id="btnCloseStandings" class="close" aria-label="Close standings">
           &times;
+        </button>
+        <button type="button" id="btnFullscreenStandings" aria-label="Toggle fullscreen standings" aria-pressed="false">
+          ⛶
         </button>
 
         <h2 id="standingsTitle">Team Standings</h2>

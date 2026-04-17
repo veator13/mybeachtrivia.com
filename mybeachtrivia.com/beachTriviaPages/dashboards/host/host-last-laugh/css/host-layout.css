@@ -1,0 +1,102 @@
+.fa-host-page {
+    width: min(1480px, calc(100% - 32px));
+    margin: 0 auto;
+    padding: 28px 0 42px;
+  }
+  
+  .fa-host-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 18px;
+    align-items: flex-end;
+    margin-bottom: 20px;
+  }
+  
+  .fa-host-header h1 {
+    font-size: clamp(2rem, 4vw, 3rem);
+    line-height: 1;
+    margin-top: 6px;
+  }
+  
+  .fa-host-header p {
+    margin-top: 10px;
+    color: var(--fa-muted);
+  }
+  
+  .fa-header-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  
+  .fa-host-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.75fr) minmax(320px, 380px);
+    gap: 20px;
+    align-items: start;
+  }
+  
+  .fa-panel--main {
+    padding: 20px;
+  }
+  
+  .fa-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  
+  .fa-sidebar .fa-panel,
+  .fa-subpanel {
+    padding: 16px;
+  }
+  
+  .fa-panel-head,
+  .fa-subpanel-head,
+  .fa-prompt-top,
+  .fa-info-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+  }
+  
+  .fa-panel-head,
+  .fa-subpanel-head {
+    margin-bottom: 14px;
+  }
+  
+  .fa-stage-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 16px;
+  }
+  
+  .fa-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .fa-stack--sm {
+    gap: 8px;
+  }
+  
+  .fa-scroll-list {
+    max-height: 420px;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  @media (max-width: 1100px) {
+    .fa-host-grid {
+      grid-template-columns: 1fr;
+    }
+  
+    .fa-stage-grid {
+      grid-template-columns: 1fr;
+    }
+  }

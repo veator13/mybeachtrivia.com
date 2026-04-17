@@ -1,0 +1,89 @@
+.fa-phase-badge,
+.fa-round-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--fa-edge);
+}
+
+.fa-status-wrap {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.fa-prompt-card {
+  padding: 18px;
+  border: 1px solid var(--fa-edge);
+  border-radius: var(--fa-radius-lg);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.fa-prompt-top h3 {
+  margin-top: 8px;
+  font-size: clamp(1.2rem, 2vw, 1.65rem);
+  line-height: 1.25;
+  max-width: 900px;
+}
+
+.fa-phase-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+
+.fa-submission-item,
+.fa-team-item {
+  border: 1px solid var(--fa-edge);
+  background: rgba(255, 255, 255, 0.035);
+  border-radius: 14px;
+  padding: 12px;
+}
+
+.fa-submission-item__top,
+.fa-team-item__top {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.fa-submission-text {
+  color: var(--fa-text);
+}
+
+.fa-team-score {
+  font-weight: 800;
+  color: #9fd0ff;
+}
+
+.fa-flag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.fa-flag--warn {
+  background: rgba(246, 183, 60, 0.16);
+  color: #ffd27c;
+}
+
+.fa-info-row {
+  padding: 10px 12px;
+  border: 1px solid var(--fa-edge);
+  border-radius: 12px;
+}
+
+.fa-info-row span {
+  color: var(--fa-muted);
+}

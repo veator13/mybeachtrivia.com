@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Admin Portal Dashboard</title>
+  <title>Admin Dashboard – Beach Trivia</title>
 
   <link rel="icon" href="/favicon.ico" sizes="any">
   <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png">
@@ -13,148 +13,105 @@
   <link rel="manifest" href="/site.webmanifest">
   <meta name="theme-color" content="#101317">
 
-  <!-- Main styles for the admin dashboard -->
+  <!-- bt-nav FIRST so its isolation rules win over page CSS -->
+  <link rel="stylesheet" href="/beachTriviaPages/js/bt-nav.css">
+
+  <!-- Page styles -->
   <link rel="stylesheet" href="style.css">
 
-  <!-- Firebase SDKs (compat, v9.22 – used by firebase-init.js & admin guards) -->
+  <!-- Firebase SDKs (compat) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js" defer></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js" defer></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js" defer></script>
 
-  <!-- Your project init (calls firebase.initializeApp(...) exactly once) -->
+  <!-- Firebase init -->
   <script src="/firebase-init.js?v=1" defer></script>
 
-  <!-- Shared guard: checks login + active employee -->
-  <script src="../auth-guard.js?v=1" defer></script>
-
-  <!-- Admin-only guard: checks roles.includes('admin') -->
+  <!-- Auth guard (role check + access control) -->
   <script src="guard-admin.js?v=1" defer></script>
 
-  <!-- Main dashboard logic -->
-  <script src="script.js?v=1" defer></script>
+  <!-- Unified nav bar -->
+  <script src="/beachTriviaPages/js/bt-nav.js" defer></script>
+
+  <!-- Dashboard logic -->
+  <script src="admin-dashboard.js?v=1" defer></script>
 </head>
 <body>
-  <!-- Authentication Loading Overlay -->
+
+  <!-- Authentication loading overlay -->
   <div id="auth-loading">
     <div class="spinner"></div>
-    <p>Verifying access...</p>
+    <p>Verifying access…</p>
   </div>
 
-  <!-- Error Message Container -->
-  <div id="error-container" style="display: none;">
+  <!-- Error overlay -->
+  <div id="error-container" style="display:none;">
     <div class="error-message">
       <p id="error-text">An error occurred. Please try again.</p>
-      <button id="back-to-login">Return to Login</button>
+      <button id="back-to-login" type="button">Return to Login</button>
     </div>
   </div>
 
-  <div class="dashboard-container" style="display: none;">
-    <div class="header">
-      <div class="nav-menu">
-        <a href="#home">Home</a>
-        <a href="calendar/index.html">Calendar</a>
-        <a href="employees-management/index.html">Employees</a>
-        <a href="locations-management/index.html">Locations</a>
-        <a href="scoresheet/index.html">Scoresheet</a>
-        <a href="music-bingo-generator/index.html">Music Bingo Generator</a>
-        <a href="#reports">Reports</a>
-        <a href="#settings">Settings</a>
-      </div>
-      <div class="user-profile">
-        <span id="user-display-name">Admin User</span>
-        <button id="logout-btn" class="logout-btn">
-          Logout
-        </button>
-      </div>
-    </div>
+  <!-- Dashboard (revealed after auth) -->
+  <div class="dashboard-container" style="display:none;">
+    <div class="dashboard-shell">
+      <div class="admin-dashboard-stage">
+        <div class="admin-dashboard-grid">
 
-    <div class="stats-container">
-      <div class="stat-card">
-        <h3>Current Pay Period</h3>
-        <p>Mar 14 - Mar 27</p>
-      </div>
-      <div class="stat-card">
-        <h3>Shows Worked</h3>
-        <p>3</p>
-      </div>
-      <div class="stat-card">
-        <h3>Hours Worked</h3>
-        <p>40/40 hrs</p>
-      </div>
-    </div>
+          <!-- ── Left column: Stats ─────────────────────────────── -->
+          <div class="left-column">
+            <div class="dashboard-panel stat-panel">
+              <p class="panel-title">Open Shift Offers</p>
+              <p class="stat-value" id="stat-offers">—</p>
+            </div>
+            <div class="dashboard-panel stat-panel">
+              <p class="panel-title">Pending Swaps</p>
+              <p class="stat-value" id="stat-swaps">—</p>
+            </div>
+            <div class="dashboard-panel stat-panel">
+              <p class="panel-title">Active Hosts</p>
+              <p class="stat-value" id="stat-hosts">—</p>
+            </div>
+            <div class="dashboard-panel stat-panel">
+              <p class="panel-title">Shows This Week</p>
+              <p class="stat-value" id="stat-shows">—</p>
+            </div>
+          </div>
 
-    <div class="upcoming-events">
-      <h2>Upcoming Events</h2>
-      <div class="event-list">
-        <div class="event-card today">
-          <h4>Mon, Apr 14</h4>
-          <p>Classic Trivia</p>
-          <p>7:00pm - 9:00pm</p>
-          <p>Warrior's Tap House</p>
-        </div>
-        <div class="event-card">
-          <h4>Tue, Apr 15</h4>
-          <p>Themed Trivia</p>
-          <p>7:00pm - 9:00pm</p>
-          <p>Scotty Quixx</p>
-        </div>
-        <div class="event-card">
-          <h4>Fri, Apr 18</h4>
-          <p>Classic Bingo</p>
-          <p>7:00pm - 9:00pm</p>
-          <p>Voodoo Brewing</p>
-        </div>
-        <div class="event-card">
-          <h4>Fri, May 9</h4>
-          <p>Music Bingo</p>
-          <p>7:00pm - 9:00pm</p>
-          <p>Tradition Brew</p>
-        </div>
-      </div>
-      <button class="add-task-btn">Add New Task</button>
-    </div>
-  </div>
+          <!-- ── Center column: Brand + Admin tools ────────────── -->
+          <div class="center-column">
+            <div class="dashboard-panel brand-panel">
+              <div class="brand-logo-wrap">
+                <img src="/beachTriviaPages/images/BTlogo.png" alt="Beach Trivia logo" />
+              </div>
+              <div class="admin-action-stack">
+                <a class="admin-action-btn" href="/beachTriviaPages/dashboards/admin/calendar/">📅 Calendar</a>
+                <a class="admin-action-btn" href="/beachTriviaPages/dashboards/admin/employees-management/">👥 Employees</a>
+                <a class="admin-action-btn" href="/beachTriviaPages/dashboards/admin/locations-management/">📍 Locations</a>
+                <a class="admin-action-btn" href="/beachTriviaPages/dashboards/admin/scores-database/">🏆 Scores Database</a>
+                <a class="admin-action-btn" href="/beachTriviaPages/dashboards/admin/music-bingo-generator/">🎵 Music Bingo Generator</a>
+                <a class="admin-action-btn" href="/beachTriviaPages/dashboards/admin/scoresheet/">📊 Scoresheet</a>
+              </div>
+            </div>
+          </div>
 
-  <!-- Inline CSS for overlays/spinner -->
-  <style>
-    #auth-loading {
-      position: fixed; inset: 0;
-      background-color: var(--dark-background);
-      display: flex; flex-direction: column; justify-content: center; align-items: center;
-      z-index: 1000;
-    }
-    #error-container {
-      position: fixed; inset: 0;
-      background-color: var(--dark-background);
-      display: flex; flex-direction: column; justify-content: center; align-items: center;
-      z-index: 1000;
-    }
-    .error-message {
-      background-color: #f8d7da; color: #721c24;
-      padding: 20px; border-radius: 10px; text-align: center;
-      max-width: 400px; width: 90%;
-    }
-    .error-message button {
-      background-color: #dc3545; color: white; border: none;
-      padding: 10px 15px; border-radius: 5px; margin-top: 15px; cursor: pointer;
-    }
-    .error-message button:hover { background-color: #c82333; }
-    .spinner {
-      border: 4px solid rgba(255, 255, 255, 0.1);
-      border-radius: 50%;
-      border-top: 4px solid var(--secondary-blue);
-      width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 20px;
-    }
-    @keyframes spin {
-      0% { transform: rotate(0); }
-      100% { transform: rotate(360deg); }
-    }
-    .user-profile { display: flex; align-items: center; gap: 10px; }
-    .logout-btn {
-      background-color: rgba(255,255,255,0.1); color: white; border: none;
-      padding: 8px 12px; border-radius: 5px; cursor: pointer; transition: background-color .3s ease;
-    }
-    .logout-btn:hover { background-color: rgba(255,255,255,0.2); }
-  </style>
+          <!-- ── Right column: Announcements ───────────────────── -->
+          <div class="right-column">
+            <div class="dashboard-panel announcements-panel">
+              <p class="panel-title">Announcements</p>
+              <div class="announcement-list" id="announcements-list">
+                <p class="announcement-placeholder">- UPDATES -</p>
+                <p class="announcement-bold" id="announcement-headline">NO ANNOUNCEMENTS RIGHT NOW</p>
+                <p class="announcement-sub">Check back soon for schedule and venue updates.</p>
+              </div>
+              <p class="announcement-footer">mybeachtrivia.com</p>
+            </div>
+          </div>
+
+        </div><!-- /admin-dashboard-grid -->
+      </div><!-- /admin-dashboard-stage -->
+    </div><!-- /dashboard-shell -->
+  </div><!-- /dashboard-container -->
+
 </body>
 </html>

@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Scores Database</title>
+
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta name="theme-color" content="#101317">
+  <meta name="color-scheme" content="light dark" />
+
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- Unified nav bar -->
+  <link rel="stylesheet" href="/beachTriviaPages/js/bt-nav.css">
+  <script src="/beachTriviaPages/js/bt-nav.js" defer></script>
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-functions-compat.js" defer></script>
+
+  <!-- App init + page logic -->
+  <script src="/firebase-init.js?v=1" defer></script>
+  <script src="./auth-guard.js" defer></script>
+  <script src="./boot.js" defer></script>
+  <script src="./script.js" defer></script>
+</head>
+
+<body data-page="scores-database">
+  <div id="auth-loading" class="auth-overlay" aria-live="polite">
+    <div class="spinner" role="status" aria-label="Loading"></div>
+    <p>Verifying access...</p>
+  </div>
+
+  <div id="error-container" class="error-overlay" style="display:none;" aria-live="assertive">
+    <div class="error-message">
+      <p id="error-text">An error occurred. Please try again.</p>
+      <button id="back-to-login" type="button">Return to Login</button>
+    </div>
+  </div>
+
+  <div class="page-shell" style="display:none;">
+    <header class="page-header">
+      <div>
+        <h1 class="page-title">Scores Database</h1>
+        <p class="page-subtitle">
+          Search saved scoresheets by venue, date, host, and event type, then open a record in read-only mode.
+        </p>
+      </div>
+    </header>
+
+    <section class="card search-card" aria-labelledby="search-title">
+      <div class="card-head">
+        <h2 id="search-title" class="card-title">Search Scoresheets</h2>
+      </div>
+
+      <div class="card-body">
+        <form id="scores-search-form" class="search-grid" novalidate>
+          <div class="field">
+            <label for="venue-filter" class="label">Venue</label>
+            <input
+              id="venue-filter"
+              name="venue"
+              type="text"
+              class="input"
+              placeholder="COVA Brewing Company"
+              autocomplete="off"
+            />
+          </div>
+
+          <div class="field">
+            <label for="host-filter" class="label">Host</label>
+            <input
+              id="host-filter"
+              name="host"
+              type="text"
+              class="input"
+              placeholder="Joshua Veator"
+              autocomplete="off"
+            />
+          </div>
+
+          <div class="field">
+            <label for="event-type-filter" class="label">Event Type</label>
+            <select id="event-type-filter" name="eventType" class="input">
+              <option value="">All event types</option>
+              <option value="classic_trivia">Classic Trivia</option>
+              <option value="themed_trivia">Themed Trivia</option>
+              <option value="music_bingo">Music Bingo</option>
+              <option value="classic_bingo">Classic Bingo</option>
+              <option value="survey_says">Survey Says</option>
+              <option value="beach_feud">Beach Feud</option>
+            </select>
+          </div>
+
+          <div class="field field-date">
+            <label for="date-start" class="label">Start Date</label>
+            <input id="date-start" name="dateStart" type="date" class="input" />
+          </div>
+
+          <div class="field field-date">
+            <label for="date-end" class="label">End Date</label>
+            <input id="date-end" name="dateEnd" type="date" class="input" />
+          </div>
+
+          <div class="field actions">
+            <button id="run-search-btn" type="submit" class="btn btn-primary">Search</button>
+            <button id="clear-search-btn" type="button" class="btn btn-ghost">Clear</button>
+          </div>
+        </form>
+
+        <div id="search-status" class="muted" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <section class="card results-card" aria-labelledby="results-title">
+      <div class="card-head">
+        <div>
+          <h2 id="results-title" class="card-title">Results</h2>
+          <div id="results-count" class="muted" aria-live="polite"></div>
+        </div>
+      </div>
+
+      <div class="card-body">
+        <div id="results-empty" class="muted" style="display:none;">
+          No matching scoresheets yet.
+        </div>
+
+        <div class="table-wrapper">
+          <table id="results-table" class="table">
+            <thead>
+              <tr>
+                <th scope="col">Date</th>
+                <th scope="col">Venue</th>
+                <th scope="col">Host</th>
+                <th scope="col">Event Type</th>
+                <th scope="col">Teams</th>
+                <th scope="col">Submitted</th>
+                <th scope="col">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="results-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="card viewer-card" aria-labelledby="viewer-title">
+      <div class="card-head viewer-head">
+        <div>
+          <h2 id="viewer-title" class="card-title">Loaded Scoresheet</h2>
+          <div id="loaded-record-status" class="muted" aria-live="polite">
+            No scoresheet loaded.
+          </div>
+        </div>
+
+        <div class="viewer-actions">
+          <button id="cancel-edit-btn" type="button" class="btn btn-danger" style="display:none;">
+            Cancel
+          </button>
+          <button id="edit-scoresheet-btn" type="button" class="btn btn-secondary" style="display:none;">
+            Edit Scoresheet
+          </button>
+          <button id="update-scoresheet-btn" type="button" class="btn btn-primary" style="display:none;">
+            Update Existing Scoresheet
+          </button>
+        </div>
+      </div>
+
+      <div class="card-body">
+        <div class="loaded-meta-grid">
+          <div class="field">
+            <label for="loaded-venue" class="label">Venue</label>
+            <input id="loaded-venue" type="text" class="input" readonly />
+          </div>
+
+          <div class="field">
+            <label for="loaded-event-date" class="label">Event Date</label>
+            <input id="loaded-event-date" type="date" class="input" readonly />
+          </div>
+
+          <div class="field">
+            <label for="loaded-host" class="label">Host</label>
+            <input id="loaded-host" type="text" class="input" readonly />
+          </div>
+
+          <div class="field">
+            <label for="loaded-event-type" class="label">Event Type</label>
+            <input id="loaded-event-type" type="text" class="input" readonly />
+          </div>
+
+          <div class="field field-full">
+            <label for="loaded-doc-id" class="label">Scoresheet ID</label>
+            <input id="loaded-doc-id" type="text" class="input" readonly />
+          </div>
+        </div>
+
+        <div id="scoresheet-readonly-banner" class="notice notice-info" style="display:none;">
+          This scoresheet is loaded in read-only mode. Click <strong>Edit Scoresheet</strong> to unlock changes.
+        </div>
+
+        <div id="scoresheet-edit-banner" class="notice notice-warning" style="display:none;">
+          Editing is enabled. Updating will overwrite the existing saved scoresheet.
+        </div>
+
+        <div class="sd-button-container" id="sd-button-container" style="display:none;">
+          <div class="sd-btn-group-left">
+            <button id="standings-btn" type="button" class="sd-btn-standings">Standings</button>
+            <button id="add-team-btn" type="button" class="sd-btn-add-team" style="display:none;">Add Team</button>
+          </div>
+        </div>
+
+        <div id="scoresheet-mount" class="scoresheet-mount" aria-live="polite">
+          <!-- Admin scoresheet UI will be rendered/populated here by script.js -->
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Standings Modal -->
+  <div id="standingsModal" class="sd-modal" style="display:none;">
+    <div class="sd-modal-content">
+      <span class="sd-modal-close" id="standings-modal-close">&times;</span>
+      <h2>Team Standings</h2>
+      <button type="button" id="btnInvertStandings" aria-pressed="false">
+        <span class="sr-only">Invert standings order</span>
+      </button>
+      <ul id="sdModalRankingList"></ul>
+    </div>
+  </div>
+
+  <style>
+    :root {
+      --bg: #101317;
+      --panel: rgba(255,255,255,0.05);
+      --panel-border: rgba(255,255,255,0.08);
+      --text: #f4f7fb;
+      --muted: rgba(244,247,251,0.72);
+      --danger-bg: #f8d7da;
+      --danger-text: #721c24;
+      --primary: #3699ff;
+      --secondary: rgba(255,255,255,0.1);
+      --warn-bg: rgba(255, 193, 7, 0.16);
+      --warn-border: rgba(255, 193, 7, 0.35);
+      --info-bg: rgba(54, 153, 255, 0.14);
+      --info-border: rgba(54, 153, 255, 0.35);
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+    }
+
+    .page-shell {
+      padding: 24px;
+      max-width: 1440px;
+      margin: 0 auto;
+    }
+
+    .page-header {
+      margin-bottom: 24px;
+    }
+
+    .page-title {
+      margin: 0 0 6px 0;
+      font-size: 2rem;
+      line-height: 1.1;
+    }
+
+    .page-subtitle {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 16px;
+      margin-bottom: 20px;
+      overflow: hidden;
+      backdrop-filter: blur(6px);
+    }
+
+    .card-head {
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--panel-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .card-title {
+      margin: 0;
+      font-size: 1.05rem;
+    }
+
+    .card-body {
+      padding: 18px;
+    }
+
+    .search-grid,
+    .loaded-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .field {
+      grid-column: span 3;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .field-date {
+      grid-column: span 2;
+    }
+
+    .field-full {
+      grid-column: 1 / -1;
+    }
+
+    .label {
+      font-size: 0.92rem;
+      color: var(--muted);
+    }
+
+    .input {
+      width: 100%;
+      box-sizing: border-box;
+      min-height: 42px;
+      border-radius: 10px;
+      border: 1px solid var(--panel-border);
+      background: rgba(255,255,255,0.06);
+      color: var(--text);
+      padding: 10px 12px;
+      font: inherit;
+    }
+
+    .input[readonly] {
+      opacity: 0.9;
+      cursor: default;
+    }
+
+    .actions {
+      grid-column: span 2;
+      display: flex;
+      align-items: end;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      min-height: 42px;
+      border-radius: 10px;
+      border: 1px solid transparent;
+      padding: 10px 14px;
+      font: inherit;
+      cursor: pointer;
+      color: white;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+    }
+
+    .btn-secondary {
+      background: rgba(255,255,255,0.15);
+      border-color: rgba(255,255,255,0.18);
+    }
+
+    .btn-danger {
+      background: #c0392b;
+      border-color: #e74c3c;
+    }
+
+    .btn-danger:hover {
+      background: #e74c3c;
+    }
+
+    .btn-ghost {
+      background: transparent;
+      border-color: rgba(255,255,255,0.18);
+    }
+
+    .muted {
+      color: var(--muted);
+      margin-top: 10px;
+    }
+
+    .table-wrapper {
+      width: 100%;
+      overflow: auto;
+      border-radius: 12px;
+      border: 1px solid var(--panel-border);
+    }
+
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 900px;
+    }
+
+    .table th,
+    .table td {
+      text-align: left;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--panel-border);
+      vertical-align: top;
+    }
+
+    .table thead th {
+      background: rgba(255,255,255,0.04);
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    .viewer-head {
+      align-items: flex-start;
+    }
+
+    .viewer-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .notice {
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin: 14px 0 18px;
+      border: 1px solid transparent;
+    }
+
+    .notice-info {
+      background: var(--info-bg);
+      border-color: var(--info-border);
+    }
+
+    .notice-warning {
+      background: var(--warn-bg);
+      border-color: var(--warn-border);
+    }
+
+    .scoresheet-placeholder {
+      border: 1px dashed rgba(255,255,255,0.18);
+      border-radius: 12px;
+      padding: 18px;
+      color: var(--muted);
+      margin-bottom: 16px;
+    }
+
+    .scoresheet-mount {
+      min-height: 220px;
+      border-radius: 12px;
+      border: 1px solid var(--panel-border);
+      background: rgba(255,255,255,0.03);
+      padding: 14px;
+    }
+
+    .auth-overlay,
+    .error-overlay {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.82);
+      color: white;
+      z-index: 2000;
+      text-align: center;
+      padding: 20px;
+    }
+
+    .error-message {
+      background: var(--danger-bg);
+      color: var(--danger-text);
+      padding: 20px;
+      border-radius: 12px;
+      max-width: 420px;
+      width: 100%;
+    }
+
+    .error-message button {
+      margin-top: 14px;
+      background: #dc3545;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 14px;
+      cursor: pointer;
+    }
+
+    .spinner {
+      border: 4px solid rgba(255,255,255,0.2);
+      border-radius: 50%;
+      border-top: 4px solid var(--primary);
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin-bottom: 16px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    @media (max-width: 1100px) {
+      .field,
+      .field-date,
+      .actions {
+        grid-column: span 6;
+      }
+    }
+
+    @media (max-width: 700px) {
+      .page-shell {
+        padding: 16px;
+      }
+
+      .field,
+      .field-date,
+      .actions {
+        grid-column: 1 / -1;
+      }
+
+      .viewer-head {
+        flex-direction: column;
+      }
+
+      .viewer-actions {
+        width: 100%;
+      }
+
+      .viewer-actions .btn {
+        width: 100%;
+      }
+    }
+  </style>
+</body>
+</html>

@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Last Laugh</title>
+  <link rel="stylesheet" href="./css/player.css" />
+  <script type="module" src="./js/player-app.js"></script>
+</head>
+<body>
+  <main class="fa-player">
+
+    <!-- ── Error screen ────────────────────────────────────────── -->
+    <section id="screen-error" class="fa-screen">
+      <div class="fa-player-card">
+        <div class="fa-player-kicker">Beach Trivia</div>
+        <h1>Last Laugh</h1>
+        <p id="join-error" class="fa-error-msg">Something went wrong.</p>
+      </div>
+    </section>
+
+    <!-- ── Join screen ─────────────────────────────────────────── -->
+    <section id="screen-join" class="fa-screen fa-hidden">
+      <div class="fa-player-card">
+        <div class="fa-player-kicker">Beach Trivia</div>
+        <h1>Last Laugh</h1>
+        <p class="fa-muted">Enter your team name to join.</p>
+
+        <div class="fa-player-answer-box" style="margin-top:20px;">
+          <label class="fa-label" for="join-team-input">Team Name</label>
+          <input
+            id="join-team-input"
+            type="text"
+            maxlength="40"
+            placeholder="e.g. Tequila Mockingbird"
+            class="fa-text-input"
+            autocomplete="off"
+          />
+          <p id="join-error" class="fa-error-msg"></p>
+        </div>
+
+        <div class="fa-player-actions" style="margin-top:16px;">
+          <button id="join-btn" class="fa-player-btn" type="button" style="width:100%;">
+            Join Game
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Lobby screen ────────────────────────────────────────── -->
+    <section id="screen-lobby" class="fa-screen fa-hidden">
+      <div class="fa-player-card">
+        <div class="fa-player-top">
+          <div>
+            <div class="fa-player-kicker">Beach Trivia</div>
+            <h1>Last Laugh</h1>
+          </div>
+        </div>
+        <div class="fa-lobby-status">
+          <div class="fa-lobby-dot"></div>
+          <p>Waiting for the host to start the round…</p>
+        </div>
+        <p class="fa-muted fa-team-name-display">
+          Team: <strong id="team-name-display"></strong>
+        </p>
+        <div class="fa-player-actions" style="margin-top:24px;">
+          <button id="change-team-btn" class="fa-player-btn fa-player-btn--ghost" type="button">
+            Change Team Name / Number
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Submission screen ───────────────────────────────────── -->
+    <section id="screen-submission" class="fa-screen fa-hidden">
+      <div class="fa-player-card">
+        <div class="fa-player-top">
+          <div>
+            <div class="fa-player-kicker">Round in Progress</div>
+            <h1>Last Laugh</h1>
+          </div>
+          <div class="fa-player-ring">
+            <svg viewBox="0 0 120 120" class="fa-player-ring-svg">
+              <circle class="fa-player-ring-track" cx="60" cy="60" r="52"></circle>
+              <circle id="sub-ring-progress" class="fa-player-ring-progress" cx="60" cy="60" r="52"></circle>
+            </svg>
+            <div id="sub-timer" class="fa-player-ring-number">—</div>
+          </div>
+        </div>
+
+        <div class="fa-player-prompt-wrap">
+          <div class="fa-player-eyebrow">Prompt</div>
+          <h2 id="sub-prompt"></h2>
+        </div>
+
+        <div class="fa-player-answer-box">
+          <label class="fa-label" for="answer-input">Your Answer</label>
+          <textarea id="answer-input" maxlength="120" placeholder="Type your funny answer…"></textarea>
+          <div class="fa-answer-footer">
+            <span id="answer-count">0 / 120</span>
+            <button id="submit-answer-btn" class="fa-player-btn" type="button">Submit Answer</button>
+          </div>
+        </div>
+
+        <div class="fa-player-actions" style="margin-top:12px;">
+          <button id="change-team-btn" class="fa-player-btn fa-player-btn--ghost" type="button">
+            Change Team Name / Number
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Pre-vote screen ─────────────────────────────────────── -->
+    <section id="screen-prevote" class="fa-screen fa-hidden">
+      <div class="fa-player-card fa-prevote-card">
+        <div class="fa-player-kicker">Get Ready to Vote!</div>
+        <h2>Voting Rules</h2>
+
+        <ul class="fa-rules-list">
+          <li>You will see all submitted answers.</li>
+          <li>Pick your <strong>top 3</strong> in order (#1, #2, #3).</li>
+          <li>You <strong>cannot vote for your own</strong> answer.</li>
+          <li><strong>-5 points</strong> if you don't submit all 3 votes before time runs out.</li>
+          <li>Your votes are <strong>editable</strong> until the timer ends.</li>
+        </ul>
+
+        <div class="fa-prevote-countdown">
+          <span id="prevote-count">5</span>
+        </div>
+        <p class="fa-muted">Voting opens shortly…</p>
+      </div>
+    </section>
+
+    <!-- ── Voting screen ───────────────────────────────────────── -->
+    <section id="screen-voting" class="fa-screen fa-hidden">
+      <div class="fa-player-card">
+        <div class="fa-player-top">
+          <div>
+            <div class="fa-player-kicker">Vote Now!</div>
+            <h1>Last Laugh</h1>
+          </div>
+          <div class="fa-player-ring">
+            <svg viewBox="0 0 120 120" class="fa-player-ring-svg">
+              <circle class="fa-player-ring-track" cx="60" cy="60" r="52"></circle>
+              <circle id="vote-ring-progress" class="fa-player-ring-progress" cx="60" cy="60" r="52"></circle>
+            </svg>
+            <div id="vote-timer" class="fa-player-ring-number">—</div>
+          </div>
+        </div>
+
+        <div class="fa-player-prompt-wrap">
+          <div class="fa-player-eyebrow">Prompt</div>
+          <h2 id="vote-prompt"></h2>
+        </div>
+
+        <div id="vote-warning" class="fa-player-warning">
+          Select all 3 votes or lose 5 points!
+        </div>
+
+        <section class="fa-vote-list-wrap">
+          <div class="fa-player-eyebrow" style="margin-bottom:8px;">
+            Tap to rank (1st → 2nd → 3rd)
+          </div>
+          <div id="vote-list" class="fa-vote-list"></div>
+        </section>
+
+        <div class="fa-player-actions" style="margin-top:16px;">
+          <button id="submit-votes-btn" class="fa-player-btn" type="button" style="width:100%;">
+            Select 3 more…
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Results screen ──────────────────────────────────────── -->
+    <section id="screen-results" class="fa-screen fa-hidden">
+      <div class="fa-player-card">
+        <div class="fa-player-kicker">Results</div>
+        <div class="fa-player-prompt-wrap">
+          <div class="fa-player-eyebrow">Prompt</div>
+          <h2 id="results-prompt"></h2>
+        </div>
+        <div id="results-list" class="fa-results-list"></div>
+        <p class="fa-muted" style="margin-top:16px;">Check the main display for the leaderboard!</p>
+      </div>
+    </section>
+
+    <!-- ── Ended screen ────────────────────────────────────────── -->
+    <section id="screen-ended" class="fa-screen fa-hidden">
+      <div class="fa-player-card" style="text-align:center;">
+        <div class="fa-player-kicker">Thanks for playing!</div>
+        <h1>Game Over</h1>
+        <p>The host has ended the event. Great game!</p>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Change team modal -->
+  <dialog id="see-host-modal" class="fa-player-modal">
+    <form method="dialog" class="fa-player-modal-card">
+      <h3>Need to change your team info?</h3>
+      <p>Please see the host to update your team name or team number.</p>
+      <button class="fa-player-btn" value="close">Got it</button>
+    </form>
+  </dialog>
+</body>
+</html>

@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Writer Dashboard</title>
+  <meta name="theme-color" content="#0a1122" />
+
+  <!-- Unified nav bar -->
+  <link rel="stylesheet" href="/beachTriviaPages/js/bt-nav.css" />
+  <script src="/beachTriviaPages/js/bt-nav.js" defer></script>
+
+  <!-- Writer styles -->
+  <link rel="stylesheet" href="style.css?v=writer-20260407-thumbnail" />
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js" defer></script>
+  <script src="/firebase-init.js?v=1" defer></script>
+</head>
+<body>
+
+  <!-- Auth loading overlay -->
+  <div id="auth-loading">
+    <div class="spinner"></div>
+    <p>Verifying access...</p>
+  </div>
+
+  <!-- Error overlay -->
+  <div id="error-container">
+    <div class="error-message">
+      <p id="error-text">An error occurred. Please try again.</p>
+      <button id="back-to-login" type="button">Return to Login</button>
+    </div>
+  </div>
+
+  <!-- Topbar -->
+  <section class="writer-topbar" id="writer-topbar">
+    <div class="topbar-card">
+      <div class="topbar-main">
+        <div class="topbar-title-wrap">
+          <div class="topbar-heading-row">
+            <span class="eyebrow">Writer &bull; Show Builder</span>
+            <h1 class="topbar-title">Slideshow Generator</h1>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <div id="unsaved-banner" class="unsaved-banner unsaved-banner--inline hidden" role="status" aria-live="polite">
+            <span class="unsaved-icon" aria-hidden="true">⚠</span>
+            <span id="unsaved-banner-text">Unsaved</span>
+          </div>
+          <span class="autosave-pill" aria-label="Draft autosave enabled">
+            <span class="autosave-dot" aria-hidden="true"></span>
+            Draft autosave ready
+          </span>
+          <button class="btn btn-outline" type="button" id="btn-open-show">Open Show</button>
+          <button class="btn btn-secondary" type="button" id="btn-save-draft">Save Draft</button>
+          <button class="btn btn-primary" type="button" id="btn-preview-publish">Validate Draft</button>
+          <button class="btn btn-success" type="button" id="btn-publish">Publish Show</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Open Show modal -->
+  <div id="open-show-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-label="Open Show">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 class="modal-title">Open Show</h2>
+        <button class="modal-close" id="btn-close-open-modal" type="button" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-tabs">
+        <button class="modal-tab active" data-modal-tab="drafts" type="button">Drafts</button>
+        <button class="modal-tab" data-modal-tab="published" type="button">Published Shows</button>
+      </div>
+      <div id="modal-tab-drafts" class="modal-tab-pane active">
+        <div id="open-show-drafts-list" class="show-picker-list">
+          <p class="picker-empty">Loading&hellip;</p>
+        </div>
+      </div>
+      <div id="modal-tab-published" class="modal-tab-pane">
+        <div id="open-show-published-list" class="show-picker-list">
+          <p class="picker-empty">Loading&hellip;</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main 2-zone layout -->
+  <main class="writer-shell" id="writer-shell" aria-label="Writer dashboard">
+
+    <!-- ── LEFT: Tabbed control panel ───────────────────────────── -->
+    <section class="writer-left-panel panel" aria-label="Control panel">
+
+      <nav class="tab-nav" role="tablist" aria-label="Control panel tabs">
+        <button
+          class="tab-btn active"
+          data-tab="show-details"
+          role="tab"
+          aria-selected="true"
+          aria-controls="tab-show-details"
+        >Show Details</button>
+        <button
+          class="tab-btn"
+          data-tab="question-details"
+          role="tab"
+          aria-selected="false"
+          aria-controls="tab-question-details"
+        >Question Details</button>
+        <button
+          class="tab-btn"
+          data-tab="templates"
+          role="tab"
+          aria-selected="false"
+          aria-controls="tab-templates"
+        >Templates</button>
+        <button
+          type="button"
+          class="tab-btn hidden"
+          id="tab-btn-template-builder"
+          data-tab="template-builder"
+          role="tab"
+          aria-selected="false"
+          aria-controls="tab-template-builder"
+          aria-hidden="true"
+          hidden
+        >Questions</button>
+      </nav>
+
+      <div class="tab-body panel-body">
+
+        <!-- ── Tab: Show Details ──────────────────────────────── -->
+        <div id="tab-show-details" class="tab-pane active" role="tabpanel">
+
+          <div class="section-block">
+            <div class="section-label">
+              <h3>Show Info</h3>
+              <span class="subtle-chip">Required before publish</span>
+            </div>
+            <div class="form-grid">
+              <div class="field">
+                <label for="show-author">Author</label>
+                <input
+                  id="show-author"
+                  type="text"
+                  placeholder="Loading..."
+                  readonly
+                />
+              </div>
+              <div class="field">
+                <label for="show-title">Show Title</label>
+                <input
+                  id="show-title"
+                  type="text"
+                  placeholder="Example: Thursday Night Trivia &bull; Keagan's"
+                  value="New Trivia Show Draft"
+                />
+              </div>
+              <div class="form-grid two">
+                <div class="field">
+                  <label>Show Date(s)</label>
+                  <div class="date-picker-wrap" id="date-picker-wrap">
+                    <button type="button" class="date-picker-trigger" id="date-picker-trigger"
+                      aria-haspopup="true" aria-expanded="false">
+                      <span id="date-picker-display" class="dp-placeholder">Select date(s)</span>
+                      <span class="dp-chevron" aria-hidden="true">&#8964;</span>
+                    </button>
+                    <div class="date-picker-dropdown hidden" id="date-picker-dropdown">
+                      <div class="dp-header">
+                        <button type="button" class="dp-nav-btn" id="dp-nav-prev" aria-label="Previous month">&#8249;</button>
+                        <span class="dp-month-label" id="dp-month-label"></span>
+                        <button type="button" class="dp-nav-btn" id="dp-nav-next" aria-label="Next month">&#8250;</button>
+                      </div>
+                      <div class="dp-weekdays">
+                        <span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span>
+                      </div>
+                      <div class="dp-grid" id="dp-grid"></div>
+                      <div class="dp-footer">
+                        <button type="button" class="btn btn-sm btn-outline" id="dp-clear">Clear</button>
+                        <button type="button" class="btn btn-sm btn-primary" id="dp-done">Done</button>
+                      </div>
+                    </div>
+                  </div>
+                  <!-- Hidden input keeps the existing question-form.js getValue/setValue contract -->
+                  <input type="hidden" id="show-date" />
+                </div>
+                <div class="field">
+                  <label for="show-status">Draft Status</label>
+                  <select id="show-status">
+                    <option value="draft" selected>Draft</option>
+                    <option value="ready">Ready for Publish</option>
+                    <option value="published">Published</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /tab-show-details -->
+
+        <!-- ── Tab: Question Details ──────────────────────────── -->
+        <div id="tab-question-details" class="tab-pane" role="tabpanel">
+
+          <!-- Action bar ──────────────────────────────────────── -->
+          <div class="question-actions-bar">
+            <div class="question-actions-group">
+              <button class="btn btn-success btn-sm" type="button" id="btn-add-to-show">Add to Show</button>
+              <button class="btn btn-secondary btn-sm" type="button" id="btn-duplicate-block">Duplicate</button>
+              <button class="btn btn-outline btn-sm" type="button" id="btn-save-block">Save Block</button>
+            </div>
+            <button class="btn btn-danger btn-sm" type="button" id="btn-clear-form">Clear Form</button>
+          </div>
+
+          <div class="section-block">
+            <div class="section-label">
+              <h3>Question Type</h3>
+            </div>
+            <div class="field">
+              <label for="question-type">Question Type</label>
+              <select id="question-type">
+                <option value="short-response" selected>Short Response</option>
+                <option value="multiple-choice">Multiple Choice</option>
+                <option value="matching">Matching</option>
+                <option value="ordering">Ordering</option>
+                <option value="image-question">Image Question</option>
+                <option value="audio-question">Audio / Media Prompt</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="section-block">
+            <div class="section-label">
+              <h3>Question Content</h3>
+              <span class="subtle-chip">Live preview ready</span>
+            </div>
+            <div class="form-grid two">
+              <div class="field">
+                <label for="round-name">Round / Section Name</label>
+                <input id="round-name" type="text" placeholder="Round 1" value="Round 1" />
+              </div>
+              <div class="field">
+                <label for="category-name">Category</label>
+                <input id="category-name" type="text" placeholder="Category name" value="Classic Artists" />
+              </div>
+            </div>
+
+            <div class="field" style="margin-top: 12px;">
+              <label for="question-text">Question</label>
+              <div class="toolbar" role="toolbar" aria-label="Question formatting toolbar">
+                <div class="toolbar-group">
+                  <button class="btn btn-secondary btn-icon" type="button" title="Bold" data-format="bold"><strong>B</strong></button>
+                  <button class="btn btn-secondary btn-icon" type="button" title="Underline" data-format="underline"><u>U</u></button>
+                  <button class="btn btn-secondary btn-icon" type="button" title="Italic" data-format="italic"><em>I</em></button>
+                </div>
+                <span class="toolbar-divider" aria-hidden="true"></span>
+                <div class="toolbar-group">
+                  <button class="btn btn-secondary" type="button" title="Decrease font size" data-format="font-decrease">A-</button>
+                  <button class="btn btn-secondary" type="button" title="Increase font size" data-format="font-increase">A+</button>
+                </div>
+                <span class="toolbar-divider" aria-hidden="true"></span>
+                <div class="toolbar-group">
+                  <button class="btn btn-secondary btn-icon" type="button" title="Align left" data-format="align-left"><svg width="14" height="12" viewBox="0 0 14 12" fill="currentColor" aria-hidden="true" style="pointer-events:none"><rect x="0" y="0" width="14" height="2" rx="1"/><rect x="0" y="5" width="9" height="2" rx="1"/><rect x="0" y="10" width="11" height="2" rx="1"/></svg></button>
+                  <button class="btn btn-secondary btn-icon" type="button" title="Align center" data-format="align-center"><svg width="14" height="12" viewBox="0 0 14 12" fill="currentColor" aria-hidden="true" style="pointer-events:none"><rect x="0" y="0" width="14" height="2" rx="1"/><rect x="2.5" y="5" width="9" height="2" rx="1"/><rect x="1.5" y="10" width="11" height="2" rx="1"/></svg></button>
+                  <button class="btn btn-secondary btn-icon" type="button" title="Align right" data-format="align-right"><svg width="14" height="12" viewBox="0 0 14 12" fill="currentColor" aria-hidden="true" style="pointer-events:none"><rect x="0" y="0" width="14" height="2" rx="1"/><rect x="5" y="5" width="9" height="2" rx="1"/><rect x="3" y="10" width="11" height="2" rx="1"/></svg></button>
+                </div>
+              </div>
+              <div
+                id="question-text"
+                class="rich-text-field"
+                contenteditable="true"
+                role="textbox"
+                aria-multiline="true"
+                aria-label="Question text"
+                data-placeholder="Enter the main question text here..."
+                style="display:block;min-height:96px;border:1px solid rgba(148,163,184,0.24);background:#0b152a;color:#f8fafc;border-radius:12px;padding:11px 12px;font:inherit;line-height:1.5;box-sizing:border-box;white-space:pre-wrap;overflow-wrap:break-word;cursor:text;"
+              ></div>
+            </div>
+
+            <!-- Dynamic answer section — shown content depends on question type -->
+            <div id="answer-section" style="margin-top: 12px;">
+
+              <!-- Multiple Choice: options with correct answer marking -->
+              <div id="answer-type-mc" class="answer-type-panel" style="display:none;">
+                <div class="answer-type-header">
+                  <label>Answer Options</label>
+                  <div class="answer-type-controls">
+                    <select id="option-count">
+                      <option value="2">2</option>
+                      <option value="3">3</option>
+                      <option value="4" selected>4</option>
+                      <option value="5">5</option>
+                      <option value="6">6</option>
+                    </select>
+                    <button class="btn btn-secondary" type="button" id="add-option-btn">+ Add</button>
+                  </div>
+                </div>
+                <div class="option-list" id="option-list"></div>
+                <p class="answer-type-hint">Click ✓ to mark the correct answer.</p>
+              </div>
+
+              <!-- Short answer: short-response, image-question, audio-question -->
+              <div id="answer-type-short" class="answer-type-panel" style="display:none;">
+                <label for="answer-text">Answer</label>
+                <textarea id="answer-text" placeholder="Enter the correct answer..."></textarea>
+              </div>
+
+              <!-- Matching pairs -->
+              <div id="answer-type-matching" class="answer-type-panel" style="display:none;">
+                <div class="answer-type-header">
+                  <label>Matching Pairs <span class="answer-type-hint-inline">left → right</span></label>
+                  <button class="btn btn-secondary" type="button" id="add-pair-btn">+ Add Pair</button>
+                </div>
+                <div id="matching-pairs-list"></div>
+              </div>
+
+              <!-- Ordering: correct sequence top to bottom -->
+              <div id="answer-type-ordering" class="answer-type-panel" style="display:none;">
+                <div class="answer-type-header">
+                  <label>Correct Order <span class="answer-type-hint-inline">top → bottom</span></label>
+                  <button class="btn btn-secondary" type="button" id="add-ordering-item-btn">+ Add Item</button>
+                </div>
+                <div id="ordering-items-list"></div>
+              </div>
+
+              <!-- Image URL: shown for image-question -->
+              <div id="answer-type-image-url" class="answer-type-panel" style="display:none;">
+                <div class="media-dropzone" role="button" tabindex="0" aria-label="Upload image" data-accept="image/*">
+                  <span class="media-dropzone-icon">🖼</span>
+                  <strong>Drop image here or click to upload</strong>
+                  <span class="media-dropzone-sub">JPG, PNG, GIF, WEBP</span>
+                  <input type="file" class="media-file-input" accept="image/*" style="display:none;">
+                </div>
+                <div class="media-upload-status" style="display:none;"></div>
+                <div class="media-url-alt">
+                  <span class="media-url-alt-label">or paste a URL</span>
+                  <input type="url" id="question-image-url" placeholder="https://example.com/image.jpg">
+                </div>
+              </div>
+
+              <!-- Audio / Media URL: shown for audio-question -->
+              <div id="answer-type-audio-url" class="answer-type-panel" style="display:none;">
+                <div class="media-dropzone" role="button" tabindex="0" aria-label="Upload audio" data-accept="audio/*">
+                  <span class="media-dropzone-icon">🔊</span>
+                  <strong>Drop audio here or click to upload</strong>
+                  <span class="media-dropzone-sub">MP3, WAV, OGG</span>
+                  <input type="file" class="media-file-input" accept="audio/*" style="display:none;">
+                </div>
+                <div class="media-upload-status" style="display:none;"></div>
+                <div class="media-url-alt">
+                  <span class="media-url-alt-label">or paste a URL</span>
+                  <input type="url" id="question-audio-url" placeholder="https://example.com/audio.mp3">
+                </div>
+              </div>
+
+            </div>
+
+            <div class="field" style="margin-top: 12px;">
+              <label for="question-notes">Host Notes</label>
+              <textarea id="question-notes" placeholder="Private host notes, pacing reminders, pronunciation, etc.">Pronounce correctly before reveal. Mention neo-expressionist if needed.</textarea>
+            </div>
+          </div>
+
+          <div class="section-block">
+            <div class="section-label">
+              <h3>Layout &amp; Media</h3>
+              <span class="subtle-chip">Styling</span>
+            </div>
+            <div class="form-grid two">
+              <div class="field">
+                <label for="theme-style">Question Styling</label>
+                <select id="theme-style">
+                  <option selected>Standard Trivia</option>
+                  <option>Visual / Art Reveal</option>
+                  <option>Picture Round</option>
+                  <option>Fast Answer</option>
+                  <option>Final Question</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="font-size-mode">Font Size Mode</label>
+                <select id="font-size-mode">
+                  <option selected>Auto Fit</option>
+                  <option>Large</option>
+                  <option>Medium</option>
+                  <option>Compact</option>
+                </select>
+              </div>
+            </div>
+            <div class="field" style="margin-top: 12px;">
+              <label>Image Upload</label>
+              <div class="dropzone" role="button" tabindex="0" aria-label="Upload image area">
+                <strong>Drop image here or click to upload</strong>
+                JPG, PNG, and WEBP — wires to Firebase Storage in Phase 2.
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /tab-question-details -->
+
+        <!-- ── Tab: Templates ─────────────────────────────────── -->
+        <div id="tab-templates" class="tab-pane" role="tabpanel">
+
+          <div class="section-block">
+            <div class="section-label">
+              <h3>Preset Templates</h3>
+              <span class="subtle-chip">Starter set</span>
+            </div>
+            <div class="template-list">
+
+              <article class="template-card">
+                <div class="template-head">
+                  <div>
+                    <div class="template-title">Classic Trivia Template</div>
+                    <div class="template-meta">Title &rarr; Rules &rarr; Round 1/2 starts, categories, answers</div>
+                  </div>
+                  <span class="subtle-chip">Classic</span>
+                </div>
+                <div class="template-body">
+                  Builds your requested classic trivia flow with editable placeholders that align to your current writer styling.
+                </div>
+                <div class="template-actions">
+                  <button class="btn btn-secondary" type="button" data-template="classic-trivia">
+                    Use Template
+                  </button>
+                </div>
+              </article>
+
+              <article class="template-card">
+                <div class="template-head">
+                  <div>
+                    <div class="template-title">Single Question Block</div>
+                    <div class="template-meta">Add one question independently</div>
+                  </div>
+                  <span class="subtle-chip">Flexible</span>
+                </div>
+                <div class="template-body">
+                  Create a single question with category, answer, notes, and optional media.
+                </div>
+                <div class="template-actions">
+                  <button class="btn btn-secondary" type="button" data-template="single-question">
+                    Use Template
+                  </button>
+                </div>
+              </article>
+
+              <article class="template-card">
+                <div class="template-head">
+                  <div>
+                    <div class="template-title">Standard 5-Question Round</div>
+                    <div class="template-meta">Categories &rarr; 5 questions &rarr; turn-in &rarr; reveal &rarr; summary</div>
+                  </div>
+                  <span class="subtle-chip">Primary</span>
+                </div>
+                <div class="template-body">
+                  Scaffolds the full round structure including the repeated answer-reveal pass.
+                </div>
+                <div class="template-actions">
+                  <button class="btn btn-secondary" type="button" data-template="standard-round">
+                    Use Template
+                  </button>
+                </div>
+              </article>
+
+              <article class="template-card">
+                <div class="template-head">
+                  <div>
+                    <div class="template-title">Halftime / Multi-Point Block</div>
+                    <div class="template-meta">Special section styling</div>
+                  </div>
+                  <span class="subtle-chip">Special</span>
+                </div>
+                <div class="template-body">
+                  Insert halftime sections, picture-based prompts, or multi-point special questions.
+                </div>
+                <div class="template-actions">
+                  <button class="btn btn-secondary" type="button" data-template="halftime">
+                    Use Template
+                  </button>
+                </div>
+              </article>
+
+              <article class="template-card">
+                <div class="template-head">
+                  <div>
+                    <div class="template-title">Final Question</div>
+                    <div class="template-meta">Wager-style endgame section</div>
+                  </div>
+                  <span class="subtle-chip">Finale</span>
+                </div>
+                <div class="template-body">
+                  Preset structure for final question flow, reveal pacing, and answer summary.
+                </div>
+                <div class="template-actions">
+                  <button class="btn btn-secondary" type="button" data-template="final-question">
+                    Use Template
+                  </button>
+                </div>
+              </article>
+
+              <article class="template-card">
+                <div class="template-head">
+                  <div>
+                    <div class="template-title">Full Classic Show</div>
+                    <div class="template-meta">Intro &rarr; rounds &rarr; halftime &rarr; final &rarr; closing</div>
+                  </div>
+                  <span class="subtle-chip">Full Show</span>
+                </div>
+                <div class="template-body">
+                  Generates intro slides, multiple rounds, halftime, final question, and closing structure.
+                </div>
+                <div class="template-actions">
+                  <button class="btn btn-secondary" type="button" data-template="classic-show">
+                    Use Template
+                  </button>
+                </div>
+              </article>
+
+            </div>
+          </div>
+
+        </div><!-- /tab-templates -->
+
+        <!-- ── Tab: Template Builder ───────────────────────────── -->
+        <div id="tab-template-builder" class="tab-pane" role="tabpanel">
+          <div class="section-block">
+            <div class="section-label">
+              <h3>Questions</h3>
+              <span class="subtle-chip">Classic template</span>
+            </div>
+            <p class="field-note">Simple fields for each question. Preview updates as you type.</p>
+            <div id="template-builder-list" class="template-builder-list">
+              <div class="filmstrip-empty">Choose a template to start building.</div>
+            </div>
+          </div>
+        </div><!-- /tab-template-builder -->
+
+      </div><!-- /tab-body -->
+
+    </section><!-- /writer-left-panel -->
+
+    <!-- ── RIGHT: Preview panel ─────────────────────────────────── -->
+    <section class="writer-right-panel" aria-label="Show preview">
+
+      <!-- Show info bar -->
+      <div class="show-info-bar">
+        <div class="show-info-inner">
+          <div class="show-info-main">
+            <span class="eyebrow">Current Show</span>
+            <div class="show-info-title" id="ri-show-title">New Trivia Show Draft</div>
+          </div>
+          <div class="small-stat-row small-stat-row--inline">
+            <div class="small-stat">
+              <div class="label">Blocks in Draft</div>
+              <div class="value" id="stat-blocks">0</div>
+            </div>
+            <div class="small-stat">
+              <div class="label">Questions</div>
+              <div class="value" id="stat-questions">0</div>
+            </div>
+            <div class="small-stat">
+              <div class="label">Draft Retention</div>
+              <div class="value">90 Days</div>
+            </div>
+          </div>
+          <div class="show-info-meta">
+            <span class="subtle-chip" id="ri-show-date">March 2026 Draft</span>
+            <span class="subtle-chip" id="ri-show-status">Draft</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Show controls / structure -->
+      <div class="show-controls-bar">
+        <div class="show-controls-inner">
+          <div class="slide-filmstrip" id="slide-filmstrip">
+            <div class="filmstrip-empty">No slides yet — add questions to build your show.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Slide preview -->
+      <div class="preview-area">
+        <div class="panel-header">
+          <div class="panel-title-row preview-panel-title-row">
+            <h2 class="panel-title">Slide Preview</h2>
+            <div class="preview-header-actions" aria-label="Preview controls">
+              <button class="btn btn-secondary" type="button">Prev</button>
+              <button class="btn btn-secondary" type="button">Next</button>
+              <button class="btn btn-primary" type="button">Reveal Answer</button>
+            </div>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="preview-stage-wrap">
+
+            <div class="preview-stage" aria-label="Slide preview">
+              <div class="slide-top">
+                <span class="slide-badge">Round 1</span>
+                <div class="slide-meta-stack">
+                  <span>Slide State: Live Question</span>
+                  <span>Theme: Standard Trivia</span>
+                </div>
+              </div>
+
+              <div class="slide-middle">
+                <div class="slide-category">Classic Artists</div>
+                <div class="slide-question">
+                  Which artist is known for the painting style shown on the screen?
+                </div>
+                <div class="slide-media-area" id="slide-media-area" style="display:none;"></div>
+                <div class="slide-options">
+                  <div class="slide-option">
+                    <span class="slide-option-key">A</span>
+                    <span>Andy Warhol</span>
+                  </div>
+                  <div class="slide-option">
+                    <span class="slide-option-key">B</span>
+                    <span>Jean-Michel Basquiat</span>
+                  </div>
+                  <div class="slide-option">
+                    <span class="slide-option-key">C</span>
+                    <span>Keith Haring</span>
+                  </div>
+                  <div class="slide-option">
+                    <span class="slide-option-key">D</span>
+                    <span>Roy Lichtenstein</span>
+                  </div>
+                </div>
+                <div class="slide-answer-preview">
+                  <div class="label">Answer</div>
+                  <div class="value">Jean-Michel Basquiat</div>
+                </div>
+              </div>
+
+              <div class="slide-bottom">
+                <div class="slide-notes" style="display:none" aria-hidden="true"></div>
+              </div>
+            </div>
+
+            <!-- Show navigation bar — below the slide -->
+            <div class="show-nav" id="show-nav">
+              <button class="btn btn-secondary show-nav-btn" type="button" id="show-nav-prev" disabled>&#8592;</button>
+              <span class="show-nav-indicator" id="show-nav-indicator">No slides added yet</span>
+              <button class="btn btn-secondary show-nav-btn" type="button" id="show-nav-next" disabled>&#8594;</button>
+            </div>
+
+          </div>
+        </div>
+      </div><!-- /preview-area -->
+
+    </section><!-- /writer-right-panel -->
+
+  </main>
+
+  <!-- JS modules — load order: form → builder → preview → app -->
+  <script src="js/question-form.js" defer></script>
+  <script src="js/block-builder.js" defer></script>
+  <script src="js/preview.js?v=writer-20260407-thumbnail" defer></script>
+  <script src="app.js?v=writer-20260407-thumbnail" defer></script>
+
+</body>
+</html>

@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Connecting Spotify…</title>
+  <style>
+    body {
+      margin: 0;
+      background: #121212;
+      color: #e2e8f0;
+      font-family: system-ui, -apple-system, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .card {
+      text-align: center;
+      padding: 2rem 2.5rem;
+      max-width: 440px;
+    }
+    .sp-logo { color: #1db954; margin-bottom: 1.2rem; }
+    .spinner {
+      display: inline-block;
+      width: 38px; height: 38px;
+      border: 3px solid rgba(255,255,255,.15);
+      border-radius: 50%;
+      border-top-color: #1db954;
+      animation: spin .8s linear infinite;
+      margin-bottom: 1.2rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    h2 { margin: 0 0 .5rem; font-size: 1.25rem; font-weight: 600; }
+    p  { margin: 0; color: #a6b3c7; font-size: .95rem; line-height: 1.5; }
+    .error { color: #f87171; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <svg class="sp-logo" viewBox="0 0 24 24" fill="currentColor" width="52" height="52" aria-hidden="true">
+    <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
+  </svg>
+  <div id="spinner" class="spinner"></div>
+  <h2 id="heading">Connecting Spotify…</h2>
+  <p  id="msg">Exchanging authorization code, please wait.</p>
+</div>
+
+<script>
+(async function () {
+  const HOST_URL         = '/beachTriviaPages/dashboards/host/host-music-bingo/host-music-bingo.html';
+  const TOKEN_FN_URL     = 'https://us-central1-beach-trivia-website.cloudfunctions.net/spotifyTokenExchange';
+  const REDIRECT_URI     = 'https://mybeachtrivia.com/spotifyCallback';
+
+  function showError(msg) {
+    document.getElementById('spinner').style.display = 'none';
+    document.getElementById('heading').textContent   = 'Connection failed';
+    const p = document.getElementById('msg');
+    p.textContent = msg;
+    p.className   = 'error';
+    // Give the user a moment to read the error, then send them back
+    setTimeout(() => location.replace(HOST_URL), 4000);
+  }
+
+  const params = new URLSearchParams(location.search);
+  const code   = params.get('code');
+  const state  = params.get('state');
+  const error  = params.get('error');
+
+  if (error) {
+    showError('Spotify login was cancelled or denied (' + error + ').');
+    return;
+  }
+
+  if (!code || !state) {
+    showError('Missing authorization parameters — please try connecting again.');
+    return;
+  }
+
+  // Verify OAuth state to prevent CSRF
+  const savedState = localStorage.getItem('sp:state');
+  if (state !== savedState) {
+    showError('Security check failed (state mismatch). Please try connecting again.');
+    return;
+  }
+  localStorage.removeItem('sp:state');
+
+  // Exchange authorization code for tokens via Cloud Function
+  let data;
+  try {
+    const res = await fetch(TOKEN_FN_URL, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ code, redirectUri: REDIRECT_URI }),
+    });
+
+    data = await res.json();
+
+    if (!res.ok) {
+      showError('Token exchange failed: ' + (data?.error || 'status ' + res.status));
+      return;
+    }
+  } catch (e) {
+    showError('Network error during token exchange: ' + (e?.message || String(e)));
+    return;
+  }
+
+  if (!data.access_token) {
+    showError('No access token received — please try again.');
+    return;
+  }
+
+  // Persist tokens in sessionStorage (survives page reload, cleared when tab closes)
+  const expiresAt = Date.now() + (data.expires_in || 3600) * 1000 - 60_000;
+  sessionStorage.setItem('sp:tokens', JSON.stringify({
+    accessToken:  data.access_token,
+    refreshToken: data.refresh_token || null,
+    expiresAt,
+  }));
+
+  // Navigate back to the host console — the app will auto-init the Spotify player
+  location.replace(HOST_URL);
+})();
+</script>
+</body>
+</html>

@@ -81,6 +81,15 @@ function setupMonthNavigationDropzones() {
   
       const shiftDiv = document.createElement("div");
       shiftDiv.classList.add("shift", shift.type);
+
+      // Mark shift tile if assigned to a temp employee
+      if (window.employeesData?.[shift.employeeId]?.isTemp === true) {
+        shiftDiv.classList.add("temp-host");
+      }
+      // Mark shift tile if assigned to a temp venue
+      if (shift.location && window.locationsData?.[shift.location]?.isTemp === true) {
+        shiftDiv.classList.add("temp-venue");
+      }
   
       if (collapsedSet?.has?.(shift.id)) {
         shiftDiv.classList.add("collapsed");
@@ -123,17 +132,23 @@ function setupMonthNavigationDropzones() {
               });
   
       const contentHTML = `
-        <div class="employee">${esc(emps[shift.employeeId] || "Unknown Host")}</div>
-        <div class="time">${esc(shift.startTime)} - ${esc(shift.endTime)}</div>
-        <div class="location">${esc(shift.location)}</div>
-        <div class="event-type">${esc(shiftName)}</div>
-        <span class="copy-button" data-id="${esc(shift.id)}" role="button" aria-label="Copy event" tabindex="0" draggable="true">
-          <i class="copy-icon" draggable="true">⧉</i>
-        </span>
-        <span class="toggle-button" data-id="${esc(shift.id)}" role="button" aria-label="Toggle details" tabindex="0">
-          <div class="${collapsedSet?.has?.(shift.id) ? "triangle-right" : "triangle-down"}"></div>
-        </span>
-        <span class="delete-button" data-id="${esc(shift.id)}" role="button" aria-label="Delete event" tabindex="0">×</span>
+        <div class="shift-header">
+          <div class="employee">${esc((emps[shift.employeeId] || "Unknown Host").replace(/^\(TEMP\)\s*/i, ""))}</div>
+          <div class="shift-controls">
+            <span class="copy-button" data-id="${esc(shift.id)}" role="button" aria-label="Copy event" tabindex="0" draggable="true">
+              <i class="copy-icon" draggable="true">⧉</i>
+            </span>
+            <span class="toggle-button" data-id="${esc(shift.id)}" role="button" aria-label="Toggle details" tabindex="0">
+              <div class="${collapsedSet?.has?.(shift.id) ? "triangle-right" : "triangle-down"}"></div>
+            </span>
+            <span class="delete-button" data-id="${esc(shift.id)}" role="button" aria-label="Delete event" tabindex="0">×</span>
+          </div>
+        </div>
+        <div class="shift-details">
+          <div class="time">${esc(shift.startTime)} - ${esc(shift.endTime)}</div>
+          <div class="location">${esc(shift.location)}</div>
+          <div class="event-type">${esc(shiftName)}</div>
+        </div>
       `;
       shiftDiv.innerHTML = contentHTML;
   

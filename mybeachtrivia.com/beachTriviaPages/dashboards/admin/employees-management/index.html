@@ -6,8 +6,10 @@
   <meta name="color-scheme" content="light dark" />
   <title>Employees Admin</title>
 
-  <!-- Page styles -->
   <link rel="stylesheet" href="style.css"/>
+  <!-- Unified nav bar -->
+  <link rel="stylesheet" href="/beachTriviaPages/js/bt-nav.css">
+  <script src="/beachTriviaPages/js/bt-nav.js" defer></script>
 
   <!-- Firebase SDKs (compat) -->
   <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-app-compat.js"></script>
@@ -15,10 +17,10 @@
   <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-functions-compat.js"></script>
 
-  <!-- Your Firebase config + initialize -->
+  <!-- Firebase config/init -->
   <script src="/firebase-init.js"></script>
 
-  <!-- Auth guard (keeps page hidden until authorized) -->
+  <!-- Page-specific auth guard -->
   <script src="./auth-guard.js" defer></script>
 </head>
 
@@ -37,7 +39,7 @@
       </div>
     </header>
 
-    <!-- ===== Provision Employee (admin creates Auth user + sends password setup link) ===== -->
+    <!-- ===== Provision Employee ===== -->
     <section class="card card-provision" id="provision-card" aria-labelledby="provision-title">
       <div class="card-head">
         <h2 id="provision-title" class="card-title">Create Employee &amp; Send Password Setup Link</h2>
@@ -48,6 +50,7 @@
           <div class="field">
             <label for="email-input" class="label">Email</label>
             <input id="email-input" type="email" class="input" placeholder="person@example.com" required>
+            <small id="provision-email-error" style="display:none; color:#e74c3c; margin-top:4px;">That email address is already in use by an active employee.</small>
           </div>
 
           <fieldset id="roles-fieldset" class="roles-fieldset field">
@@ -67,7 +70,6 @@
           </div>
         </div>
 
-        <!-- Status + where provision.js can inject "Open link" and "Copy link" -->
         <div id="provision-status" class="muted" aria-live="polite"></div>
         <div id="provision-actions" class="form-actions" style="justify-content:flex-start; margin-top:10px;"></div>
 
@@ -82,7 +84,6 @@
         </details>
       </div>
     </section>
-    <!-- ===== /Provision Employee ===== -->
 
     <!-- Employee Edit Modal -->
     <div id="employeeModal" class="modal" aria-hidden="true" aria-labelledby="employeeModalTitle" role="dialog">
@@ -141,7 +142,6 @@
               </select>
             </div>
 
-            <!-- Roles editor (EDIT MODAL) -->
             <fieldset id="edit-roles-fieldset" class="roles-fieldset form-group">
               <legend class="label">Roles</legend>
               <label class="check"><input type="checkbox" name="editRoles" value="host" checked> Host</label>
@@ -169,7 +169,6 @@
           <div class="muted" id="employees-count" aria-live="polite"></div>
         </div>
 
-        <!-- Search Employees -->
         <div class="field table-search" style="min-width:min(420px, 100%); max-width:520px;">
           <label for="employeeSearch" class="label">Search employees</label>
           <input
@@ -193,8 +192,6 @@
               <tr>
                 <th scope="col" class="sticky-col col-fname">First</th>
                 <th scope="col" class="sticky-col col-lname">Last</th>
-
-                <!-- Scrollable info columns -->
                 <th scope="col" class="col-email">Email</th>
                 <th scope="col" class="col-phone">Phone</th>
                 <th scope="col" class="col-nickname">Nickname</th>
@@ -202,8 +199,6 @@
                 <th scope="col" class="col-emergency-name">Emergency Contact</th>
                 <th scope="col" class="col-emergency-phone">Emergency Phone</th>
                 <th scope="col">Roles</th>
-
-                <!-- Frozen right side -->
                 <th scope="col" class="sticky-col col-active">Active</th>
                 <th scope="col" class="sticky-col col-actions">Actions</th>
               </tr>
@@ -215,35 +210,40 @@
     </section>
   </div>
 
-  <!-- Boot (reveals container when auth OK) -->
-  <script src="boot.js"></script>
-
   <!-- Page logic -->
   <script src="./script.js" defer></script>
-
-  <!-- New provision flow (calls callable function) -->
   <script src="./provision.js" defer></script>
+  <script src="./boot.js" defer></script>
 
-  <!-- Inline-only overlay styles (kept here intentionally) -->
   <style>
     .auth-overlay {
-      position: fixed; inset: 0; width: 100%; height: 100%;
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
       background-color: rgba(0,0,0,0.8);
-      display: flex; flex-direction: column; justify-content: center; align-items: center;
-      z-index: 1000; color: #fff;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      color: #fff;
     }
+
     .spinner {
       border: 4px solid rgba(255,255,255,0.3);
       border-radius: 50%;
       border-top: 4px solid #3699ff;
-      width: 40px; height: 40px;
+      width: 40px;
+      height: 40px;
       animation: spin 1s linear infinite;
       margin-bottom: 15px;
     }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-  </style>
 
-  <!-- Route guard (prod) -->
-  <script src="/beachTriviaPages/js/auth-route-guard.v2.js?v=2025-10-14a"></script>
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
 </body>
 </html>

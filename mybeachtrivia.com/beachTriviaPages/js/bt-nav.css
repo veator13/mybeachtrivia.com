@@ -1,0 +1,691 @@
+/* =============================================================
+   bt-nav.css  –  Unified top navigation bar (Beach Trivia)
+   Matches the host dashboard blue/navy palette.
+   ============================================================= */
+
+/* ── Layout reset so the nav doesn't fight existing body padding ── */
+body {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  /* No scrollbar-gutter: scrollbar is hidden from layout at rest (see auto-hide
+     section at bottom), so reserving a permanent gutter would clip the nav. */
+}
+
+/* ── Isolate nav elements from page-level element CSS bleed ── */
+/* Covers global element selectors on admin/host pages:
+   admin-scoresheet `button { color:#000; padding:12px 25px; font-size:18px;
+     font-weight:bold; text-transform:uppercase; letter-spacing:1px; box-shadow; }`
+   host-scoresheet  `span { color:#00ff88; text-shadow; }`
+   various pages    `h1 { text-shadow; }`, `select { padding; background; }` etc. */
+#bt-nav button,
+#bt-nav select {
+  text-transform: none;
+  letter-spacing: normal;
+  box-shadow: none;
+  color: unset;
+  font-size: unset;
+  font-weight: unset;
+  padding: unset;
+  border: unset;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+#bt-nav span,
+#bt-nav a {
+  text-shadow: none;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* ── Nav bar ── */
+#bt-nav {
+  position: sticky;
+  top: 0;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 20px;
+  height: 56px;
+  /* 100% of body = full viewport (scrollbar is removed from layout at rest,
+     so there is no right-side gutter to worry about). */
+  width: 100%;
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: #fff;
+  box-sizing: border-box;
+}
+
+/* ── Brand / logo ── */
+.bt-nav__brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.bt-nav__brand-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+/* ── Links ── */
+.bt-nav__links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.bt-nav__links::-webkit-scrollbar {
+  display: none;
+}
+
+.bt-nav__link {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.85);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background-color 0.2s, color 0.2s;
+  letter-spacing: 0.3px;
+}
+
+.bt-nav__link:hover {
+  background-color: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+.bt-nav__link.active {
+  background-color: rgba(255, 255, 255, 0.22);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* ── Right side: user info + logout ── */
+.bt-nav__right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.bt-nav__username {
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  white-space: nowrap;
+}
+
+#bt-nav .bt-nav__logout {
+  background-color: #ef4444;
+  color: #fff;
+  border: none;
+  box-shadow: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: normal;
+  transition: background-color 0.2s, transform 0.15s, box-shadow 0.2s;
+  white-space: nowrap;
+}
+
+#bt-nav .bt-nav__logout:hover {
+  background-color: #dc2626;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.25);
+}
+
+#bt-nav .bt-nav__logout:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+/* ── Hamburger (mobile) ── */
+#bt-nav .bt-nav__hamburger {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 6px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+#bt-nav .bt-nav__hamburger:hover {
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+#bt-nav .bt-nav__hamburger span {
+  display: block;
+  width: 22px;
+  height: 2px;
+  background-color: #fff;
+  border-radius: 2px;
+  transition: transform 0.25s, opacity 0.25s;
+}
+
+/* Hamburger open state */
+#bt-nav .bt-nav__hamburger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+#bt-nav .bt-nav__hamburger.open span:nth-child(2) { opacity: 0; }
+#bt-nav .bt-nav__hamburger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+/* ── Mobile drawer ── */
+.bt-nav__drawer {
+  display: none;
+  position: fixed;
+  top: 56px;
+  left: 0;
+  right: 0;
+  background: #1e40af;
+  z-index: 899;
+  padding: 10px 0;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+  flex-direction: column;
+}
+
+.bt-nav__drawer.open {
+  display: flex;
+}
+
+.bt-nav__drawer .bt-nav__link {
+  padding: 12px 24px;
+  border-radius: 0;
+  font-size: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.bt-nav__drawer .bt-nav__link:last-child {
+  border-bottom: none;
+}
+
+.bt-nav__drawer-user {
+  padding: 10px 24px 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.bt-nav__drawer-logout {
+  margin: 10px 24px 4px;
+  background-color: #ef4444;
+  color: #fff;
+  border: none;
+  padding: 10px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  width: calc(100% - 48px);
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .bt-nav__links,
+  .bt-nav__right {
+    display: none;
+  }
+
+  .bt-nav__hamburger {
+    display: flex;
+  }
+}
+
+/* ============================================================
+   Per-page: hide legacy navigation elements that the shared
+   nav replaces. Each selector targets an existing element on
+   the relevant page.
+   ============================================================ */
+
+/* Admin dashboard main header nav-menu */
+body.bt-nav-active .header .nav-menu { display: none !important; }
+
+/* Host dashboard header (the whole <header> contains the profile + logout,
+   which the bt-nav replaces) */
+body.bt-nav-active .dashboard > header { display: none !important; }
+body.bt-nav-active .dashboard > nav.dashboard-nav { display: none !important; }
+
+/* Host music bingo topbar */
+body.bt-nav-active .topbar { display: none !important; }
+
+/* Admin header user-profile section (logout button) */
+body.bt-nav-active .header .user-profile { display: none !important; }
+
+/* Employees / Locations page-header (no user display there, keep page-header but
+   the individual page-header back-link buttons are fine to keep) */
+
+/* Fix: prevent double-sticky on pages that make their own element sticky */
+body.bt-nav-active {
+  scroll-padding-top: 56px;
+}
+/* ── Role switcher dropdown (desktop) ── */
+#bt-nav .bt-nav__role-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: rgba(255, 255, 255, 0.15);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='rgba(255,255,255,0.8)'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  padding: 5px 26px 5px 10px;
+  transition: background-color 0.2s, border-color 0.2s;
+  white-space: nowrap;
+}
+
+#bt-nav .bt-nav__role-select:hover {
+  background-color: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+#bt-nav .bt-nav__role-select:focus {
+  outline: 2px solid rgba(255, 255, 255, 0.6);
+  outline-offset: 2px;
+}
+
+#bt-nav .bt-nav__role-select option {
+  background-color: #1d4ed8;
+  color: #fff;
+}
+
+/* ── Role switcher in mobile drawer ── */
+.bt-nav__drawer-role-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: rgba(255, 255, 255, 0.12);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='rgba(255,255,255,0.7)'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 6px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  margin: 6px 24px 4px;
+  padding: 10px 36px 10px 14px;
+  width: calc(100% - 48px);
+}
+
+.bt-nav__drawer-role-select option {
+  background-color: #1d4ed8;
+  color: #fff;
+}
+
+/* Hide desktop role select on mobile (drawer has its own) */
+@media (max-width: 768px) {
+  #bt-nav .bt-nav__role-select {
+    display: none;
+  }
+}
+
+/* ── Bell notifications ── */
+.bt-nav__bell-wrap {
+  position: relative;
+}
+
+#bt-nav .bt-nav__bell {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  color: #fff;
+  cursor: pointer;
+  padding: 6px;
+  position: relative;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bt-nav__bell-icon {
+  display: block;
+  flex-shrink: 0;
+}
+
+#bt-nav .bt-nav__bell:hover {
+  opacity: 0.85;
+}
+
+.bt-nav__bell-count {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  padding: 0 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+/* Author CSS (display:inline-flex above) overrides the browser's built-in
+   [hidden]{display:none} rule. This restores it so the badge is truly hidden
+   on first paint before JavaScript listeners resolve. */
+.bt-nav__bell-count[hidden] {
+  display: none !important;
+}
+
+.bt-nav__bell-dropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 300px;
+  max-height: 33vh;
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  z-index: 1100;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.bt-nav__bell-dropdown[aria-hidden="true"] {
+  display: none;
+}
+
+.bt-nav__bell-dropdown[aria-hidden="false"] {
+  display: block;
+}
+
+.bt-nav__bell-card {
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.bt-nav__bell-card:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.bt-nav__bell-card-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.bt-nav__bell-card-date {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.bt-nav__bell-card-detail {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+  margin-bottom: 6px;
+}
+
+.bt-nav__bell-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.bt-nav__bell-card-host {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.45);
+  font-style: italic;
+}
+
+#bt-nav .bt-nav__bell-accept-btn,
+#bt-nav .bt-nav__bell-reject-btn {
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+#bt-nav .bt-nav__bell-accept-btn {
+  background: #3b82f6;
+  color: #fff;
+}
+
+#bt-nav .bt-nav__bell-accept-btn:hover {
+  background: #2563eb;
+}
+
+#bt-nav .bt-nav__bell-reject-btn {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+#bt-nav .bt-nav__bell-reject-btn:hover {
+  background: rgba(239, 68, 68, 0.25);
+}
+
+.bt-nav__bell-swap-line {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 6px;
+}
+
+.bt-nav__bell-empty {
+  padding: 16px;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 13px;
+  text-align: center;
+  margin: 0;
+}
+
+.bt-nav__bell-view-all {
+  display: block;
+  padding: 10px 14px;
+  text-align: center;
+  color: #60a5fa;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  transition: background 0.12s;
+}
+
+.bt-nav__bell-view-all:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+/* ── Bell notification list items ─────────────────────────────────────── */
+.bt-nav__bell-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.bt-nav__bell-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.bt-nav__bell-item:last-child {
+  border-bottom: none;
+}
+
+.bt-nav__bell-item-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #60a5fa;
+}
+
+.bt-nav__bell-item-venue {
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.bt-nav__bell-item-date {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.bt-nav__bell-item-link {
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #60a5fa;
+  text-decoration: none;
+}
+
+.bt-nav__bell-item-link:hover {
+  text-decoration: underline;
+}
+
+/* ── Bell: new item highlight ── */
+.bt-nav__bell-item--new {
+  background: rgba(96, 165, 250, 0.08);
+  border-left: 3px solid #60a5fa;
+  padding-left: 11px; /* 14px - 3px border to keep content aligned */
+}
+
+.bt-nav__bell-item-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.bt-nav__bell-item-unseen-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #60a5fa;
+  box-shadow: 0 0 0 1px rgba(30, 41, 59, 0.9), 0 0 6px rgba(96, 165, 250, 0.55);
+  flex: 0 0 7px;
+}
+
+.bt-nav__bell-item-new-badge {
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  background: #ef4444;
+  color: #fff;
+  border-radius: 3px;
+  padding: 1px 5px;
+  line-height: 1.4;
+}
+
+/* ── Bell: shift deleted item ── */
+.bt-nav__bell-item--deleted {
+  opacity: 0.45;
+  pointer-events: auto;
+  user-select: none;
+}
+
+.bt-nav__bell-item--deleted .bt-nav__bell-item-link {
+  opacity: 1;
+  color: #60a5fa;
+}
+
+.bt-nav__bell-item-deleted-badge {
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  background: rgba(107, 114, 128, 0.35);
+  color: rgba(255, 255, 255, 0.65);
+  border-radius: 3px;
+  padding: 1px 5px;
+  line-height: 1.4;
+}
+
+/* ── Bell: load older button ── */
+#bt-nav .bt-nav__bell-load-more {
+  display: block;
+  width: 100%;
+  padding: 10px 14px;
+  background: none;
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  color: #60a5fa;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.12s;
+}
+
+#bt-nav .bt-nav__bell-load-more:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+#bt-nav .bt-nav__bell-load-more:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ── Auto-hide scrollbar ────────────────────────────────────────────────────
+   At rest the scrollbar takes ZERO layout space (removed entirely), so it
+   never clips the nav bar or shifts page content.
+   bt-nav.js toggles bt-is-scrolling on <html> while scrolling; the scrollbar
+   then appears as a thin 6px bar and disappears ~1s after scrolling stops.
+   On macOS with a trackpad, native overlay scrollbars already do this — the
+   CSS makes Windows / mouse-connected browsers behave the same way.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* Firefox — none by default, thin while scrolling */
+html {
+  scrollbar-width: none;
+}
+html.bt-is-scrolling {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.28) transparent;
+}
+
+/* Chrome / Safari / Edge — width 0 removes from layout; 6px while scrolling */
+::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+html.bt-is-scrolling::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.28);
+  border-radius: 3px;
+}

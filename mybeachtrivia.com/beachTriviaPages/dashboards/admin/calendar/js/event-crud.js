@@ -7,6 +7,18 @@
 // - Ensure conflict override updates (not adds) when editing
 // - Keep wrappers for clear-day modal in case legacy callers still use event-crud.js
 // - Harden a few spots around missing globals / service fallbacks
+//
+// Updated 2026-03-05:
+// - ✅ When opening NEW shift modal, reset Host + Venue to placeholder ("select")
+// - ✅ Default Start Time to 7:00 PM on NEW shift modal opens (does NOT affect Edit)
+// - ✅ Default End Time to 9:00 PM on NEW shift modal opens (does NOT affect Edit)
+// - ✅ Also resets on every modal open-for-new to avoid “sticky” prior selections
+//
+// Updated 2026-03-16:
+// - ✅ Undo toasts now support manual early dismiss with an X button
+// - ✅ Dismiss closes the toast immediately without undoing
+// - ✅ Dismiss commits the accepted action immediately and clears the timer safely
+// - ✅ Toast helper guards against double commit / double undo / duplicate cleanup
 
 /* =========================
  *  SAFE GLOBALS
@@ -51,6 +63,163 @@ function _removeIdsLocal(ids) {
 }
 
 /* =========================
+ *  NEW SHIFT DEFAULTS (ADMIN MODAL)
+ * ========================= */
+function _pickSelectValue(selectEl) {
+  if (!selectEl) return "";
+  const opts = Array.from(selectEl.options || []);
+  const placeholder = opts.find((o) => {
+    const v = String(o.value || "").toLowerCase();
+    const t = String(o.text || "").toLowerCase();
+    return v === "" || v === "select" || v === "none" || t.includes("select");
+  });
+  return placeholder ? placeholder.value : "";
+}
+
+function _setSelectToPlaceholder(selectEl) {
+  if (!selectEl) return;
+  const v = _pickSelectValue(selectEl);
+  selectEl.value = v;
+  try {
+    selectEl.dispatchEvent(new Event("change", { bubbles: true }));
+  } catch (_) {}
+}
+
+function _pick7pmValue(selectEl) {
+  if (!selectEl) return null;
+  const opts = Array.from(selectEl.options || []);
+  const candidates = ["19:00", "19:00:00", "7:00 PM", "7:00PM", "7:00 pm", "7:00pm", "07:00 PM", "07:00PM"];
+  for (const c of candidates) {
+    const hit = opts.find((o) => String(o.value) === c || String(o.text).trim() === c);
+    if (hit) return hit.value;
+  }
+  const loose = opts.find((o) => {
+    const txt = String(o.text || "").toLowerCase();
+    const val = String(o.value || "").toLowerCase();
+    return (txt.includes("7:00") && txt.includes("pm")) || (val.includes("7:00") && val.includes("pm"));
+  });
+  return loose ? loose.value : null;
+}
+
+function _setStartTimeTo7pm(selectEl) {
+  if (!selectEl) return;
+  const v = _pick7pmValue(selectEl);
+  if (v == null) return;
+  if (typeof selectDropdownOptionByValue === "function") {
+    selectDropdownOptionByValue(selectEl, v);
+  } else {
+    selectEl.value = v;
+  }
+  try {
+    selectEl.dispatchEvent(new Event("change", { bubbles: true }));
+  } catch (_) {}
+}
+
+function _pick9pmValue(selectEl) {
+  if (!selectEl) return null;
+  const opts = Array.from(selectEl.options || []);
+  const candidates = ["21:00", "21:00:00", "9:00 PM", "9:00PM", "9:00 pm", "9:00pm", "09:00 PM", "09:00PM"];
+  for (const c of candidates) {
+    const hit = opts.find((o) => String(o.value) === c || String(o.text).trim() === c);
+    if (hit) return hit.value;
+  }
+  const loose = opts.find((o) => {
+    const txt = String(o.text || "").toLowerCase();
+    const val = String(o.value || "").toLowerCase();
+    return (txt.includes("9:00") && txt.includes("pm")) || (val.includes("9:00") && val.includes("pm"));
+  });
+  return loose ? loose.value : null;
+}
+
+function _setEndTimeTo9pm(selectEl) {
+  if (!selectEl) return;
+  const v = _pick9pmValue(selectEl);
+  if (v == null) return;
+  if (typeof selectDropdownOptionByValue === "function") {
+    selectDropdownOptionByValue(selectEl, v);
+  } else {
+    selectEl.value = v;
+  }
+  try {
+    selectEl.dispatchEvent(new Event("change", { bubbles: true }));
+  } catch (_) {}
+}
+
+function _applyNewShiftDefaults() {
+  const els = _getEls();
+
+  // Host + Venue reset to placeholder on every NEW modal open
+  _setSelectToPlaceholder(els.shiftEmployeeSelect || document.getElementById("shift-employee"));
+  _setSelectToPlaceholder(els.shiftLocationSelect || document.getElementById("shift-location"));
+
+  // Start time defaults to 7pm on every NEW modal open
+  _setStartTimeTo7pm(els.startTimeSelect || document.getElementById("start-time"));
+
+  // End time defaults to 9pm on every NEW modal open
+  _setEndTimeTo9pm(els.endTimeSelect || document.getElementById("end-time"));
+
+  // If theme field toggles based on type, keep it consistent
+  try {
+    if (typeof toggleThemeField === "function") toggleThemeField();
+  } catch (_) {}
+}
+
+// Patch common open functions if they exist, so defaults happen whenever you open a NEW shift modal.
+(function _installNewShiftDefaultsHooks() {
+  function wrap(fn) {
+    if (typeof fn !== "function") return null;
+    if (fn.__wrappedForNewShiftDefaults__) return fn;
+    const wrapped = function (...args) {
+      const out = fn.apply(this, args);
+      // Only apply defaults for NEW shift (not edit)
+      try {
+        const ctx = _getEditingContext();
+        if (!ctx.isEditing) _applyNewShiftDefaults();
+      } catch (_) {
+        _applyNewShiftDefaults();
+      }
+      return out;
+    };
+    wrapped.__wrappedForNewShiftDefaults__ = true;
+    return wrapped;
+  }
+
+  // 1) If modal-handlers owns openShiftModal, hook it
+  try {
+    if (typeof window.openShiftModal === "function") window.openShiftModal = wrap(window.openShiftModal);
+  } catch (_) {}
+
+  // 2) If legacy open lives here, hook it too (if present)
+  try {
+    if (typeof openShiftModal === "function") openShiftModal = wrap(openShiftModal);
+  } catch (_) {}
+
+  // 3) Also apply defaults when modal actually becomes visible (fallback)
+  document.addEventListener("click", (e) => {
+    try {
+      const t = e.target;
+      const isNewTrigger =
+        t?.id === "add-shift-btn" ||
+        t?.id === "add-event-btn" ||
+        t?.id === "new-shift-btn" ||
+        t?.closest?.("[data-action='add-shift']") ||
+        t?.closest?.("[data-action='new-shift']");
+      if (!isNewTrigger) return;
+
+      // Let other handlers open the modal, then apply defaults.
+      setTimeout(() => {
+        try {
+          const ctx = _getEditingContext();
+          if (!ctx.isEditing) _applyNewShiftDefaults();
+        } catch (_) {
+          _applyNewShiftDefaults();
+        }
+      }, 0);
+    } catch (_) {}
+  });
+})();
+
+/* =========================
  *  CLEAR ALL (ONE DAY)
  * ========================= */
 function executeAllShiftsClear() {
@@ -67,37 +236,52 @@ function executeAllShiftsClear() {
     return;
   }
 
-  const deletePromises = shiftsToDelete.map((shift) =>
-    deleteShiftFromFirebase(shift.id).catch((err) => {
-      console.error(`Error deleting shift ${shift.id}:`, err);
-      return false;
-    })
-  );
+  // Snapshot all shifts for undo
+  const snapshots = shiftsToDelete.map((s) => ({ ...s }));
+  const deletedIds = shiftsToDelete.map((s) => s.id);
+  const employeeIds = [...new Set(shiftsToDelete.map((s) => s.employeeId).filter(Boolean))];
+  const locationNames = [...new Set(shiftsToDelete.map((s) => s.location).filter(Boolean))];
+  const label = `${shiftsToDelete.length} event${shiftsToDelete.length !== 1 ? "s" : ""} on ${dateStr}`;
 
-  Promise.all(deletePromises)
-    .then((results) => {
-      const successCount = results.filter(Boolean).length;
+  // Close modal + optimistic removal
+  if (typeof window.closeClearDayModal === "function") window.closeClearDayModal();
+  _removeIdsLocal(deletedIds);
+  if (typeof renderCalendar === "function") renderCalendar();
+  if (typeof announceForScreenReader === "function") announceForScreenReader(`Deleted ${label}`);
 
-      _removeIdsLocal(shiftsToDelete.map((s) => s.id));
-
-      if (typeof window.closeClearDayModal === "function") window.closeClearDayModal();
-
-      if (successCount === shiftsToDelete.length) {
-        alert(`Successfully deleted all ${successCount} events.`);
-      } else {
-        alert(`Deleted ${successCount} of ${shiftsToDelete.length} events. Some deletions may have failed.`);
-      }
-
-      if (typeof announceForScreenReader === "function") {
-        announceForScreenReader(`Deleted ${successCount} events.`);
-      }
+  _showUndoToast(
+    label,
+    // onUndo: restore all shifts locally
+    () => {
+      snapshots.forEach((s) => _upsertShiftLocal(s));
       if (typeof renderCalendar === "function") renderCalendar();
-    })
-    .catch((error) => {
-      console.error("Error deleting shifts:", error);
-      alert("An error occurred while deleting events. Please try again.");
-      if (typeof window.closeClearDayModal === "function") window.closeClearDayModal();
-    });
+      if (typeof announceForScreenReader === "function") announceForScreenReader(`Restored ${label}`);
+    },
+    // onCommit: delete all from Firestore + temp cleanup
+    () => {
+      const deletePromises = deletedIds.map((id) =>
+        deleteShiftFromFirebase(id).catch((err) => {
+          console.error(`Error deleting shift ${id}:`, err);
+          return false;
+        })
+      );
+      Promise.all(deletePromises).then((results) => {
+        const failed = results.filter((r) => r === false).length;
+        if (failed > 0) {
+          // Restore failed ones — find them by checking which IDs are still in Firestore
+          console.warn(`[clear-day] ${failed} deletion(s) failed`);
+        }
+      });
+      // Temp cleanup for all affected employees and venues
+      employeeIds.forEach((id) => {
+        if (typeof window.cleanupTempEmployee === "function") window.cleanupTempEmployee(id);
+      });
+      locationNames.forEach((name) => {
+        if (typeof window.cleanupTempVenue === "function") window.cleanupTempVenue(name);
+      });
+    },
+    10000
+  );
 }
 
 // NOTE: clearAllShiftsForDay + closeClearDayModal are owned by modal-handlers.js now.
@@ -259,20 +443,147 @@ function deleteShift(shiftId) {
   const eventDetails = `${(window.eventTypes && window.eventTypes[shift.type]) || (typeof eventTypes !== "undefined" && eventTypes[shift.type]) || shift.type
     } on ${getReadableDateString(new Date(shift.date))}`;
 
-  if (confirm(`Are you sure you want to delete this event?\n\n${eventDetails}`)) {
-    deleteShiftFromFirebase(shiftId)
-      .then(() => {
-        shifts = shifts.filter((s) => String(s.id) !== String(shiftId));
-        console.log(`Deleted shift ${shiftId}, remaining: ${shifts.length}`);
-        if (typeof checkArrayIntegrity === "function") checkArrayIntegrity();
+  if (!confirm(`Are you sure you want to delete this event?\n\n${eventDetails}`)) return;
+
+  const deletedEmployeeId = shift.employeeId;
+  const deletedLocation = shift.location;
+  const shiftSnapshot = { ...shift }; // full copy for undo
+
+  // ── Optimistic removal: remove locally + re-render immediately ──────────
+  shifts = shifts.filter((s) => String(s.id) !== String(shiftId));
+  if (typeof checkArrayIntegrity === "function") checkArrayIntegrity();
+  if (typeof renderCalendar === "function") renderCalendar();
+  if (typeof announceForScreenReader === "function") announceForScreenReader(`Deleted ${eventDetails}`);
+
+  // ── Show undo toast — actual Firestore delete fires after 10 s ──────────
+  _showUndoToast(
+    eventDetails,
+    // onUndo: restore shift locally
+    () => {
+      _upsertShiftLocal(shiftSnapshot);
+      if (typeof renderCalendar === "function") renderCalendar();
+      if (typeof announceForScreenReader === "function") announceForScreenReader(`Restored ${eventDetails}`);
+    },
+    // onCommit: now actually delete from Firestore
+    () => {
+      deleteShiftFromFirebase(shiftId).then(() => {
+        // After shift is gone from Firestore, refresh Shift Offers panel so any
+        // orphaned coverage requests are detected and removed from the list.
+        try { window.ShiftSwapAdmin?.refresh?.(); } catch (_) {}
+        try { window.ShiftTradeRequests?.refresh?.(); } catch (_) {}
+      }).catch((err) => {
+        console.error("Error deleting shift from Firebase:", err);
+        // Restore on failure so data isn't lost
+        _upsertShiftLocal(shiftSnapshot);
         if (typeof renderCalendar === "function") renderCalendar();
-        if (typeof announceForScreenReader === "function") announceForScreenReader(`Deleted ${eventDetails}`);
-      })
-      .catch((error) => {
-        console.error("Error deleting shift from Firebase:", error);
-        alert("Could not delete event. Please try again later.");
+        alert("Could not delete event — it has been restored. Please try again.");
       });
+      // Temp cleanup after commit
+      if (deletedEmployeeId && typeof window.cleanupTempEmployee === "function") {
+        window.cleanupTempEmployee(deletedEmployeeId);
+      }
+      if (deletedLocation && typeof window.cleanupTempVenue === "function") {
+        window.cleanupTempVenue(deletedLocation);
+      }
+    },
+    10000
+  );
+}
+
+// ── Undo toast helper (stackable) ───────────────────────────────────────────
+function _getToastContainer() {
+  let container = document.getElementById("undo-toast-container");
+  if (!container) {
+    container = document.createElement("div");
+    container.id = "undo-toast-container";
+    document.body.appendChild(container);
   }
+  return container;
+}
+
+function _showUndoToast(label, onUndo, onCommit, duration) {
+  const container = _getToastContainer();
+  const safeDuration = Number(duration) > 0 ? Number(duration) : 10000;
+
+  const toast = document.createElement("div");
+  toast.className = "undo-toast";
+  toast.setAttribute("role", "status");
+  toast.innerHTML = `
+    <span class="undo-toast-msg">Deleted <em>${label}</em></span>
+    <div class="undo-toast-actions">
+      <button class="undo-toast-btn" type="button">Undo</button>
+      <button class="undo-toast-close" type="button" aria-label="Dismiss undo message" title="Dismiss">&times;</button>
+    </div>
+    <div class="undo-toast-bar"><div class="undo-toast-progress"></div></div>
+  `;
+  container.appendChild(toast);
+
+  // Animate progress bar
+  const progress = toast.querySelector(".undo-toast-progress");
+  requestAnimationFrame(() => {
+    if (progress) {
+      progress.style.transition = `width ${safeDuration}ms linear`;
+      progress.style.width = "0%";
+    }
+  });
+
+  let finalized = false;
+  let timer = null;
+
+  function removeToast() {
+    toast.classList.add("undo-toast-dismissed");
+    setTimeout(() => {
+      toast.remove();
+      if (container.children.length === 0) container.remove();
+    }, 300);
+  }
+
+  function clearTimer() {
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+  }
+
+  function commit() {
+    if (finalized) return;
+    finalized = true;
+    clearTimer();
+    removeToast();
+    try {
+      if (typeof onCommit === "function") onCommit();
+    } catch (err) {
+      console.error("[undo-toast] commit failed:", err);
+    }
+  }
+
+  function undo() {
+    if (finalized) return;
+    finalized = true;
+    clearTimer();
+    removeToast();
+    try {
+      if (typeof onUndo === "function") onUndo();
+    } catch (err) {
+      console.error("[undo-toast] undo failed:", err);
+    }
+  }
+
+  function dismissEarly() {
+    // User is explicitly accepting the delete and just wants the toast gone now.
+    commit();
+  }
+
+  const undoBtn = toast.querySelector(".undo-toast-btn");
+  const closeBtn = toast.querySelector(".undo-toast-close");
+
+  if (undoBtn) undoBtn.addEventListener("click", undo);
+  if (closeBtn) closeBtn.addEventListener("click", dismissEarly);
+
+  timer = setTimeout(commit, safeDuration);
+
+  // Slide in
+  requestAnimationFrame(() => toast.classList.add("undo-toast-visible"));
 }
 
 function deleteShiftFromFirebase(shiftId) {
@@ -335,13 +646,61 @@ function editShift(shiftId) {
 
   try {
     els.shiftDateInput.value = shift.date;
-    els.shiftEmployeeSelect.value = shift.employeeId;
+    // Ensure the current host option exists in the dropdown before selecting.
+    // (If employees haven't loaded yet, .value assignment alone won't show anything.)
+    const hostVal = shift.employeeId == null ? "" : String(shift.employeeId);
+    if (els.shiftEmployeeSelect && hostVal) {
+      const hasOpt = Array.from(els.shiftEmployeeSelect.options || []).some(
+        (o) => String(o.value) === hostVal
+      );
+      if (!hasOpt) {
+        const opt = document.createElement("option");
+        opt.value = hostVal;
+        opt.textContent =
+          (window.employees && window.employees[shift.employeeId]) ||
+          (typeof employees !== "undefined" && employees[shift.employeeId]) ||
+          "Unknown host";
+        els.shiftEmployeeSelect.appendChild(opt);
+      }
+      els.shiftEmployeeSelect.value = hostVal;
+      try {
+        els.shiftEmployeeSelect.dispatchEvent(new Event("change", { bubbles: true }));
+      } catch (_) {}
+
+      // Dropdown options may still be rebuilding asynchronously (employees load),
+      // which can reset the selection back to the placeholder. Re-apply shortly.
+      setTimeout(function () {
+        try {
+          if (!els.shiftEmployeeSelect) return;
+          const cur = String(els.shiftEmployeeSelect.value || "");
+          if (cur === hostVal) return;
+
+          const stillHasOpt = Array.from(els.shiftEmployeeSelect.options || []).some(
+            (o) => String(o.value) === hostVal
+          );
+          if (!stillHasOpt) {
+            const opt2 = document.createElement("option");
+            opt2.value = hostVal;
+            opt2.textContent =
+              (window.employees && window.employees[shift.employeeId]) ||
+              (typeof employees !== "undefined" && employees[shift.employeeId]) ||
+              "Unknown host";
+            els.shiftEmployeeSelect.appendChild(opt2);
+          }
+          els.shiftEmployeeSelect.value = hostVal;
+          try {
+            els.shiftEmployeeSelect.dispatchEvent(new Event("change", { bubbles: true }));
+          } catch (_) {}
+        } catch (_) {}
+      }, 150);
+    } else if (els.shiftEmployeeSelect) {
+      els.shiftEmployeeSelect.value = "";
+    }
 
     if (typeof selectDropdownOptionByValue === "function") {
       selectDropdownOptionByValue(els.startTimeSelect, shift.startTime);
       selectDropdownOptionByValue(els.endTimeSelect, shift.endTime);
     } else {
-      // fallback
       if (els.startTimeSelect) els.startTimeSelect.value = shift.startTime;
       if (els.endTimeSelect) els.endTimeSelect.value = shift.endTime;
     }
@@ -377,7 +736,7 @@ function editShift(shiftId) {
   }
 }
 
-function saveShift(e) {
+async function saveShift(e) {
   const els = _getEls();
   _ensureShiftsArray();
 
@@ -392,13 +751,81 @@ function saveShift(e) {
   if (typeof validateShiftForm === "function" && !validateShiftForm()) return;
 
   const date = els.shiftDateInput?.value;
-  const employeeId = els.shiftEmployeeSelect?.value;
+  let employeeId = els.shiftEmployeeSelect?.value;
   const startTime = els.startTimeSelect?.value;
   const endTime = els.endTimeSelect?.value;
   const type = els.shiftTypeSelect?.value;
   const theme = type === "themed-trivia" ? (els.shiftThemeInput?.value || "") : "";
-  const location = els.shiftLocationSelect?.value;
+  let location = els.shiftLocationSelect?.value;
   const notes = els.shiftNotesInput?.value || "";
+
+  // Declare early — needed in write-in blocks AND conflict/save blocks below
+  const ctx = _getEditingContext();
+  const _editingShift = ctx.isEditing && ctx.editingShiftId
+    ? (shifts.find((s) => String(s.id) === String(ctx.editingShiftId)) || null)
+    : null;
+  const previousEmployeeId = _editingShift?.employeeId || null;
+  const previousLocation = _editingShift?.location || null;
+  let actionType = "Added";
+  const btn = els.submitButton || document.getElementById("save-shift-btn");
+  const originalText = btn ? btn.textContent : "Save Event";
+
+  // ── Write-in temp employee ──────────────────────────────────────────────
+  if (employeeId === "__write_in__") {
+    const writeInName = document.getElementById("write-in-host-name")?.value?.trim();
+    if (!writeInName) {
+      alert("Please enter a name for the temporary host.");
+      if (btn) { btn.textContent = originalText; btn.disabled = false; }
+      return;
+    }
+    if (typeof window.createTempEmployee !== "function") {
+      alert("Temp employee creation unavailable — please refresh the page.");
+      if (btn) { btn.textContent = originalText; btn.disabled = false; }
+      return;
+    }
+    try {
+      employeeId = await window.createTempEmployee(writeInName);
+      // Reset the write-in UI
+      const field = document.getElementById("write-in-host-field");
+      const input = document.getElementById("write-in-host-name");
+      if (field) field.style.display = "none";
+      if (input) input.value = "";
+    } catch (err) {
+      console.error("[write-in] createTempEmployee failed:", err);
+      alert("Could not create temporary host. Please try again.");
+      if (btn) { btn.textContent = originalText; btn.disabled = false; }
+      return;
+    }
+  }
+  // ────────────────────────────────────────────────────────────────────────
+
+  // ── Write-in temp venue ────────────────────────────────────────────────
+  if (location === "__write_in_venue__") {
+    const writeInVenue = document.getElementById("write-in-venue-name")?.value?.trim();
+    if (!writeInVenue) {
+      alert("Please enter a name for the temporary venue.");
+      if (btn) { btn.textContent = originalText; btn.disabled = false; }
+      return;
+    }
+    if (typeof window.createTempVenue !== "function") {
+      alert("Temp venue creation unavailable — please refresh the page.");
+      if (btn) { btn.textContent = originalText; btn.disabled = false; }
+      return;
+    }
+    try {
+      location = await window.createTempVenue(writeInVenue);
+      const field = document.getElementById("write-in-venue-field");
+      const input = document.getElementById("write-in-venue-name");
+      if (field) field.style.display = "none";
+      if (input) input.value = "";
+    } catch (err) {
+      console.error("[write-in] createTempVenue failed:", err);
+      alert("Could not create temporary venue. Please try again.");
+      if (btn) { btn.textContent = originalText; btn.disabled = false; }
+      return;
+    }
+  }
+  // ────────────────────────────────────────────────────────────────────────
 
   const shiftData = { date, employeeId, startTime, endTime, type, theme, location, notes };
 
@@ -408,14 +835,16 @@ function saveShift(e) {
     (window.CalendarState && window.CalendarState.forceBooking) ||
     false;
 
-  const ctx = _getEditingContext();
-  const excludeId = ctx.isEditing && ctx.editingShiftId ? ctx.editingShiftId : null;
-
   // ✅ Conflict detection (store pending + mirror into CalendarState)
   if (!forceBooking) {
-    const conflicts = checkForDoubleBooking(shiftData, excludeId);
+    const conflicts = checkForDoubleBooking(shiftData, ctx.isEditing && ctx.editingShiftId ? ctx.editingShiftId : null);
 
     if (conflicts.length > 0) {
+      // ✅ Clear any stale drag/drop move operation — this is a form conflict, not a drag.
+      // A leftover globalMoveOperation would hijack the "Proceed Anyway" handler.
+      try { window.globalMoveOperation = null; } catch (_) {}
+      try { if (window.CalendarState) window.CalendarState.globalMoveOperation = null; } catch (_) {}
+
       try {
         if (typeof state !== "undefined" && state) state.pendingShiftData = shiftData;
       } catch (_) {}
@@ -445,10 +874,6 @@ function saveShift(e) {
     if (window.CalendarState) window.CalendarState.forceBooking = false;
   } catch (_) {}
 
-  let actionType = "Added";
-  const btn = els.submitButton || document.getElementById("save-shift-btn");
-  const originalText = btn ? btn.textContent : "Save Event";
-
   if (btn) {
     btn.textContent = "Saving...";
     btn.disabled = true;
@@ -456,7 +881,6 @@ function saveShift(e) {
 
   let op;
   if (ctx.isEditing && ctx.editingShiftId) {
-    // ✅ EDIT -> MUST UPDATE (never add)
     actionType = "Updated";
     const current = shifts.find((s) => String(s.id) === String(ctx.editingShiftId)) || {};
     const updated = { ...current, ...shiftData, id: String(ctx.editingShiftId) };
@@ -466,8 +890,7 @@ function saveShift(e) {
       return updated;
     });
   } else {
-    // ✅ ADD
-    op = saveShiftToFirebase(shiftData).then((newId) => {
+    op = saveShiftToFirebase(shiftData, forceBooking ? { force: true } : undefined).then((newId) => {
       const created = { ...shiftData, id: newId };
       _upsertShiftLocal(created);
       return created;
@@ -476,7 +899,6 @@ function saveShift(e) {
 
   op
     .then(() => {
-      // ✅ Prefer modal-handlers close if present
       if (typeof window.closeShiftModal === "function") window.closeShiftModal();
       else {
         const modal = document.getElementById("shift-modal");
@@ -489,8 +911,25 @@ function saveShift(e) {
         }
       }
 
-      // ✅ Clear edit state AFTER a successful write
       _setEditingContext(false, null);
+
+      // ── Temp employee cleanup on reassignment ──────────────────────────
+      if (previousEmployeeId && previousEmployeeId !== employeeId) {
+        try {
+          if (typeof window.cleanupTempEmployee === "function") {
+            window.cleanupTempEmployee(previousEmployeeId);
+          }
+        } catch (_) {}
+      }
+      // ── Temp venue cleanup on reassignment ─────────────────────────────
+      if (previousLocation && previousLocation !== location) {
+        try {
+          if (typeof window.cleanupTempVenue === "function") {
+            window.cleanupTempVenue(previousLocation);
+          }
+        } catch (_) {}
+      }
+      // ──────────────────────────────────────────────────────────────────
 
       if (typeof renderCalendar === "function") renderCalendar();
 
@@ -531,8 +970,83 @@ function saveShift(e) {
     });
 }
 
-function saveShiftToFirebase(shiftData) {
-  if (window.shiftService?.saveShift) return window.shiftService.saveShift(shiftData);
+// ✅ forceSaveShift — used by the "Proceed Anyway" conflict override path.
+// Takes already-validated pendingShiftData directly; bypasses form re-read,
+// validateShiftForm(), and the forceBooking state-flag mechanism entirely.
+window.forceSaveShift = function forceSaveShift(pendingShiftData) {
+  if (!pendingShiftData) {
+    console.error("[forceSaveShift] No pendingShiftData provided");
+    return;
+  }
+
+  const ctx = _getEditingContext();
+  const els = _getEls();
+  const btn = els.submitButton || document.getElementById("save-shift-btn");
+  const originalText = btn ? btn.textContent : "Save Event";
+
+  if (btn) {
+    btn.textContent = "Saving...";
+    btn.disabled = true;
+  }
+
+  let op;
+  if (ctx.isEditing && ctx.editingShiftId) {
+    const current = (window.getShifts ? window.getShifts() : shifts).find(
+      (s) => String(s.id) === String(ctx.editingShiftId)
+    ) || {};
+    const updated = { ...current, ...pendingShiftData, id: String(ctx.editingShiftId) };
+    op = updateShiftInFirebase(ctx.editingShiftId, updated).then(() => {
+      _upsertShiftLocal(updated);
+      return updated;
+    });
+  } else {
+    op = saveShiftToFirebase(pendingShiftData, { force: true }).then((newId) => {
+      const created = { ...pendingShiftData, id: newId };
+      _upsertShiftLocal(created);
+      return created;
+    });
+  }
+
+  op
+    .then(() => {
+      if (typeof window.closeShiftModal === "function") {
+        window.closeShiftModal();
+      } else {
+        const modal = document.getElementById("shift-modal");
+        if (modal) {
+          modal.style.display = "none";
+          modal.setAttribute("aria-hidden", "true");
+        }
+      }
+      _setEditingContext(false, null);
+      if (typeof renderCalendar === "function") renderCalendar();
+    })
+    .catch((err) => {
+      console.error("[forceSaveShift] Error saving shift:", err);
+      alert("There was an error saving the event. Please try again.");
+    })
+    .finally(() => {
+      if (btn) {
+        btn.textContent = originalText;
+        btn.disabled = false;
+      }
+      try {
+        if (typeof state !== "undefined" && state) {
+          state.pendingShiftData = null;
+          state.forceBooking = false;
+        }
+      } catch (_) {}
+      try {
+        if (window.CalendarState) {
+          window.CalendarState.pendingShiftData = null;
+          window.CalendarState.forceBooking = false;
+        }
+      } catch (_) {}
+    });
+};
+
+function saveShiftToFirebase(shiftData, options) {
+  if (window.shiftService?.saveShift) return window.shiftService.saveShift(shiftData, options);
 
   return firebase
     .firestore()
@@ -545,11 +1059,9 @@ function saveShiftToFirebase(shiftData) {
 }
 
 function updateShiftInFirebase(shiftId, shiftData) {
-  // Prefer shiftService.updateShift if it exists, else saveShift with id, else raw doc.update
   if (window.shiftService?.updateShift) return window.shiftService.updateShift(shiftId, shiftData);
 
   if (window.shiftService?.saveShift) {
-    // Some implementations treat saveShift({id}) as upsert/update.
     return window.shiftService.saveShift({ ...shiftData, id: String(shiftId) }).then(() => String(shiftId));
   }
 

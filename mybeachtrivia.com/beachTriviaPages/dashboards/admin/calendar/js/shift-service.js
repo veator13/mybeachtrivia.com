@@ -1,6 +1,6 @@
 // shift-service.js
 // Shared service for consistent shift data handling between dashboard and calendar
-// v2026-02-27
+// v2026-03-19
 //
 // ✅ Updates in this version:
 // - Expose DateHelpers to window (optional) for debugging / reuse
@@ -10,8 +10,14 @@
 // - Improve conflict error payload so UI can show details consistently:
 //     err.code = "double-booking"
 //     err.details = { date, employeeId, conflicts: [...] }
-// - Standardize `date` on writes AND reads (already mostly done) and ensure writes
+// - Standardize `date` on writes AND reads and ensure writes
 //   always store `date` as YYYY-MM-DD string.
+// - NEW: create host-only notification records when a shift is:
+//     - newly assigned      -> type: "shift_assigned"
+//     - reassigned away     -> type: "shift_reassigned"
+//     - removed/deleted     -> type: "shift_removed"
+//   collection: hostNotifications
+//   These are intended for bt-nav.js bell notifications.
 
 (function () {
   /**
@@ -82,6 +88,11 @@
       this.dataChangeListeners = [];
       this.lastSyncTimestamp = null;
       this.lastPermissionError = null;
+
+      this.HOST_NOTIFICATIONS_COLLECTION = "hostNotifications";
+      this.NOTIF_SHIFT_ASSIGNED = "shift_assigned";
+      this.NOTIF_SHIFT_REASSIGNED = "shift_reassigned";
+      this.NOTIF_SHIFT_REMOVED = "shift_removed";
     }
 
     init() {
@@ -178,6 +189,148 @@
         startTime: d.startTime,
         endTime: d.endTime,
       };
+    }
+
+    _getCurrentActor() {
+      try {
+        const user = window.firebase?.auth?.().currentUser || null;
+        return {
+          uid: user?.uid || null,
+          name: user?.displayName || user?.email || "Admin",
+        };
+      } catch (_) {
+        return {
+          uid: null,
+          name: "Admin",
+        };
+      }
+    }
+
+    _normalizeShiftForNotification(shiftData) {
+      const data = shiftData || {};
+      const normalizedDate = DateHelpers.std(data.date);
+      return {
+        date: normalizedDate,
+        shiftDate: normalizedDate,
+        startTime: data.startTime || "",
+        endTime: data.endTime || "",
+        location: data.location || "",
+        venueName: data.location || "",
+        locationName: data.location || "",
+        eventType: data.type || "",
+        type: data.type || "",
+        theme: data.theme || "",
+        employeeId: data.employeeId || null,
+      };
+    }
+
+    _shouldNotifyAssignment(previousShift, nextShift) {
+      const prevEmployeeId = previousShift?.employeeId || null;
+      const nextEmployeeId = nextShift?.employeeId || null;
+
+      if (!nextEmployeeId) return false;
+      if (!prevEmployeeId && nextEmployeeId) return true;
+      if (prevEmployeeId && nextEmployeeId && String(prevEmployeeId) !== String(nextEmployeeId)) return true;
+
+      return false;
+    }
+
+    _shouldNotifyReassignment(previousShift, nextShift) {
+      const prevEmployeeId = previousShift?.employeeId || null;
+      const nextEmployeeId = nextShift?.employeeId || null;
+
+      return !!(
+        prevEmployeeId &&
+        nextEmployeeId &&
+        String(prevEmployeeId) !== String(nextEmployeeId)
+      );
+    }
+
+    _shouldNotifyRemoval(previousShift) {
+      return !!(previousShift?.employeeId || null);
+    }
+
+    async _createHostNotification(type, targetHostId, shiftId, shiftData, extra = {}) {
+      if (!targetHostId) return null;
+
+      const normalized = this._normalizeShiftForNotification(shiftData);
+      const actor = this._getCurrentActor();
+
+      const payload = {
+        type,
+        _notifType: type,
+        targetHostId: String(targetHostId),
+        shiftId: String(shiftId),
+        shiftDate: normalized.shiftDate,
+        date: normalized.date,
+        startTime: normalized.startTime,
+        endTime: normalized.endTime,
+        time: normalized.startTime,
+        location: normalized.location,
+        locationName: normalized.locationName,
+        venueName: normalized.venueName,
+        eventType: normalized.eventType,
+        shiftType: normalized.type,
+        theme: normalized.theme,
+        assignedBy: actor.uid,
+        assignedByName: actor.name,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        ...extra,
+      };
+      const uid = String(targetHostId);
+      const notificationRef = await this.db.collection(this.HOST_NOTIFICATIONS_COLLECTION).add(payload);
+
+      // Best effort: increment unread counter. Notification creation should not
+      // fail if this secondary write is temporarily blocked.
+      try {
+        await this.db.collection("userBellState").doc(uid).set(
+          {
+            unreadCount: firebase.firestore.FieldValue.increment(1),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+      } catch (bellErr) {
+        console.error("[ShiftService] Failed to increment userBellState unreadCount:", bellErr);
+      }
+
+      return notificationRef;
+    }
+
+    async _createShiftAssignedNotification(shiftId, shiftData, options = {}) {
+      const normalized = this._normalizeShiftForNotification(shiftData);
+      if (!normalized.employeeId) return null;
+
+      return this._createHostNotification(
+        this.NOTIF_SHIFT_ASSIGNED,
+        normalized.employeeId,
+        shiftId,
+        shiftData,
+        options.previousEmployeeId ? { previousEmployeeId: options.previousEmployeeId } : {}
+      );
+    }
+
+    async _createShiftReassignedNotification(shiftId, previousEmployeeId, shiftData, options = {}) {
+      if (!previousEmployeeId) return null;
+
+      return this._createHostNotification(
+        this.NOTIF_SHIFT_REASSIGNED,
+        previousEmployeeId,
+        shiftId,
+        shiftData,
+        options.newEmployeeId ? { newEmployeeId: options.newEmployeeId } : {}
+      );
+    }
+
+    async _createShiftRemovedNotification(shiftId, previousEmployeeId, shiftData) {
+      if (!previousEmployeeId) return null;
+
+      return this._createHostNotification(
+        this.NOTIF_SHIFT_REMOVED,
+        previousEmployeeId,
+        shiftId,
+        shiftData
+      );
     }
 
     // ---------- CONFLICT CHECK ----------
@@ -290,7 +443,7 @@
     async saveShift(shiftData, options = {}) {
       await this.init();
       const data = { ...shiftData };
-      data.date = DateHelpers.std(data.date); // ✅ ensure YYYY-MM-DD in Firestore
+      data.date = DateHelpers.std(data.date);
       data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
 
       const bypass = !!(options.force || options.allowConflicts);
@@ -309,6 +462,15 @@
 
       return this._safe(async () => {
         const docRef = await this.db.collection("shifts").add(data);
+
+        if (data.employeeId) {
+          try {
+            await this._createShiftAssignedNotification(docRef.id, data);
+          } catch (notifyErr) {
+            console.error("[ShiftService] Failed to create shift assigned notification:", notifyErr);
+          }
+        }
+
         console.log("[ShiftService] Shift saved:", docRef.id);
         this.notifyDataChange();
         return docRef.id;
@@ -318,7 +480,7 @@
     async updateShift(shiftId, shiftData, options = {}) {
       await this.init();
       const data = { ...shiftData };
-      data.date = DateHelpers.std(data.date); // ✅ ensure YYYY-MM-DD in Firestore
+      data.date = DateHelpers.std(data.date);
       data.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
 
       const bypass = !!(options.force || options.allowConflicts);
@@ -336,7 +498,37 @@
       }
 
       return this._safe(async () => {
-        await this.db.collection("shifts").doc(String(shiftId)).update(data);
+        const ref = this.db.collection("shifts").doc(String(shiftId));
+        const beforeSnap = await ref.get();
+        const beforeData = beforeSnap.exists ? (beforeSnap.data() || {}) : {};
+
+        await ref.update(data);
+
+        const mergedAfter = { ...beforeData, ...data };
+
+        if (this._shouldNotifyReassignment(beforeData, mergedAfter)) {
+          try {
+            await this._createShiftReassignedNotification(
+              shiftId,
+              beforeData.employeeId || null,
+              mergedAfter,
+              { newEmployeeId: mergedAfter.employeeId || null }
+            );
+          } catch (notifyErr) {
+            console.error("[ShiftService] Failed to create shift reassigned notification:", notifyErr);
+          }
+        }
+
+        if (this._shouldNotifyAssignment(beforeData, mergedAfter)) {
+          try {
+            await this._createShiftAssignedNotification(shiftId, mergedAfter, {
+              previousEmployeeId: beforeData.employeeId || null,
+            });
+          } catch (notifyErr) {
+            console.error("[ShiftService] Failed to create shift assigned notification:", notifyErr);
+          }
+        }
+
         console.log("[ShiftService] Shift updated:", shiftId);
         this.notifyDataChange();
         return shiftId;
@@ -346,7 +538,24 @@
     async deleteShift(shiftId) {
       await this.init();
       return this._safe(async () => {
-        await this.db.collection("shifts").doc(String(shiftId)).delete();
+        const ref = this.db.collection("shifts").doc(String(shiftId));
+        const beforeSnap = await ref.get();
+        const beforeData = beforeSnap.exists ? (beforeSnap.data() || {}) : {};
+
+        await ref.delete();
+
+        if (this._shouldNotifyRemoval(beforeData)) {
+          try {
+            await this._createShiftRemovedNotification(
+              shiftId,
+              beforeData.employeeId || null,
+              beforeData
+            );
+          } catch (notifyErr) {
+            console.error("[ShiftService] Failed to create shift removed notification:", notifyErr);
+          }
+        }
+
         console.log("[ShiftService] Shift deleted:", shiftId);
         this.notifyDataChange();
         return true;
@@ -354,7 +563,6 @@
     }
 
     // ---------- OVERRIDE HELPERS ----------
-    // Always bypass conflicts; keep API explicit for UI code.
     async forceSaveShift(shiftData) {
       return this.saveShift(shiftData, { force: true });
     }
@@ -426,7 +634,7 @@
     window.deleteShiftFromFirebase = async (shiftId) => window.shiftService.deleteShift(shiftId);
   }
 
-  // ✅ New explicit wrappers for override flows
+  // ✅ Explicit wrappers for override flows
   if (typeof window.forceSaveShiftToFirebase !== "function") {
     window.forceSaveShiftToFirebase = async (shiftData) => window.shiftService.forceSaveShift(shiftData);
   }

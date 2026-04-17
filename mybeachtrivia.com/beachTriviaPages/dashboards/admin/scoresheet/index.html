@@ -5,6 +5,11 @@
    <meta name="viewport" content="width=device-width, initial-scale=1.0">
    <title>Team Score Calculator</title>
    <link rel="stylesheet" href="style.css">
+
+   <!-- Unified nav bar -->
+   <link rel="stylesheet" href="/beachTriviaPages/js/bt-nav.css">
+   <script src="/beachTriviaPages/js/bt-nav.js" defer></script>
+
    <style>
 /* Search Bar Styling */
 .search-container {
@@ -75,12 +80,10 @@
    
    <!-- Firebase SDK -->
    <script type="module">
-     // Import the functions you need from the SDKs you need
      import { initializeApp } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js";
      import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-analytics.js";
      import { getFirestore, collection, addDoc, query, where, getDocs, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js";
      
-     // Your web app's Firebase configuration
      const firebaseConfig = {
        apiKey: "AIzaSyDBKCotY1F943DKfVQqKOGPPkAkQe2Zgog",
        authDomain: "beach-trivia-website.firebaseapp.com",
@@ -91,12 +94,10 @@
        measurementId: "G-24MQRKKDNY"
      };
      
-     // Initialize Firebase
      const app = initializeApp(firebaseConfig);
      const analytics = getAnalytics(app);
      const db = getFirestore(app);
      
-     // Make Firestore available globally
      window.db = db;
      window.firestore = { collection, addDoc, query, where, getDocs, orderBy, limit };
    </script>
@@ -104,94 +105,45 @@
 <body>
    <script src="app.js" defer></script>
    <script>
-// Function to search for teams
 function searchTeams() {
-    // Get the search term and convert to lowercase for case-insensitive search
     const searchTerm = document.getElementById('teamSearch').value.toLowerCase();
-    
-    // If search term is empty, clear highlights and return
-    if (searchTerm.trim() === '') {
-        clearHighlights();
-        return;
-    }
-    
-    // Flag to check if any match is found
+    if (searchTerm.trim() === '') { clearHighlights(); return; }
     let matchFound = false;
-    
-    // Get all team name inputs
     const teamNameInputs = document.querySelectorAll('.teamName');
-    
-    // Clear previous highlights
     clearHighlights();
-    
-    // Loop through each team name
     for (let i = 0; i < teamNameInputs.length; i++) {
         const teamNameInput = teamNameInputs[i];
         const teamNameValue = teamNameInput.value.toLowerCase();
-        
-        // Check if the team name contains the search term
         if (teamNameValue.includes(searchTerm)) {
             matchFound = true;
-            
-            // Get the parent row (tr element)
             const teamRow = teamNameInput.closest('tr');
-            
-            // Highlight the row
             teamRow.classList.add('highlighted-row');
-            
-            // Scroll to the row
             scrollToTeam(teamRow);
-            
-            // We found a match, no need to continue searching
             break;
         }
     }
-    
-    // If no match is found, show a message
-    if (!matchFound) {
-        alert('No team found with that name.');
-    }
+    if (!matchFound) { alert('No team found with that name.'); }
 }
 
-// Function to clear all highlights
 function clearHighlights() {
-    const highlightedRows = document.querySelectorAll('.highlighted-row');
-    highlightedRows.forEach(row => {
+    document.querySelectorAll('.highlighted-row').forEach(row => {
         row.classList.remove('highlighted-row');
     });
 }
 
-// Function to scroll to a team
 function scrollToTeam(teamRow) {
-    // Get the table wrapper for scrolling
     const tableWrapper = document.querySelector('.table-wrapper');
-    
-    // Calculate the position to scroll to (accounting for sticky header)
     const headerHeight = document.querySelector('thead').offsetHeight;
-    const rowPosition = teamRow.offsetTop - headerHeight - 10; // 10px padding
-    
-    // Scroll the table wrapper
-    tableWrapper.scrollTo({
-        top: rowPosition,
-        behavior: 'smooth'
-    });
+    const rowPosition = teamRow.offsetTop - headerHeight - 10;
+    tableWrapper.scrollTo({ top: rowPosition, behavior: 'smooth' });
 }
 
-// Add event listener for the search input (search on Enter key)
 document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('teamSearch');
-    
     if (searchInput) {
         searchInput.addEventListener('keyup', function(event) {
-            // Search when Enter key is pressed
-            if (event.key === 'Enter') {
-                searchTeams();
-            }
-            
-            // Clear highlights if the search field is emptied
-            if (this.value.trim() === '') {
-                clearHighlights();
-            }
+            if (event.key === 'Enter') { searchTeams(); }
+            if (this.value.trim() === '') { clearHighlights(); }
         });
     }
 });
@@ -201,10 +153,8 @@ document.addEventListener('DOMContentLoaded', function() {
        <h1>Trivia Scoresheet</h1>
    </header>
 
-
    <main>
        <div class="container">
-           <!-- Buttons above the table with Search bar -->
            <div class="button-container">
                <button type="button" onclick="addTeam()">Add Team</button>
                <button type="button" onclick="showStandings()">Standings</button>
@@ -214,7 +164,6 @@ document.addEventListener('DOMContentLoaded', function() {
                    <button type="button" onclick="searchTeams()">Search</button>
                </div>
            </div>
-
 
            <div class="table-wrapper">
                <table id="teamTable">
@@ -258,6 +207,6 @@ document.addEventListener('DOMContentLoaded', function() {
            <ul id="modalRankingList"></ul>
        </div>
    </div>
-  <script src="/beachTriviaPages/js/auth-route-guard.v2.js?v=2025-10-14a"></script>
+   <script src="/beachTriviaPages/js/auth-route-guard.v2.js?v=2025-10-14a"></script>
 </body>
 </html>

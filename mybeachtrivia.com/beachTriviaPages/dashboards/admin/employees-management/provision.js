@@ -72,10 +72,37 @@ function collectSelectedRoles() {
     };
 
     const oldText = btn?.textContent || "Create Employee";
+
+    // Clear any previous email error
+    const emailErrEl = document.getElementById("provision-email-error");
+    if (emailErrEl) emailErrEl.style.display = "none";
+
     setBusy(true, "Working…");
     if (status) status.textContent = "Creating employee and generating password setup link…";
 
     try {
+      // Pre-check: block if an active employee with this email already exists
+      // (mirrors the calendar's Add New Host duplicate check)
+      try {
+        const db = firebase.firestore();
+        const snap = await db.collection("employees").where("email", "==", email).limit(5).get();
+        if (!snap.empty) {
+          const activeMatch = snap.docs.find(d => {
+            const data = d.data() || {};
+            return data.email?.toLowerCase?.() === email && data.active !== false;
+          });
+          if (activeMatch) {
+            if (emailErrEl) emailErrEl.style.display = "block";
+            if (emailEl) { emailEl.focus(); emailEl.select(); }
+            if (status) status.textContent = "";
+            setBusy(false, oldText);
+            return;
+          }
+        }
+      } catch (preErr) {
+        console.warn("[provision] email pre-check failed, proceeding to callable:", preErr);
+      }
+
       // Ensure we are signed in and get a *fresh* ID token
       const user = await waitForUser();
       if (!user) throw new Error("Sign in required");
@@ -159,6 +186,13 @@ function collectSelectedRoles() {
   // --- Wire up ---------------------------------------------------------------
   document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("provision-btn")?.addEventListener("click", createAndSend);
+
+    // Clear the inline email error whenever the user edits the email field
+    document.getElementById("email-input")?.addEventListener("input", () => {
+      const errEl = document.getElementById("provision-email-error");
+      if (errEl) errEl.style.display = "none";
+    });
+
     console.log("provision.js v7 (scoped roles selector)");
   });
 })();

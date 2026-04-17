@@ -37,8 +37,10 @@ h1 {
     flex-wrap: wrap;
 }
 
-/* Action Buttons - Updated for only 2 buttons */
-button {
+/* Action Buttons — scoped to main so the bt-nav buttons are not affected */
+main button,
+.button-container button,
+.scoresheet-btn {
     padding: 12px 25px;
     font-size: 18px;
     font-weight: bold;

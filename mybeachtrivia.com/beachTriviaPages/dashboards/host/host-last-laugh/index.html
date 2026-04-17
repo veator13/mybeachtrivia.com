@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Last Laugh — Host Console</title>
+
+  <link rel="stylesheet" href="/beachTriviaPages/js/bt-nav.css" />
+  <link rel="stylesheet" href="./css/host-base.css" />
+  <link rel="stylesheet" href="./css/host-layout.css" />
+  <link rel="stylesheet" href="./css/host-components.css" />
+  <link rel="stylesheet" href="./css/host-phases.css" />
+  <link rel="stylesheet" href="./css/host-modals.css" />
+
+  <style>
+    /* Phase visibility */
+    .fa-hidden { display: none !important; }
+
+    /* Submission flag/remove buttons */
+    .fa-submission-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .fa-btn--xs {
+      padding: 4px 8px;
+      font-size: 0.72rem;
+      border-radius: 8px;
+    }
+    .fa-submission-item--flagged {
+      opacity: 0.6;
+      border-color: rgba(239, 68, 68, 0.4);
+    }
+    .fa-submission-item--result {
+      border-color: rgba(74, 144, 255, 0.4);
+    }
+    /* Phase badge colours */
+    .fa-phase--lobby       { background: rgba(100,116,139,0.2); color: #94a3b8; }
+    .fa-phase--submission  { background: rgba(74,144,255,0.2);  color: #72b3ff; }
+    .fa-phase--review      { background: rgba(246,183,60,0.2);  color: #fcd34d; }
+    .fa-phase--prevote     { background: rgba(167,139,250,0.2); color: #a78bfa; }
+    .fa-phase--voting      { background: rgba(52,211,153,0.2);  color: #34d399; }
+    .fa-phase--results     { background: rgba(251,146,60,0.2);  color: #fb923c; }
+    .fa-phase--leaderboard { background: rgba(74,144,255,0.2);  color: #72b3ff; }
+    .fa-phase--ended       { background: rgba(239,68,68,0.2);   color: #f87171; }
+
+    /* Custom prompt modal textarea */
+    .fa-prompt-textarea {
+      width: 100%;
+      min-height: 100px;
+      resize: vertical;
+      margin-top: 10px;
+      border-radius: 12px;
+      border: 1px solid rgba(120,164,214,0.18);
+      background: rgba(255,255,255,0.04);
+      color: #eef6ff;
+      font-family: inherit;
+      font-size: 1rem;
+      padding: 12px;
+    }
+
+    /* Game config panel */
+    .fa-config-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 0.85rem;
+      color: #94a3b8;
+    }
+    .fa-cfg-input {
+      width: 64px;
+      padding: 4px 8px;
+      border-radius: 8px;
+      border: 1px solid rgba(120,164,214,0.2);
+      background: rgba(255,255,255,0.06);
+      color: #eef6ff;
+      font-size: 0.85rem;
+      text-align: center;
+    }
+    .fa-round-detail-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      max-height: 220px;
+      overflow-y: auto;
+    }
+    .fa-round-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.8rem;
+      color: #94a3b8;
+    }
+    .fa-round-row-label {
+      flex: 1;
+      white-space: nowrap;
+    }
+    .fa-round-row .fa-cfg-q {
+      width: 52px;
+    }
+    .fa-wager-toggle {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      cursor: pointer;
+      white-space: nowrap;
+      user-select: none;
+      padding: 2px 6px;
+      border-radius: 6px;
+      border: 1px solid rgba(120,164,214,0.15);
+      color: #94a3b8;
+      font-size: 0.75rem;
+    }
+    .fa-wager-toggle:has(input:checked) {
+      border-color: rgba(74,144,255,0.5);
+      color: #72b3ff;
+    }
+    .fa-wager-active {
+      animation: fa-pulse 1.2s ease-in-out infinite;
+    }
+    @keyframes fa-pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.6; }
+    }
+  </style>
+
+  <script src="/beachTriviaPages/js/bt-nav.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-app-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-auth-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore-compat.js" defer></script>
+  <script src="/beachTriviaPages/js/firebase-init-compat.js" defer></script>
+  <script src="/beachTriviaPages/js/firebase-modular-shims.js" defer></script>
+  <script src="/beachTriviaPages/js/auth-route-guard.v2.js?v=2025-10-14a" defer></script>
+  <script type="module" src="./js/app.js"></script>
+</head>
+<body>
+  <div class="fa-host-page">
+    <header class="fa-host-header">
+      <div>
+        <div class="fa-kicker">Host Console</div>
+        <h1>Last Laugh</h1>
+        <p>Run prompts, collect answers, launch voting, reveal results.</p>
+      </div>
+
+      <div class="fa-header-actions">
+        <button id="copy-display-link-btn" class="fa-btn fa-btn--ghost" type="button">
+          Copy Display Link
+        </button>
+        <button id="pause-round-btn" class="fa-btn fa-btn--ghost" type="button">
+          Pause Round
+        </button>
+        <button id="end-event-btn" class="fa-btn fa-btn--danger" type="button">
+          End Event
+        </button>
+      </div>
+    </header>
+
+    <main class="fa-host-grid">
+      <section class="fa-panel fa-panel--main">
+        <div class="fa-panel-head">
+          <div>
+            <div class="fa-eyebrow">Live Event</div>
+            <h2 id="event-title">Last Laugh</h2>
+          </div>
+          <div class="fa-status-wrap">
+            <span id="phase-badge" class="fa-phase-badge fa-phase--lobby">lobby</span>
+            <span id="round-badge" class="fa-round-badge">—</span>
+          </div>
+        </div>
+
+        <div class="fa-prompt-card">
+          <div class="fa-prompt-top">
+            <div>
+              <div class="fa-eyebrow">Current Prompt</div>
+              <h3 id="current-prompt">(no prompt selected)</h3>
+            </div>
+
+            <div class="fa-timer-wrap">
+              <div class="fa-ring">
+                <svg viewBox="0 0 120 120" class="fa-ring-svg">
+                  <circle class="fa-ring-track" cx="60" cy="60" r="52"></circle>
+                  <circle id="host-ring-progress" class="fa-ring-progress" cx="60" cy="60" r="52"></circle>
+                </svg>
+                <div id="host-timer-number" class="fa-ring-number">—</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="fa-phase-actions">
+            <!-- Lobby: prompt selection + start -->
+            <button id="random-prompt-btn"  class="fa-btn"           type="button" data-phase-group="prompt">Random Prompt</button>
+            <button id="theme-pack-btn"     class="fa-btn fa-btn--ghost" type="button" data-phase-group="prompt">Pick Theme</button>
+            <button id="custom-prompt-btn"  class="fa-btn fa-btn--ghost" type="button" data-phase-group="prompt">Custom Prompt</button>
+            <button id="start-round-btn"    class="fa-btn fa-btn--primary" type="button" data-phase-group="prompt">Start Round</button>
+
+            <!-- Submission phase -->
+            <button id="end-submissions-btn" class="fa-btn fa-hidden"           type="button" data-phase-group="submission">End Answers Early</button>
+            <button id="extend-10-btn"       class="fa-btn fa-btn--ghost fa-hidden" type="button" data-phase-group="submission">+10 Sec</button>
+
+            <!-- Review phase -->
+            <button id="confirm-answers-btn" class="fa-btn fa-btn--primary fa-hidden" type="button" data-phase-group="review">Confirm Answers → Pre-Vote</button>
+
+            <!-- Pre-vote phase -->
+            <button id="open-voting-btn"     class="fa-btn fa-btn--primary fa-hidden" type="button" data-phase-group="prevote">Open Voting</button>
+
+            <!-- Voting phase -->
+            <button id="end-voting-btn"      class="fa-btn fa-hidden"           type="button" data-phase-group="voting">End Voting Early</button>
+            <button id="extend-10-btn-vote"  class="fa-btn fa-btn--ghost fa-hidden" type="button" data-phase-group="voting">+10 Sec</button>
+
+            <!-- Results phase -->
+            <button id="reveal-results-btn"  class="fa-btn fa-btn--ghost fa-hidden" type="button" data-phase-group="results">Re-Reveal Results</button>
+            <button id="show-scoreboard-btn" class="fa-btn fa-btn--primary fa-hidden" type="button" data-phase-group="results">Show Scoreboard</button>
+
+            <!-- Leaderboard phase -->
+            <button id="next-round-btn"      class="fa-btn fa-btn--primary fa-hidden" type="button" data-phase-group="leaderboard">Next Question →</button>
+          </div>
+        </div>
+
+        <div class="fa-stage-grid">
+          <section class="fa-panel fa-subpanel">
+            <div class="fa-subpanel-head">
+              <h3>Submissions</h3>
+              <span id="submission-count">0 answers</span>
+            </div>
+            <div id="submission-list" class="fa-scroll-list"></div>
+          </section>
+
+          <section class="fa-panel fa-subpanel">
+            <div class="fa-subpanel-head">
+              <h3>Leaderboard</h3>
+              <span id="team-count">0 teams</span>
+            </div>
+            <div id="leaderboard-list" class="fa-scroll-list"></div>
+          </section>
+        </div>
+      </section>
+
+      <aside class="fa-sidebar">
+
+        <!-- Game Setup panel -->
+        <section class="fa-panel">
+          <div class="fa-subpanel-head">
+            <h3>Game Setup</h3>
+          </div>
+          <div class="fa-stack">
+            <button id="standard-game-btn" class="fa-btn fa-btn--primary" type="button">
+              Standard Game (4R × 10Q)
+            </button>
+
+            <div class="fa-config-row">
+              <label for="cfg-num-rounds">Rounds</label>
+              <input type="number" id="cfg-num-rounds" class="fa-cfg-input" min="1" max="20" value="4">
+            </div>
+
+            <div class="fa-config-row">
+              <label for="cfg-questions-per-round">Questions / round</label>
+              <input type="number" id="cfg-questions-per-round" class="fa-cfg-input" min="1" max="50" value="10">
+            </div>
+
+            <div id="cfg-round-details" class="fa-round-detail-list">
+              <!-- per-round rows rendered by app.js -->
+            </div>
+
+            <button id="apply-config-btn" class="fa-btn fa-btn--ghost" type="button">Apply Config</button>
+          </div>
+        </section>
+
+        <section class="fa-panel">
+          <div class="fa-subpanel-head">
+            <h3>Wager Round</h3>
+          </div>
+          <div class="fa-stack">
+            <button id="start-halftime-btn" class="fa-btn" type="button">Set Halftime Prompt</button>
+            <button id="start-final-btn"    class="fa-btn" type="button">Set Final Prompt</button>
+            <button id="show-wagers-btn"    class="fa-btn fa-btn--ghost" type="button">Reveal Wagers</button>
+          </div>
+        </section>
+
+        <section class="fa-panel">
+          <div class="fa-subpanel-head">
+            <h3>Display + Join</h3>
+          </div>
+          <div class="fa-stack fa-stack--sm">
+            <div class="fa-info-row"><span>Game Code</span><strong id="game-code">—</strong></div>
+            <div class="fa-info-row"><span>Join URL</span><strong>/beachTriviaPages/games/last-laugh/</strong></div>
+            <div class="fa-info-row"><span>Display URL</span><strong>/display.html?gameId=…</strong></div>
+          </div>
+        </section>
+      </aside>
+    </main>
+  </div>
+
+  <!-- End event confirmation modal -->
+  <dialog id="host-confirm-modal" class="fa-modal">
+    <form method="dialog" class="fa-modal-card">
+      <h3>End Event?</h3>
+      <p>This will close the current event session for all players.</p>
+      <div class="fa-modal-actions">
+        <button class="fa-btn fa-btn--ghost" value="cancel">Cancel</button>
+        <button class="fa-btn fa-btn--danger" value="confirm">End Event</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Custom prompt modal -->
+  <dialog id="custom-prompt-modal" class="fa-modal">
+    <div class="fa-modal-card">
+      <h3>Custom Prompt</h3>
+      <p>Type your prompt below (max 200 characters).</p>
+      <textarea
+        id="custom-prompt-input"
+        class="fa-prompt-textarea"
+        maxlength="200"
+        placeholder="e.g. A terrible slogan for a submarine sandwich shop."
+      ></textarea>
+      <div class="fa-modal-actions" style="margin-top:14px;">
+        <button id="custom-prompt-close" class="fa-btn fa-btn--ghost" type="button">Cancel</button>
+        <button id="custom-prompt-save"  class="fa-btn fa-btn--primary" type="button">Set Prompt</button>
+      </div>
+    </div>
+  </dialog>
+</body>
+</html>

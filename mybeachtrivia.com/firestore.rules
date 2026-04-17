@@ -7,11 +7,59 @@ service cloud.firestore {
     function isSelf(uid) { return signedIn() && request.auth.uid == uid; }
 
     // Admin if claim 'admin' is true OR roles array contains admin/superadmin
+    // OR employee profile roles contains admin/superadmin (active only)
     function isAdmin() {
       return signedIn() && (
+        // Claims path
         request.auth.token.admin == true ||
         (request.auth.token.roles != null &&
-         request.auth.token.roles.hasAny(['admin','superadmin']))
+         request.auth.token.roles.hasAny(['admin','superadmin'])) ||
+
+        // Profile fallback path
+        (
+          exists(/databases/$(database)/documents/employees/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.active == true &&
+          get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.roles != null &&
+          get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.roles.hasAny(['admin','superadmin'])
+        )
+      );
+    }
+
+    // Host/Admin if claim admin==true OR roles has host/admin/superadmin
+    // OR employee profile roles contains host/admin/superadmin (active only)
+    function isHostOrAdmin() {
+      return signedIn() && (
+        // Claims path
+        request.auth.token.admin == true ||
+        (request.auth.token.roles != null &&
+         request.auth.token.roles.hasAny(['host','admin','superadmin'])) ||
+
+        // Profile fallback path
+        (
+          exists(/databases/$(database)/documents/employees/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.active == true &&
+          get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.roles != null &&
+          get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.roles.hasAny(['host','admin','superadmin'])
+        )
+      );
+    }
+
+    // Writer/Admin if claim admin==true OR roles has writer/admin/superadmin
+    // OR employee profile roles contains writer/admin/superadmin (active only)
+    function isWriterOrAdmin() {
+      return signedIn() && (
+        // Claims path
+        request.auth.token.admin == true ||
+        (request.auth.token.roles != null &&
+         request.auth.token.roles.hasAny(['writer','admin','superadmin'])) ||
+
+        // Profile fallback path
+        (
+          exists(/databases/$(database)/documents/employees/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.active == true &&
+          get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.roles != null &&
+          get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.roles.hasAny(['writer','admin','superadmin'])
+        )
       );
     }
 
@@ -39,6 +87,45 @@ service cloud.firestore {
                        .changedKeys().hasOnly(selfAllowedKeys()));
 
       // Delete by admin only
+      allow delete: if isAdmin();
+    }
+
+    /* ========= Writer / Show Builder =========
+       These are additive and isolated so they do not affect existing pages.
+    */
+
+    // Draft shows: writer/admin can create/read/update/delete.
+    // Hosts can read drafts if needed for operational handoff, but cannot write them.
+    match /showDrafts/{draftId} {
+      allow read: if isWriterOrAdmin() || isHostOrAdmin();
+      allow create, update, delete: if isWriterOrAdmin();
+    }
+
+    // Published shows: writer/admin can create/update/delete.
+    // Host/admin can read for playback.
+    match /publishedShows/{showId} {
+      allow read: if isWriterOrAdmin() || isHostOrAdmin();
+      allow create, update, delete: if isWriterOrAdmin();
+    }
+
+    // Reusable templates/blocks for the writer experience
+    match /showTemplates/{templateId} {
+      allow read: if isWriterOrAdmin() || isHostOrAdmin();
+      allow create, update, delete: if isWriterOrAdmin();
+    }
+
+    match /questionBlocks/{blockId} {
+      allow read: if isWriterOrAdmin() || isHostOrAdmin();
+      allow create, update, delete: if isWriterOrAdmin();
+    }
+
+    // Live synced slideshow sessions.
+    // Public read is allowed only for docs explicitly marked publicViewer == true
+    // so casted screens can join by session code without auth.
+    // Writes remain restricted to host/admin.
+    match /liveSessions/{sessionId} {
+      allow read: if (resource.data.publicViewer == true) || isHostOrAdmin() || isWriterOrAdmin();
+      allow create, update: if isHostOrAdmin() || isWriterOrAdmin();
       allow delete: if isAdmin();
     }
 
@@ -131,7 +218,9 @@ service cloud.firestore {
         && request.resource.data.teams is list
         && request.resource.data.teams.size() <= 200;
       allow read: if signedIn();
-      allow update, delete: if false;
+      // Admins/superadmins can update saved scoresheets; delete remains blocked
+      allow update: if isAdmin();
+      allow delete: if false;
     }
 
     /* ========= Games =========
@@ -246,15 +335,139 @@ service cloud.firestore {
       );
     }
 
+    /* ========= Sessions (Music Bingo multi-round) =========
+       Any signed-in user (incl. anonymous player) can read a session doc.
+       Hosts/Admins can create and update; delete is admin only.
+    */
+    match /sessions/{sessionId} {
+      allow read: if signedIn();
+      allow create, update: if isHostOrAdmin();
+      allow delete: if isAdmin();
+    }
+
+    /* ========= Last Laugh =========
+       Host/Admin owns the game doc.
+       Players (including anonymous) can read the game doc and write their own
+       submission, vote, and team docs (keyed by their UID).
+       Host/Admin can flag/remove any submission.
+    */
+    match /last-laugh/{gameId} {
+      allow read: if signedIn();
+      allow create, update: if isHostOrAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /last-laugh/{gameId}/submissions/{submissionId} {
+      // Any signed-in user can read (display screen is anonymous)
+      allow read: if signedIn();
+      // Player creates/updates their own submission (submissionId == their uid)
+      allow create, update: if signedIn() && request.auth.uid == submissionId;
+      // Host/Admin can update (flag) or delete any submission
+      allow update, delete: if isHostOrAdmin();
+    }
+
+    match /last-laugh/{gameId}/votes/{voteId} {
+      allow read: if isHostOrAdmin();
+      // Player writes their own vote doc (voteId == their uid)
+      allow create, update: if signedIn() && request.auth.uid == voteId;
+    }
+
+    match /last-laugh/{gameId}/teams/{teamId} {
+      allow read: if signedIn();
+      // Player registers their own team doc (teamId == their uid)
+      allow create, update: if signedIn() && request.auth.uid == teamId;
+      // Host/Admin can update scores
+      allow update: if isHostOrAdmin();
+    }
+
     /* ========= Admin Calendar Collections =========
        Admin-only read/write. These power the admin calendar page.
     */
     match /locations/{docId} {
-      allow read, write: if isAdmin();
+      allow read: if isHostOrAdmin();
+      allow write: if isAdmin();
     }
 
     match /shifts/{docId} {
-      allow read, write: if isAdmin();
+      allow read: if isHostOrAdmin();
+      allow write: if isAdmin();
+      // Hosts may update only employeeId + updatedAt when accepting a coverage swap
+      allow update: if isHostOrAdmin()
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(['employeeId','updatedAt']);
+    }
+
+    /* ========= Shift Coverage Requests =========
+       Hosts use this to offer up their shift for another host to cover.
+       - Any host/admin can read all requests (powers the Shift Offers panel).
+       - A host can create a request only for themselves (requestingHostId == their UID).
+       - A host can accept an open offer (open → approved immediately, acceptingHostId == their UID).
+       - Admin can make any status change and delete.
+    */
+    match /shiftCoverageRequests/{requestId} {
+      allow read: if isHostOrAdmin();
+
+      allow create: if isHostOrAdmin()
+        && request.resource.data.requestingHostId == request.auth.uid
+        && request.resource.data.status == "open";
+
+      allow update: if isHostOrAdmin() && (
+        // Host accepting: open → approved immediately, acceptingHostId must be themselves
+        (resource.data.status == "open"
+          && request.resource.data.status == "approved"
+          && request.resource.data.acceptingHostId == request.auth.uid)
+        // Admin can update any field
+        || isAdmin()
+      );
+
+      allow delete: if (isHostOrAdmin()
+        && resource.data.requestingHostId == request.auth.uid)
+        || isAdmin();
+    }
+
+    /* ========= Shift Swap Notifications =========
+       Written by the accepting host when a swap completes.
+       Admin reviews and can reject (which reverts the swap).
+    */
+    match /shiftSwapNotifications/{notifId} {
+      allow read: if isHostOrAdmin();
+
+      allow create: if isHostOrAdmin()
+        && request.resource.data.acceptingHostId == request.auth.uid
+        && request.resource.data.status == "pending_review";
+
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    /* ========= Host Notifications =========
+       Host-specific bell notifications (e.g. newly assigned shifts).
+       - Host can read only notifications targeted at themselves.
+       - Admin can read/write/delete all.
+       - No other collections or pages are affected by this isolated rule.
+    */
+    match /hostNotifications/{notifId} {
+      // Hosts and admins can read. For collection queries (onSnapshot with .where()),
+      // Firestore cannot evaluate per-document resource.data conditions at query-plan
+      // time, so we gate on role instead. The client always filters by targetHostId.
+      allow read: if isHostOrAdmin();
+
+      allow create: if isAdmin()
+        && request.resource.data.targetHostId is string
+        && request.resource.data.targetHostId.size() > 0;
+
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    /* ========= User Bell State =========
+       Stores lastSeenAt timestamp per user for the bell notification badge.
+       Each user can read/write their own doc.
+       Admin can also write any user's doc to increment unread counters
+       when assigning/reassigning/removing shifts.
+    */
+    match /userBellState/{uid} {
+      allow read: if request.auth.uid == uid || isAdmin();
+      allow write: if request.auth.uid == uid || isAdmin();
     }
   }
 }

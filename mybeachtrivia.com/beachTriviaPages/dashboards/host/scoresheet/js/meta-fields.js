@@ -5,7 +5,7 @@
    - reading meta values
    - required-field validation + visual highlighting
    - eventType-driven themeName autofill (Classic/Feud/Private Event) + blank for Themed
-   - ✅ submitter name autofill from logged-in host (Firebase Auth) + lock fields
+   - ✅ submitter name autofill from logged-in host (Firestore employees collection) + lock fields
 
    FEUD MODE HOOK:
    - When event type changes, dispatches:
@@ -172,30 +172,77 @@
     fireUserLikeInput(lastEl);
   }
 
+  // ✅ Try to fetch first/last name from Firestore employees collection.
+  // Falls back gracefully to displayName parsing, then email parsing.
+  function fetchNameFromFirestore(uid, callback) {
+    try {
+      const db =
+        window.FirebaseHelpers?.getDb?.() ||
+        (window.firebase?.firestore ? window.firebase.firestore() : null) ||
+        window.db ||
+        null;
+
+      if (!db) {
+        callback(null);
+        return;
+      }
+
+      db.collection("employees")
+        .doc(uid)
+        .get()
+        .then(function (doc) {
+          if (doc && doc.exists) {
+            const data = doc.data() || {};
+            callback({
+              firstName: String(data.firstName || "").trim(),
+              lastName: String(data.lastName || "").trim(),
+            });
+          } else {
+            callback(null);
+          }
+        })
+        .catch(function () {
+          callback(null);
+        });
+    } catch (_) {
+      callback(null);
+    }
+  }
+
   function fillSubmitterFromUser(user) {
     if (!user) return;
 
-    let firstName = "";
-    let lastName = "";
+    // ✅ First: try Firestore employees collection using the auth UID
+    fetchNameFromFirestore(user.uid, function (profile) {
+      if (profile && (!isBlank(profile.firstName) || !isBlank(profile.lastName))) {
+        setSubmitterFields(profile.firstName, profile.lastName);
+        return;
+      }
 
-    const dn = user.displayName || "";
-    const email = user.email || "";
+      // Fallback 1: Firebase Auth displayName (e.g. Google OAuth "First Last")
+      let firstName = "";
+      let lastName = "";
 
-    const fromDn = parseNameFromDisplayName(dn);
-    firstName = fromDn.firstName || "";
-    lastName = fromDn.lastName || "";
+      const dn = user.displayName || "";
+      const email = user.email || "";
 
-    if (!firstName && !lastName) {
-      const fromEmail = parseNameFromEmail(email);
-      firstName = fromEmail.firstName || "";
-      lastName = fromEmail.lastName || "";
-    }
+      const fromDn = parseNameFromDisplayName(dn);
+      firstName = fromDn.firstName || "";
+      lastName = fromDn.lastName || "";
 
-    // As a last fallback, use displayName/email raw (so it's never blank if possible)
-    if (!firstName && dn) firstName = dn;
-    if (!firstName && email) firstName = email;
+      // Fallback 2: parse email prefix (e.g. first.last@domain.com)
+      if (!firstName && !lastName) {
+        const fromEmail = parseNameFromEmail(email);
+        firstName = fromEmail.firstName || "";
+        lastName = fromEmail.lastName || "";
+      }
 
-    setSubmitterFields(firstName, lastName);
+      // Last resort: use raw displayName or email so field is never blank
+      if (!firstName && dn) firstName = dn;
+      if (!firstName && email) firstName = email;
+
+      setSubmitterFields(firstName, lastName);
+    });
   }
 
   function tryBindAuthListener(attempt) {
@@ -440,7 +487,7 @@
       eventTypeEl.dataset.boundMetaFields = "1";
     }
 
-    // ✅ If online/offline flips, clear venue invalid marks so user isn’t stuck
+    // ✅ If online/offline flips, clear venue invalid marks so user isn't stuck
     if (!window.__scoresheetVenueModeListenerBound) {
       window.__scoresheetVenueModeListenerBound = true;
 
@@ -477,7 +524,7 @@
     // ✅ notify current value on load too
     dispatchEventTypeChanged((getEl("eventType")?.value || "").trim());
 
-    // ✅ fill submitter from logged-in host (Firebase Auth)
+    // ✅ fill submitter from logged-in host (Firestore employees collection)
     tryBindAuthListener(0);
   }
 

@@ -1,3 +1,4 @@
+<!-- mybeachtrivia.com/beachTriviaPages/dashboards/admin/locations-management/index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -8,6 +9,9 @@
 
   <!-- Base admin styles (copied from employees-management) -->
   <link rel="stylesheet" href="style.css"/>
+  <!-- Unified nav bar -->
+  <link rel="stylesheet" href="/beachTriviaPages/js/bt-nav.css">
+  <script src="/beachTriviaPages/js/bt-nav.js" defer></script>
 
   <!-- Firebase SDKs (compat) -->
   <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-app-compat.js"></script>
@@ -51,7 +55,7 @@
               id="locationSearch"
               type="text"
               class="input"
-              placeholder="Search name, contact, phone, email, notes…"
+              placeholder="Search name, address, contact, phone, email, notes…"
               autocomplete="off"
               aria-label="Search venues"
             />
@@ -74,6 +78,7 @@
                 <th scope="col" class="sticky-col col-venue">Venue</th>
 
                 <!-- Scrollable info columns -->
+                <th scope="col" class="col-address">Address</th>
                 <th scope="col" class="col-contact">Contact</th>
                 <th scope="col" class="col-phone">Phone</th>
                 <th scope="col" class="col-email">Email</th>
@@ -107,6 +112,11 @@
             <div class="muted" id="venueNameLockHint" style="display:none; margin-top:6px;">
               Venue name is locked after creation to avoid breaking older shifts that reference the name.
             </div>
+          </div>
+
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label for="address" class="label">Address</label>
+            <input type="text" id="address" class="input" placeholder="Street, City, State ZIP">
           </div>
 
           <div class="form-group">
@@ -161,4 +171,3 @@
   <script src="/beachTriviaPages/js/auth-route-guard.v2.js?v=2025-10-14a"></script>
 </body>
 </html>
-EOF

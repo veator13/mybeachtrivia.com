@@ -86,6 +86,28 @@
     return false;
   }
 
+  /**
+   * Try to load the employee doc from the sessionStorage cache written by
+   * login.js immediately after sign-in. Cache is valid for 60 seconds —
+   * enough time to survive the login → dashboard navigation.
+   * Falls back to a live Firestore read if cache is absent or stale.
+   */
+  async function getEmpDoc(uid) {
+    try {
+      const raw = sessionStorage.getItem('bt:empCache');
+      if (raw) {
+        const { uid: cachedUid, emp, ts } = JSON.parse(raw);
+        if (cachedUid === uid && Date.now() - ts < 60_000) {
+          console.log('[guard-admin] using cached employee doc');
+          return emp;
+        }
+      }
+    } catch (_) {}
+    // Cache miss — fetch from Firestore
+    const snap = await db.doc(`employees/${uid}`).get();
+    return snap.exists ? (snap.data() || {}) : null;
+  }
+
   // Safety: 15s watchdog so you don't get stuck invisible
   const watchdog = setTimeout(() => {
     try { document.documentElement.style.visibility = ''; } catch (_) {}
@@ -103,19 +125,16 @@
       // Optional: quick loading state
       setDisplay(els.loading, 'block');
 
-      const snap = await db.doc(`employees/${user.uid}`).get();
-      if (!snap.exists) {
+      const emp = await getEmpDoc(user.uid);
+      if (!emp) {
         console.warn('[guard-admin] employees doc missing for', user.uid);
         showError('No employee profile found. Contact an administrator.');
         try { await auth.signOut(); } catch {}
         return;
       }
 
-      const emp = snap.data() || {};
       if (!isAdminFromDoc(emp)) {
         console.warn('[guard-admin] Access denied for', user.email, emp);
-        // If you prefer a hard redirect, swap showError+signOut with:
-        // location.replace('/dashboards/not-authorized.html');
         showError('You do not have permission to access the admin dashboard.');
         try { await auth.signOut(); } catch {}
         return;

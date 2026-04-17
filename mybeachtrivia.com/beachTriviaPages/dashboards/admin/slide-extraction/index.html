@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Slide Extraction</title>
+  <link rel="stylesheet" href="./slides-question-extractor-style.css" />
+
+  <!-- Unified nav bar -->
+  <link rel="stylesheet" href="/beachTriviaPages/js/bt-nav.css">
+  <script src="/beachTriviaPages/js/bt-nav.js" defer></script>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js" defer></script>
+
+  <!-- Firebase Init -->
+  <script src="/firebase-init.js?v=1" defer></script>
+
+  <!-- Admin Guard -->
+  <script src="/beachTriviaPages/dashboards/admin/guard-admin.js?v=1" defer></script>
+</head>
+<body data-page="admin-slide-extraction">
+  <div id="auth-loading" class="auth-loading-overlay">
+    <div class="auth-loading-card">
+      <div class="auth-spinner"></div>
+      <div class="auth-loading-text">Checking admin access…</div>
+    </div>
+  </div>
+
+  <div id="error-container" class="error-container" style="display:none;"></div>
+
+  <div class="dashboard-container" style="display:none;">
+    <div class="shell">
+      <section class="hero">
+        <div class="eyebrow">Beach Trivia • Slide extraction</div>
+        <h1>Slide Extraction</h1>
+        <div class="subcopy">
+          Upload a <strong>.pptx</strong> deck exported from Google Slides or PowerPoint. This tool extracts likely trivia questions,
+          supports themed rounds, and exports a CSV you can later send into Firestore.
+        </div>
+      </section>
+
+      <section class="grid">
+        <aside class="card">
+          <div class="card-header">
+            <h2>Controls</h2>
+          </div>
+          <div class="card-body stack">
+            <div id="dropzone" class="dropzone">
+              <strong>Drop a .pptx file here</strong>
+              <p>Or click anywhere in this area to pick a file. This version processes one slideshow at a time.</p>
+              <div class="file-input">
+                <input
+                  class="sr-only"
+                  id="fileInput"
+                  type="file"
+                  accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                />
+                <button type="button" id="browseBtn" class="dropzone-button">Choose .pptx file</button>
+                <div id="selectedFileNote" class="selected-file-note">No file selected</div>
+              </div>
+            </div>
+
+            <div class="options">
+              <label class="checkbox">
+                <input id="includeAnswers" type="checkbox" checked />
+                <span>Try to pair question slides with answer slides</span>
+              </label>
+              <label class="checkbox">
+                <input id="onlyQuestionSlides" type="checkbox" checked />
+                <span>Only export slides that look like question slides</span>
+              </label>
+              <label class="checkbox">
+                <input id="includeRawText" type="checkbox" checked />
+                <span>Include raw slide text in the CSV for debugging</span>
+              </label>
+            </div>
+
+            <div class="actions">
+              <button id="extractBtn" class="btn btn-primary" disabled>Extract Questions</button>
+              <button id="downloadBtn" class="btn btn-secondary" disabled>Download CSV</button>
+            </div>
+
+            <div class="footer-note">
+              Best workflow for now: in Google Slides, download a deck as
+              <span class="inline">.pptx</span>, then drop it here.
+            </div>
+          </div>
+        </aside>
+
+        <main class="card">
+          <div class="card-header">
+            <h2>Extraction Results</h2>
+          </div>
+          <div class="card-body">
+            <div class="stats">
+              <div class="stat">
+                <div class="stat-label">File</div>
+                <div id="fileNameStat" class="stat-value">—</div>
+              </div>
+              <div class="stat">
+                <div class="stat-label">Slides Parsed</div>
+                <div id="slidesStat" class="stat-value">0</div>
+              </div>
+              <div class="stat">
+                <div class="stat-label">Rows Ready</div>
+                <div id="rowsStat" class="stat-value">0</div>
+              </div>
+            </div>
+
+            <div id="statusBox" class="status">Upload a .pptx file to begin.</div>
+
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Row</th>
+                    <th>Slide</th>
+                    <th>Type</th>
+                    <th>Round</th>
+                    <th>Round Type</th>
+                    <th>Round Theme</th>
+                    <th>Question #</th>
+                    <th>Category</th>
+                    <th>Theme Source</th>
+                    <th>Question</th>
+                    <th>Answer</th>
+                    <th>Raw Text</th>
+                  </tr>
+                </thead>
+                <tbody id="resultsBody">
+                  <tr>
+                    <td colspan="12" class="muted">No extraction yet.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </main>
+      </section>
+    </div>
+  </div>
+
+  <script src="/beachTriviaPages/vendor/jszip.min.js" defer></script>
+  <script src="./slides-question-extractor-script.js" defer></script>
+</body>
+</html>

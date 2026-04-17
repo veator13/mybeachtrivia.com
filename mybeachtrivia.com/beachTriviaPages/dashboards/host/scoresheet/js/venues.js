@@ -1,5 +1,5 @@
 /* venues.js
-   Populates #venueSelect from Firestore collection 'locations'
+   Populates #venueSelect from Firestore collection 'publicLocations'
 
    ✅ Responsibilities (ONLY):
    - Populate the Venue <select> from Firestore
@@ -139,7 +139,7 @@
 
     try {
       unsubscribe = db
-        .collection("locations")
+        .collection("publicLocations")
         .orderBy("name")
         .onSnapshot(
           // ✅ Critical: Firestore can "succeed" while offline by serving cache.

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Regional Manager Dashboard</title>
+  <meta name="theme-color" content="#0a1122">
+
+  <!-- Unified nav bar -->
+  <link rel="stylesheet" href="/beachTriviaPages/js/bt-nav.css">
+  <script src="/beachTriviaPages/js/bt-nav.js" defer></script>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js" defer></script>
+  <script src="/firebase-init.js?v=1" defer></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background-color: #0a1122; color: #e2e8f0; line-height: 1.6; min-height: 100vh;
+    }
+    #auth-loading {
+      position: fixed; inset: 0; background-color: #0a1122;
+      display: flex; flex-direction: column; justify-content: center; align-items: center;
+      z-index: 1000; color: #fff;
+    }
+    .spinner {
+      border: 4px solid rgba(255,255,255,0.1); border-top: 4px solid #3b82f6;
+      border-radius: 50%; width: 40px; height: 40px;
+      animation: spin 1s linear infinite; margin-bottom: 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #error-container {
+      position: fixed; inset: 0; background-color: #0a1122;
+      display: none; align-items: center; justify-content: center; z-index: 1000;
+    }
+    .error-message {
+      background: #f8d7da; color: #721c24; padding: 20px; border-radius: 10px;
+      max-width: 420px; width: 90%; text-align: center;
+    }
+    .error-message button {
+      margin-top: 12px; border: 0; background: #c82333; color: #fff;
+      padding: 8px 12px; border-radius: 6px; cursor: pointer;
+    }
+    .dashboard-container {
+      width: 90%; max-width: 1200px; margin: 30px auto;
+      background-color: #1e293b; border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.25); overflow: hidden;
+    }
+    .page-body { padding: 40px 30px; text-align: center; color: #94a3b8; }
+    .page-body h2 { color: #f1f5f9; font-size: 24px; margin-bottom: 12px; }
+    .coming-soon-badge {
+      display: inline-block; background: #1d4ed8; color: #fff;
+      padding: 4px 14px; border-radius: 20px; font-size: 12px;
+      font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div id="auth-loading">
+    <div class="spinner"></div>
+    <p>Verifying access...</p>
+  </div>
+  <div id="error-container">
+    <div class="error-message">
+      <p id="error-text">An error occurred. Please try again.</p>
+      <button id="back-to-login" type="button">Return to Login</button>
+    </div>
+  </div>
+  <div class="dashboard-container" style="display:none;">
+    <div class="page-body">
+      <span class="coming-soon-badge">Coming Soon</span>
+      <h2>Regional Manager Dashboard</h2>
+      <p>This dashboard is under construction. Check back soon.</p>
+    </div>
+  </div>
+  <script defer>
+    document.addEventListener('DOMContentLoaded', function () {
+      document.getElementById('back-to-login')?.addEventListener('click', function () {
+        window.location.assign('/login.html');
+      });
+      function waitForFirebase(cb, n) {
+        if (window.firebase && window.firebase.auth) { cb(); return; }
+        if ((n||0) > 30) { showError('Firebase failed to load.'); return; }
+        setTimeout(function () { waitForFirebase(cb, (n||0)+1); }, 100);
+      }
+      function showError(msg) {
+        document.getElementById('auth-loading').style.display = 'none';
+        document.getElementById('error-container').style.display = 'flex';
+        document.getElementById('error-text').textContent = msg || 'Access denied.';
+      }
+      waitForFirebase(function () {
+        firebase.auth().onAuthStateChanged(function (user) {
+          if (!user) { window.location.assign('/login.html'); return; }
+          firebase.firestore().collection('employees').doc(user.uid).get().then(function (snap) {
+            if (!snap.exists) { showError('No employee record found.'); return; }
+            var emp = snap.data() || {};
+            if (emp.active === false) { showError('Your account is not active.'); return; }
+            var roles = Array.isArray(emp.roles) ? emp.roles : (emp.role ? [emp.role] : []);
+            if (!roles.includes('regional') && !roles.includes('admin')) {
+              showError('You do not have access to this page.'); return;
+            }
+            document.getElementById('auth-loading').style.display = 'none';
+            document.querySelector('.dashboard-container').style.display = '';
+          }).catch(function () { showError('Could not verify access.'); });
+        });
+      });
+    });
+  </script>
+</body>
+</html>

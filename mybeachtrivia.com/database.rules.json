@@ -11,17 +11,16 @@
           "$uid": {
             ".write": "auth != null && auth.uid === $uid",
 
-            "joinedAt":   { ".validate": "newData.isNumber()" },
+            "joinedAt": { ".validate": "newData.isNumber()" },
             "lastActive": { ".validate": "newData.isNumber()" }
           }
         },
+
         "joinLog": {
           ".read": "auth != null",
-
           "$uid": {
             ".write": "auth != null && auth.uid === $uid",
-
-            "joinedAt": { ".validate": "newData.isNumber()" }
+            ".validate": "newData.hasChildren(['joinedAt']) && newData.child('joinedAt').isNumber()"
           }
         }
       }

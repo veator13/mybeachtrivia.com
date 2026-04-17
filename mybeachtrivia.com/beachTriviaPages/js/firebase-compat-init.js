@@ -13,7 +13,8 @@
   
     const firebaseConfig = {
       apiKey: "AIzaSyDBKCotY1F943DKfVQqKOGPPkAkQe2Zgog",
-      authDomain: "beach-trivia-website.firebaseapp.com",
+      // Must match /firebase-init.js (employee login) or sessions won’t persist across pages.
+      authDomain: "mybeachtrivia.com",
       projectId: "beach-trivia-website",
       storageBucket: "beach-trivia-website.appspot.com",
       messagingSenderId: "459479368322",

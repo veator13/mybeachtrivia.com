@@ -67,8 +67,8 @@ const BingoBoardGenerator = (() => {
     // Function to generate multiple unique boards
     const generateMultipleBoards = (songArtistPairs, numBoards) => {
         // Ensure we have enough songs/artists to create unique boards
-        if (songArtistPairs.length < 40) {
-            throw new Error('Need at least 40 songs to generate unique bingo boards');
+        if (songArtistPairs.length < 25) {
+            throw new Error('Need at least 25 songs to generate unique bingo boards');
         }
         
         const boards = [];
@@ -185,18 +185,22 @@ const BingoBoardGenerator = (() => {
                             // Enhanced text wrapping for cells
                             if (text) {
                                 // Calculate max width that will fit in a cell (in points)
-                                // Reduced padding from 2mm to 1mm on each side to give more space for text
-                                const maxWidth = cellWidth - 2; // 1mm padding on each side (reduced from 4)
-                                
-                                // Increase the font size for song and artist names slightly
-                                const fontSize = 10.5; // Increased from 9 to 10.5 to make text slightly larger
+                                const maxWidth = cellWidth - 2; // 1mm padding on each side
+
+                                // Pre-process: truncate multi-artist strings at first semicolon
+                                let processedText = text.includes(';') ? text.split(';')[0].trim() : text;
+
+                                // Dynamic font sizing: start at 9, shrink down if text is long
+                                let fontSize = 9;
+                                if (processedText.length > 25) fontSize = 8;
+                                if (processedText.length > 35) fontSize = 7;
                                 pdf.setFontSize(fontSize);
-                                
+
                                 // Use normal font weight instead of bold for better readability
                                 pdf.setFont('helvetica', 'normal');
-                                
+
                                 // Split text into lines that fit within cell width
-                                const words = text.split(' ');
+                                const words = processedText.split(' ');
                                 const lines = [];
                                 let currentLine = '';
                                 
@@ -238,7 +242,7 @@ const BingoBoardGenerator = (() => {
                                 }
                                 
                                 // Center text vertically
-                                const lineHeight = fontSize * 1.03 / pdf.internal.scaleFactor; // Reduced line height multiplier slightly
+                                const lineHeight = fontSize * 1.2 / pdf.internal.scaleFactor;
                                 const totalTextHeight = displayLines.length * lineHeight;
                                 let textY = y + (cellHeight - totalTextHeight) / 2 + lineHeight; // Start Y for first line
                                 

@@ -1,0 +1,499 @@
+/* =================================================================
+   nav-footer.css — shared navigation & footer for public pages
+   Full-width top header + full-width bottom footer
+   Targeted only at header nav + footer
+   ================================================================= */
+
+   :root {
+    --bt-accent: #55daff;
+    --bt-accent-strong: #2fc8f2;
+    --bt-text: rgba(255, 255, 255, 0.92);
+    --bt-text-soft: rgba(255, 255, 255, 0.72);
+    --bt-border: rgba(255, 255, 255, 0.14);
+    --bt-glass: rgba(7, 16, 24, 0.72);
+    --bt-glass-strong: rgba(7, 16, 24, 0.84);
+    --bt-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+    --bt-radius-pill: 999px;
+    --bt-header-h: 76px;
+    --bt-footer-h: 56px;
+}
+
+/* -----------------------------------------------------------------
+   Protect nav/footer from page-level global rules like width:100%;
+   ----------------------------------------------------------------- */
+header,
+header *,
+footer,
+footer * {
+    box-sizing: border-box;
+    width: auto;
+    height: auto;
+    max-width: none;
+}
+
+/* -----------------------------------------------------------------
+   HEADER
+   ----------------------------------------------------------------- */
+header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: var(--bt-header-h);
+    z-index: 1000;
+    pointer-events: none;
+}
+
+header nav {
+    pointer-events: auto;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    min-height: var(--bt-header-h);
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 10px 18px;
+    background: linear-gradient(
+        180deg,
+        rgba(10, 20, 28, 0.94) 0%,
+        rgba(8, 16, 23, 0.84) 100%
+    );
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 0;
+    border-bottom: 1px solid var(--bt-border);
+    border-radius: 0;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+}
+
+/* Header mask — preserved for your existing pages */
+#header-mask {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: var(--bt-header-h);
+    z-index: 990;
+    background-image: url('/beachTriviaPages/images/BGimage2.jpeg');
+    background-repeat: no-repeat;
+    background-size: cover;
+    background-position: center top;
+    background-attachment: fixed;
+    pointer-events: none;
+    opacity: 0.38;
+}
+
+/* Invisible reference point used by existing scroll-fade JS */
+#js-barrier {
+    position: fixed;
+    top: calc(var(--bt-header-h) + 12px);
+    left: 0;
+    width: 100%;
+    height: 1px;
+    background: transparent;
+    z-index: -1;
+    pointer-events: none;
+}
+
+/* -----------------------------------------------------------------
+   LOGO
+   ----------------------------------------------------------------- */
+.logo-container {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+}
+
+.logo-container a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    text-decoration: none;
+}
+
+.logo-container img {
+    display: block;
+    width: 52px;
+    height: 52px;
+    object-fit: cover;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.04);
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.logo-container a:hover img {
+    transform: translateY(-1px) scale(1.03);
+    border-color: rgba(85, 218, 255, 0.55);
+    box-shadow:
+        0 0 0 3px rgba(85, 218, 255, 0.12),
+        0 8px 18px rgba(0, 0, 0, 0.24);
+}
+
+/* -----------------------------------------------------------------
+   NAV LINKS
+   ----------------------------------------------------------------- */
+.nav-button-container {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.nav-button-container ul {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: nowrap;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.nav-button-container li {
+    margin: 0;
+    padding: 0;
+}
+
+.nav-button-container li a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    padding: 0 14px;
+    border-radius: var(--bt-radius-pill);
+    color: var(--bt-text-soft);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    line-height: 1;
+    text-transform: uppercase;
+    transition:
+        background-color 0.18s ease,
+        color 0.18s ease,
+        transform 0.18s ease,
+        box-shadow 0.18s ease;
+}
+
+.nav-button-container li a:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.08);
+    transform: translateY(-1px);
+}
+
+.current-page > a,
+.current-page > a:hover {
+    color: #fff;
+    background: linear-gradient(
+        180deg,
+        rgba(85, 218, 255, 0.28) 0%,
+        rgba(85, 218, 255, 0.16) 100%
+    );
+    border: 1px solid rgba(85, 218, 255, 0.28);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    text-decoration: none;
+    transform: none;
+}
+
+/* -----------------------------------------------------------------
+   STAFF LOGIN
+   ----------------------------------------------------------------- */
+.login-container {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+.login-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 132px;
+    min-height: 42px;
+    padding: 0;
+    background: linear-gradient(180deg, var(--bt-accent) 0%, var(--bt-accent-strong) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.38);
+    border-radius: var(--bt-radius-pill);
+    box-shadow:
+        0 8px 18px rgba(47, 200, 242, 0.22),
+        inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    transition:
+        transform 0.18s ease,
+        box-shadow 0.18s ease,
+        filter 0.18s ease;
+}
+
+.login-button:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.04);
+    box-shadow:
+        0 12px 24px rgba(47, 200, 242, 0.30),
+        inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.login-button:active {
+    transform: translateY(0);
+}
+
+.login-button a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 132px;
+    min-height: 42px;
+    padding: 0 18px;
+    text-decoration: none;
+}
+
+.login-button h2 {
+    margin: 0;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.11em;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+/* -----------------------------------------------------------------
+   HAMBURGER
+   ----------------------------------------------------------------- */
+.toggle-button {
+    position: relative;
+    display: none;
+    flex: 0 0 auto;
+    flex-direction: column;
+    justify-content: space-between;
+    width: 28px;
+    height: 20px;
+    cursor: pointer;
+}
+
+.toggle-button .bar {
+    display: block;
+    width: 100%;
+    height: 3px;
+    border-radius: 999px;
+    background-color: rgba(255, 255, 255, 0.92);
+    transition: background-color 0.18s ease, transform 0.18s ease;
+}
+
+.toggle-button:hover .bar {
+    background-color: var(--bt-accent);
+}
+
+/* -----------------------------------------------------------------
+   FOOTER
+   ----------------------------------------------------------------- */
+footer {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    min-height: var(--bt-footer-h);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 10px 18px;
+    background: linear-gradient(
+        180deg,
+        rgba(10, 20, 28, 0.84) 0%,
+        rgba(8, 16, 23, 0.78) 100%
+    );
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 0;
+    border-top: 1px solid var(--bt-border);
+    border-radius: 0;
+    box-shadow: 0 -10px 24px rgba(0, 0, 0, 0.18);
+}
+
+.BeachTriviaLLC,
+.contact {
+    flex: 1 1 0;
+    display: flex;
+    align-items: center;
+}
+
+.BeachTriviaLLC {
+    justify-content: flex-start;
+}
+
+.contact {
+    justify-content: flex-end;
+}
+
+.BeachTriviaLLC h4,
+.contact h4 {
+    margin: 0;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    color: var(--bt-text-soft);
+    line-height: 1;
+}
+
+.contact h4 {
+    transition: color 0.18s ease;
+    cursor: pointer;
+}
+
+.contact h4:hover {
+    color: var(--bt-accent);
+}
+
+.social-media-container {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.social-media-container a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.05);
+    opacity: 0.9;
+    transition:
+        transform 0.18s ease,
+        background-color 0.18s ease,
+        opacity 0.18s ease,
+        box-shadow 0.18s ease;
+}
+
+.social-media-container a:hover {
+    opacity: 1;
+    transform: translateY(-1px);
+    background: rgba(85, 218, 255, 0.14);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.22);
+}
+
+.social-media-container img {
+    display: block;
+    width: 18px;
+    height: 18px;
+    object-fit: contain;
+}
+
+#fb-logo {
+    width: 21px;
+    height: 21px;
+}
+
+/* -----------------------------------------------------------------
+   RESPONSIVE
+   ----------------------------------------------------------------- */
+@media screen and (max-width: 1200px) {
+    .nav-button-container li a {
+        padding: 0 11px;
+        font-size: 12px;
+        letter-spacing: 0.07em;
+    }
+
+    .login-button,
+    .login-button a {
+        min-width: 118px;
+    }
+}
+
+@media screen and (max-width: 1000px) {
+    header nav {
+        justify-content: space-between;
+    }
+
+    .nav-button-container,
+    .login-container {
+        display: none;
+    }
+
+    .toggle-button {
+        display: flex;
+    }
+
+    footer {
+        gap: 10px;
+        padding: 10px 14px;
+    }
+
+    .BeachTriviaLLC h4,
+    .contact h4 {
+        font-size: 11px;
+    }
+}
+
+@media screen and (max-width: 640px) {
+    :root {
+        --bt-header-h: 68px;
+        --bt-footer-h: 52px;
+    }
+
+    header nav {
+        padding: 8px 12px;
+        min-height: var(--bt-header-h);
+    }
+
+    .logo-container a {
+        width: 52px;
+        height: 52px;
+    }
+
+    .logo-container img {
+        width: 46px;
+        height: 46px;
+    }
+
+    footer {
+        padding: 10px 12px;
+    }
+
+    .social-media-container {
+        gap: 8px;
+    }
+
+    .social-media-container a {
+        width: 30px;
+        height: 30px;
+    }
+
+    .social-media-container img {
+        width: 16px;
+        height: 16px;
+    }
+
+    #fb-logo {
+        width: 19px;
+        height: 19px;
+    }
+}
+
+@media screen and (max-width: 480px) {
+    .footer-text,
+    .BeachTriviaLLC h4,
+    .contact h4 {
+        display: none;
+    }
+
+    footer {
+        justify-content: center;
+    }
+
+    .social-media-container {
+        width: auto;
+    }
+}

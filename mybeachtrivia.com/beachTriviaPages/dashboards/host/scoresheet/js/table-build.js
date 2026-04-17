@@ -598,6 +598,7 @@
   }
 
   window.addTeam = addTeam;
+  window.renumberAllTeams = renumberAllTeams;
 
   bindEventTypeWatcherOnce();
 })();

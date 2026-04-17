@@ -1,0 +1,119 @@
+body {
+    margin: 0;
+    min-height: 100vh;
+    background: radial-gradient(circle at top left, rgba(74,144,255,0.18), transparent 22%), #071423;
+    color: #eef6ff;
+    font-family: Inter, system-ui, sans-serif;
+  }
+  
+  .fa-display {
+    width: min(1200px, calc(100% - 40px));
+    margin: 0 auto;
+    padding: 30px 0 42px;
+  }
+  
+  .fa-display-head h1,
+  .fa-display-panel h2 {
+    margin: 0;
+  }
+  
+  .fa-display-head p {
+    color: #9eb5cf;
+  }
+  
+  .fa-display-panel {
+    margin-top: 18px;
+    padding: 20px;
+    border-radius: 20px;
+    border: 1px solid rgba(120,164,214,0.18);
+    background: rgba(14, 28, 46, 0.95);
+  }
+  
+  .fa-display-kicker,
+  .fa-display-eyebrow {
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #8cb9ff;
+  }
+  
+  .fa-display-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 14px;
+  }
+  
+  .fa-display-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 16px;
+    border-radius: 14px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(120,164,214,0.16);
+    opacity: 0;
+    transform: translateY(8px);
+    animation: fadeUp 0.35s ease forwards;
+  }
+  
+  @keyframes fadeUp {
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Status line under phase */
+  .fa-display-status {
+    color: #72b3ff;
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 4px 0 0;
+  }
+
+  /* Empty state */
+  .fa-display-empty {
+    color: #9eb5cf;
+    font-style: italic;
+    padding: 10px 0;
+  }
+
+  /* Team name on submission row */
+  .fa-display-team {
+    color: #9eb5cf;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  /* Results layout */
+  .fa-display-item--result {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    border-color: rgba(74, 144, 255, 0.28);
+    background: rgba(74, 144, 255, 0.06);
+  }
+
+  .fa-display-rank {
+    font-size: 1.6rem;
+    font-weight: 900;
+    color: #4a90ff;
+    min-width: 42px;
+    flex-shrink: 0;
+    line-height: 1;
+  }
+
+  .fa-display-body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+  }
+
+  .fa-display-body strong {
+    font-size: 1.05rem;
+    line-height: 1.3;
+  }

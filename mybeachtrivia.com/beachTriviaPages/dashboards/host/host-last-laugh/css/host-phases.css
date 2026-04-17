@@ -1,0 +1,53 @@
+.fa-timer-wrap {
+    flex-shrink: 0;
+  }
+  
+  .fa-ring {
+    width: 98px;
+    height: 98px;
+    position: relative;
+  }
+  
+  .fa-ring-svg {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+  }
+  
+  .fa-ring-track,
+  .fa-ring-progress {
+    fill: none;
+    stroke-width: 10;
+  }
+  
+  .fa-ring-track {
+    stroke: rgba(255, 255, 255, 0.08);
+  }
+  
+  .fa-ring-progress {
+    stroke: #72b3ff;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.3s linear, stroke 0.2s ease;
+  }
+  
+  .fa-ring.is-warning .fa-ring-progress {
+    stroke: #ef4444;
+  }
+  
+  .fa-ring-number {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    font-weight: 800;
+    font-size: 1.5rem;
+  }
+  
+  .fa-host-page.is-warning-phase {
+    animation: faPulseRed 1s ease-in-out infinite;
+  }
+  
+  @keyframes faPulseRed {
+    0%, 100% { background-color: transparent; }
+    50% { background-color: rgba(239, 68, 68, 0.05); }
+  }

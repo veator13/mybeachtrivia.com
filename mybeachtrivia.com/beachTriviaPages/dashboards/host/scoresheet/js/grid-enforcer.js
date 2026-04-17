@@ -116,6 +116,7 @@
 
   function clampNonNegativeNumberInput(inputEl) {
     if (!inputEl || !isNumberInput(inputEl)) return;
+    if (inputEl.classList.contains("finalquestion-input")) return; // negatives allowed for Final Question
     if (String(inputEl.value ?? "").trim() === "") return;
 
     const n = Number(inputEl.value);

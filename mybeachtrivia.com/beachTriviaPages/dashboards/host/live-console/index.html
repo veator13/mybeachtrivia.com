@@ -1,0 +1,1536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Live Slideshow Console</title>
+  <meta name="theme-color" content="#091120" />
+
+  <link rel="stylesheet" href="/beachTriviaPages/js/bt-nav.css" />
+  <script src="/beachTriviaPages/js/bt-nav.js" defer></script>
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js" defer></script>
+
+  <script src="/beachTriviaPages/js/firebase-init-compat.js?v=1" defer></script>
+  <script src="/beachTriviaPages/dashboards/host/guard-host.js?v=1" defer></script>
+  <script src="app.js?v=1" defer></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    :root {
+      --bg: #091120;
+      --panel: #101b31;
+      --panel-2: #13213d;
+      --panel-3: #0c172b;
+      --line: rgba(148, 163, 184, 0.18);
+      --text: #e2e8f0;
+      --muted: #9fb0c7;
+      --blue: #4da3ff;
+      --blue-2: #2d7fe0;
+      --green: #22c55e;
+      --amber: #f59e0b;
+      --red: #ef4444;
+      --shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+      --radius-xl: 22px;
+      --radius-lg: 18px;
+      --radius-md: 14px;
+      --radius-sm: 10px;
+    }
+
+    html, body {
+      min-height: 100%;
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    body {
+      line-height: 1.45;
+    }
+
+    #auth-loading {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      color: #fff;
+    }
+
+    .spinner {
+      border: 4px solid rgba(255,255,255,0.1);
+      border-top: 4px solid var(--blue);
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin-bottom: 16px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    #error-container {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 20px;
+    }
+
+    .error-message {
+      background: #f8d7da;
+      color: #721c24;
+      padding: 20px;
+      border-radius: 12px;
+      max-width: 420px;
+      width: 100%;
+      text-align: center;
+      box-shadow: var(--shadow);
+    }
+
+    .error-message button {
+      margin-top: 12px;
+      border: 0;
+      background: #c82333;
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    .console-shell {
+      width: min(96vw, 1680px);
+      margin: 18px auto 30px;
+      display: none;
+      gap: 18px;
+      grid-template-columns: 360px minmax(400px, 1fr);
+      align-items: stretch;
+    }
+
+    .topbar {
+      width: min(96vw, 1680px);
+      margin: 18px auto 0;
+      display: none;
+    }
+
+    .topbar-card,
+    .panel {
+      background: linear-gradient(180deg, rgba(19,33,61,0.98), rgba(12,23,43,0.98));
+      border: 1px solid var(--line);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow);
+    }
+
+    .topbar-card {
+      padding: 18px 20px;
+    }
+
+    .topbar-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 12px;
+      border-radius: 999px;
+      background: rgba(77, 163, 255, 0.14);
+      color: #bfe0ff;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    .title {
+      margin: 0 0 6px;
+      font-size: clamp(24px, 3vw, 34px);
+      line-height: 1.1;
+      font-weight: 900;
+      color: #f8fbff;
+    }
+
+    .subtitle {
+      margin: 0;
+      color: var(--muted);
+      max-width: 850px;
+      font-size: 14px;
+    }
+
+    .topbar-actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .panel {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-height: 760px;
+    }
+
+    .panel-header {
+      padding: 18px 18px 14px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(9,17,32,0.42);
+    }
+
+    .panel-title-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .panel-title {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 900;
+      color: #f8fbff;
+    }
+
+    .panel-subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .panel-body {
+      padding: 16px;
+      overflow: auto;
+      flex: 1;
+    }
+
+    .btn {
+      border: 1px solid transparent;
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-size: 14px;
+      font-weight: 800;
+      cursor: pointer;
+      min-height: 42px;
+      transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+    }
+
+    .btn:hover { transform: translateY(-1px); }
+    .btn:active { transform: translateY(0); }
+
+    .btn-primary {
+      background: var(--blue);
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: var(--blue-2);
+    }
+
+    .btn-secondary {
+      background: rgba(148, 163, 184, 0.12);
+      border-color: rgba(148, 163, 184, 0.22);
+      color: #e2e8f0;
+    }
+
+    .btn-secondary:hover {
+      background: rgba(148, 163, 184, 0.18);
+    }
+
+    .btn-success {
+      background: rgba(34, 197, 94, 0.16);
+      border-color: rgba(34, 197, 94, 0.24);
+      color: #bbf7d0;
+    }
+
+    .btn-warning {
+      background: rgba(245, 158, 11, 0.14);
+      border-color: rgba(245, 158, 11, 0.24);
+      color: #fde68a;
+    }
+
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.14);
+      border-color: rgba(239, 68, 68, 0.24);
+      color: #fecaca;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #d7e8fb;
+      background: rgba(148, 163, 184, 0.12);
+      border: 1px solid rgba(148, 163, 184, 0.16);
+    }
+
+    .chip.live {
+      color: #bbf7d0;
+      background: rgba(34, 197, 94, 0.12);
+      border-color: rgba(34, 197, 94, 0.2);
+    }
+
+    .chip.preview {
+      color: #bfdbfe;
+      background: rgba(59, 130, 246, 0.14);
+      border-color: rgba(59, 130, 246, 0.22);
+    }
+
+    .chip.warn {
+      color: #fde68a;
+      background: rgba(245, 158, 11, 0.12);
+      border-color: rgba(245, 158, 11, 0.22);
+    }
+
+    .section + .section {
+      margin-top: 18px;
+    }
+
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .section-head h3 {
+      margin: 0;
+      font-size: 13px;
+      color: #c9d8ea;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .card {
+      border-radius: 16px;
+      padding: 14px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(148, 163, 184, 0.12);
+    }
+
+    .session-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .field label {
+      font-size: 13px;
+      font-weight: 700;
+      color: #e2e8f0;
+    }
+
+    .field-note {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    input[type="text"],
+    select,
+    textarea {
+      width: 100%;
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      background: #091425;
+      color: #f8fbff;
+      border-radius: 12px;
+      padding: 11px 12px;
+      font: inherit;
+      outline: none;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    input[type="text"]:focus,
+    select:focus,
+    textarea:focus {
+      border-color: rgba(77, 163, 255, 0.85);
+      box-shadow: 0 0 0 3px rgba(77, 163, 255, 0.16);
+    }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .meta-stat {
+      border-radius: 14px;
+      padding: 12px;
+      background: rgba(9, 17, 32, 0.6);
+      border: 1px solid rgba(148, 163, 184, 0.12);
+    }
+
+    .meta-stat .label {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+
+    .meta-stat .value {
+      color: #f8fbff;
+      font-weight: 900;
+      font-size: 18px;
+    }
+
+    .control-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .control-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .state-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .state-item {
+      border-radius: 14px;
+      padding: 12px;
+      background: rgba(9, 17, 32, 0.62);
+      border: 1px solid rgba(148, 163, 184, 0.12);
+    }
+
+    .state-item.active {
+      border-color: rgba(77, 163, 255, 0.34);
+      box-shadow: inset 0 0 0 1px rgba(77, 163, 255, 0.2);
+    }
+
+    .state-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: flex-start;
+      margin-bottom: 6px;
+    }
+
+    .state-title {
+      font-size: 14px;
+      font-weight: 800;
+      color: #f8fbff;
+      margin: 0;
+    }
+
+    .state-key {
+      font-size: 12px;
+      color: var(--muted);
+      margin: 0;
+      word-break: break-word;
+    }
+
+    .viewer-url-box {
+      display: grid;
+      gap: 10px;
+    }
+
+    .url-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .url-row input {
+      flex: 1;
+    }
+
+    .viewports {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 18px;
+      min-height: 760px;
+    }
+
+    .viewport-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-height: 0;
+    }
+
+    .viewport-topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .viewport {
+      flex: 1;
+      min-height: 620px;
+      border-radius: 22px;
+      padding: 22px;
+      position: relative;
+      overflow: hidden;
+      border: 1px solid rgba(148, 163, 184, 0.14);
+      background:
+        radial-gradient(circle at top left, rgba(77, 163, 255, 0.16), transparent 30%),
+        linear-gradient(180deg, #142344 0%, #091120 100%);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .viewport::after {
+      content: "";
+      position: absolute;
+      inset: 14px;
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,0.05);
+      pointer-events: none;
+    }
+
+    .slide-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 14px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .slide-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 7px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      background: rgba(77, 163, 255, 0.16);
+      color: #d8ecff;
+      border: 1px solid rgba(77, 163, 255, 0.22);
+    }
+
+    .slide-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      align-items: flex-end;
+      color: #cfdef2;
+      font-size: 12px;
+    }
+
+    .slide-middle {
+      position: relative;
+      z-index: 1;
+      margin: 20px 0;
+      display: grid;
+      gap: 22px;
+      align-content: center;
+      flex: 1;
+    }
+
+    .slide-category {
+      font-size: 22px;
+      font-weight: 800;
+      color: #9fd0ff;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .slide-question {
+      font-size: clamp(28px, 2.7vw, 46px);
+      line-height: 1.12;
+      font-weight: 900;
+      color: #f8fbff;
+      word-break: break-word;
+    }
+
+    .slide-options {
+      display: grid;
+      gap: 12px;
+    }
+
+    .slide-option {
+      padding: 14px 16px;
+      border-radius: 16px;
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.08);
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      color: #e8f1fb;
+      font-size: clamp(18px, 1.6vw, 26px);
+    }
+
+    .slide-option-key {
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      background: rgba(77,163,255,0.18);
+      color: #d7ebff;
+      font-weight: 800;
+      font-size: 14px;
+    }
+
+    .slide-answer {
+      display: none;
+      border-radius: 16px;
+      border: 1px dashed rgba(34,197,94,0.38);
+      background: rgba(34,197,94,0.08);
+      padding: 16px 18px;
+    }
+
+    .slide-answer.visible {
+      display: block;
+    }
+
+    .slide-answer .label {
+      color: #86efac;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    .slide-answer .value {
+      color: #f0fdf4;
+      font-size: 20px;
+      font-weight: 900;
+      line-height: 1.2;
+    }
+
+    .slide-bottom {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 14px;
+      flex-wrap: wrap;
+      position: relative;
+      z-index: 1;
+      margin-top: 16px;
+    }
+
+    .slide-notes {
+      max-width: 72%;
+      color: #d4e2f1;
+      font-size: 13px;
+    }
+
+    .slide-mode-chip {
+      display: inline-flex;
+      align-items: center;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(245,158,11,0.12);
+      color: #fde68a;
+      border: 1px solid rgba(245,158,11,0.2);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .helper-card {
+      border-radius: 16px;
+      padding: 14px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(148,163,184,0.12);
+    }
+
+    .helper-card h4 {
+      margin: 0 0 6px;
+      font-size: 14px;
+      color: #f8fbff;
+    }
+
+    .helper-card p,
+    .helper-card li {
+      color: #d3e0ee;
+      font-size: 13px;
+    }
+
+    .helper-card ul {
+      margin: 0;
+      padding-left: 18px;
+      display: grid;
+      gap: 6px;
+    }
+
+    .reveal-modal {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(2, 8, 23, 0.72);
+      padding: 20px;
+      z-index: 1200;
+    }
+
+    .reveal-modal.open {
+      display: flex;
+    }
+
+    .reveal-modal-card {
+      width: min(620px, 100%);
+      border-radius: 20px;
+      background: linear-gradient(180deg, #152846 0%, #0d1a31 100%);
+      border: 1px solid rgba(148,163,184,0.16);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .reveal-modal-header,
+    .reveal-modal-footer {
+      padding: 16px 18px;
+      border-bottom: 1px solid rgba(148,163,184,0.12);
+    }
+
+    .reveal-modal-footer {
+      border-top: 1px solid rgba(148,163,184,0.12);
+      border-bottom: 0;
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .reveal-modal-body {
+      padding: 18px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .reveal-answer-box {
+      border-radius: 16px;
+      background: rgba(34,197,94,0.08);
+      border: 1px dashed rgba(34,197,94,0.36);
+      padding: 18px;
+    }
+
+    .reveal-answer-box .label {
+      color: #86efac;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    .reveal-answer-box .value {
+      color: #f0fdf4;
+      font-size: 24px;
+      font-weight: 900;
+      line-height: 1.2;
+    }
+
+    @media (max-width: 1280px) {
+      .console-shell {
+        grid-template-columns: 1fr;
+      }
+
+      .viewports {
+        grid-template-columns: 1fr;
+        min-height: auto;
+      }
+
+      .panel {
+        min-height: auto;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .topbar,
+      .console-shell {
+        width: min(98vw, 1680px);
+      }
+
+      .meta-grid,
+      .control-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .slide-question {
+        font-size: clamp(24px, 8vw, 34px);
+      }
+
+      .slide-option {
+        font-size: clamp(16px, 4.8vw, 22px);
+      }
+
+      .slide-notes {
+        max-width: 100%;
+      }
+    }
+  </style>
+</head>
+<body data-page="host-live-console">
+  <div id="auth-loading">
+    <div class="spinner"></div>
+    <p>Verifying host access...</p>
+  </div>
+
+  <div id="error-container">
+    <div class="error-message">
+      <p id="error-text">An error occurred. Please try again.</p>
+      <button id="back-to-login" type="button">Return to Login</button>
+    </div>
+  </div>
+
+  <section class="topbar" id="console-topbar">
+    <div class="topbar-card">
+      <div class="topbar-row">
+        <div>
+          <span class="eyebrow">Host • Live Slideshow Console</span>
+          <h1 class="title">Live Session Control Center</h1>
+          <p class="subtitle">
+            Run a synced trivia show across multiple cast tabs with one session code, while keeping a private
+            preview pane for the host. Audience screens stay matched; preview stays independent.
+          </p>
+        </div>
+
+        <div class="topbar-actions">
+          <span class="chip live" id="live-status-chip">Session Ready</span>
+          <button class="btn btn-secondary" type="button" id="btn-save-session">Save Session</button>
+          <button class="btn btn-primary" type="button" id="btn-start-session">Start Live Session</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <main class="console-shell" id="console-shell" aria-label="Live slideshow console">
+    <section class="panel" aria-labelledby="session-panel-title">
+      <header class="panel-header">
+        <div class="panel-title-row">
+          <h2 class="panel-title" id="session-panel-title">Session Controls</h2>
+          <span class="chip preview">Host Only</span>
+        </div>
+        <p class="panel-subtitle">
+          Choose a show, create a session code, control the live slide state, and manage reveal mode.
+        </p>
+      </header>
+
+      <div class="panel-body">
+        <div class="section">
+          <div class="section-head">
+            <h3>Session Setup</h3>
+            <span class="chip">Shared Code</span>
+          </div>
+
+          <div class="card session-grid">
+            <div class="field">
+              <label for="session-show-select">Published Show</label>
+              <select id="session-show-select">
+                <option value="march-basquiat-show" selected>March 2026 • Thursday Night Trivia</option>
+                <option value="st-patricks-show">St. Patrick's Week Trivia</option>
+                <option value="music-bingo-special">Music Bingo Special</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="session-code">Session Code</label>
+              <input id="session-code" type="text" value="BT-4827" />
+              <span class="field-note">Every cast tab joins the same session using this code.</span>
+            </div>
+
+            <div class="field">
+              <label for="session-name">Session Label</label>
+              <input id="session-name" type="text" value="Keagan's • Thursday 7PM" />
+            </div>
+
+            <div class="control-row">
+              <button class="btn btn-secondary" type="button" id="btn-generate-code">Generate New Code</button>
+              <button class="btn btn-success" type="button" id="btn-copy-viewer-url">Copy Viewer URL</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-head">
+            <h3>Viewer Join URL</h3>
+            <span class="chip">Cast Tabs</span>
+          </div>
+
+          <div class="card viewer-url-box">
+            <div class="url-row">
+              <input
+                id="viewer-url"
+                type="text"
+                readonly
+                value="https://mybeachtrivia.com/cast-game/?code=BT-4827"
+              />
+              <button class="btn btn-secondary" type="button" id="btn-copy-url-inline">Copy</button>
+            </div>
+            <p class="field-note">
+              Open this same URL on every casted screen and enter the same session code if prompted.
+            </p>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-head">
+            <h3>Live Status</h3>
+            <span class="chip live">Synced</span>
+          </div>
+
+          <div class="meta-grid">
+            <div class="meta-stat">
+              <div class="label">Current Live State</div>
+              <div class="value" id="current-live-state">round1.q2.live</div>
+            </div>
+            <div class="meta-stat">
+              <div class="label">Preview State</div>
+              <div class="value" id="current-preview-state">round1.q3.live</div>
+            </div>
+            <div class="meta-stat">
+              <div class="label">Show Title</div>
+              <div class="value" id="current-show-title">March 2026 Trivia</div>
+            </div>
+            <div class="meta-stat">
+              <div class="label">Reveal Mode</div>
+              <div class="value" id="current-reveal-state">Off</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-head">
+            <h3>Main Controls</h3>
+            <span class="chip warn">Primary Actions</span>
+          </div>
+
+          <div class="card">
+            <div class="control-grid">
+              <button class="btn btn-secondary" type="button" id="btn-prev-live">Previous</button>
+              <button class="btn btn-primary" type="button" id="btn-next-live">Next</button>
+              <button class="btn btn-warning" type="button" id="btn-open-reveal-modal">Reveal Answer</button>
+              <button class="btn btn-danger" type="button" id="btn-hide-answer">Hide Answer</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-head">
+            <h3>Named Slide States</h3>
+            <span class="chip">Round Flow</span>
+          </div>
+
+          <div class="state-list" id="state-list">
+            <article class="state-item">
+              <div class="state-top">
+                <div>
+                  <p class="state-title">Round 1 Categories</p>
+                  <p class="state-key">round1.categories</p>
+                </div>
+                <span class="chip">Queued</span>
+              </div>
+            </article>
+
+            <article class="state-item active">
+              <div class="state-top">
+                <div>
+                  <p class="state-title">Round 1 Question 2 Live</p>
+                  <p class="state-key">round1.q2.live</p>
+                </div>
+                <span class="chip live">Live</span>
+              </div>
+            </article>
+
+            <article class="state-item">
+              <div class="state-top">
+                <div>
+                  <p class="state-title">Round 1 Question 3 Live</p>
+                  <p class="state-key">round1.q3.live</p>
+                </div>
+                <span class="chip preview">Preview</span>
+              </div>
+            </article>
+
+            <article class="state-item">
+              <div class="state-top">
+                <div>
+                  <p class="state-title">Round 1 Turn In Slips</p>
+                  <p class="state-key">round1.turn-in</p>
+                </div>
+                <span class="chip">Queued</span>
+              </div>
+            </article>
+
+            <article class="state-item">
+              <div class="state-top">
+                <div>
+                  <p class="state-title">Round 1 Question 1 Reveal</p>
+                  <p class="state-key">round1.q1.reveal</p>
+                </div>
+                <span class="chip">Answer Pass</span>
+              </div>
+            </article>
+
+            <article class="state-item">
+              <div class="state-top">
+                <div>
+                  <p class="state-title">Round 1 Answers Summary</p>
+                  <p class="state-key">round1.answers-summary</p>
+                </div>
+                <span class="chip">Queued</span>
+              </div>
+            </article>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="helper-card">
+            <h4>Intended behavior</h4>
+            <ul>
+              <li>All casted audience tabs use the same viewer URL and session code.</li>
+              <li>Next and Previous change the live audience state for every synced screen.</li>
+              <li>The preview pane can sit ahead of the casted screen without pushing it live.</li>
+              <li>Reveal Answer opens a host action flow for answer-mode slides.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="viewport-panel-title">
+      <header class="panel-header">
+        <div class="panel-title-row">
+          <h2 class="panel-title" id="viewport-panel-title">Live + Preview Viewports</h2>
+          <span class="chip live">Audience + Host</span>
+        </div>
+        <p class="panel-subtitle">
+          Left side shows the current casted screen. Right side shows the host-only preview of what is next.
+        </p>
+      </header>
+
+      <div class="panel-body">
+        <div class="viewports">
+          <div class="viewport-wrap">
+            <div class="viewport-topbar">
+              <div class="control-row">
+                <span class="chip live">Audience Live View</span>
+                <span class="chip" id="live-state-chip">round1.q2.live</span>
+              </div>
+            </div>
+
+            <div class="viewport" id="live-viewport" aria-label="Audience live viewport">
+              <div class="slide-head">
+                <span class="slide-badge" id="live-round-badge">Round 1</span>
+                <div class="slide-meta">
+                  <span id="live-state-label">Live Question</span>
+                  <span id="live-theme-label">Theme: Standard Trivia</span>
+                </div>
+              </div>
+
+              <div class="slide-middle">
+                <div class="slide-category" id="live-category">Classic Artists</div>
+
+                <div class="slide-question" id="live-question">
+                  Which artist is known for the painting style shown on the screen?
+                </div>
+
+                <div class="slide-options" id="live-options">
+                  <div class="slide-option">
+                    <span class="slide-option-key">A</span>
+                    <span>Andy Warhol</span>
+                  </div>
+                  <div class="slide-option">
+                    <span class="slide-option-key">B</span>
+                    <span>Jean-Michel Basquiat</span>
+                  </div>
+                  <div class="slide-option">
+                    <span class="slide-option-key">C</span>
+                    <span>Keith Haring</span>
+                  </div>
+                  <div class="slide-option">
+                    <span class="slide-option-key">D</span>
+                    <span>Roy Lichtenstein</span>
+                  </div>
+                </div>
+
+                <div class="slide-answer" id="live-answer">
+                  <div class="label">Answer</div>
+                  <div class="value">Jean-Michel Basquiat</div>
+                </div>
+              </div>
+
+              <div class="slide-bottom">
+                <div class="slide-notes" id="live-notes">
+                  Audience screen is currently on the live question state.
+                </div>
+                <span class="slide-mode-chip" id="live-mode-chip">Reveal Hidden</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="viewport-wrap">
+            <div class="viewport-topbar">
+              <div class="control-row">
+                <span class="chip preview">Host Preview</span>
+                <span class="chip" id="preview-state-chip">round1.q3.live</span>
+              </div>
+              <div class="control-row">
+                <button class="btn btn-secondary" type="button" id="btn-prev-preview">Preview Previous</button>
+                <button class="btn btn-secondary" type="button" id="btn-next-preview">Preview Next</button>
+              </div>
+            </div>
+
+            <div class="viewport" id="preview-viewport" aria-label="Host preview viewport">
+              <div class="slide-head">
+                <span class="slide-badge" id="preview-round-badge">Round 1</span>
+                <div class="slide-meta">
+                  <span id="preview-state-label">Preview Question</span>
+                  <span id="preview-theme-label">Theme: Standard Trivia</span>
+                </div>
+              </div>
+
+              <div class="slide-middle">
+                <div class="slide-category" id="preview-category">Classic Artists</div>
+
+                <div class="slide-question" id="preview-question">
+                  Which artist is known for the painting style shown on the screen?
+                </div>
+
+                <div class="slide-options" id="preview-options">
+                  <div class="slide-option">
+                    <span class="slide-option-key">A</span>
+                    <span>Andy Warhol</span>
+                  </div>
+                  <div class="slide-option">
+                    <span class="slide-option-key">B</span>
+                    <span>Jean-Michel Basquiat</span>
+                  </div>
+                  <div class="slide-option">
+                    <span class="slide-option-key">C</span>
+                    <span>Keith Haring</span>
+                  </div>
+                  <div class="slide-option">
+                    <span class="slide-option-key">D</span>
+                    <span>Roy Lichtenstein</span>
+                  </div>
+                </div>
+
+                <div class="slide-answer visible" id="preview-answer">
+                  <div class="label">Preview Answer</div>
+                  <div class="value">Jean-Michel Basquiat</div>
+                </div>
+              </div>
+
+              <div class="slide-bottom">
+                <div class="slide-notes" id="preview-notes">
+                  Host preview can look ahead without affecting the casted audience screens.
+                </div>
+                <span class="slide-mode-chip" id="preview-mode-chip">Preview Only</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="reveal-modal" id="reveal-modal" aria-hidden="true">
+    <div class="reveal-modal-card" role="dialog" aria-modal="true" aria-labelledby="reveal-modal-title">
+      <div class="reveal-modal-header">
+        <h2 id="reveal-modal-title" style="margin:0; font-size:20px; color:#f8fbff;">Reveal Answer</h2>
+      </div>
+
+      <div class="reveal-modal-body">
+        <p style="margin:0; color:#d3e0ee;">
+          This is the host-side reveal step for answer-mode playback. In the live Firestore version,
+          confirming here should push the revealed answer state to every casted viewer in the session.
+        </p>
+
+        <div class="reveal-answer-box">
+          <div class="label">Answer To Reveal</div>
+          <div class="value" id="modal-answer-value">Jean-Michel Basquiat</div>
+        </div>
+      </div>
+
+      <div class="reveal-modal-footer">
+        <button class="btn btn-secondary" type="button" id="btn-close-reveal-modal">Cancel</button>
+        <button class="btn btn-primary" type="button" id="btn-confirm-reveal">Reveal On Live Screens</button>
+      </div>
+    </div>
+  </div>
+
+  <script defer>
+    document.addEventListener("DOMContentLoaded", function () {
+      var authLoading = document.getElementById("auth-loading");
+      var errorContainer = document.getElementById("error-container");
+      var errorText = document.getElementById("error-text");
+      var backToLoginBtn = document.getElementById("back-to-login");
+      var consoleTopbar = document.getElementById("console-topbar");
+      var consoleShell = document.getElementById("console-shell");
+
+      var btnGenerateCode = document.getElementById("btn-generate-code");
+      var btnCopyViewerUrl = document.getElementById("btn-copy-viewer-url");
+      var btnCopyUrlInline = document.getElementById("btn-copy-url-inline");
+      var sessionCodeInput = document.getElementById("session-code");
+      var viewerUrlInput = document.getElementById("viewer-url");
+
+      var btnPrevLive = document.getElementById("btn-prev-live");
+      var btnNextLive = document.getElementById("btn-next-live");
+      var btnPrevPreview = document.getElementById("btn-prev-preview");
+      var btnNextPreview = document.getElementById("btn-next-preview");
+
+      var btnOpenRevealModal = document.getElementById("btn-open-reveal-modal");
+      var btnHideAnswer = document.getElementById("btn-hide-answer");
+      var revealModal = document.getElementById("reveal-modal");
+      var btnCloseRevealModal = document.getElementById("btn-close-reveal-modal");
+      var btnConfirmReveal = document.getElementById("btn-confirm-reveal");
+
+      var currentLiveStateEl = document.getElementById("current-live-state");
+      var currentPreviewStateEl = document.getElementById("current-preview-state");
+      var currentRevealStateEl = document.getElementById("current-reveal-state");
+      var liveStatusChip = document.getElementById("live-status-chip");
+
+      var liveStateChip = document.getElementById("live-state-chip");
+      var previewStateChip = document.getElementById("preview-state-chip");
+      var liveStateLabel = document.getElementById("live-state-label");
+      var previewStateLabel = document.getElementById("preview-state-label");
+
+      var liveAnswer = document.getElementById("live-answer");
+      var previewAnswer = document.getElementById("preview-answer");
+      var liveModeChip = document.getElementById("live-mode-chip");
+      var modalAnswerValue = document.getElementById("modal-answer-value");
+
+      var stateListEl = document.getElementById("state-list");
+
+      var stateKeys = [
+        "round1.categories",
+        "round1.q1.live",
+        "round1.q2.live",
+        "round1.q3.live",
+        "round1.q4.live",
+        "round1.q5.live",
+        "round1.turn-in",
+        "round1.q1.reveal",
+        "round1.q2.reveal",
+        "round1.q3.reveal",
+        "round1.q4.reveal",
+        "round1.q5.reveal",
+        "round1.answers-summary"
+      ];
+
+      var liveIndex = 2;
+      var previewIndex = 3;
+      var revealShown = false;
+
+      if (backToLoginBtn) {
+        backToLoginBtn.addEventListener("click", function () {
+          window.location.assign("/login.html");
+        });
+      }
+
+      function showError(msg) {
+        if (authLoading) authLoading.style.display = "none";
+        if (consoleTopbar) consoleTopbar.style.display = "none";
+        if (consoleShell) consoleShell.style.display = "none";
+        if (errorContainer) errorContainer.style.display = "flex";
+        if (errorText) errorText.textContent = msg || "Access denied.";
+      }
+
+      function waitForFirebase(cb, attempts) {
+        var n = attempts || 0;
+        if (window.firebase && window.firebase.auth && window.firebase.firestore) {
+          cb();
+          return;
+        }
+        if (n > 40) {
+          showError("Firebase failed to load.");
+          return;
+        }
+        setTimeout(function () {
+          waitForFirebase(cb, n + 1);
+        }, 100);
+      }
+
+      function normalizeRoles(emp) {
+        var arr = Array.isArray(emp && emp.roles) ? emp.roles : [];
+        var single = emp && emp.role ? [emp.role] : [];
+        return arr.concat(single)
+          .filter(Boolean)
+          .map(function (role) { return String(role).toLowerCase().trim(); });
+      }
+
+      function updateViewerUrl() {
+        if (!viewerUrlInput || !sessionCodeInput) return;
+        var code = (sessionCodeInput.value || "").trim() || "BT-0000";
+        viewerUrlInput.value = "https://mybeachtrivia.com/cast-game/?code=" + encodeURIComponent(code);
+      }
+
+      function randomCode() {
+        return "BT-" + Math.floor(1000 + Math.random() * 9000);
+      }
+
+      function copyText(value) {
+        var text = String(value || "");
+        if (!text) return;
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).catch(function () {});
+          return;
+        }
+
+        var temp = document.createElement("textarea");
+        temp.value = text;
+        document.body.appendChild(temp);
+        temp.select();
+        try { document.execCommand("copy"); } catch (e) {}
+        document.body.removeChild(temp);
+      }
+
+      function formatStateLabel(stateKey, isPreview) {
+        if (!stateKey) return isPreview ? "Preview" : "Live";
+        return stateKey
+          .replace(/\./g, " • ")
+          .replace(/\bq(\d+)\b/gi, "Question $1")
+          .replace(/\blive\b/gi, "Live")
+          .replace(/\breveal\b/gi, "Reveal")
+          .replace(/\bturn-in\b/gi, "Turn In")
+          .replace(/\banswers-summary\b/gi, "Answers Summary")
+          .replace(/\bcategories\b/gi, "Categories");
+      }
+
+      function renderStateList() {
+        if (!stateListEl) return;
+
+        var items = Array.prototype.slice.call(stateListEl.querySelectorAll(".state-item"));
+        items.forEach(function (item, idx) {
+          item.classList.remove("active");
+
+          var chip = item.querySelector(".chip");
+          if (chip) chip.className = "chip";
+
+          if (idx === liveIndex) {
+            item.classList.add("active");
+            if (chip) {
+              chip.className = "chip live";
+              chip.textContent = "Live";
+            }
+          } else if (idx === previewIndex) {
+            if (chip) {
+              chip.className = "chip preview";
+              chip.textContent = "Preview";
+            }
+          } else {
+            if (chip && !/Answer Pass/i.test(chip.textContent)) {
+              chip.textContent = "Queued";
+            }
+          }
+        });
+      }
+
+      function renderViewportState() {
+        var liveState = stateKeys[liveIndex] || "round1.q1.live";
+        var previewState = stateKeys[previewIndex] || "round1.q2.live";
+
+        if (currentLiveStateEl) currentLiveStateEl.textContent = liveState;
+        if (currentPreviewStateEl) currentPreviewStateEl.textContent = previewState;
+        if (liveStateChip) liveStateChip.textContent = liveState;
+        if (previewStateChip) previewStateChip.textContent = previewState;
+
+        if (liveStateLabel) liveStateLabel.textContent = formatStateLabel(liveState, false);
+        if (previewStateLabel) previewStateLabel.textContent = formatStateLabel(previewState, true);
+
+        if (currentRevealStateEl) currentRevealStateEl.textContent = revealShown ? "On" : "Off";
+        if (liveModeChip) liveModeChip.textContent = revealShown ? "Reveal Visible" : "Reveal Hidden";
+
+        if (liveAnswer) {
+          if (revealShown) liveAnswer.classList.add("visible");
+          else liveAnswer.classList.remove("visible");
+        }
+
+        if (previewAnswer) {
+          previewAnswer.classList.add("visible");
+        }
+
+        renderStateList();
+      }
+
+      function stepLive(delta) {
+        liveIndex += delta;
+        if (liveIndex < 0) liveIndex = 0;
+        if (liveIndex > stateKeys.length - 1) liveIndex = stateKeys.length - 1;
+        if (previewIndex < liveIndex) previewIndex = Math.min(liveIndex + 1, stateKeys.length - 1);
+        revealShown = false;
+        renderViewportState();
+      }
+
+      function stepPreview(delta) {
+        previewIndex += delta;
+        if (previewIndex < 0) previewIndex = 0;
+        if (previewIndex > stateKeys.length - 1) previewIndex = stateKeys.length - 1;
+        renderViewportState();
+      }
+
+      function openRevealModal() {
+        if (!revealModal) return;
+        revealModal.classList.add("open");
+        revealModal.setAttribute("aria-hidden", "false");
+      }
+
+      function closeRevealModal() {
+        if (!revealModal) return;
+        revealModal.classList.remove("open");
+        revealModal.setAttribute("aria-hidden", "true");
+      }
+
+      if (sessionCodeInput) {
+        sessionCodeInput.addEventListener("input", updateViewerUrl);
+      }
+
+      if (btnGenerateCode) {
+        btnGenerateCode.addEventListener("click", function () {
+          if (sessionCodeInput) sessionCodeInput.value = randomCode();
+          updateViewerUrl();
+        });
+      }
+
+      if (btnCopyViewerUrl) {
+        btnCopyViewerUrl.addEventListener("click", function () {
+          if (viewerUrlInput) copyText(viewerUrlInput.value);
+        });
+      }
+
+      if (btnCopyUrlInline) {
+        btnCopyUrlInline.addEventListener("click", function () {
+          if (viewerUrlInput) copyText(viewerUrlInput.value);
+        });
+      }
+
+      if (btnPrevLive) {
+        btnPrevLive.addEventListener("click", function () {
+          stepLive(-1);
+        });
+      }
+
+      if (btnNextLive) {
+        btnNextLive.addEventListener("click", function () {
+          stepLive(1);
+        });
+      }
+
+      if (btnPrevPreview) {
+        btnPrevPreview.addEventListener("click", function () {
+          stepPreview(-1);
+        });
+      }
+
+      if (btnNextPreview) {
+        btnNextPreview.addEventListener("click", function () {
+          stepPreview(1);
+        });
+      }
+
+      if (btnOpenRevealModal) {
+        btnOpenRevealModal.addEventListener("click", openRevealModal);
+      }
+
+      if (btnCloseRevealModal) {
+        btnCloseRevealModal.addEventListener("click", closeRevealModal);
+      }
+
+      if (btnConfirmReveal) {
+        btnConfirmReveal.addEventListener("click", function () {
+          revealShown = true;
+          renderViewportState();
+          closeRevealModal();
+        });
+      }
+
+      if (btnHideAnswer) {
+        btnHideAnswer.addEventListener("click", function () {
+          revealShown = false;
+          renderViewportState();
+        });
+      }
+
+      if (revealModal) {
+        revealModal.addEventListener("click", function (event) {
+          if (event.target === revealModal) closeRevealModal();
+        });
+      }
+
+      updateViewerUrl();
+      renderViewportState();
+
+      waitForFirebase(function () {
+        firebase.auth().onAuthStateChanged(function (user) {
+          if (!user) {
+            window.location.assign("/login.html");
+            return;
+          }
+
+          firebase.firestore().collection("employees").doc(user.uid).get()
+            .then(function (snap) {
+              if (!snap.exists) {
+                showError("No employee record found.");
+                return;
+              }
+
+              var emp = snap.data() || {};
+              if (emp.active === false) {
+                showError("Your account is not active.");
+                return;
+              }
+
+              var roles = normalizeRoles(emp);
+              var hasAccess = roles.indexOf("host") !== -1 || roles.indexOf("admin") !== -1 || roles.indexOf("writer") !== -1;
+
+              if (!hasAccess) {
+                showError("You do not have access to this page.");
+                return;
+              }
+
+              if (authLoading) authLoading.style.display = "none";
+              if (errorContainer) errorContainer.style.display = "none";
+              if (consoleTopbar) consoleTopbar.style.display = "block";
+              if (consoleShell) consoleShell.style.display = "grid";
+              if (liveStatusChip) liveStatusChip.textContent = "Session Ready";
+              if (modalAnswerValue) modalAnswerValue.textContent = "Jean-Michel Basquiat";
+            })
+            .catch(function (err) {
+              console.error("[host-live-console] access verification failed:", err);
+              showError("Could not verify access.");
+            });
+        });
+      });
+    });
+  </script>
+</body>
+</html>

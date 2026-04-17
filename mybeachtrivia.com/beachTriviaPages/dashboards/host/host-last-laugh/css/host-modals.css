@@ -1,0 +1,31 @@
+.fa-modal {
+    border: none;
+    padding: 0;
+    background: transparent;
+  }
+  
+  .fa-modal::backdrop {
+    background: rgba(0, 0, 0, 0.5);
+  }
+  
+  .fa-modal-card {
+    width: min(440px, calc(100vw - 24px));
+    padding: 20px;
+    border-radius: 18px;
+    background: linear-gradient(180deg, #11253d 0%, #0b1c30 100%);
+    border: 1px solid var(--fa-edge);
+    color: var(--fa-text);
+    box-shadow: var(--fa-shadow-lg);
+  }
+  
+  .fa-modal-card p {
+    margin-top: 10px;
+    color: var(--fa-muted);
+  }
+  
+  .fa-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 18px;
+  }

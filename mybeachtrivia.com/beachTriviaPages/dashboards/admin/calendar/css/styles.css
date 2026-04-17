@@ -164,12 +164,18 @@ h1::after {
     margin-bottom: 10px;
 }
 
+.date-nav-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
 .filters {
     display: flex;
     flex-wrap: wrap;
-    gap: 20px;
+    gap: 12px;
     padding: 8px 0;
-    align-items: center;
+    align-items: flex-start;
 }
 
 .copy-month-group {
@@ -193,7 +199,7 @@ h1::after {
 .filter-group label {
     color: var(--text-secondary);
     font-weight: 500;
-    min-width: 65px;
+    min-width: 50px;
 }
 
 .employee-filter select,
@@ -202,6 +208,178 @@ h1::after {
 .filter-group select {
     min-width: 150px;
     width: auto;
+}
+
+.employee-filter .ss-trigger,
+.location-filter .ss-trigger {
+    flex: none;
+    min-width: 250px;
+    width: auto;
+}
+
+.event-filter .ss-trigger,
+.filter-group .ss-trigger {
+    flex: none;
+    min-width: 188px;
+    width: auto;
+}
+
+/* NEW: searchable dropdown wrappers */
+.filter-stack,
+.filterable-select {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 190px;
+}
+
+.filterable-select-inline {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+}
+
+.dropdown-search {
+    width: 100%;
+    min-width: 0;
+    padding: 8px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background-color: var(--input-bg);
+    color: var(--text-primary);
+    font-size: 13px;
+    line-height: 1.2;
+}
+
+.dropdown-search::placeholder {
+    color: var(--text-secondary);
+    opacity: 0.9;
+}
+
+.dropdown-search:focus {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+    border-color: var(--primary-color);
+}
+
+/* ── Searchable select (combobox) ────────────────────────────── */
+
+/* Trigger — looks like the original <select> */
+.ss-trigger {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background-color: var(--input-bg);
+    color: var(--text-primary);
+    font-size: 13px;
+    line-height: 1.4;
+    cursor: pointer;
+    user-select: none;
+    min-height: 38px;
+    box-sizing: border-box;
+}
+
+.ss-trigger:focus {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+    border-color: var(--primary-color);
+}
+
+.ss-trigger--placeholder .ss-trigger__text {
+    color: var(--text-secondary);
+    opacity: 0.85;
+}
+
+.ss-trigger__text {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Down chevron using CSS border trick */
+.ss-trigger__chevron {
+    flex-shrink: 0;
+    margin-left: 8px;
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 6px solid var(--text-secondary);
+    opacity: 0.7;
+}
+
+/* Floating panel — fixed so it's never clipped by modal overflow */
+.ss-panel {
+    position: fixed;
+    z-index: 99999;
+    background-color: var(--input-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+    overflow: hidden;
+}
+
+/* Search input at the top of the panel */
+.ss-search {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 12px;
+    border: none;
+    border-bottom: 1px solid var(--border-color);
+    background-color: var(--input-bg);
+    color: var(--text-primary);
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.ss-search:focus {
+    outline: none;
+}
+
+.ss-search::placeholder {
+    color: var(--text-secondary);
+    opacity: 0.9;
+}
+
+/* Scrollable list */
+.ss-list {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.ss-item {
+    padding: 5px 10px;
+    font-size: 12px;
+    line-height: 1.3;
+    color: var(--text-primary);
+    cursor: pointer;
+    user-select: none;
+}
+
+.ss-item:hover,
+.ss-item:focus {
+    background-color: var(--primary-color);
+    color: #fff;
+    outline: none;
+}
+
+.ss-item--selected {
+    font-weight: 600;
+}
+
+.ss-empty {
+    padding: 5px 10px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-style: italic;
 }
 
 /* View buttons styling */
@@ -213,8 +391,10 @@ h1::after {
 .small-btn {
     padding: 6px 12px;
     font-size: 12px;
+    line-height: 1;
     min-width: 80px;
-    height: 30px;
+    height: 32px;
+    border-radius: 6px;
     white-space: nowrap;
 }
 
@@ -319,6 +499,11 @@ select:focus {
     border-radius: 4px;
     text-transform: uppercase;
     font-size: 14px;
+    /* Sticky day headers — lock just below the 56px bt-nav bar */
+    position: sticky;
+    top: 56px;
+    z-index: 12;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .calendar td {
@@ -401,7 +586,7 @@ select:focus {
 .cell-copy-button {
     position: absolute;
     top: 8px;
-    right: 34px; /* Moved from 61px to 34px */
+    right: 34px;
     width: 20px;
     height: 20px;
     background-color: var(--input-bg);
@@ -421,10 +606,10 @@ select:focus {
 .clear-day-button {
     position: absolute;
     top: 8px;
-    right: 61px; /* Moved from 34px to 61px (swapped with cell-copy-button) */
+    right: 61px;
     width: 20px;
     height: 20px;
-    background-color: rgba(255, 77, 77, 0.5); /* Made more translucent (0.8 to 0.5) */
+    background-color: rgba(255, 77, 77, 0.5);
     color: white;
     border: 1px solid var(--border-color);
     border-radius: 50%;
@@ -441,7 +626,7 @@ select:focus {
 .drag-day-button {
     position: absolute;
     top: 8px;
-    right: 88px; /* Position to the left of the clear-day-button */
+    right: 88px;
     width: 20px;
     height: 20px;
     background-color: var(--secondary-color);
@@ -467,7 +652,7 @@ select:focus {
 }
 
 .clear-day-button:hover {
-    background-color: rgba(255, 77, 77, 0.7); /* Made more translucent (1.0 to 0.7) */
+    background-color: rgba(255, 77, 77, 0.7);
     transform: scale(1.1);
 }
 
@@ -588,6 +773,83 @@ select:focus {
     transform: translateX(-50%) scale(1.1);
 }
 
+/* ── Eye top section (inside week-copy-cell, mirrors the .date row border) ── */
+.week-eye-top {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 42px;
+    border-bottom: 1px dotted #333;
+}
+
+/* ── Eye button ───────────────────────────────────────────────────────── */
+@keyframes eye-toggle {
+    0%   { transform: scale(1); }
+    40%  { transform: scale(0); }
+    60%  { transform: scale(0); }
+    100% { transform: scale(1); }
+}
+
+.week-eye-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    margin: auto;
+    background: transparent;
+    border: 1px solid transparent;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-muted);
+    border-radius: 50%;
+    transition: color 0.2s, background-color 0.2s, border-color 0.2s;
+    padding: 2px;
+}
+
+.week-eye-button.toggling {
+    animation: eye-toggle 0.35s ease;
+}
+
+.week-eye-button svg {
+    display: block;
+    flex-shrink: 0;
+    pointer-events: none;
+}
+
+.week-eye-button:hover {
+    color: var(--text-secondary);
+    background-color: var(--border-color);
+    border-color: var(--border-color);
+}
+
+/* ── Hidden week ──────────────────────────────────────────────────────── */
+tr.week-hidden .shift-container {
+    max-height: 0 !important;
+    opacity: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    transition: max-height 0.5s ease-out, opacity 0.5s ease-out, padding 0.5s ease-out;
+}
+
+tr.week-hidden .week-copy-cell .week-row-content {
+    max-height: 0 !important;
+    opacity: 0 !important;
+}
+
+tr.week-hidden td {
+    height: auto !important;
+    min-height: 0 !important;
+}
+
+tr.week-hidden .week-eye-top {
+    border-bottom: none;
+}
+
+tr.week-hidden .week-eye-top .week-eye-button {
+    color: var(--primary-color);
+}
+
 .week-copy-header {
     width: 30px;
     min-width: 30px;
@@ -602,19 +864,30 @@ select:focus {
     border-radius: 4px;
     position: relative;
     padding: 0;
-    height: 165px; /* Match the height of other cells */
+    height: 165px;
+    overflow: hidden;
+    transition: height 0.5s ease-in-out;
 }
 
 /* Shifts */
 .shift-container {
     padding: 8px;
-    overflow: visible;
-    height: auto;
+    overflow: hidden;
+    max-height: 800px;
+    transition: max-height 0.5s ease-out, opacity 1.6s ease-out, padding 0.5s ease-out;
+    opacity: 1;
+}
+
+.week-copy-cell .week-row-content {
+    overflow: hidden;
+    max-height: 200px;
+    transition: max-height 0.5s ease-out, opacity 0.5s ease-out;
+    opacity: 1;
 }
 
 .shift {
     margin-bottom: 8px;
-    padding: 8px;
+    padding: 6px 6px 6px 8px;
     border-radius: 4px;
     font-size: 12px;
     background-color: var(--input-bg);
@@ -623,6 +896,20 @@ select:focus {
     cursor: pointer;
     transition: all 0.2s ease;
     will-change: transform, box-shadow;
+}
+
+.shift-header {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 2px;
+}
+
+.shift-controls {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    flex-shrink: 0;
 }
 
 .shift:hover {
@@ -638,7 +925,7 @@ select:focus {
 }
 
 .shift.dragging-copy {
-    opacity: 0.7; /* Less transparent for better visibility */
+    opacity: 0.7;
     cursor: copy;
     transform: scale(0.95);
     box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
@@ -654,50 +941,36 @@ select:focus {
 .shift .employee {
     font-weight: 600;
     color: white;
-    margin-bottom: 3px;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .shift .time {
     color: var(--text-secondary);
     font-size: 11px;
-    margin-bottom: 3px;
+    line-height: 1.1;
+    margin-bottom: 0;
 }
 
 .shift .location {
     color: var(--secondary-color);
     font-size: 11px;
-    margin-bottom: 3px;
+    line-height: 1.1;
+    margin-bottom: 0;
 }
 
 .shift .event-type {
     color: var(--primary-color);
     font-size: 11px;
+    line-height: 1.1;
 }
 
 .shift .delete-button {
-    position: absolute;
-    top: 5px;
-    right: 5px;
-    width: 16px;
-    height: 16px;
-    background-color: rgba(255, 255, 255, 0.2);
-    color: white;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    font-size: 12px;
-    transition: opacity 0.2s;
-    z-index: 2;
-}
-
-.shift .copy-button {
-    position: absolute;
-    top: 5px;
-    right: 47px;
-    width: 16px;
-    height: 16px;
+    width: 14px;
+    height: 14px;
     background-color: rgba(255, 255, 255, 0.2);
     color: white;
     border-radius: 50%;
@@ -707,15 +980,27 @@ select:focus {
     cursor: pointer;
     font-size: 11px;
     transition: opacity 0.2s;
-    z-index: 2;
+    flex-shrink: 0;
+}
+
+.shift .copy-button {
+    width: 14px;
+    height: 14px;
+    background-color: rgba(255, 255, 255, 0.2);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 10px;
+    transition: opacity 0.2s;
+    flex-shrink: 0;
 }
 
 .shift .toggle-button {
-    position: absolute;
-    top: 5px;
-    right: 26px;
-    width: 16px;
-    height: 16px;
+    width: 14px;
+    height: 14px;
     background-color: rgba(255, 255, 255, 0.2);
     color: white;
     border-radius: 50%;
@@ -724,7 +1009,7 @@ select:focus {
     justify-content: center;
     cursor: pointer;
     transition: all 0.2s;
-    z-index: 2;
+    flex-shrink: 0;
 }
 
 .shift:hover .delete-button,
@@ -749,15 +1034,20 @@ select:focus {
     border-left: 4px solid white;
 }
 
-.shift.collapsed .time,
-.shift.collapsed .location,
-.shift.collapsed .event-type {
-    display: none;
+.shift-details {
+    max-height: 80px;
+    overflow: hidden;
+    transition: max-height 0.25s ease, opacity 0.25s ease;
+    opacity: 1;
+}
+
+.shift.collapsed .shift-details {
+    max-height: 0;
+    opacity: 0;
 }
 
 .shift.collapsed {
-    padding: 5px 8px;
-    transition: all 0.3s ease;
+    padding: 6px 6px 6px 8px;
 }
 
 /* Visual indicator for multiple shifts */
@@ -790,6 +1080,207 @@ select:focus {
 .music-bingo    { border-left-color: var(--music-bingo-color); }
 .beach-feud     { border-left-color: var(--beach-feud-color); }
 
+/* ── Temp employee styles ──────────────────────────────────────────────── */
+.shift.temp-host {
+  border-left-color: #f0a500 !important;
+  opacity: 0.92;
+}
+.shift.temp-host::after {
+  content: 'TEMP';
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  background: rgba(240, 165, 0, 0.25);
+  color: #f0a500;
+  padding: 1px 4px;
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+option.temp-employee-option {
+  font-style: italic;
+  color: #f0a500;
+}
+
+option.write-in-option {
+  font-weight: 600;
+  color: var(--primary-color, #3699ff);
+}
+
+#write-in-host-name {
+  width: 100%;
+  margin-top: 2px;
+  padding: 7px 10px;
+  background: var(--input-bg, #1a1f2e);
+  border: 1px solid #f0a500;
+  border-radius: 6px;
+  color: var(--text-primary, #fff);
+  font-size: 0.9rem;
+  outline: none;
+  box-sizing: border-box;
+}
+#write-in-host-name:focus {
+  border-color: #f0c040;
+  box-shadow: 0 0 0 2px rgba(240, 165, 0, 0.2);
+}
+
+/* ── Undo delete toasts (stackable) ────────────────────────────────────── */
+#undo-toast-container {
+  position: fixed;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+  z-index: 99999;
+  pointer-events: none;
+}
+
+.undo-toast {
+  pointer-events: all;
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  background: #1e2535;
+  border: 1px solid #2e3650;
+  border-radius: 10px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+  padding: 14px 18px 10px;
+  min-width: 300px;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.undo-toast.undo-toast-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.undo-toast.undo-toast-dismissed {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.undo-toast-msg {
+  font-size: 0.88rem;
+  color: var(--text-secondary, #aab);
+  flex: 1;
+}
+
+.undo-toast-msg em {
+  font-style: normal;
+  color: var(--text-primary, #fff);
+  font-weight: 500;
+}
+
+.undo-toast-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: -4px;
+}
+
+.undo-toast-btn {
+  align-self: auto;
+  background: transparent;
+  border: 1px solid var(--primary-color, #3699ff);
+  color: var(--primary-color, #3699ff);
+  border-radius: 6px;
+  padding: 4px 14px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  margin-top: 0;
+}
+
+.undo-toast-btn:hover {
+  background: var(--primary-color, #3699ff);
+  color: #fff;
+}
+
+.undo-toast-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary, #aab);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.82;
+  transition: background 0.15s, color 0.15s, opacity 0.15s, border-color 0.15s;
+}
+
+.undo-toast-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary, #fff);
+  opacity: 1;
+}
+
+.undo-toast-close:focus {
+  outline: none;
+  border-color: var(--primary-color, #3699ff);
+  box-shadow: 0 0 0 2px rgba(54, 153, 255, 0.2);
+  color: var(--text-primary, #fff);
+  opacity: 1;
+}
+
+.undo-toast-bar {
+  height: 3px;
+  background: #2e3650;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.undo-toast-progress {
+  height: 100%;
+  width: 100%;
+  background: var(--primary-color, #3699ff);
+  border-radius: 2px;
+}
+
+/* ── Temp venue styles ─────────────────────────────────────────────────── */
+.shift.temp-venue {
+  border-left-color: #00bcd4 !important;
+  opacity: 0.92;
+}
+
+option.temp-location-option {
+  font-style: italic;
+  color: #00bcd4;
+}
+
+#write-in-venue-name {
+  width: 100%;
+  margin-top: 2px;
+  padding: 7px 10px;
+  background: var(--input-bg, #1a1f2e);
+  border: 1px solid #00bcd4;
+  border-radius: 6px;
+  color: var(--text-primary, #fff);
+  font-size: 0.9rem;
+  outline: none;
+  box-sizing: border-box;
+}
+#write-in-venue-name:focus {
+  border-color: #4dd0e1;
+  box-shadow: 0 0 0 2px rgba(0, 188, 212, 0.2);
+}
+
 /* Modal */
 .modal {
     display: none;
@@ -803,13 +1294,8 @@ select:focus {
     justify-content: center;
     align-items: center;
     backdrop-filter: blur(5px);
-
-    /* ✅ allow backdrop clicks (used by your click-outside-to-close wiring) */
     pointer-events: auto;
-
-    /* ✅ keep the page from doing weird scroll-chaining while the modal is open */
     overscroll-behavior: contain;
-
     overflow: hidden;
     padding: 20px;
     box-sizing: border-box;
@@ -826,25 +1312,21 @@ select:focus {
     border: 1px solid var(--border-color);
     overflow: hidden;
     margin: auto;
-
-    /* ✅ ensure content is clickable even when backdrop handlers exist */
     pointer-events: auto;
 }
 
-/* Absolute header that covers the entire top of the modal */
 .modal-content::before {
     content: '';
     position: absolute;
     left: 0;
     right: 0;
     top: 0;
-    height: 85px; /* Match your header height */
+    height: 85px;
     background-color: var(--card-bg);
     z-index: 100;
     border-bottom: 1px solid var(--border-color);
 }
 
-/* Title styling that sits on top of the ::before element */
 .modal h2 {
     position: absolute;
     top: 0;
@@ -858,26 +1340,22 @@ select:focus {
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 
-/* Scrollable form container */
 #shift-form, #new-host-form, #new-location-form {
-    padding: 105px 30px 65px 25px; /* Top padding matches header height, more padding on right */
+    padding: 105px 30px 65px 25px;
     overflow-y: auto;
     max-height: 80vh;
     width: 100%;
     box-sizing: border-box;
-
-    /* ✅ prevents “bounce scroll” and helps your “start at top” feel consistent */
     overscroll-behavior: contain;
 }
 
-/* Absolute footer that covers the entire bottom of the modal */
 .modal-content::after {
     content: '';
     position: absolute;
     left: 0;
     right: 0;
     bottom: 0;
-    height: 65px; /* Match your footer height */
+    height: 65px;
     background-color: var(--card-bg);
     z-index: 100;
     border-top: 1px solid var(--border-color);
@@ -916,7 +1394,7 @@ select:focus {
 }
 
 .warning-message {
-    padding: 85px 25px 65px; /* Top and bottom padding match header and footer heights */
+    padding: 85px 25px 65px;
     overflow-y: auto;
     max-height: 80vh;
     background-color: rgba(255, 157, 0, 0.05);
@@ -1014,7 +1492,6 @@ input:focus, select:focus {
     border-color: var(--primary-color);
 }
 
-/* Form styling for host name input */
 #new-host-name {
     background-color: var(--input-bg);
     color: var(--text-primary);
@@ -1074,8 +1551,13 @@ input:focus, select:focus {
 .select-with-button {
     display: flex;
     gap: 8px;
-    align-items: center;
+    align-items: flex-end;
     padding-right: 5px;
+}
+
+.select-with-button .filterable-select-inline {
+    flex: 1;
+    min-width: 0;
 }
 
 .add-host-btn {
@@ -1111,7 +1593,6 @@ input:focus, select:focus {
 
 .time-select { flex: 1; margin-bottom: 0; }
 
-/* Time dropdown styling */
 select option {
     background-color: var(--input-bg);
     color: var(--text-primary);
@@ -1133,7 +1614,6 @@ button[type="submit"] {
 
 button[type="submit"]:hover { background-color: var(--border-color); }
 
-/* Hide/Show conditional fields */
 .conditional-field {
     display: none;
     margin-top: 15px;
@@ -1216,29 +1696,29 @@ input:checked + .toggle-slider:before { transform: translateX(26px); }
     position: absolute;
     top: 0;
     height: 100%;
-    width: 120px; /* Increased from 40px to 120px */
+    width: 120px;
     background-color: rgba(54, 153, 255, 0.1);
     border: 2px dashed var(--primary-color);
     z-index: 10;
     display: none;
     justify-content: center;
     align-items: center;
-    font-size: 16px; /* Reduced from 20px to better fit text */
+    font-size: 16px;
     color: var(--primary-color);
     pointer-events: none;
     transition: opacity 0.2s;
-    padding: 0 10px; /* Added padding for text */
-    text-align: center; /* Center text */
+    padding: 0 10px;
+    text-align: center;
 }
 
 .month-nav-dropzone.left {
-    left: -120px; /* Adjusted to match new width */
+    left: -120px;
     border-top-right-radius: 10px;
     border-bottom-right-radius: 10px;
 }
 
 .month-nav-dropzone.right {
-    right: -120px; /* Adjusted to match new width */
+    right: -120px;
     border-top-left-radius: 10px;
     border-bottom-left-radius: 10px;
 }
@@ -1317,9 +1797,15 @@ input:checked + .toggle-slider:before { transform: translateX(26px); }
     .filters {
         flex-direction: column;
         gap: 10px;
+        align-items: stretch;
+    }
+
+    .filter-stack,
+    .filterable-select {
+        width: 100%;
+        min-width: 0;
     }
     
-    /* Make modal more mobile-friendly */
     .modal-content {
         width: 95%;
         max-height: 85vh;
@@ -1330,22 +1816,36 @@ input:checked + .toggle-slider:before { transform: translateX(26px); }
     .button-group { flex-direction: column; }
     
     .button-group button { width: 100%; }
+
+    .undo-toast {
+        min-width: 0;
+        width: min(92vw, 480px);
+    }
+
+    .undo-toast-actions {
+        justify-content: space-between;
+    }
+
+    .select-with-button {
+        align-items: stretch;
+    }
     
-    /* Media query for responsive layouts */
     .week-clear-button { top: 138px; }
     .week-toggle-button { top: 108px; }
     .week-move-button { top: 78px; }
 }
+
 /* ── Copy Previous Month ─────────────────────────────────────── */
 .copy-month-btn {
-    background-color: var(--secondary-color);
+    background-color: #4a7fa5;
     color: white;
-    border-color: var(--secondary-color);
+    border-color: #4a7fa5;
 }
 
 .copy-month-btn:hover {
-    background-color: var(--secondary-color);
-    filter: brightness(1.15);
+    background-color: #5a8fb5;
+    border-color: #5a8fb5;
+    filter: none;
     transform: none;
 }
 
@@ -1364,4 +1864,349 @@ input:checked + .toggle-slider:before { transform: translateX(26px); }
 #copy-month-message p {
     margin: 0 0 8px 0;
     line-height: 1.5;
+}
+
+/* ====================================================================== */
+/* Add New Host — success notice (#new-host-result)                        */
+/* ====================================================================== */
+
+#new-host-result {
+    margin: 16px 0 24px;
+    padding: 16px 18px 24px;
+    border-radius: 8px;
+    border: 1px solid rgba(46, 213, 115, 0.3);
+    background: linear-gradient(180deg, rgba(46,213,115,0.10) 0%, rgba(46,213,115,0.05) 100%);
+}
+
+/* Done button shown after employee creation (replaces Cancel + Save Host) */
+.btn-done-host {
+    cursor: pointer;
+    min-width: 100px;
+    padding: 10px 20px;
+    border-radius: 6px;
+    border: none;
+    background-color: var(--primary-color);
+    color: #fff;
+    font-weight: 600;
+    font-size: 0.95rem;
+    position: relative;
+    pointer-events: auto !important;
+    z-index: 999 !important;
+    transition: background 0.2s;
+}
+.btn-done-host:hover { background-color: #2487ea; }
+
+/* Update button — secondary action alongside Done */
+.btn-update-host {
+    cursor: pointer;
+    min-width: 100px;
+    padding: 10px 20px;
+    border-radius: 6px;
+    border: 1px solid var(--primary-color);
+    background: transparent;
+    color: var(--primary-color);
+    font-weight: 600;
+    font-size: 0.95rem;
+    position: relative;
+    pointer-events: auto !important;
+    z-index: 999 !important;
+    transition: background 0.2s, color 0.2s;
+}
+.btn-update-host:hover {
+    background-color: var(--primary-color);
+    color: #fff;
+}
+
+.new-host-result-title {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--text-primary);
+    margin-bottom: 10px;
+}
+
+.new-host-result-meta {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    line-height: 1.7;
+    margin-bottom: 14px;
+}
+
+.new-host-result-meta code {
+    font-weight: 800;
+    color: var(--text-primary);
+}
+
+.new-host-result-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.new-host-open-link {
+    color: var(--primary-color);
+    font-weight: 700;
+    font-size: 0.85rem;
+    text-decoration: none;
+}
+.new-host-open-link:hover { text-decoration: underline; }
+
+.new-host-copy-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(54, 153, 255, 0.5);
+    background: linear-gradient(180deg, rgba(54,153,255,0.18) 0%, rgba(54,153,255,0.10) 100%);
+    color: var(--primary-color);
+    font-weight: 700;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+}
+.new-host-copy-btn:hover {
+    background: linear-gradient(180deg, rgba(54,153,255,0.28) 0%, rgba(54,153,255,0.18) 100%);
+    border-color: rgba(54,153,255,0.75);
+}
+.new-host-copy-btn:active { transform: translateY(1px); }
+
+.new-host-copy-hint {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    min-height: 1em;
+}
+/* =========================================================
+   Shift Swap Notifications Modal
+   ========================================================= */
+
+#admin-shift-offers-modal[aria-hidden="true"] { display: none !important; }
+#admin-shift-offers-modal[aria-hidden="false"] { display: flex !important; }
+
+#admin-shift-offers-modal.simple-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+#admin-shift-offers-modal .panel {
+  width: min(860px, 95vw);
+  max-height: 85vh;
+  overflow: auto;
+  border-radius: 12px;
+  padding: 16px;
+  background: #0f1720;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.45);
+}
+
+#admin-shift-offers-modal .panel header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+#admin-shift-offers-modal .panel header h2 {
+  margin: 0;
+  font-size: 1.2rem;
+  color: #e0e0e0;
+}
+
+#admin-shift-offers-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.admin-swap-empty {
+  text-align: center;
+  padding: 24px 0;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.9rem;
+}
+
+.admin-swap-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-left: 3px solid var(--primary-color);
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.admin-swap-card.classic-trivia { border-left-color: var(--classic-trivia-color, #3699ff); }
+.admin-swap-card.themed-trivia  { border-left-color: var(--themed-trivia-color, #9b59b6); }
+.admin-swap-card.classic-bingo  { border-left-color: var(--classic-bingo-color, #2ecc71); }
+.admin-swap-card.music-bingo    { border-left-color: var(--music-bingo-color, #f72585); }
+.admin-swap-card.beach-feud     { border-left-color: var(--beach-feud-color, #ff9d00); }
+
+.admin-swap-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.admin-swap-date {
+  font-size: 13px;
+  font-weight: 600;
+  color: #e0e0e0;
+}
+
+.admin-swap-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.admin-swap-time,
+.admin-swap-location {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.admin-swap-hosts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.admin-swap-from { color: rgba(255, 255, 255, 0.75); }
+.admin-swap-arrow { color: rgba(255, 255, 255, 0.35); font-size: 12px; }
+.admin-swap-to { color: #60a5fa; font-weight: 600; }
+
+.admin-swap-card-footer {
+  display: flex;
+  justify-content: flex-end;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  padding-top: 8px;
+}
+
+.admin-reject-btn {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.admin-reject-btn:hover {
+  background: rgba(239, 68, 68, 0.22);
+  border-color: rgba(239, 68, 68, 0.55);
+}
+
+.admin-swap-section + .admin-swap-section {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.admin-swap-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.45);
+  margin: 0 0 10px;
+}
+
+.admin-swap-note {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  font-style: italic;
+  margin-top: 2px;
+}
+
+.admin-cancel-coverage-btn {
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 5px 10px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.admin-cancel-coverage-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #ef4444;
+}
+
+/* coverage-type-badge (shared with host side) */
+.coverage-type-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: rgba(255, 255, 255, 0.12);
+  color: #e0e0e0;
+}
+
+.coverage-type-badge.classic-trivia { background: rgba(54, 153, 255, 0.18); color: #60b4ff; }
+.coverage-type-badge.themed-trivia  { background: rgba(155, 89, 182, 0.18); color: #c084fc; }
+.coverage-type-badge.classic-bingo  { background: rgba(46, 204, 113, 0.18); color: #4ade80; }
+.coverage-type-badge.music-bingo    { background: rgba(247, 37, 133, 0.18); color: #f472b6; }
+.coverage-type-badge.beach-feud     { background: rgba(255, 157, 0, 0.18);  color: #fbbf24; }
+
+/* Admin-only actions row (mirrors host-actions) */
+.admin-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-top: -10px;
+}
+
+#admin-open-shift-offers.small-btn {
+    min-width: 120px;
+}
+
+/* Shift Offers button */
+#admin-open-shift-offers {
+  background-color: var(--secondary-color);
+  color: #fff;
+  border-color: var(--secondary-color);
+}
+
+#admin-open-shift-offers:hover {
+  filter: brightness(1.08);
+  background-color: var(--secondary-color);
+  color: #fff;
+}
+
+/* Shift Offers button badge */
+.shift-offers-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  color: var(--secondary-color);
+  font-size: 11px;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  padding: 0 5px;
+  margin-left: 6px;
+  vertical-align: middle;
 }

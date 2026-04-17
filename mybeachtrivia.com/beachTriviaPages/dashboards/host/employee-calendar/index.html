@@ -1,0 +1,420 @@
+<!-- mybeachtrivia.com/beachTriviaPages/dashboards/host/employee-calendar/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Beach Trivia Calendar</title>
+
+  <script>
+    // Host/Employee calendar is read-only by design (UI + logic).
+    window.__CALENDAR_READONLY__ = true;
+
+    // Used by admin calendar scripts (event-crud.js) to deny writes.
+    window.isCalendarReadOnly = () => true;
+  </script>
+
+  <!-- Reuse admin calendar base styles + host defensive overrides -->
+  <link rel="stylesheet" href="../../admin/calendar/css/styles.css" />
+  <link rel="stylesheet" href="./style.css" />
+  <!-- Unified nav bar -->
+  <link rel="stylesheet" href="/beachTriviaPages/js/bt-nav.css">
+  <script src="/beachTriviaPages/js/bt-nav.js" defer></script>
+
+  <!-- Force date-number header row visible.
+       This <style> block intentionally sits after bt-nav.css so it wins
+       any same-specificity !important battle. The html+body prefix bumps
+       specificity above any plain .date or .calendar td .date rule
+       that bt-nav.css might carry. Hardcoded color avoids CSS-variable issues. -->
+  <style>
+    html body .calendar td .date {
+      display: block !important;
+      padding: 8px !important;
+      min-height: 42px !important;
+      height: auto !important;
+      box-sizing: border-box !important;
+      color: #a0a0a0 !important;
+      font-weight: 600 !important;
+      border-bottom: 1px dotted #444 !important;
+      position: relative !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+      overflow: visible !important;
+    }
+
+    /* Let data cells grow to fit any number of shifts.
+       The admin CSS sets height:165px which acts as min-height in table layout,
+       but some browsers/bt-nav.css may treat it as a hard cap.
+       height:auto here removes that ceiling while overflow:visible ensures
+       nothing is clipped. The .shift-container min-height keeps empty cells
+       from collapsing too small. */
+    html body .calendar td:not(.week-copy-cell) {
+      height: auto !important;
+      overflow: visible !important;
+    }
+    html body .calendar td:not(.week-copy-cell) .shift-container {
+      min-height: 100px;
+    }
+
+    /* When a week row is hidden, allow the shift container to fully collapse.
+       The min-height:100px above would otherwise hold the empty space open. */
+    html body .calendar tr.week-hidden td:not(.week-copy-cell) .shift-container {
+      min-height: 0 !important;
+    }
+  </style>
+
+  <!-- Host-only calendar skeleton styles -->
+  <style>
+    /* Skeleton tbody: sits naturally below <thead>, no overlay needed */
+    #calendar-loading[hidden] { display: none !important; }
+
+    .cal-skel-cell {
+      padding: 6px 4px;
+      vertical-align: top;
+    }
+    .cal-skel-date {
+      width: 22px;
+      height: 14px;
+      border-radius: 3px;
+      background: rgba(0,0,0,0.08);
+      margin-bottom: 6px;
+    }
+    .cal-skel-bar {
+      height: 28px;
+      border-radius: 4px;
+      background: linear-gradient(
+        90deg,
+        rgba(0,0,0,0.06) 25%,
+        rgba(0,0,0,0.13) 50%,
+        rgba(0,0,0,0.06) 75%
+      );
+      background-size: 200% 100%;
+      animation: calSkelShimmer 1.4s ease-in-out infinite;
+      margin-bottom: 5px;
+    }
+    /* Stagger shimmer per row so it feels alive */
+    #calendar-loading tr:nth-child(2) .cal-skel-bar { animation-delay: 0.1s; }
+    #calendar-loading tr:nth-child(3) .cal-skel-bar { animation-delay: 0.2s; }
+    #calendar-loading tr:nth-child(4) .cal-skel-bar { animation-delay: 0.3s; }
+    #calendar-loading tr:nth-child(5) .cal-skel-bar { animation-delay: 0.4s; }
+
+    @keyframes calSkelShimmer {
+      0%   { background-position:  200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    /* Week-copy header cells: keep narrow + empty like the real ones */
+    .cal-skel-week-cell { width: 28px; }
+  </style>
+
+  <!-- Firebase (compat) -->
+  <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-app-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-auth-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-firestore-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-functions-compat.js" defer></script>
+
+  <!-- App init + host guard -->
+  <script src="../../../firebase-init.js" defer></script>
+  <script src="../guard-host.js" defer></script>
+
+  <!-- Admin calendar renderer + utilities + modal logic -->
+  <script src="../../admin/calendar/js/calendar-core.js" defer></script>
+  <script src="../../admin/calendar/js/utilities.js" defer></script>
+  <script src="../../admin/calendar/js/calendar-ui.js" defer></script>
+  <script src="../../admin/calendar/js/event-crud.js" defer></script>
+
+  <!-- Host hardening + shift offers -->
+  <script src="./boot.js" defer></script>
+  <script src="./js/host-calendar.js" defer></script>
+  <script src="./js/shift-trade-requests.js" defer></script>
+</head>
+
+<body>
+  <div id="auth-loading" aria-live="polite">Checking host access…</div>
+
+  <div id="error-container" role="alert">
+    <div id="error-text">You do not have permission to access this page.</div>
+    <div style="display:flex; gap:8px;">
+      <button id="back-to-login" class="btn ghost" type="button">Back to Login</button>
+      <button id="logout-btn" class="btn primary" type="button">Sign out</button>
+    </div>
+  </div>
+
+  <div class="dashboard-container">
+    <div class="container">
+      <header>
+        <h1>Beach Trivia Calendar</h1>
+      </header>
+
+      <div class="controls">
+        <div class="date-nav">
+          <button id="prev-month" aria-label="Previous month" type="button">Previous</button>
+          <h2 class="month-display" id="current-month">Loading…</h2>
+          <button id="next-month" aria-label="Next month" type="button">Next</button>
+        </div>
+
+        <div class="filters">
+          <div class="filter-group employee-filter">
+            <label for="employee-select">Host:</label>
+            <select id="employee-select" aria-label="Filter by host">
+              <option value="all">All Hosts</option>
+            </select>
+          </div>
+
+          <div class="filter-group event-filter">
+            <label for="event-select">Event:</label>
+            <select id="event-select" aria-label="Filter by event type">
+              <option value="all">All Events</option>
+              <option value="classic-trivia">Classic Trivia</option>
+              <option value="themed-trivia">Themed Trivia</option>
+              <option value="classic-bingo">Classic Bingo</option>
+              <option value="music-bingo">Music Bingo</option>
+              <option value="beach-feud">Beach Feud</option>
+            </select>
+          </div>
+
+          <div class="filter-group location-filter">
+            <label for="location-select">Location:</label>
+            <select id="location-select" aria-label="Filter by location">
+              <option value="all">All Locations</option>
+            </select>
+          </div>
+
+          <div class="filter-group view-buttons">
+            <label>View:</label>
+            <div class="button-group-inline">
+              <button id="expand-all-btn" class="small-btn" aria-label="Expand all shifts" type="button">Expand All</button>
+              <button id="collapse-all-btn" class="small-btn" aria-label="Collapse all shifts" type="button">Collapse All</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Host-only actions (does not affect calendar behavior) -->
+        <div class="host-actions" aria-label="Host actions">
+          <button id="open-shift-offers" class="small-btn primary" type="button">
+            Shift Offers
+            <span id="shift-offers-badge" class="shift-offers-badge" aria-live="polite" aria-label="open shift offers count" hidden></span>
+          </button>
+        </div>
+      </div>
+
+      <div class="calendar-container">
+        <table class="calendar" id="calendar" aria-label="Beach Trivia Calendar">
+          <caption class="sr-only">Monthly calendar showing scheduled events</caption>
+          <thead>
+            <tr>
+              <th scope="col" class="week-copy-header"></th>
+              <th scope="col">Sunday</th>
+              <th scope="col">Monday</th>
+              <th scope="col">Tuesday</th>
+              <th scope="col">Wednesday</th>
+              <th scope="col">Thursday</th>
+              <th scope="col">Friday</th>
+              <th scope="col">Saturday</th>
+              <th scope="col" class="week-copy-header"></th>
+            </tr>
+          </thead>
+
+          <!-- ✅ Skeleton placeholder rows — visible below day headers while data loads.
+               host-calendar.js hides this tbody via setAttribute("hidden","") when ready. -->
+          <tbody id="calendar-loading" aria-label="Loading calendar data" aria-live="polite">
+            <tr>
+              <td class="cal-skel-week-cell"></td>
+              <td class="cal-skel-cell"><div class="cal-skel-date"></div><div class="cal-skel-bar"></div></td>
+              <td class="cal-skel-cell"><div class="cal-skel-date"></div><div class="cal-skel-bar"></div></td>
+              <td class="cal-skel-cell"><div class="cal-skel-date"></div><div class="cal-skel-bar"></div></td>
+              <td class="cal-skel-cell"><div class="cal-skel-date"></div><div class="cal-skel-bar"></div></td>
+              <td class="cal-skel-cell"><div class="cal-skel-date"></div><div class="cal-skel-bar"></div></td>
+              <td class="cal-skel-cell"><div class="cal-skel-date"></div><div class="cal-skel-bar"></div></td>
+              <td class="cal-skel-cell"><div class="cal-skel-date"></div><div class="cal-skel-bar"></div></td>
+              <td class="cal-skel-week-cell"></td>
+            </tr>
+            <tr>
+              <td class="cal-skel-week-cell"></td>
+              <td class="cal-skel-cell"><div class="cal-skel-date"></div><div class="cal-skel-bar"></div></td>
+              <td class="cal-skel-cell"><div class="cal-skel-date"></div><div class="cal-skel-bar"></div></td>
+              <td class="cal-skel-cell"><div class="cal-skel-date"></div><div class="cal-skel-bar"></div></td>
+              <td class="cal-skel-cell"><div class="cal-skel-date"></div><div class="cal-skel-bar"></div></td>
+              <td class="cal-skel-cell"><div class="cal-skel-date"></div><div class="cal-skel-bar"></div></td>
+              <td class="cal-skel-cell"><div class="cal-skel-date"></div><div class="cal-skel-bar"></div></td>
+              <td class="cal-skel-cell"><div class="cal-skel-date"></div><div class="cal-skel-bar"></div></td>
+              <td class="cal-skel-week-cell"></td>
+            </tr>
+            <tr>
+              <td class="cal-skel-week-cell"></td>
+              <td class="cal-skel-cell"><div class="cal-skel-date"></div><div class="cal-skel-bar"></div></td>
+              <td class="cal-skel-cell"><div class="cal-skel-date"></div><div class="cal-skel-bar"></div></td>
+              <td class="cal-skel-cell"><div class="cal-skel-date"></div><div class="cal-skel-bar"></div></td>
+              <td class="cal-skel-cell"><div class="cal-skel-date"></div><div class="cal-skel-bar"></div></td>
+              <td class="cal-skel-cell"><div class="cal-skel-date"></div><div class="cal-skel-bar"></div></td>
+              <td class="cal-skel-cell"><div class="cal-skel-date"></div><div class="cal-skel-bar"></div></td>
+              <td class="cal-skel-cell"><div class="cal-skel-date"></div><div class="cal-skel-bar"></div></td>
+              <td class="cal-skel-week-cell"></td>
+            </tr>
+            <tr>
+              <td class="cal-skel-week-cell"></td>
+              <td class="cal-skel-cell"><div class="cal-skel-date"></div><div class="cal-skel-bar"></div></td>
+              <td class="cal-skel-cell"><div class="cal-skel-date"></div><div class="cal-skel-bar"></div></td>
+              <td class="cal-skel-cell"><div class="cal-skel-date"></div><div class="cal-skel-bar"></div></td>
+              <td class="cal-skel-cell"><div class="cal-skel-date"></div><div class="cal-skel-bar"></div></td>
+              <td class="cal-skel-cell"><div class="cal-skel-date"></div><div class="cal-skel-bar"></div></td>
+              <td class="cal-skel-cell"><div class="cal-skel-date"></div><div class="cal-skel-bar"></div></td>
+              <td class="cal-skel-cell"><div class="cal-skel-date"></div><div class="cal-skel-bar"></div></td>
+              <td class="cal-skel-week-cell"></td>
+            </tr>
+            <tr>
+              <td class="cal-skel-week-cell"></td>
+              <td class="cal-skel-cell"><div class="cal-skel-date"></div><div class="cal-skel-bar"></div></td>
+              <td class="cal-skel-cell"><div class="cal-skel-date"></div><div class="cal-skel-bar"></div></td>
+              <td class="cal-skel-cell"><div class="cal-skel-date"></div><div class="cal-skel-bar"></div></td>
+              <td class="cal-skel-cell"><div class="cal-skel-date"></div><div class="cal-skel-bar"></div></td>
+              <td class="cal-skel-cell"><div class="cal-skel-date"></div><div class="cal-skel-bar"></div></td>
+              <td class="cal-skel-cell"><div class="cal-skel-date"></div><div class="cal-skel-bar"></div></td>
+              <td class="cal-skel-cell"><div class="cal-skel-date"></div><div class="cal-skel-bar"></div></td>
+              <td class="cal-skel-week-cell"></td>
+            </tr>
+          </tbody>
+
+          <tbody id="calendar-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- =========================
+         Shift Modal (ADMIN MARKUP / IDS)
+         ========================= -->
+    <div class="modal" id="shift-modal" role="dialog" aria-labelledby="modal-title" aria-hidden="true">
+      <div class="modal-content">
+        <h2 id="modal-title">Event Details</h2>
+
+        <form id="shift-form">
+          <div class="form-group">
+            <label for="shift-date">Date:</label>
+            <input type="date" id="shift-date" required aria-describedby="date-hint" />
+            <small id="date-hint" class="form-hint">Select the date for this event</small>
+          </div>
+
+          <div class="form-group">
+            <label for="shift-employee">Host:</label>
+            <div class="select-with-button">
+              <select id="shift-employee" required aria-describedby="host-hint">
+                <option value="">Select Host</option>
+              </select>
+              <button type="button" id="add-new-host-btn" class="add-host-btn" aria-label="Add a new host">+</button>
+            </div>
+            <small id="host-hint" class="form-hint">Choose who will host this event</small>
+          </div>
+
+          <div class="time-inputs">
+            <div class="form-group time-select">
+              <label for="start-time">Start Time:</label>
+              <select id="start-time" required aria-describedby="start-time-hint">
+                <option value="">Select</option>
+              </select>
+              <small id="start-time-hint" class="form-hint">Event start time</small>
+            </div>
+
+            <div class="form-group time-select">
+              <label for="end-time">End Time:</label>
+              <select id="end-time" required aria-describedby="end-time-hint">
+                <option value="">Select</option>
+              </select>
+              <small id="end-time-hint" class="form-hint">Event end time</small>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="shift-type">Event Type:</label>
+            <select id="shift-type" required aria-describedby="event-type-hint">
+              <option value="">Select Event Type</option>
+              <option value="classic-trivia">Classic Trivia</option>
+              <option value="themed-trivia">Themed Trivia</option>
+              <option value="classic-bingo">Classic Bingo</option>
+              <option value="music-bingo">Music Bingo</option>
+              <option value="beach-feud">Beach Feud</option>
+            </select>
+            <small id="event-type-hint" class="form-hint">Type of event being scheduled</small>
+          </div>
+
+          <div class="form-group conditional-field" id="theme-field">
+            <label for="shift-theme">Theme Name:</label>
+            <input type="text" id="shift-theme" placeholder="Enter theme name" aria-describedby="theme-hint" />
+            <small id="theme-hint" class="form-hint">Required for themed trivia events</small>
+          </div>
+
+          <div class="form-group">
+            <label for="shift-location">Location:</label>
+            <div class="select-with-button">
+              <select id="shift-location" required aria-describedby="location-hint">
+                <option value="">Select Location</option>
+              </select>
+              <button type="button" id="add-new-location-btn" class="add-host-btn" aria-label="Add a new location">+</button>
+            </div>
+            <small id="location-hint" class="form-hint">Where the event will be held</small>
+          </div>
+
+          <div class="form-group">
+            <label for="shift-notes">Notes:</label>
+            <input type="text" id="shift-notes" aria-describedby="notes-hint" />
+            <small id="notes-hint" class="form-hint">Optional additional information</small>
+          </div>
+
+          <div class="spacer"></div>
+        </form>
+
+        <div class="button-group">
+          <button type="button" class="cancel" id="cancel-shift">Cancel</button>
+          <button type="button" id="save-shift-btn" form="shift-form">Save Event</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- =========================
+         Shift Offers Modal
+         ========================= -->
+    <div class="simple-modal" id="shift-offers-modal" aria-hidden="true" role="dialog" aria-label="Shift Offers">
+      <div class="panel" role="document">
+        <header>
+          <h2>Shift Offers</h2>
+          <button id="close-shift-offers" class="btn ghost" type="button" aria-label="Close shift offers">Close</button>
+        </header>
+
+        <div id="shift-offers-container">
+          <!-- shift-trade-requests.js renders here -->
+        </div>
+
+      </div>
+    </div>
+
+    <!-- =========================
+         Coverage Request Modal
+         ========================= -->
+    <div class="simple-modal" id="coverage-request-modal" aria-hidden="true" role="dialog" aria-labelledby="coverage-request-title">
+      <div class="panel coverage-request-panel" role="document">
+        <header>
+          <h2 id="coverage-request-title">Request Coverage</h2>
+          <button id="close-coverage-request" class="btn ghost" type="button" aria-label="Close coverage request">Close</button>
+        </header>
+
+        <div class="coverage-shift-summary" id="coverage-shift-summary" aria-live="polite">
+          <!-- populated by ShiftTradeRequests.openRequestModal() -->
+        </div>
+
+        <div class="form-group coverage-note-group">
+          <label for="coverage-request-note">Note <span class="muted">(optional)</span></label>
+          <textarea id="coverage-request-note" rows="3" placeholder="e.g. family conflict, out of town…" maxlength="300"></textarea>
+        </div>
+
+        <div class="coverage-request-buttons">
+          <button type="button" class="cancel" id="cancel-coverage-request">Cancel</button>
+          <button type="button" id="submit-coverage-request" class="btn primary">Submit Request</button>
+        </div>
+
+        <p id="coverage-request-status" class="coverage-status-msg" aria-live="polite"></p>
+      </div>
+    </div>
+  </div>
+
+  <script src="/beachTriviaPages/js/auth-route-guard.v2.js?v=2025-10-14a" defer></script>
+</body>
+</html>

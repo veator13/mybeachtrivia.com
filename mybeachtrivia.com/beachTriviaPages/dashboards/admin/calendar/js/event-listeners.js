@@ -84,6 +84,17 @@ function attachEventListeners() {
     elements.cancelNewLocationBtn.addEventListener('click', closeNewLocationModal);
     elements.newLocationForm.addEventListener('submit', saveNewLocation);
 
+    // ------------------------------------------------------------
+    // ✅ Searchable combobox (shift modal + calendar filters)
+    // ------------------------------------------------------------
+    if (typeof initSearchableSelect === 'function') {
+        window._hostCombobox   = initSearchableSelect(document.getElementById('shift-employee'));
+        window._venueCombobox  = initSearchableSelect(document.getElementById('shift-location'));
+        initSearchableSelect(document.getElementById('employee-select'));
+        initSearchableSelect(document.getElementById('event-select'));
+        initSearchableSelect(document.getElementById('location-select'));
+    }
+
     if (!document.body.dataset.calendarDelegatesWired) {
         document.body.dataset.calendarDelegatesWired = '1';
         document.addEventListener('click', handleDelegatedClicks);
@@ -265,6 +276,10 @@ function handleShiftFormSubmitGate(e) {
     e.stopPropagation();
     if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
 
+    // ✅ Clear any stale drag/drop move operation — this is a form conflict, not a drag.
+    try { window.globalMoveOperation = null; } catch (_) {}
+    try { if (window.CalendarState) window.CalendarState.globalMoveOperation = null; } catch (_) {}
+
     _setPendingShiftData(formData);
 
     try { if (elements.submitButton) elements.submitButton.disabled = true; } catch (_) {}
@@ -289,6 +304,14 @@ function handleShiftFormSubmitGate(e) {
 function handleDelegatedClicks(e) {
     console.log("Click event target:", e.target);
     console.log("Click event target classList:", e.target.classList);
+
+    const eyeBtn = e.target.closest('.week-eye-button');
+    if (eyeBtn) {
+        e.stopPropagation();
+        const weekIndex = parseInt(eyeBtn.getAttribute('data-week-index'));
+        if (typeof toggleWeekVisibility === 'function') toggleWeekVisibility(weekIndex);
+        return;
+    }
 
     if (e.target.classList.contains('add-button')) {
         e.stopPropagation();
@@ -435,6 +458,14 @@ function handleKeyboardEvents(e) {
         if (e.target.classList.contains('week-toggle-button')) {
             e.preventDefault();
             toggleWeekCollapse(e.target);
+            return;
+        }
+
+        const eyeBtn2 = e.target.closest('.week-eye-button');
+        if (eyeBtn2) {
+            e.preventDefault();
+            const weekIndex = parseInt(eyeBtn2.getAttribute('data-week-index'));
+            if (typeof toggleWeekVisibility === 'function') toggleWeekVisibility(weekIndex);
             return;
         }
 
