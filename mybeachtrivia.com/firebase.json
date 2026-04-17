@@ -2,7 +2,6 @@
   "hosting": {
     "site": "beach-trivia-website",
     "public": ".",
-    "cleanUrls": true,
     "ignore": [
       "firebase.json",
       "**/.*",
@@ -16,6 +15,12 @@
         "source": "/beachTriviaPages/dashboards/calendar/**",
         "destination": "/beachTriviaPages/dashboards/admin/calendar/",
         "type": 301
+      }
+    ],
+    "rewrites": [
+      {
+        "source": "/spAuth",
+        "destination": "/spAuth.html"
       }
     ],
     "headers": [
