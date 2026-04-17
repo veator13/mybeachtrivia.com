@@ -34,7 +34,7 @@
       { label: 'Calendar',    href: '/beachTriviaPages/dashboards/host/employee-calendar/' },
       { label: 'Scoresheet',  href: '/beachTriviaPages/dashboards/host/scoresheet/' },
       { label: 'Host Event',  href: '/beachTriviaPages/dashboards/host/host-event/' },
-      { label: 'Music Bingo',    href: '/beachTriviaPages/dashboards/host/host-music-bingo/host-music-bingo.html' },
+      { label: 'Music Bingo',    href: '/beachTriviaPages/dashboards/host/host-music-bingo/host-music-bingo' },
       { label: 'Last Laugh', href: '/beachTriviaPages/dashboards/host/host-last-laugh/' },
     ],
     regional: [
