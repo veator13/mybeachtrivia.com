@@ -21,6 +21,10 @@
       {
         "source": "/spAuth",
         "destination": "/spAuth.html"
+      },
+      {
+        "source": "/beachTriviaPages/dashboards/host/host-music-bingo/host-music-bingo",
+        "destination": "/beachTriviaPages/dashboards/host/host-music-bingo/host-music-bingo.html"
       }
     ],
     "headers": [

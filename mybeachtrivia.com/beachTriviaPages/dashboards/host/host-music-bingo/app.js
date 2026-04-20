@@ -25,7 +25,7 @@ import {
   clearSpotifySession,
   getSpotifyUser,
   spotifyApi,
-} from './spotify.js?v=5';
+} from './spotify.js?v=9';
 
 // ------- Spotify loading overlay -------
 let _overlayPlaylistsDone = false;
@@ -184,8 +184,15 @@ let usedPlaylistIds = new Set();
 let roundHistory    = []; // [{ roundNumber, name, songs: [{title,artist}] }]
 let activeRoundTab  = 0;  // roundNumber of the tab currently displayed
 
+// ─── Auto-advance tracking ────────────────────────────────────────────────────
+let _aaLastUri    = null;  // URI seen in last state update
+let _aaWasPlaying = false; // was not-paused in last state update
+let _aaLastPos    = 0;     // position (ms) seen in last state update
+let _aaPending    = false; // debounce — prevents double-fire within 4 s
+
 const LS_RANDOM_START = 'mb:randomStart';
 const LS_FADE = 'mb:fade';
+const LS_PLAYLIST_ID = 'mb:playlistId';
 
 function isRandomStartEnabled() {
   // Use checkbox as source of truth, but fall back to persisted value if the UI
@@ -221,10 +228,16 @@ let _currentVolumePct = getTargetVolumePct();
 
 // Updates the Spotify SDK volume without touching UI controls.
 // Used internally by fadeTo so the slider stays pinned to the user's chosen level.
+// For companion mode (REST API) we fire-and-forget so network latency doesn't
+// stretch the fade duration — the timing loop in fadeTo drives the animation.
 async function setAudioVolume(pct) {
   const clamped = Math.max(0, Math.min(100, Math.round(pct)));
   _currentVolumePct = clamped;
-  await spotifyCtrl?.setVolume(clamped).catch(() => {});
+  if (isSpotifyCompanionCtrl()) {
+    spotifyCtrl?.setVolume(clamped).catch(() => {});
+  } else {
+    await spotifyCtrl?.setVolume(clamped).catch(() => {});
+  }
 }
 
 // Updates both SDK volume and the UI controls (slider + label).
@@ -262,12 +275,12 @@ async function logSpotifyNow(label) {
     console.log(`[dbg][${label}] spotifyCtrl = null`);
     return;
   }
-  const st = await spotifyCtrl.getCurrentState().catch(() => null);
-  const uri = st?.track_window?.current_track?.uri || null;
-  const name = st?.track_window?.current_track?.name || null;
-  const pos = st?.position ?? null;
-  const dur = st?.duration ?? null;
-  console.log(`[dbg][${label}]`, { uri, name, pos, dur, paused: st?.paused ?? null });
+  const stPoll = await spotifyCtrl.getCurrentState().catch(() => null);
+  const uri = stPoll?.track_window?.current_track?.uri || null;
+  const name = stPoll?.track_window?.current_track?.name || null;
+  const pos = stPoll?.position ?? null;
+  const dur = stPoll?.duration ?? null;
+  console.log(`[dbg][${label}]`, { uri, name, pos, dur, paused: stPoll?.paused ?? null });
 }
 
 async function manualAdvanceFromPlaylist(delta = 1) {
@@ -277,8 +290,8 @@ async function manualAdvanceFromPlaylist(delta = 1) {
     console.warn('[dbg][manualAdvance] no playlistTracks loaded');
     return false;
   }
-  const st = await spotifyCtrl.getCurrentState().catch(() => null);
-  const curUri = st?.track_window?.current_track?.uri || null;
+  const stPoll = await spotifyCtrl.getCurrentState().catch(() => null);
+  const curUri = stPoll?.track_window?.current_track?.uri || null;
   const curIdx = curUri ? playlistTracks.findIndex((t) => t?.uri === curUri) : -1;
   const base = curIdx >= 0 ? curIdx : -1;
   const nextIdx = (base + delta + playlistTracks.length) % playlistTracks.length;
@@ -452,6 +465,16 @@ function addToPlayedLog(title, artist) {
   els.playedLogSection?.classList.remove('hidden');
 }
 
+function setNowPlayingFromPlayTransition() {
+  if (!playTransition) return;
+  const title = playTransition.title || '—';
+  const artist = playTransition.artist || '—';
+  if (els.trackName) els.trackName.textContent = title;
+  if (els.artistName) els.artistName.textContent = artist;
+  if (els.mobTrackName) els.mobTrackName.textContent = title;
+  if (els.mobArtistName) els.mobArtistName.textContent = artist;
+}
+
 function logSdkTrackIfNew(sdkTrack) {
   const uri = sdkTrack?.uri || null;
   if (!uri || uri === _lastLoggedUri) return;
@@ -519,6 +542,61 @@ function setSpotifyStatus(text) {
   if (els.playerStatus) els.playerStatus.textContent = text;
 }
 
+// ─── Auto-advance on natural track end ───────────────────────────────────────
+
+async function handleAutoAdvance() {
+  if (_aaPending) return;
+  _aaPending = true;
+  setTimeout(() => { _aaPending = false; }, 4000);
+  console.log('[app] auto-advance: natural track end detected');
+  if (activeGame) {
+    await handleNextSong();
+  } else {
+    // No active game — advance within the loaded playlist
+    const ok = await manualAdvanceFromPlaylist(1);
+    if (!ok) console.warn('[app] auto-advance: no playlist tracks to advance to');
+  }
+}
+
+/**
+ * Called on every state update to detect a naturally-ended track.
+ *
+ * SDK controller:  fires player_state_changed with paused:true, position≈0
+ *                  when a track finishes (Spotify resets position to the start).
+ * Companion (REST): polls /me/player and reports is_playing:false with
+ *                  progress_ms near duration_ms when playback stops.
+ * Both are handled here without knowing which controller is active.
+ */
+function checkNaturalTrackEnd(state) {
+  const uri    = state.track_window?.current_track?.uri ?? null;
+  const paused = state.paused ?? true;
+  const pos    = state.position ?? 0;
+  const dur    = state.duration ?? 0;
+
+  const wasPlaying = _aaWasPlaying;
+  const lastUri    = _aaLastUri;
+  const lastPos    = _aaLastPos;
+
+  // Update tracking for the next call
+  _aaLastUri    = uri;
+  _aaWasPlaying = !paused;
+  _aaLastPos    = pos;
+
+  // Don't trigger while a track transition we initiated is in flight
+  if (playTransition) return;
+  // Must have been playing, must be paused now, same track
+  if (!wasPlaying || !paused || !uri || uri !== lastUri) return;
+  // Must have had meaningful playback before this pause
+  if (lastPos < 5000) return;
+
+  // SDK: position resets to ~0 at natural end
+  const sdkEnd  = pos < 500;
+  // Companion (REST): position stays near the end of the track
+  const restEnd = dur > 0 && pos >= dur - 3000;
+
+  if (sdkEnd || restEnd) handleAutoAdvance();
+}
+
 // ─── Spotify player-state UI update ──────────────────────────────────────────
 
 function updateSpotifyState(state) {
@@ -551,9 +629,13 @@ function updateSpotifyState(state) {
     if (els.artistName)   els.artistName.textContent   = artist;
     if (els.mobTrackName) els.mobTrackName.textContent = title;
     if (els.mobArtistName)els.mobArtistName.textContent= artist;
+
+    // Fallback logging for any track change path that bypasses playTransition.
+    logSdkTrackIfNew(track);
   }
 
   applySpotifyTransportUi(state);
+  checkNaturalTrackEnd(state);
 }
 
 // ─── Seek position polling (0.5 s) ───────────────────────────────────────────
@@ -657,6 +739,80 @@ async function setSpotifyShuffle(on) {
     console.warn('[app] setSpotifyShuffle failed:', e?.message || e);
   }
 }
+
+function isCompanionMode() {
+  try {
+    return new URLSearchParams(location.search).get('companion') === '1';
+  } catch {
+    return false;
+  }
+}
+
+function getCompanionRemoteUrl() {
+  // Always point at the extensionless canonical route (Firebase rewrite → .html)
+  const base = new URL(location.origin + '/beachTriviaPages/dashboards/host/host-music-bingo/host-music-bingo');
+  base.searchParams.set('companion', '1');
+  return base.toString();
+}
+
+function isSpotifyCompanionCtrl() {
+  return spotifyCtrl?.constructor?.name === 'SpotifyCompanionController';
+}
+
+async function companionEnsurePlaying() {
+  if (!isSpotifyCompanionCtrl() || !spotifyCtrl) return;
+  // Poll a few times — Spotify can briefly report paused right after /next.
+  for (let i = 0; i < 12; i++) {
+    await spotifyCtrl.refreshState?.();
+    const st = await spotifyCtrl.getCurrentState().catch(() => null);
+    if (st && !st.paused) return;
+    // Force play only; never toggle here or we can flip back to pause.
+    await (spotifyCtrl.play?.() ?? spotifyCtrl.togglePlay?.()).catch(() => {});
+    await new Promise((r) => setTimeout(r, 200));
+  }
+}
+
+async function companionAdvance(delta) {
+  if (!spotifyCtrl) return;
+
+  // Capture URI *before* skip — required for maybeApplyRandomStartToCurrentTrack(prevUri).
+  const before = await spotifyCtrl.getCurrentState().catch(() => null);
+  const prevUri = before?.track_window?.current_track?.uri ?? null;
+
+  // Always try playlist-based advance first — it's reliable and avoids the
+  // jarring restart that POST /me/player/next causes when context_uri is null.
+  const ok = await manualAdvanceFromPlaylist(delta > 0 ? 1 : -1);
+  if (ok) return;
+
+  // No playlist tracks available — fall back to native Spotify next/prev.
+  // Resume first since REST transport is unreliable when paused.
+  if (before?.paused) {
+    await (spotifyCtrl.play?.() ?? spotifyCtrl.togglePlay?.()).catch(() => {});
+    await new Promise((r) => setTimeout(r, 220));
+  }
+
+  if (delta > 0) await spotifyCtrl.nextTrack().catch(console.error);
+  else await spotifyCtrl.previousTrack().catch(console.error);
+
+  await new Promise((r) => setTimeout(r, 250));
+  await companionEnsurePlaying();
+
+  await maybeApplyRandomStartToCurrentTrack(prevUri);
+
+  await spotifyCtrl.refreshState?.();
+  const st = await spotifyCtrl.getCurrentState().catch(() => null);
+  const cur = st?.track_window?.current_track;
+  if (cur) {
+    const title = cur.name || '—';
+    const artist = cur.artists?.map((a) => a.name).join(', ') || '—';
+    if (els.trackName) els.trackName.textContent = title;
+    if (els.artistName) els.artistName.textContent = artist;
+    if (els.mobTrackName) els.mobTrackName.textContent = title;
+    if (els.mobArtistName) els.mobArtistName.textContent = artist;
+    logSdkTrackIfNew(cur);
+  }
+}
+
 function wireSpotifyControls() {
   // Auth
   els.connectBtn?.addEventListener('click',    () => initiateSpotifyAuth());
@@ -789,14 +945,15 @@ function wireSpotifyControls() {
       await maybeApplyRandomStartToCurrentTrack(prevUri0);
     }
   });
-
-  // Mobile transport — mirror desktop behavior
+  // Mobile transport — companion mode uses direct Spotify transport; otherwise delegate to desktop.
   els.mobPlayPauseBtn?.addEventListener('click', async () => {
-    if (!spotifyCtrl) return;
-    const state = await spotifyCtrl.getCurrentState().catch(() => null);
-    if (!state) {
-      await startSelectedSong();
-    } else {
+    if (isCompanionMode()) {
+      if (!spotifyCtrl) return;
+      const state = await spotifyCtrl.getCurrentState().catch(() => null);
+      if (!state) {
+        await startSelectedSong();
+        return;
+      }
       const wasPaused = state.paused;
       if (!wasPaused && isFadeEnabled()) {
         await fadeTo(0, 1000);
@@ -807,38 +964,25 @@ function wireSpotifyControls() {
       } else if (!wasPaused) {
         await setVolumePct(getTargetVolumePct());
       }
+      return;
     }
+    els.playPauseBtn?.click();
   });
-  els.mobPrevBtn?.addEventListener('click', () => spotifyCtrl?.previousTrack().catch(console.error));
+
+  els.mobPrevBtn?.addEventListener('click', async () => {
+    if (isCompanionMode()) {
+      await companionAdvance(-1);
+      return;
+    }
+    els.prevBtn?.click();
+  });
+
   els.mobNextBtn?.addEventListener('click', async () => {
-    console.log('[dbg][click] mob-next-btn');
-    await logSpotifyNow('before mob-next');
-    // Companion mode: pure transport — skip game logic, just advance the track
-    const isCompanion = new URLSearchParams(location.search).get('companion') === '1';
-    if (isCompanion) {
-      if (!spotifyCtrl) return;
-      await spotifyCtrl.nextTrack().catch(console.error);
+    if (isCompanionMode()) {
+      await companionAdvance(1);
       return;
     }
-    if (activeGame) {
-      await handleNextSong();
-      const st = await spotifyCtrl?.getCurrentState().catch(() => null);
-      const cur = st?.track_window?.current_track;
-      if (cur) logSdkTrackIfNew(cur);
-      return;
-    }
-    if (!spotifyCtrl) return;
-    const ok = await manualAdvanceFromPlaylist(1);
-    if (!ok) {
-      const prevSt = await spotifyCtrl.getCurrentState().catch(() => null);
-      const prevUri = prevSt?.track_window?.current_track?.uri ?? null;
-      if (isFadeEnabled()) await fadeTo(0, 1200);
-      await spotifyCtrl.nextTrack().catch(console.error);
-      await new Promise((r) => setTimeout(r, 250));
-      await logSpotifyNow('after mob-next (fallback)');
-      if (isFadeEnabled()) await fadeTo(getTargetVolumePct(), 1500);
-      await maybeApplyRandomStartToCurrentTrack(prevUri);
-    }
+    els.nextSpBtn?.click();
   });
 
   // Volume (desktop + mobile stay in sync)
@@ -884,7 +1028,7 @@ function wireSpotifyControls() {
   // Companion QR button — show QR code pointing to this page in phone mode
   els.companionQrBtn?.addEventListener('click', () => {
     if (!els.companionQrModal || !els.companionQrBox) return;
-    const url = location.origin + location.pathname + '?companion=1';
+    const url = getCompanionRemoteUrl();
     els.companionQrBox.innerHTML = '';
     renderJoinQRCode(els.companionQrBox, url, 200);
     els.companionQrModal.classList.remove('hidden');
@@ -895,7 +1039,7 @@ function wireSpotifyControls() {
     if (e.target === els.companionQrModal) els.companionQrModal.classList.add('hidden');
   });
   els.companionQrCopy?.addEventListener('click', () => {
-    const url = location.origin + location.pathname + '?companion=1';
+    const url = getCompanionRemoteUrl();
     navigator.clipboard.writeText(url).then(() => {
       const btn = els.companionQrCopy;
       const orig = btn.textContent;
@@ -1042,6 +1186,7 @@ async function handleStartGame(e) {
       const data = await fetchPlaylistData(playlistId);
       playlistTracks = parsePlaylistTracks(data);
       console.log('[app] Loaded', playlistTracks.length, 'tracks for Spotify');
+      try { localStorage.setItem(LS_PLAYLIST_ID, playlistId); } catch { /* ignore */ }
     } catch (e) {
       console.warn('[app] Could not load playlist tracks:', e?.message || e);
     }
@@ -1073,12 +1218,16 @@ async function handleEndRound(e) {
 
 async function ensurePlaylistTracksLoaded() {
   if (playlistTracks.length > 0) return playlistTracks;
-  const playlistId = activeGame?.playlistId || els.playlist?.value || '';
+  let playlistId = activeGame?.playlistId || els.playlist?.value || '';
+  if (!playlistId) {
+    try { playlistId = localStorage.getItem(LS_PLAYLIST_ID) || ''; } catch { /* ignore */ }
+  }
   if (!playlistId) return [];
   try {
     const data = await fetchPlaylistData(playlistId);
     playlistTracks = parsePlaylistTracks(data);
     console.log('[app] ensurePlaylistTracksLoaded: loaded', playlistTracks.length, 'tracks');
+    try { localStorage.setItem(LS_PLAYLIST_ID, playlistId); } catch { /* ignore */ }
   } catch (e) {
     console.warn('[app] ensurePlaylistTracksLoaded failed:', e?.message || e);
   }
@@ -1099,9 +1248,12 @@ function randomStartPositionFromDuration(durationMs) {
 
 async function seekWithRetry(targetMs, attempts = 4) {
   if (!spotifyCtrl || !targetMs || targetMs <= 0) return;
+  const isCompanion = isSpotifyCompanionCtrl();
   for (let i = 0; i < attempts; i++) {
     await spotifyCtrl.seek(targetMs).catch(() => {});
-    await new Promise((r) => setTimeout(r, 350));
+    await new Promise((r) => setTimeout(r, 500));
+    // Companion caches REST state — force a fresh poll before checking position.
+    if (isCompanion) await spotifyCtrl.refreshState?.();
     const st = await spotifyCtrl.getCurrentState().catch(() => null);
     const pos = st?.position ?? 0;
     // Consider it good if we're within ~1s of target.
@@ -1166,12 +1318,15 @@ async function startSelectedSong() {
 // or until timeoutMs elapses. Returns true if the track became active.
 async function waitForTrackActive(uri, timeoutMs = 4000) {
   const deadline = Date.now() + timeoutMs;
+  const isCompanion = isSpotifyCompanionCtrl();
   while (Date.now() < deadline) {
+    // Companion uses a REST polling cache — force a fresh API poll each iteration.
+    if (isCompanion) await spotifyCtrl.refreshState?.();
     const state = await spotifyCtrl.getCurrentState().catch(() => null);
     if (state && state.track_window?.current_track?.uri === uri) {
       return true;
     }
-    await new Promise((r) => setTimeout(r, 150));
+    await new Promise((r) => setTimeout(r, isCompanion ? 600 : 150));
   }
   console.warn('[app] waitForTrackActive: timed out waiting for', uri);
   return false;
@@ -1194,28 +1349,42 @@ async function playTrackAtPosition(uri, positionMsOrMode) {
   const curUri = st0?.track_window?.current_track?.uri;
   const isSwitching = !!(curUri && curUri !== uri);
 
-  // Fade out to floor (never to 0 — see FADE_FLOOR_PCT comment above).
-  if (isFadeEnabled() && isSwitching) {
+  // Fade out to floor before switching tracks so the start-from-0 is inaudible.
+  if (isSwitching && isFadeEnabled()) {
     await fadeTo(FADE_FLOOR_PCT, 1600);
   }
 
   await spotifyCtrl.playUri(uri, 0);
 
+  // PLAYURI_NOW_PLAYING_SYNC
+  // Swap Now Playing immediately once playUri is accepted (waitForTrackActive can lag).
+  setNowPlayingFromPlayTransition();
+
+  // EARLY_PLAYTRANSITION_LOG
+  // Log to session history as soon as playback is triggered (don't wait for fade-in).
+  if (playTransition && playTransition.uri === uri && !playTransition.logged) {
+    addToPlayedLog(playTransition.title, playTransition.artist);
+    playTransition.logged = true;
+  }
+
   console.log('[app] playTrackAtPosition: waiting for track to become active…');
   const active = await waitForTrackActive(uri);
+
+  // ACTIVE_TRACK_NOW_PLAYING_SYNC
+  // Update Now Playing as soon as the new track is active (at fade-floor), not after fade-in completes.
+  setNowPlayingFromPlayTransition();
 
   // Let the SDK finish delivering player_state_changed events before touching volume.
   await new Promise((r) => setTimeout(r, 200));
 
-  // Keep volume at floor while we seek — this hides the brief playback from
-  // position 0 before the seek lands. Fade-in only starts after the seek settles.
-  if (isFadeEnabled()) {
+  // Keep volume at floor while we seek — hides the brief playback from position 0.
+  if (!isSpotifyCompanionCtrl() && isFadeEnabled()) {
     await setAudioVolume(FADE_FLOOR_PCT); // re-confirm floor after track init
   }
 
   if (!active) {
     console.warn('[app] playTrackAtPosition: track did not become active; skipping seek');
-    await (isFadeEnabled() ? fadeTo(target, 1800) : setVolumePct(target));
+    await (isFadeEnabled() && !isSpotifyCompanionCtrl() ? fadeTo(target, 1800) : setVolumePct(target));
     return;
   }
 
@@ -1224,7 +1393,7 @@ async function playTrackAtPosition(uri, positionMsOrMode) {
   const currentUri = stateNow?.track_window?.current_track?.uri;
   if (currentUri && currentUri !== uri) {
     console.warn('[app] playTrackAtPosition: current track mismatch; skipping seek', { currentUri, uri });
-    await (isFadeEnabled() ? fadeTo(target, 1800) : setVolumePct(target));
+    await (isFadeEnabled() && !isSpotifyCompanionCtrl() ? fadeTo(target, 1800) : setVolumePct(target));
     return;
   }
 
@@ -1252,7 +1421,8 @@ async function playTrackAtPosition(uri, positionMsOrMode) {
     }
   }
 
-  // Fade in AFTER seek has settled — the jump is now inaudible.
+  // Restore volume after seek.
+  setNowPlayingFromPlayTransition();
   if (isFadeEnabled()) {
     await fadeTo(target, 1800);
   } else {
@@ -1263,6 +1433,7 @@ async function playTrackAtPosition(uri, positionMsOrMode) {
 async function maybeApplyRandomStartToCurrentTrack(prevUri = null) {
   if (!spotifyCtrl) return;
   if (!isRandomStartEnabled()) return;
+  if (!prevUri) return; // never seek blindly in companion fallback paths
 
   // Poll until the track URI changes (handles REST-polling delay on companion).
   // Falls through immediately if prevUri is unknown (normal SDK mode).
@@ -1459,6 +1630,7 @@ async function init() {
           const data = await fetchPlaylistData(id);
           playlistTracks = parsePlaylistTracks(data);
           console.log('[app] Loaded', playlistTracks.length, 'tracks for', id);
+          try { localStorage.setItem(LS_PLAYLIST_ID, id); } catch { /* ignore */ }
         } catch (e) {
           console.warn('[app] Could not load playlist tracks:', e?.message || e);
         }

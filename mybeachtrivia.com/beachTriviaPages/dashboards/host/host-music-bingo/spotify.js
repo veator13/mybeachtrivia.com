@@ -285,7 +285,7 @@ export class SpotifyController {
 
 export class SpotifyCompanionController {
   constructor() {
-    this.deviceId  = null; // always null → REST calls hit the active device
+    this.deviceId  = null; // populated from /me/player polling
     this.state     = null;
     this._getToken = null;
     this._pollTimer     = null;
@@ -322,6 +322,7 @@ export class SpotifyCompanionController {
       });
       if (res.status === 204 || !res.ok) return; // no active device / error
       const data = await res.json();
+      this.deviceId = data?.device?.id || this.deviceId || null;
       this.state = this._toSdkState(data);
       this._lastPollTime = Date.now();
       this.onStateChange?.(this.state);
@@ -361,9 +362,20 @@ export class SpotifyCompanionController {
     };
   }
 
+  async play() { await this._call('/me/player/play', 'PUT', {}); }
+  async pause() { await this._call('/me/player/pause', 'PUT'); }
+
+  async playUri(uri, positionMs = 0) {
+    await this._call('/me/player/play', 'PUT', {
+      uris: [uri],
+      position_ms: positionMs,
+    });
+  }
+
   async togglePlay() {
     const paused = this.state?.paused ?? true;
-    await this._call(paused ? '/me/player/play' : '/me/player/pause', 'PUT');
+    if (paused) await this.play();
+    else await this.pause();
   }
 
   async nextTrack()     { await this._call('/me/player/next',     'POST'); }
@@ -378,15 +390,32 @@ export class SpotifyCompanionController {
     return this._call('/me/player/volume?volume_percent=' + vol, 'PUT');
   }
 
-  async _call(path, method) {
+  _withDevice(path) {
+    if (!this.deviceId) return path;
+    const join = path.includes('?') ? '&' : '?';
+    return `${path}${join}device_id=${encodeURIComponent(this.deviceId)}`;
+  }
+
+  async _call(path, method, body = null) {
     try {
       const token = await this._getToken();
-      await fetch('https://api.spotify.com/v1' + path, {
+      const fullPath = this._withDevice(path);
+      const res = await fetch('https://api.spotify.com/v1' + fullPath, {
         method,
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          ...(body ? { 'Content-Type': 'application/json' } : {}),
+        },
+        ...(body ? { body: JSON.stringify(body) } : {}),
       });
+      if (!(res.status === 204 || res.ok)) {
+        const t = await res.text().catch(() => '');
+        console.warn('[SpotifyCompanionController] API', method, fullPath, res.status, t);
+      }
+      return res.status;
     } catch (e) {
       this.onError?.('Spotify API error: ' + (e?.message || e));
+      return 0;
     }
   }
 

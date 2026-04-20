@@ -1752,6 +1752,9 @@
   /* ── Companion phone mode (body class set when ?companion=1) ── */
   body.companion-mode .hc-page { display: none !important; }
 
+  /* Hide global site nav in phone remote mode */
+  body.companion-mode #bt-nav { display: none !important; }
+
   body.companion-mode #mobile-modal {
     position: fixed;
     inset: 0;
