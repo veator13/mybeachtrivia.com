@@ -1613,6 +1613,19 @@ async function init() {
       }
     } catch { /* ignore */ }
 
+    // Stay in sync with the main player tab as songs are added or rounds reset.
+    // The 'storage' event only fires for changes from OTHER tabs, so this
+    // won't loop on the companion's own addToPlayedLog writes.
+    window.addEventListener('storage', (e) => {
+      if (e.key !== LS_PLAYED_SONGS) return;
+      if (e.newValue === null) {
+        playedSongs = [];
+      } else {
+        try { playedSongs = JSON.parse(e.newValue); } catch { return; }
+      }
+      renderPlayedLogList(els.mobLogList, playedSongs);
+    });
+
     if (getStoredTokens()) {
       _overlayPlaylistsDone = true; // skip playlist step — companion doesn't need it
       showSpotifyOverlay();
