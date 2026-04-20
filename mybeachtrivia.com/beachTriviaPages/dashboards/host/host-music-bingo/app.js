@@ -253,19 +253,26 @@ async function setVolumePct(pct) {
 
 // Animates volume between _currentVolumePct and targetPct.
 // Uses setAudioVolume (no UI) so the slider stays at the user's set value.
+//
+// SDK mode:      ~60 ms between steps — smooth audio-node animation.
+// Companion mode: ~400 ms between steps — each step is a REST API call;
+//   too many calls in quick succession triggers Spotify's 429 rate limit
+//   and cascades into playUri / polling failures.
 async function fadeTo(targetPct, durationMs = 800) {
   if (!spotifyCtrl) return;
   const seq = ++_fadeSeq;
   const startPct = _currentVolumePct;
   const endPct = Math.max(0, Math.min(100, targetPct));
-  const steps = Math.max(8, Math.floor(durationMs / 60));
+  const stepInterval = isSpotifyCompanionCtrl() ? 400 : 60;
+  const steps = Math.max(isSpotifyCompanionCtrl() ? 4 : 8, Math.floor(durationMs / stepInterval));
+  const stepDelay = Math.floor(durationMs / steps);
   for (let i = 1; i <= steps; i++) {
     if (seq !== _fadeSeq) return; // cancelled by a newer fade
     const t = i / steps;
     const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
     const pct = Math.round(startPct + (endPct - startPct) * eased);
     await setAudioVolume(pct);
-    await new Promise((r) => setTimeout(r, Math.floor(durationMs / steps)));
+    await new Promise((r) => setTimeout(r, stepDelay));
   }
   if (seq === _fadeSeq) await setAudioVolume(endPct);
 }
@@ -299,9 +306,14 @@ async function manualAdvanceFromPlaylist(delta = 1) {
   console.log('[dbg][manualAdvance]', { curUri, curIdx, nextIdx, nextUri: next?.uri });
   if (!next?.uri) return false;
   const startMode = isRandomStartEnabled() ? 'random' : 0;
-  await playTrackAtPosition(next.uri, startMode).catch((e) =>
-    console.warn('[dbg][manualAdvance] play failed:', e?.message || e)
-  );
+  beginPlayTransition(next);
+  try {
+    await playTrackAtPosition(next.uri, startMode);
+  } catch (e) {
+    playTransition = null;
+    console.warn('[dbg][manualAdvance] play failed:', e?.message || e);
+  }
+  await resolvePlayTransitionAfterPlay(next);
   await new Promise((r) => setTimeout(r, 250));
   await logSpotifyNow('after manualAdvance');
   return true;
