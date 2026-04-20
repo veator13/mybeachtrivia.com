@@ -205,7 +205,6 @@
           <button id="next-song-btn"   type="button" class="hc-btn hc-btn--primary hc-btn--next">Next Song</button>
           <button id="pause-game-btn"  type="button" class="hc-btn hc-btn--ghost">Pause</button>
           <button id="resume-game-btn" type="button" class="hc-btn hc-btn--ghost">Resume</button>
-          <button id="end-game-btn"    type="button" class="hc-btn hc-btn--danger">End Game</button>
         </div>
         <div class="hc-current-song">
           <span class="hc-current-label">Now</span>
@@ -248,21 +247,34 @@
 
     <!-- Game setup card -->
     <div class="hc-card">
-      <div class="hc-card-title">New Game</div>
-      <div class="hc-form">
+      <div id="setup-eyebrow" class="hc-card-eyebrow">Setup</div>
+      <div id="setup-title" class="hc-card-title">New Game</div>
+
+      <!-- Shown when idle or between rounds -->
+      <div id="setup-form" class="hc-form">
         <div class="hc-field">
           <label class="hc-label" for="playlist-select">Playlist</label>
           <select id="playlist-select" class="hc-input">
             <!-- populated by app.js -->
           </select>
         </div>
-        <div class="hc-field">
+        <div id="game-name-field" class="hc-field">
           <label class="hc-label" for="game-name">Game Name</label>
           <input id="game-name" class="hc-input" type="text"
                  placeholder="e.g., Friday Night @ Sandbar" />
         </div>
         <button id="start-game-btn" type="button" class="hc-btn hc-btn--primary hc-btn--full">
           Start Game
+        </button>
+      </div>
+
+      <!-- Shown while a round is in progress -->
+      <div id="session-controls" class="hc-form hidden">
+        <button id="end-round-btn" type="button" class="hc-btn hc-btn--ghost hc-btn--full">
+          End Round
+        </button>
+        <button id="end-game-btn" type="button" class="hc-btn hc-btn--danger hc-btn--full">
+          End Game
         </button>
       </div>
     </div>
@@ -390,6 +402,22 @@
       </div>
     </div>
 
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     END GAME CONFIRMATION MODAL
+═══════════════════════════════════════════════════ -->
+<div id="end-game-modal" class="hc-confirm-modal hidden"
+     role="dialog" aria-modal="true" aria-label="End game confirmation">
+  <div class="hc-confirm-modal-inner">
+    <p class="hc-confirm-msg">End this game session?<br>
+      <span class="hc-muted" style="font-size:.85rem">All rounds will be closed.</span>
+    </p>
+    <div class="hc-confirm-btns">
+      <button id="end-game-cancel-btn"  type="button" class="hc-btn hc-btn--ghost">Cancel</button>
+      <button id="end-game-confirm-btn" type="button" class="hc-btn hc-btn--danger">End Game</button>
+    </div>
   </div>
 </div>
 
