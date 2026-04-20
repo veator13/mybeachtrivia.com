@@ -193,6 +193,7 @@ let _aaPending    = false; // debounce — prevents double-fire within 4 s
 const LS_RANDOM_START = 'mb:randomStart';
 const LS_FADE = 'mb:fade';
 const LS_PLAYLIST_ID = 'mb:playlistId';
+const LS_PLAYED_SONGS = 'mb:playedSongs';
 
 function isRandomStartEnabled() {
   // Use checkbox as source of truth, but fall back to persisted value if the UI
@@ -468,6 +469,8 @@ function isViewingHistoricalRound() {
 function addToPlayedLog(title, artist) {
   // Always record the song — no render guard on the data.
   playedSongs.unshift({ title, artist });
+  // Persist so the companion tab can read it on open.
+  try { localStorage.setItem(LS_PLAYED_SONGS, JSON.stringify(playedSongs)); } catch { /* ignore */ }
 
   // Keep the current round view fresh immediately after a track advance.
   // Historical tabs remain frozen until the user clicks them again.
@@ -1164,6 +1167,7 @@ async function handleStartGame(e) {
       usedPlaylistIds    = new Set([playlistId]);
       roundHistory       = [];
       playedSongs        = [];
+      try { localStorage.removeItem(LS_PLAYED_SONGS); } catch { /* ignore */ }
 
       const game = await startRound({
         sessionId: session.id,
@@ -1178,6 +1182,7 @@ async function handleStartGame(e) {
       currentRoundNumber++;
       usedPlaylistIds.add(playlistId);
       playedSongs = [];
+      try { localStorage.removeItem(LS_PLAYED_SONGS); } catch { /* ignore */ }
 
       const game = await startRound({
         sessionId: activeSession.id,
@@ -1571,6 +1576,7 @@ async function handleEndGame(e) {
   roundHistory       = [];
   playedSongs        = [];
   activeRoundTab     = 0;
+  try { localStorage.removeItem(LS_PLAYED_SONGS); } catch { /* ignore */ }
 
   setSessionState('idle');
 
@@ -1596,6 +1602,17 @@ async function init() {
     document.body.classList.add('companion-mode');
     els.mobileModal?.classList.remove('hidden');
     wireSpotifyControls();
+
+    // Pre-populate played log with songs from the main player tab.
+    // The main player writes playedSongs to localStorage on every addToPlayedLog call.
+    try {
+      const raw = localStorage.getItem(LS_PLAYED_SONGS);
+      if (raw) {
+        playedSongs = JSON.parse(raw);
+        renderPlayedLogList(els.mobLogList, playedSongs);
+      }
+    } catch { /* ignore */ }
+
     if (getStoredTokens()) {
       _overlayPlaylistsDone = true; // skip playlist step — companion doesn't need it
       showSpotifyOverlay();
