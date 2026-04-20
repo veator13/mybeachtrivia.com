@@ -263,8 +263,10 @@ async function fadeTo(targetPct, durationMs = 800) {
   const seq = ++_fadeSeq;
   const startPct = _currentVolumePct;
   const endPct = Math.max(0, Math.min(100, targetPct));
-  const stepInterval = isSpotifyCompanionCtrl() ? 400 : 60;
-  const steps = Math.max(isSpotifyCompanionCtrl() ? 4 : 8, Math.floor(durationMs / stepInterval));
+  // Companion: 150 ms between steps → ~6–8 calls/sec, smooth enough to match
+  // the SDK curve without triggering Spotify's 429 rate limit (which hit at ~16/sec).
+  const stepInterval = isSpotifyCompanionCtrl() ? 150 : 60;
+  const steps = Math.max(isSpotifyCompanionCtrl() ? 8 : 8, Math.floor(durationMs / stepInterval));
   const stepDelay = Math.floor(durationMs / steps);
   for (let i = 1; i <= steps; i++) {
     if (seq !== _fadeSeq) return; // cancelled by a newer fade
