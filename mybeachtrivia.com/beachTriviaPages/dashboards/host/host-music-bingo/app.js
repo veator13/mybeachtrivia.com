@@ -14,7 +14,10 @@ import {
   startRound,
   endRound,
   endSession,
-} from './data.js?v=3';
+  writeCompanionState,
+  clearCompanionState,
+  watchCompanionState,
+} from './data.js?v=4';
 import { renderJoinQRCode } from './qr.js';
 import {
   SpotifyController,
@@ -145,6 +148,7 @@ const els = {
   mobTrackName:       document.querySelector('#mob-track-name'),
   mobArtistName:      document.querySelector('#mob-artist-name'),
   mobLogList:         document.querySelector('#mob-log-list'),
+  mobLogTabs:         document.querySelector('#mob-log-tabs'),
 
   mobSeekSlider:     document.querySelector('#mob-seek'),
   mobCurrentTime:    document.querySelector('#mob-current-time'),
@@ -183,6 +187,7 @@ let currentRoundNumber = 0;
 let usedPlaylistIds = new Set();
 let roundHistory    = []; // [{ roundNumber, name, songs: [{title,artist}] }]
 let activeRoundTab  = 0;  // roundNumber of the tab currently displayed
+let currentRoundName = ''; // playlist name of the in-progress round
 
 // ─── Auto-advance tracking ────────────────────────────────────────────────────
 let _aaLastUri    = null;  // URI seen in last state update
@@ -193,7 +198,30 @@ let _aaPending    = false; // debounce — prevents double-fire within 4 s
 const LS_RANDOM_START = 'mb:randomStart';
 const LS_FADE = 'mb:fade';
 const LS_PLAYLIST_ID = 'mb:playlistId';
-const LS_PLAYED_SONGS = 'mb:playedSongs';
+const LS_PLAYED_SONGS   = 'mb:playedSongs';
+const LS_ROUND_HISTORY  = 'mb:roundHistory';
+const LS_CURRENT_ROUND  = 'mb:currentRound'; // { roundNumber, name } for in-progress round
+
+let _syncDebounceTimer = null;
+/** Fire-and-forget: push current played/round state to Firestore for cross-device companion sync.
+ *  Debounced — rapid toggle changes collapse into one write. */
+function syncCompanionStateToFirestore() {
+  if (!activeSession?.id) return;
+  clearTimeout(_syncDebounceTimer);
+  _syncDebounceTimer = setTimeout(() => {
+    if (!activeSession?.id) return;
+    writeCompanionState(activeSession.id, {
+      playedSongs,
+      roundHistory,
+      currentRound: currentRoundNumber > 0
+        ? { roundNumber: currentRoundNumber, name: currentRoundName }
+        : null,
+      fadeEnabled: isFadeEnabled(),
+      randomStartEnabled: isRandomStartEnabled(),
+      shuffleEnabled: !!document.querySelector('#sp-shuffle')?.checked,
+    }).catch(e => console.warn('[app] syncCompanionState failed:', e?.message || e));
+  }, 300);
+}
 
 function isRandomStartEnabled() {
   // Use checkbox as source of truth, but fall back to persisted value if the UI
@@ -325,6 +353,7 @@ async function manualAdvanceFromPlaylist(delta = 1) {
 // ─── RTDB Player Watcher ──────────────────────────────────────────────────────
 
 let stopWatchingPlayers = null;
+let stopWatchingCompanionState = null;
 
 function attachPlayerWatcher(gameId) {
   if (stopWatchingPlayers) { stopWatchingPlayers(); stopWatchingPlayers = null; }
@@ -467,10 +496,13 @@ function isViewingHistoricalRound() {
 }
 
 function addToPlayedLog(title, artist) {
+  // Companion reads its played log from the main player via localStorage — never self-logs.
+  if (isCompanionMode()) return;
   // Always record the song — no render guard on the data.
   playedSongs.unshift({ title, artist });
   // Persist so the companion tab can read it on open.
   try { localStorage.setItem(LS_PLAYED_SONGS, JSON.stringify(playedSongs)); } catch { /* ignore */ }
+  syncCompanionStateToFirestore();
 
   // Keep the current round view fresh immediately after a track advance.
   // Historical tabs remain frozen until the user clicks them again.
@@ -493,6 +525,8 @@ function setNowPlayingFromPlayTransition() {
 }
 
 function logSdkTrackIfNew(sdkTrack) {
+  // Companion reads its played log from the main player via localStorage — never self-logs.
+  if (isCompanionMode()) return;
   const uri = sdkTrack?.uri || null;
   if (!uri || uri === _lastLoggedUri) return;
   _lastLoggedUri = uri;
@@ -766,9 +800,9 @@ function isCompanionMode() {
 }
 
 function getCompanionRemoteUrl() {
-  // Always point at the extensionless canonical route (Firebase rewrite → .html)
   const base = new URL(location.origin + '/beachTriviaPages/dashboards/host/host-music-bingo/host-music-bingo');
   base.searchParams.set('companion', '1');
+  if (activeSession?.id) base.searchParams.set('session', activeSession.id);
   return base.toString();
 }
 
@@ -795,6 +829,7 @@ async function companionAdvance(delta) {
   // Capture URI *before* skip — required for maybeApplyRandomStartToCurrentTrack(prevUri).
   const before = await spotifyCtrl.getCurrentState().catch(() => null);
   const prevUri = before?.track_window?.current_track?.uri ?? null;
+  const target  = getTargetVolumePct();
 
   // Always try playlist-based advance first — it's reliable and avoids the
   // jarring restart that POST /me/player/next causes when context_uri is null.
@@ -802,6 +837,9 @@ async function companionAdvance(delta) {
   if (ok) return;
 
   // No playlist tracks available — fall back to native Spotify next/prev.
+  // Fade out first to hide the brief position-0 restart that Spotify REST causes.
+  if (isFadeEnabled()) await fadeTo(FADE_FLOOR_PCT, 1200);
+
   // Resume first since REST transport is unreliable when paused.
   if (before?.paused) {
     await (spotifyCtrl.play?.() ?? spotifyCtrl.togglePlay?.()).catch(() => {});
@@ -811,10 +849,13 @@ async function companionAdvance(delta) {
   if (delta > 0) await spotifyCtrl.nextTrack().catch(console.error);
   else await spotifyCtrl.previousTrack().catch(console.error);
 
-  await new Promise((r) => setTimeout(r, 250));
+  await new Promise((r) => setTimeout(r, 400));
   await companionEnsurePlaying();
-
   await maybeApplyRandomStartToCurrentTrack(prevUri);
+
+  // Fade back in
+  if (isFadeEnabled()) await fadeTo(target, 1500);
+  else await setVolumePct(target);
 
   await spotifyCtrl.refreshState?.();
   const st = await spotifyCtrl.getCurrentState().catch(() => null);
@@ -853,6 +894,7 @@ function wireSpotifyControls() {
       if (desk && desk !== el) desk.checked = on;
       if (els.mobShuffleToggle && els.mobShuffleToggle !== el) els.mobShuffleToggle.checked = on;
       await setSpotifyShuffle(on);
+      syncCompanionStateToFirestore();
     });
   });
 
@@ -897,6 +939,7 @@ function wireSpotifyControls() {
       try {
         localStorage.setItem(LS_RANDOM_START, on ? '1' : '0');
       } catch { /* ignore */ }
+      syncCompanionStateToFirestore();
     });
   }
 
@@ -913,6 +956,7 @@ function wireSpotifyControls() {
       try {
         localStorage.setItem(LS_FADE, on ? '1' : '0');
       } catch { /* ignore */ }
+      syncCompanionStateToFirestore();
     });
   }
 
@@ -1146,6 +1190,70 @@ function renderActiveRoundTab() {
   if (els.playedLogCount) els.playedLogCount.textContent = `${n} song${n !== 1 ? 's' : ''}`;
 }
 
+// ─── Companion round-tab helpers ─────────────────────────────────────────────
+
+/** Rebuild the companion modal's round tabs from roundHistory + playedSongs.
+ *  Mirrors the main-player tab strip but targets #mob-log-tabs / #mob-log-list. */
+function renderMobRoundTabs() {
+  const container = els.mobLogTabs;
+  if (!container) return;
+
+  const hasLiveRound = currentRoundNumber > 0 || playedSongs.length > 0;
+  const hasTabs = roundHistory.length > 0 || hasLiveRound;
+  container.innerHTML = '';
+  container.classList.toggle('hidden', !hasTabs);
+
+  if (!hasTabs) {
+    renderPlayedLogList(els.mobLogList, playedSongs);
+    return;
+  }
+
+  // Determine which tab is active.
+  // Default to live round (activeRoundTab === 0 or not found in history).
+  const isLiveActive = !roundHistory.some(r => r.roundNumber === activeRoundTab);
+
+  // Build one tab per completed round (oldest first, same order as main player)
+  roundHistory.forEach((round) => {
+    const tab = document.createElement('button');
+    tab.type = 'button';
+    tab.className = 'hc-log-tab' + (round.roundNumber === activeRoundTab && !isLiveActive ? ' active' : '');
+    tab.dataset.round = String(round.roundNumber);
+    tab.textContent = round.name || `Round ${round.roundNumber}`;
+    tab.addEventListener('click', () => {
+      activeRoundTab = round.roundNumber;
+      container.querySelectorAll('.hc-log-tab').forEach(t =>
+        t.classList.toggle('active', t === tab));
+      renderPlayedLogList(els.mobLogList, round.songs);
+    });
+    container.appendChild(tab);
+  });
+
+  // Add a tab for the current in-progress round (uses the playlist name)
+  if (hasLiveRound) {
+    const liveName = currentRoundName || (currentRoundNumber > 0 ? `Round ${currentRoundNumber}` : 'This Round');
+    const liveTab = document.createElement('button');
+    liveTab.type = 'button';
+    liveTab.className = 'hc-log-tab' + (isLiveActive ? ' active' : '');
+    liveTab.dataset.round = 'live';
+    liveTab.textContent = liveName;
+    liveTab.addEventListener('click', () => {
+      activeRoundTab = 0; // 0 = live
+      container.querySelectorAll('.hc-log-tab').forEach(t =>
+        t.classList.toggle('active', t === liveTab));
+      renderPlayedLogList(els.mobLogList, playedSongs);
+    });
+    container.appendChild(liveTab);
+  }
+
+  // Render the list for the active tab
+  if (isLiveActive) {
+    renderPlayedLogList(els.mobLogList, playedSongs);
+  } else {
+    const round = roundHistory.find(r => r.roundNumber === activeRoundTab);
+    renderPlayedLogList(els.mobLogList, round ? round.songs : playedSongs);
+  }
+}
+
 // ─── Bingo game event handlers ────────────────────────────────────────────────
 
 async function handleStartGame(e) {
@@ -1168,6 +1276,7 @@ async function handleStartGame(e) {
       roundHistory       = [];
       playedSongs        = [];
       try { localStorage.removeItem(LS_PLAYED_SONGS); } catch { /* ignore */ }
+      try { localStorage.removeItem(LS_ROUND_HISTORY); } catch { /* ignore */ }
 
       const game = await startRound({
         sessionId: session.id,
@@ -1196,6 +1305,9 @@ async function handleStartGame(e) {
     updateGameUI({ ...activeGame, playerCount: 0, sessionJoinTotal: 0 }, playlistName);
     attachPlayerWatcher(activeGame.id);
     setSessionState('round-active');
+    currentRoundName = playlistName;
+    try { localStorage.setItem(LS_CURRENT_ROUND, JSON.stringify({ roundNumber: currentRoundNumber, name: playlistName })); } catch { /* ignore */ }
+    syncCompanionStateToFirestore();
     addRoundTab(currentRoundNumber, playlistName, true);
     updatePlaylistUsedState();
 
@@ -1225,6 +1337,10 @@ async function handleEndRound(e) {
     name: activeGame.playlistName || activeGame.name || `Round ${currentRoundNumber}`,
     songs: [...playedSongs],
   });
+  try { localStorage.setItem(LS_ROUND_HISTORY, JSON.stringify(roundHistory)); } catch { /* ignore */ }
+  currentRoundName = '';
+  try { localStorage.removeItem(LS_CURRENT_ROUND); } catch { /* ignore */ }
+  syncCompanionStateToFirestore();
 
   await endRound(activeSession.id, activeGame.id);
   activeGame = null;
@@ -1289,10 +1405,10 @@ async function resolvePlayTransitionAfterPlay(playlistTrack) {
     return;
   }
   if (!playTransition.logged) {
+    _lastLoggedUri = playTransition.uri;
     addToPlayedLog(playTransition.title, playTransition.artist);
     playTransition.logged = true;
   }
-  _lastLoggedUri = sdkTrack?.uri || _lastLoggedUri;
   playTransition = null;
   if (st) updateSpotifyState(st);
 }
@@ -1371,6 +1487,12 @@ async function playTrackAtPosition(uri, positionMsOrMode) {
   // Fade out to floor before switching tracks so the start-from-0 is inaudible.
   if (isSwitching && isFadeEnabled()) {
     await fadeTo(FADE_FLOOR_PCT, 1600);
+    // Companion setVolume calls are fire-and-forget, so the last call may still be
+    // in-flight when playUri fires. Await one confirmed floor-volume REST call to
+    // prevent the race where Spotify processes playUri before the fade completes.
+    if (isSpotifyCompanionCtrl()) {
+      await spotifyCtrl.setVolume(FADE_FLOOR_PCT).catch(() => {});
+    }
   }
 
   await spotifyCtrl.playUri(uri, 0);
@@ -1382,6 +1504,7 @@ async function playTrackAtPosition(uri, positionMsOrMode) {
   // EARLY_PLAYTRANSITION_LOG
   // Log to session history as soon as playback is triggered (don't wait for fade-in).
   if (playTransition && playTransition.uri === uri && !playTransition.logged) {
+    _lastLoggedUri = uri;
     addToPlayedLog(playTransition.title, playTransition.artist);
     playTransition.logged = true;
   }
@@ -1563,11 +1686,14 @@ async function handleEndGame(e) {
 
   // End session
   if (activeSession) {
-    try { await endSession(activeSession.id); } catch (_) {}
+    const endingSessionId = activeSession.id;
+    try { await endSession(endingSessionId); } catch (_) {}
+    clearCompanionState(endingSessionId).catch(() => {});
     activeSession = null;
   }
 
   if (stopWatchingPlayers) { stopWatchingPlayers(); stopWatchingPlayers = null; }
+  if (stopWatchingCompanionState) { stopWatchingCompanionState(); stopWatchingCompanionState = null; }
 
   // Reset session state
   sessionState       = 'idle';
@@ -1576,7 +1702,10 @@ async function handleEndGame(e) {
   roundHistory       = [];
   playedSongs        = [];
   activeRoundTab     = 0;
+  currentRoundName = '';
   try { localStorage.removeItem(LS_PLAYED_SONGS); } catch { /* ignore */ }
+  try { localStorage.removeItem(LS_ROUND_HISTORY); } catch { /* ignore */ }
+  try { localStorage.removeItem(LS_CURRENT_ROUND); } catch { /* ignore */ }
 
   setSessionState('idle');
 
@@ -1586,6 +1715,7 @@ async function handleEndGame(e) {
   els.gameInfoRow?.classList.add('hidden');
   els.playerCountPill?.classList.add('hidden');
   if (els.playedLogTabs)  { els.playedLogTabs.innerHTML = ''; els.playedLogTabs.classList.add('hidden'); }
+  if (els.mobLogTabs)     { els.mobLogTabs.innerHTML = ''; els.mobLogTabs.classList.add('hidden'); }
   if (els.playedLogSection) els.playedLogSection.classList.add('hidden');
   if (els.qrBox)           els.qrBox.innerHTML           = '';
   if (els.joinLinkDisplay) els.joinLinkDisplay.textContent = '';
@@ -1603,28 +1733,108 @@ async function init() {
     els.mobileModal?.classList.remove('hidden');
     wireSpotifyControls();
 
-    // Pre-populate played log with songs from the main player tab.
-    // The main player writes playedSongs to localStorage on every addToPlayedLog call.
-    try {
-      const raw = localStorage.getItem(LS_PLAYED_SONGS);
-      if (raw) {
-        playedSongs = JSON.parse(raw);
-        renderPlayedLogList(els.mobLogList, playedSongs);
-      }
-    } catch { /* ignore */ }
+    const companionSessionId = new URLSearchParams(location.search).get('session');
 
-    // Stay in sync with the main player tab as songs are added or rounds reset.
-    // The 'storage' event only fires for changes from OTHER tabs, so this
-    // won't loop on the companion's own addToPlayedLog writes.
-    window.addEventListener('storage', (e) => {
-      if (e.key !== LS_PLAYED_SONGS) return;
-      if (e.newValue === null) {
-        playedSongs = [];
-      } else {
-        try { playedSongs = JSON.parse(e.newValue); } catch { return; }
-      }
-      renderPlayedLogList(els.mobLogList, playedSongs);
-    });
+    if (companionSessionId) {
+      // ── Cross-device mode: Firestore real-time sync ──────────────────
+      stopWatchingCompanionState = watchCompanionState(companionSessionId, (data) => {
+        if (!data) {
+          // Session ended / doc deleted
+          playedSongs = [];
+          roundHistory = [];
+          currentRoundNumber = 0;
+          currentRoundName = '';
+          activeRoundTab = 0;
+          renderMobRoundTabs();
+          return;
+        }
+        const prevRoundNumber = currentRoundNumber;
+        playedSongs    = data.playedSongs  || [];
+        roundHistory   = data.roundHistory || [];
+        if (data.currentRound) {
+          currentRoundNumber = data.currentRound.roundNumber || 0;
+          currentRoundName   = data.currentRound.name || '';
+        } else {
+          currentRoundNumber = 0;
+          currentRoundName   = '';
+        }
+        // Sync toggle settings from main player
+        if (typeof data.fadeEnabled === 'boolean') {
+          if (els.mobFadeToggle) els.mobFadeToggle.checked = data.fadeEnabled;
+          try { localStorage.setItem(LS_FADE, data.fadeEnabled ? '1' : '0'); } catch { /* ignore */ }
+        }
+        if (typeof data.randomStartEnabled === 'boolean') {
+          if (els.mobRandomStartToggle) els.mobRandomStartToggle.checked = data.randomStartEnabled;
+          try { localStorage.setItem(LS_RANDOM_START, data.randomStartEnabled ? '1' : '0'); } catch { /* ignore */ }
+        }
+        if (typeof data.shuffleEnabled === 'boolean') {
+          if (els.mobShuffleToggle) els.mobShuffleToggle.checked = data.shuffleEnabled;
+        }
+        // Switch to live tab when a new round starts
+        if (currentRoundNumber !== prevRoundNumber) activeRoundTab = 0;
+        renderMobRoundTabs();
+      });
+    } else {
+      // ── Same-device fallback: localStorage ───────────────────────────
+      try {
+        const rawHistory = localStorage.getItem(LS_ROUND_HISTORY);
+        if (rawHistory) roundHistory = JSON.parse(rawHistory);
+      } catch { /* ignore */ }
+      try {
+        const raw = localStorage.getItem(LS_PLAYED_SONGS);
+        if (raw) playedSongs = JSON.parse(raw);
+      } catch { /* ignore */ }
+      try {
+        const rawCurrent = localStorage.getItem(LS_CURRENT_ROUND);
+        if (rawCurrent) {
+          const cur = JSON.parse(rawCurrent);
+          currentRoundNumber = cur.roundNumber || 0;
+          currentRoundName   = cur.name || '';
+        } else if (playedSongs.length > 0) {
+          currentRoundNumber = (roundHistory.length > 0
+            ? roundHistory[roundHistory.length - 1].roundNumber + 1
+            : 1);
+          currentRoundName = '';
+        }
+      } catch { /* ignore */ }
+      renderMobRoundTabs();
+
+      window.addEventListener('storage', (e) => {
+        if (e.key === LS_CURRENT_ROUND) {
+          if (e.newValue === null) {
+            currentRoundNumber = 0;
+            currentRoundName   = '';
+          } else {
+            try {
+              const cur = JSON.parse(e.newValue);
+              currentRoundNumber = cur.roundNumber || 0;
+              currentRoundName   = cur.name || '';
+              activeRoundTab     = 0;
+            } catch { return; }
+          }
+          renderMobRoundTabs();
+          return;
+        }
+        if (e.key === LS_ROUND_HISTORY) {
+          if (e.newValue === null) {
+            roundHistory = [];
+            activeRoundTab = 0;
+          } else {
+            try { roundHistory = JSON.parse(e.newValue); } catch { return; }
+          }
+          renderMobRoundTabs();
+          return;
+        }
+        if (e.key !== LS_PLAYED_SONGS) return;
+        if (e.newValue === null) {
+          playedSongs = [];
+          activeRoundTab = 0;
+        } else {
+          try { playedSongs = JSON.parse(e.newValue); } catch { return; }
+        }
+        renderMobRoundTabs();
+      });
+    }
 
     if (getStoredTokens()) {
       _overlayPlaylistsDone = true; // skip playlist step — companion doesn't need it

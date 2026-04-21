@@ -14,11 +14,13 @@ import {
   getDocs,
   updateDoc,
   setDoc,
+  deleteDoc,
   doc,
   serverTimestamp,
   arrayUnion,
   query,
-  limit
+  limit,
+  onSnapshot,
 } from 'https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js';
 import {
   getAuth,
@@ -535,6 +537,53 @@ export async function endSession(sessionId) {
     currentRoundId: null,
     updatedAt: serverTimestamp(),
   });
+}
+
+// ---------- Companion State (cross-device sync) ----------
+
+/**
+ * Write the current companion state to Firestore.
+ * Called by the main player whenever playedSongs, roundHistory, or currentRound changes.
+ * Collection is publicly readable so companion phones can listen without employee auth.
+ */
+export async function writeCompanionState(sessionId, { playedSongs, roundHistory, currentRound }) {
+  await requireEmployee();
+  await setDoc(doc(db, 'companionSessions', sessionId), {
+    playedSongs:  playedSongs  || [],
+    roundHistory: roundHistory || [],
+    currentRound: currentRound || null,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/**
+ * Clear the companion state doc when the session ends.
+ */
+export async function clearCompanionState(sessionId) {
+  if (!sessionId) return;
+  await requireEmployee();
+  await deleteDoc(doc(db, 'companionSessions', sessionId));
+}
+
+/**
+ * Subscribe to companion state changes. No auth required (collection is public).
+ * Returns an unsubscribe function.
+ * callback receives { playedSongs, roundHistory, currentRound } or null if doc deleted.
+ */
+export function watchCompanionState(sessionId, callback) {
+  return onSnapshot(
+    doc(db, 'companionSessions', sessionId),
+    (snap) => {
+      if (!snap.exists()) { callback(null); return; }
+      const d = snap.data();
+      callback({
+        playedSongs:  d.playedSongs  || [],
+        roundHistory: d.roundHistory || [],
+        currentRound: d.currentRound || null,
+      });
+    },
+    (err) => console.warn('[data.js] watchCompanionState error:', err?.message || err)
+  );
 }
 
 // ---------- Optional: tiny debug surface in dev tools ----------

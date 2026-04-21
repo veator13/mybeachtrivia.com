@@ -469,5 +469,15 @@ service cloud.firestore {
       allow read: if request.auth.uid == uid || isAdmin();
       allow write: if request.auth.uid == uid || isAdmin();
     }
+
+    /* ========= Companion Sessions (Music Bingo cross-device sync) =========
+       Publicly readable — only contains song titles/artist names, nothing sensitive.
+       Only hosts/admins can write (main player is always employee-authed).
+    */
+    match /companionSessions/{sessionId} {
+      allow read: if true;
+      allow write: if isHostOrAdmin();
+      allow delete: if isHostOrAdmin();
+    }
   }
 }

@@ -366,10 +366,11 @@ export class SpotifyCompanionController {
   async pause() { await this._call('/me/player/pause', 'PUT'); }
 
   async playUri(uri, positionMs = 0) {
-    await this._call('/me/player/play', 'PUT', {
-      uris: [uri],
-      position_ms: positionMs,
-    });
+    // Omit position_ms when 0 — passing it explicitly causes Spotify to seek the
+    // current track to position 0 before switching URIs, producing a brief restart.
+    const body = { uris: [uri] };
+    if (positionMs > 0) body.position_ms = positionMs;
+    await this._call('/me/player/play', 'PUT', body);
   }
 
   async togglePlay() {

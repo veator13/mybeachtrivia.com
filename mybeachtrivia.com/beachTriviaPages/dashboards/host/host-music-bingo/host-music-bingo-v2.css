@@ -696,6 +696,44 @@ body {
   letter-spacing: .02em;
 }
 
+.hc-log-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+
+.mob-log-tabs {
+  padding: 8px 0 10px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  margin-bottom: 4px;
+}
+
+.hc-log-tab {
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--edge-2);
+  background: transparent;
+  color: var(--muted);
+  font-size: .74rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color .15s, color .15s, background .15s;
+  white-space: nowrap;
+}
+
+.hc-log-tab:hover {
+  border-color: var(--brand);
+  color: var(--text);
+}
+
+.hc-log-tab.active {
+  background: rgba(59,130,246,.15);
+  border-color: rgba(59,130,246,.4);
+  color: #bfdbfe;
+}
+
 .hc-log-list {
   max-height: 320px;
   overflow-y: auto;

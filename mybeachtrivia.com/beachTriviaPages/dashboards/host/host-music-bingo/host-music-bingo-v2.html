@@ -17,7 +17,7 @@
   <script src="/beachTriviaPages/js/firebase-modular-shims.js" defer></script>
   <script src="/beachTriviaPages/js/auth-route-guard.v2.js?v=2025-10-14a" defer></script>
   <script src="lib/qrcode.min.js" defer></script>
-  <script type="module" src="app.js?v=21"></script>
+  <script type="module" src="app.js?v=24"></script>
 </head>
 <body>
 
@@ -223,7 +223,7 @@
         <div class="hc-log-heading">
           <span class="hc-log-title-wrap">
             <span class="hc-log-accent-dot" aria-hidden="true"></span>
-            <span class="hc-log-title">Played This Session</span>
+            <span id="played-log-title" class="hc-log-title">Played This Session</span>
           </span>
           <span id="played-log-count" class="hc-log-count">0 songs</span>
         </div>
@@ -231,6 +231,7 @@
           📱 Mobile Controls
         </button>
       </div>
+      <div id="played-log-tabs" class="hc-log-tabs hidden"></div>
       <div id="played-log-list" class="hc-log-list">
         <p class="hc-muted hc-log-empty">No songs played yet</p>
       </div>
@@ -398,6 +399,7 @@
       </div>
       <div class="mob-log-section">
         <h4 class="mob-log-title">Songs Played</h4>
+        <div id="mob-log-tabs" class="hc-log-tabs mob-log-tabs hidden"></div>
         <div id="mob-log-list" class="hc-log-list mob-log-list"></div>
       </div>
     </div>
