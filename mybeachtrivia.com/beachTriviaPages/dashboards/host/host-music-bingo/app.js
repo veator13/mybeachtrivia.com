@@ -1131,8 +1131,8 @@ function setSessionState(state) {
   els.gameNameField?.classList.toggle('hidden', isBetweenRounds);
 
   // Label + title change based on state
-  if (els.setupEyebrow) els.setupEyebrow.textContent = isBetweenRounds ? 'Round Over' : 'Setup';
-  if (els.setupTitle)   els.setupTitle.textContent   = isBetweenRounds ? 'Start Next Round' : 'New Game';
+  if (els.setupEyebrow) els.setupEyebrow.textContent = isRoundActive ? 'Game Controls' : isBetweenRounds ? 'Round Over' : 'Setup';
+  if (els.setupTitle)   els.setupTitle.textContent   = isRoundActive ? 'Round In Progress' : isBetweenRounds ? 'Start Next Round' : 'New Game';
   if (els.startBtn)     els.startBtn.textContent     = isBetweenRounds ? 'Start Next Round' : 'Start Game';
 
   // End Round only visible when a round is actively running
