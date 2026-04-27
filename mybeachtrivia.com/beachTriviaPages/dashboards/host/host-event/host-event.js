@@ -50,17 +50,46 @@
     });
   }
 
+  const gameFrameView = document.getElementById('game-frame-view');
+  const contentGrid = document.querySelector('.content-grid');
+  const gameIframe = document.getElementById('game-iframe');
+  const gameLabel = document.getElementById('game-label');
+  const backToMenu = document.getElementById('back-to-menu');
+
+  function openGame(url, label) {
+    gameIframe.src = url + '?t=' + Date.now();
+    if (gameLabel) gameLabel.textContent = label;
+    if (contentGrid) contentGrid.style.display = 'none';
+    if (gameFrameView) gameFrameView.style.display = 'block';
+  }
+
+  function closeGame() {
+    if (gameFrameView) gameFrameView.style.display = 'none';
+    if (contentGrid) contentGrid.style.display = 'grid';
+    gameIframe.src = '';
+  }
+
   function wireEvents() {
     if (backBtn) {
       backBtn.addEventListener('click', function () {
         window.location.href = '/login.html';
       });
     }
+
+    if (backToMenu) {
+      backToMenu.addEventListener('click', closeGame);
+    }
+
+    document.addEventListener('click', function (e) {
+      var tile = e.target.closest('[data-game-url]');
+      if (!tile) return;
+      openGame(tile.dataset.gameUrl, tile.dataset.gameName || '');
+    });
   }
 
-  document.addEventListener('DOMContentLoaded', function () {
-    wireEvents();
+  wireEvents();
 
+  document.addEventListener('DOMContentLoaded', function () {
     waitForFirebaseApp(5000)
       .then(function () {
         setTimeout(showPage, 300);

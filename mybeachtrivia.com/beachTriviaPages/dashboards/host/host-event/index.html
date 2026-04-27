@@ -6,7 +6,7 @@
   <title>Host Event</title>
 
   <link rel="stylesheet" href="/beachTriviaPages/js/bt-nav.css" />
-  <script src="/beachTriviaPages/js/bt-nav.js" defer></script>
+  <script src="/beachTriviaPages/js/bt-nav.js?v=hostnav-20260424-3" defer></script>
 
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js" defer></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js" defer></script>
@@ -14,8 +14,8 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-functions-compat.js" defer></script>
 
   <script src="/beachTriviaPages/js/firebase-init-compat.js?v=1" defer></script>
-  <script src="/beachTriviaPages/dashboards/host/guard-host.js?v=1" defer></script>
-  <script src="host-event.js?v=1" defer></script>
+  <script src="/beachTriviaPages/dashboards/host/guard-host.js?v=2" defer></script>
+  <script src="host-event.js?v=4" defer></script>
 
   <style>
     :root {
@@ -190,108 +190,158 @@
       color: var(--host-muted);
     }
 
-    .event-copy-grid {
+    .event-tiles {
       display: grid;
-      grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
-      gap: 18px;
-      align-items: start;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
     }
 
-    .event-copy-block p {
-      margin: 0;
-      color: #4c5663;
-      line-height: 1.65;
+    .event-tile {
+      display: block;
+      text-decoration: none;
+      text-align: left;
+      font-family: inherit;
+      cursor: pointer;
+      color: #1a2430;
+      background: linear-gradient(145deg, #f6fbff 0%, #eaf2fb 100%);
+      border: 1px solid rgba(41, 149, 243, 0.18);
+      border-radius: 16px;
+      padding: 16px;
+      min-height: 130px;
+      transition:
+        transform 0.18s ease,
+        box-shadow 0.18s ease,
+        border-color 0.18s ease;
     }
 
-    .event-copy-block p + p {
-      margin-top: 12px;
+    .event-tile:hover {
+      transform: translateY(-2px);
+      border-color: rgba(41, 149, 243, 0.42);
+      box-shadow: 0 12px 26px rgba(15, 29, 48, 0.15);
     }
 
-    .mini-checklist {
-      display: grid;
-      gap: 12px;
-      margin: 0;
-      padding: 0;
-      list-style: none;
-    }
-
-    .mini-checklist li {
-      display: flex;
-      gap: 12px;
-      align-items: flex-start;
-      padding: 14px 16px;
-      border-radius: 14px;
-      background: #f4f7fb;
-      color: #243040;
-      line-height: 1.45;
-    }
-
-    .mini-checklist li::before {
-      content: "✓";
-      flex: 0 0 auto;
-      width: 24px;
-      height: 24px;
-      display: grid;
-      place-items: center;
-      border-radius: 50%;
-      background: rgba(41, 149, 243, 0.12);
-      color: var(--host-accent-strong);
+    .event-tile-title {
+      margin: 0 0 8px;
+      font-size: 1.05rem;
       font-weight: 900;
-      margin-top: 1px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #111b28;
     }
 
-    .quick-links {
+    .event-tile-copy {
+      margin: 0;
+      color: #455365;
+      line-height: 1.5;
+      font-size: 0.95rem;
+    }
+
+    .event-tile-badge {
+      display: inline-block;
+      margin-top: 12px;
+      padding: 5px 9px;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      background: rgba(41, 149, 243, 0.12);
+      color: #1c4f83;
+    }
+
+    .event-tile.disabled {
+      cursor: not-allowed;
+      opacity: 0.82;
+      background: linear-gradient(145deg, #f2f4f7 0%, #e8ebef 100%);
+      border-color: rgba(54, 66, 84, 0.2);
+    }
+
+    .event-tile.disabled:hover {
+      transform: none;
+      box-shadow: none;
+      border-color: rgba(54, 66, 84, 0.2);
+    }
+
+    .utility-links {
       display: flex;
       flex-wrap: wrap;
       gap: 12px;
       margin-top: 18px;
     }
 
-    .quick-link {
+    .utility-link {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      min-height: 48px;
-      padding: 12px 18px;
-      border-radius: 14px;
+      min-height: 44px;
+      padding: 10px 16px;
+      border-radius: 12px;
       text-decoration: none;
       text-transform: uppercase;
       letter-spacing: 0.03em;
+      font-size: 0.84rem;
       font-weight: 900;
-      transition:
-        transform 0.18s ease,
-        box-shadow 0.18s ease,
-        background 0.18s ease,
-        border-color 0.18s ease;
-    }
-
-    .quick-link.primary {
       background: #232326;
       color: #fff;
-      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.16);
-    }
-
-    .quick-link.primary:hover {
-      transform: translateY(-2px);
-      background: #17181b;
-      box-shadow: 0 14px 24px rgba(0, 0, 0, 0.22);
-    }
-
-    .quick-link.secondary {
-      background: var(--host-soft-btn);
-      color: #17202b;
-      border: 1px solid rgba(23, 32, 43, 0.08);
-    }
-
-    .quick-link.secondary:hover {
-      transform: translateY(-1px);
-      background: var(--host-soft-btn-hover);
     }
 
     @media (max-width: 900px) {
-      .event-copy-grid {
+      .event-tiles {
         grid-template-columns: 1fr;
       }
+    }
+
+    .game-frame-view {
+      display: none;
+    }
+
+    .back-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+      position: sticky;
+      top: 72px;
+      z-index: 10;
+      background: rgba(8, 13, 22, 0.85);
+      backdrop-filter: blur(8px);
+      padding: 8px 0;
+    }
+
+    .back-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 16px;
+      border-radius: 10px;
+      border: none;
+      background: var(--host-dark-btn);
+      color: #fff;
+      font-size: 0.88rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+
+    .back-btn:hover {
+      background: var(--host-dark-btn-hover);
+    }
+
+    .game-label {
+      font-size: 0.88rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.55);
+    }
+
+    .game-iframe {
+      width: 100%;
+      height: calc(100vh - 180px);
+      min-height: 500px;
+      border: none;
+      border-radius: 16px;
+      background: var(--host-bg);
     }
 
     @media (max-width: 640px) {
@@ -309,12 +359,16 @@
         border-radius: 16px;
       }
 
-      .quick-links {
+      .utility-links {
         flex-direction: column;
       }
 
-      .quick-link {
+      .utility-link {
         width: 100%;
+      }
+
+      .game-iframe {
+        height: calc(100vh - 160px);
       }
     }
   </style>
@@ -345,34 +399,47 @@
         </div>
       </header>
 
+      <div class="game-frame-view" id="game-frame-view">
+        <div class="back-bar">
+          <button class="back-btn" id="back-to-menu" type="button">← Back</button>
+          <span class="game-label" id="game-label"></span>
+        </div>
+        <iframe class="game-iframe" id="game-iframe" src="" title="Game"></iframe>
+      </div>
+
       <section class="content-grid" aria-label="Host event content">
         <section class="panel" aria-labelledby="event-tools-title">
-          <h2 id="event-tools-title">Event Notes</h2>
+          <h2 id="event-tools-title">Choose Event Type</h2>
 
-          <div class="event-copy-grid">
-            <div class="event-copy-block">
-              <p>
-                This page is now the clean handoff point for event-specific tools and future live controls.
-              </p>
-              <p>
-                Keeping those actions here reduces clutter on the main dashboard while still giving hosts a clear place to manage venue workflow.
-              </p>
-            </div>
+          <div class="event-tiles">
+            <button class="event-tile" type="button" data-game-url="/beachTriviaPages/dashboards/host/live-console/" data-game-name="Trivia">
+              <h3 class="event-tile-title">Trivia</h3>
+              <p class="event-tile-copy">Launch host trivia tools and run your standard game flow.</p>
+              <span class="event-tile-badge">Live</span>
+            </button>
 
-            <ul class="mini-checklist">
-              <li>Use this page for event-only tools instead of cluttering the main dashboard.</li>
-              <li>Confirm the correct venue workflow before starting any live event actions.</li>
-              <li>Additional host controls can be added here later without crowding the dashboard.</li>
-            </ul>
+            <button class="event-tile" type="button" data-game-url="/beachTriviaPages/dashboards/host/host-music-bingo/host-music-bingo.html" data-game-name="Music Bingo">
+              <h3 class="event-tile-title">Music Bingo</h3>
+              <p class="event-tile-copy">Open the music bingo host console and start your playlist flow.</p>
+              <span class="event-tile-badge">Live</span>
+            </button>
+
+            <button class="event-tile" type="button" data-game-url="/beachTriviaPages/dashboards/host/host-funny-answers/" data-game-name="Funny Answers">
+              <h3 class="event-tile-title">Funny Answers</h3>
+              <p class="event-tile-copy">Run funny answers mode and manage game prompts.</p>
+              <span class="event-tile-badge">Live</span>
+            </button>
+
+            <button class="event-tile disabled" type="button" disabled aria-disabled="true">
+              <h3 class="event-tile-title">FEUD</h3>
+              <p class="event-tile-copy">Coming soon. FEUD tile is in place and will link later.</p>
+              <span class="event-tile-badge">Soon</span>
+            </button>
           </div>
 
-          <div class="quick-links">
-            <a class="quick-link primary" href="/beachTriviaPages/dashboards/host/">
-              Back to Dashboard
-            </a>
-            <a class="quick-link secondary" href="/beachTriviaPages/dashboards/host/employee-calendar/">
-              View Calendar
-            </a>
+          <div class="utility-links">
+            <a class="utility-link" href="/beachTriviaPages/dashboards/host/">Back to Dashboard</a>
+            <a class="utility-link" href="/beachTriviaPages/dashboards/host/employee-calendar/">View Calendar</a>
           </div>
         </section>
       </section>
