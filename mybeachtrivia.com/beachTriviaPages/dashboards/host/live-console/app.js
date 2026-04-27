@@ -1,773 +1,456 @@
-// mybeachtrivia.com/beachTriviaPages/dashboards/host/live-console/app.js
-// Live slideshow console app
-// Phase 1:
-// - auth/access verification
-// - session code generation + viewer URL sync
-// - live/preview state stepping
-// - reveal modal flow
-// - placeholder local-only console behavior
-//
-// Phase 2:
-// - Firestore-backed liveSessions sync
-// - published show loading
-// - shared viewer updates for cast-game
+// live-console/app.js v4
 
 (function () {
-    "use strict";
-  
-    const APP = {
-      init,
-    };
-  
-    window.HostLiveConsoleApp = APP;
-  
-    const state = {
-      session: {
-        showId: "march-basquiat-show",
-        sessionCode: "BT-4827",
-        sessionName: "Keagan's • Thursday 7PM",
-        viewerUrl: "",
-        started: false,
-        saved: false,
-      },
-      playback: {
-        liveIndex: 2,
-        previewIndex: 3,
-        revealShown: false,
-      },
-      auth: {
-        user: null,
-        employee: null,
-      },
-      deck: {
-        title: "March 2026 Trivia",
-        theme: "Standard Trivia",
-        slides: [
-          {
-            stateKey: "round1.categories",
-            stateLabel: "Round 1 Categories",
-            roundBadge: "Round 1",
-            category: "Round Categories",
-            question: "Classic Artists • World Capitals • Famous Films • 90s Music • Strange History",
-            options: [],
-            answer: "",
-            notes: "Opening categories slide for Round 1.",
-            answerVisibleByDefault: false,
-            modeChip: "Categories",
-            kind: "categories",
-          },
-          {
-            stateKey: "round1.q1.live",
-            stateLabel: "Round 1 Question 1 Live",
-            roundBadge: "Round 1",
-            category: "Classic Artists",
-            question: "Which artist helped define the visual style shown on the screen?",
-            options: ["Andy Warhol", "Jean-Michel Basquiat", "Keith Haring", "Roy Lichtenstein"],
-            answer: "Jean-Michel Basquiat",
-            notes: "Question 1 live state.",
-            answerVisibleByDefault: false,
-            modeChip: "Reveal Hidden",
-            kind: "question",
-          },
-          {
-            stateKey: "round1.q2.live",
-            stateLabel: "Round 1 Question 2 Live",
-            roundBadge: "Round 1",
-            category: "Classic Artists",
-            question: "Which artist is known for the painting style shown on the screen?",
-            options: ["Andy Warhol", "Jean-Michel Basquiat", "Keith Haring", "Roy Lichtenstein"],
-            answer: "Jean-Michel Basquiat",
-            notes: "Audience screen is currently on the live question state.",
-            answerVisibleByDefault: false,
-            modeChip: "Reveal Hidden",
-            kind: "question",
-          },
-          {
-            stateKey: "round1.q3.live",
-            stateLabel: "Round 1 Question 3 Live",
-            roundBadge: "Round 1",
-            category: "Classic Artists",
-            question: "Which artist was closely associated with New York neo-expressionism?",
-            options: ["Jean-Michel Basquiat", "Jackson Pollock", "Edward Hopper", "Grant Wood"],
-            answer: "Jean-Michel Basquiat",
-            notes: "Host preview can look ahead without affecting the casted audience screens.",
-            answerVisibleByDefault: true,
-            modeChip: "Preview Only",
-            kind: "question",
-          },
-          {
-            stateKey: "round1.q4.live",
-            stateLabel: "Round 1 Question 4 Live",
-            roundBadge: "Round 1",
-            category: "Classic Artists",
-            question: "Which of these artists often combined text, symbols, and raw street-art energy?",
-            options: ["Keith Haring", "Jean-Michel Basquiat", "Pablo Picasso", "Salvador Dalí"],
-            answer: "Jean-Michel Basquiat",
-            notes: "Question 4 live state.",
-            answerVisibleByDefault: false,
-            modeChip: "Reveal Hidden",
-            kind: "question",
-          },
-          {
-            stateKey: "round1.q5.live",
-            stateLabel: "Round 1 Question 5 Live",
-            roundBadge: "Round 1",
-            category: "Classic Artists",
-            question: "Which artist rose to fame after first gaining attention in the New York graffiti scene?",
-            options: ["Jean-Michel Basquiat", "Banksy", "David Hockney", "Joan Miró"],
-            answer: "Jean-Michel Basquiat",
-            notes: "Question 5 live state.",
-            answerVisibleByDefault: false,
-            modeChip: "Reveal Hidden",
-            kind: "question",
-          },
-          {
-            stateKey: "round1.turn-in",
-            stateLabel: "Round 1 Turn In Slips",
-            roundBadge: "Round 1",
-            category: "Turn In Your Slips",
-            question: "Please turn in your answer slips for Round 1.",
-            options: [],
-            answer: "",
-            notes: "Pacing slide before the repeated answer-reveal pass.",
-            answerVisibleByDefault: false,
-            modeChip: "Turn-In",
-            kind: "turn-in",
-          },
-          {
-            stateKey: "round1.q1.reveal",
-            stateLabel: "Round 1 Question 1 Reveal",
-            roundBadge: "Round 1",
-            category: "Classic Artists",
-            question: "Which artist helped define the visual style shown on the screen?",
-            options: ["Andy Warhol", "Jean-Michel Basquiat", "Keith Haring", "Roy Lichtenstein"],
-            answer: "Jean-Michel Basquiat",
-            notes: "Answer pass for Question 1.",
-            answerVisibleByDefault: false,
-            modeChip: "Answer Pass",
-            kind: "reveal",
-          },
-          {
-            stateKey: "round1.q2.reveal",
-            stateLabel: "Round 1 Question 2 Reveal",
-            roundBadge: "Round 1",
-            category: "Classic Artists",
-            question: "Which artist is known for the painting style shown on the screen?",
-            options: ["Andy Warhol", "Jean-Michel Basquiat", "Keith Haring", "Roy Lichtenstein"],
-            answer: "Jean-Michel Basquiat",
-            notes: "Answer pass for Question 2.",
-            answerVisibleByDefault: false,
-            modeChip: "Answer Pass",
-            kind: "reveal",
-          },
-          {
-            stateKey: "round1.q3.reveal",
-            stateLabel: "Round 1 Question 3 Reveal",
-            roundBadge: "Round 1",
-            category: "Classic Artists",
-            question: "Which artist was closely associated with New York neo-expressionism?",
-            options: ["Jean-Michel Basquiat", "Jackson Pollock", "Edward Hopper", "Grant Wood"],
-            answer: "Jean-Michel Basquiat",
-            notes: "Answer pass for Question 3.",
-            answerVisibleByDefault: false,
-            modeChip: "Answer Pass",
-            kind: "reveal",
-          },
-          {
-            stateKey: "round1.q4.reveal",
-            stateLabel: "Round 1 Question 4 Reveal",
-            roundBadge: "Round 1",
-            category: "Classic Artists",
-            question: "Which of these artists often combined text, symbols, and raw street-art energy?",
-            options: ["Keith Haring", "Jean-Michel Basquiat", "Pablo Picasso", "Salvador Dalí"],
-            answer: "Jean-Michel Basquiat",
-            notes: "Answer pass for Question 4.",
-            answerVisibleByDefault: false,
-            modeChip: "Answer Pass",
-            kind: "reveal",
-          },
-          {
-            stateKey: "round1.q5.reveal",
-            stateLabel: "Round 1 Question 5 Reveal",
-            roundBadge: "Round 1",
-            category: "Classic Artists",
-            question: "Which artist rose to fame after first gaining attention in the New York graffiti scene?",
-            options: ["Jean-Michel Basquiat", "Banksy", "David Hockney", "Joan Miró"],
-            answer: "Jean-Michel Basquiat",
-            notes: "Answer pass for Question 5.",
-            answerVisibleByDefault: false,
-            modeChip: "Answer Pass",
-            kind: "reveal",
-          },
-          {
-            stateKey: "round1.answers-summary",
-            stateLabel: "Round 1 Answers Summary",
-            roundBadge: "Round 1",
-            category: "All Round 1 Answers",
-            question: "1) Basquiat  •  2) Basquiat  •  3) Basquiat  •  4) Basquiat  •  5) Basquiat",
-            options: [],
-            answer: "Jean-Michel Basquiat",
-            notes: "Summary slide shown after the repeated reveal pass.",
-            answerVisibleByDefault: true,
-            modeChip: "Summary",
-            kind: "summary",
-          },
-        ],
-      },
-      dom: {},
-    };
-  
-    function $(selector, root) {
-      return (root || document).querySelector(selector);
+  'use strict';
+
+  const state = {
+    shows: [],
+    deck: { id: null, title: '', theme: 'Standard Trivia', slides: [] },
+    hostSlide: 0,   // host-only view index
+    castSlide: 0,   // cast/audience index
+    revealed: false,
+    live: false,
+    sessionCode: 'BT-' + Math.floor(1000 + Math.random() * 9000),
+  };
+
+  const dom = {};
+
+  // ── Boot ───────────────────────────────────────────────────────────────────
+
+  document.addEventListener('DOMContentLoaded', function () {
+    cachedom();
+    bindui();
+    waitForFirebase(function () {
+      firebase.auth().onAuthStateChanged(function (user) {
+        if (!user) { window.location.assign('/login.html'); return; }
+        firebase.firestore().collection('employees').doc(user.uid).get()
+          .then(function (snap) {
+            const emp = snap.exists ? (snap.data() || {}) : {};
+            if (!snap.exists || emp.active === false) { showError('Account not active.'); return; }
+            const roles = [].concat(Array.isArray(emp.roles) ? emp.roles : [], emp.role ? [emp.role] : []);
+            const ok = roles.some(function (r) { return r === 'host' || r === 'admin' || r === 'writer'; });
+            if (!ok) { showError('You do not have host access.'); return; }
+            onAuthed();
+          })
+          .catch(function () { showError('Could not verify access.'); });
+      });
+    });
+  });
+
+  function onAuthed() {
+    hide('auth-loading');
+    updateCastUrl();
+    loadShows();
+  }
+
+  function waitForFirebase(cb, n) {
+    if (window.firebase && window.firebase.auth && window.firebase.firestore) { cb(); return; }
+    if ((n || 0) > 50) { showError('Firebase failed to load.'); return; }
+    setTimeout(function () { waitForFirebase(cb, (n || 0) + 1); }, 100);
+  }
+
+  // ── DOM ────────────────────────────────────────────────────────────────────
+
+  function cachedom() {
+    [
+      'auth-loading', 'error-container', 'error-text', 'back-to-login',
+      'show-picker', 'show-select', 'btn-load-show',
+      'console', 'console-show-name', 'console-slide-count',
+      'cast-url', 'btn-copy-url', 'btn-go-live', 'btn-change-show',
+      'btn-prev', 'btn-next', 'btn-cast-prev', 'btn-cast-next',
+      'btn-reveal', 'btn-hide',
+      'host-slide-count', 'cast-slide-count',
+      'host-badge', 'host-state-label', 'host-theme',
+      'host-category', 'host-question', 'host-options',
+      'host-answer', 'host-answer-value', 'host-notes',
+      'cast-badge', 'cast-state-label', 'cast-theme',
+      'cast-category', 'cast-question', 'cast-options',
+      'cast-answer', 'cast-answer-value',
+      'cast-chip', 'cast-status-label',
+    ].forEach(function (id) {
+      dom[id] = document.getElementById(id);
+    });
+  }
+
+  function bindui() {
+    on('back-to-login', 'click', function () { window.location.assign('/login.html'); });
+
+    on('show-select', 'change', function () {
+      if (dom['show-select']) {
+        dom['btn-load-show'].disabled = !dom['show-select'].value;
+      }
+    });
+
+    on('btn-load-show', 'click', loadSelectedShow);
+    on('btn-change-show', 'click', backToPicker);
+
+    on('btn-copy-url', 'click', function () {
+      copyText(state.sessionCode
+        ? (window.location.origin + '/cast-game/?code=' + encodeURIComponent(state.sessionCode))
+        : '');
+      flash(dom['btn-copy-url'], 'Copied!');
+    });
+
+    on('btn-go-live', 'click', toggleLive);
+
+    on('btn-prev',      'click', function () { stepHost(-1); });
+    on('btn-next',      'click', function () { stepHost(1); });
+    on('btn-cast-prev', 'click', function () { stepCast(-1); });
+    on('btn-cast-next', 'click', function () { stepCast(1); });
+
+    on('btn-reveal', 'click', function () { setRevealed(true); });
+    on('btn-hide',   'click', function () { setRevealed(false); });
+  }
+
+  // ── Shows ──────────────────────────────────────────────────────────────────
+
+  function loadShows() {
+    firebase.firestore().collection('publishedShows')
+      .orderBy('lastTouchedAt', 'desc')
+      .get()
+      .then(function (snap) {
+        state.shows = snap.docs.map(function (d) {
+          const data = d.data() || {};
+          data.__id = d.id;
+          return data;
+        });
+        populatePicker();
+        show('show-picker', 'flex');
+      })
+      .catch(function (err) {
+        console.error('[live-console] loadShows:', err);
+        show('show-picker', 'flex');
+      });
+  }
+
+  function populatePicker() {
+    const sel = dom['show-select'];
+    if (!sel) return;
+    sel.innerHTML = '';
+
+    if (!state.shows.length) {
+      sel.innerHTML = '<option value="">No published shows found</option>';
+      return;
     }
-  
-    function init() {
-      cacheDom();
-      bindCoreUi();
-      updateViewerUrl();
-      renderAll();
-      verifyAccessAndShowPage();
+
+    // Blank default
+    const blank = document.createElement('option');
+    blank.value = '';
+    blank.textContent = '— Select a show —';
+    sel.appendChild(blank);
+
+    state.shows.forEach(function (s) {
+      const opt = document.createElement('option');
+      opt.value = s.__id;
+      const title = (s.show && s.show.title) || 'Untitled';
+      const date = (s.show && s.show.dateLabel) ? '  •  ' + s.show.dateLabel : '';
+      opt.textContent = title + date;
+      sel.appendChild(opt);
+    });
+
+    // Auto-select today's show if found
+    const today = state.shows.find(matchesToday);
+    if (today) {
+      sel.value = today.__id;
+      dom['btn-load-show'].disabled = false;
     }
-  
-    function cacheDom() {
-      state.dom = {
-        authLoading: $("#auth-loading"),
-        errorContainer: $("#error-container"),
-        errorText: $("#error-text"),
-        backToLoginBtn: $("#back-to-login"),
-        consoleTopbar: $("#console-topbar"),
-        consoleShell: $("#console-shell"),
-  
-        sessionShowSelect: $("#session-show-select"),
-        sessionCode: $("#session-code"),
-        sessionName: $("#session-name"),
-        viewerUrl: $("#viewer-url"),
-  
-        btnGenerateCode: $("#btn-generate-code"),
-        btnCopyViewerUrl: $("#btn-copy-viewer-url"),
-        btnCopyUrlInline: $("#btn-copy-url-inline"),
-        btnSaveSession: $("#btn-save-session"),
-        btnStartSession: $("#btn-start-session"),
-  
-        btnPrevLive: $("#btn-prev-live"),
-        btnNextLive: $("#btn-next-live"),
-        btnPrevPreview: $("#btn-prev-preview"),
-        btnNextPreview: $("#btn-next-preview"),
-        btnOpenRevealModal: $("#btn-open-reveal-modal"),
-        btnHideAnswer: $("#btn-hide-answer"),
-  
-        revealModal: $("#reveal-modal"),
-        btnCloseRevealModal: $("#btn-close-reveal-modal"),
-        btnConfirmReveal: $("#btn-confirm-reveal"),
-        modalAnswerValue: $("#modal-answer-value"),
-  
-        currentLiveState: $("#current-live-state"),
-        currentPreviewState: $("#current-preview-state"),
-        currentShowTitle: $("#current-show-title"),
-        currentRevealState: $("#current-reveal-state"),
-        liveStatusChip: $("#live-status-chip"),
-  
-        liveStateChip: $("#live-state-chip"),
-        previewStateChip: $("#preview-state-chip"),
-        stateList: $("#state-list"),
-  
-        liveRoundBadge: $("#live-round-badge"),
-        liveStateLabel: $("#live-state-label"),
-        liveThemeLabel: $("#live-theme-label"),
-        liveCategory: $("#live-category"),
-        liveQuestion: $("#live-question"),
-        liveOptions: $("#live-options"),
-        liveAnswer: $("#live-answer"),
-        liveNotes: $("#live-notes"),
-        liveModeChip: $("#live-mode-chip"),
-  
-        previewRoundBadge: $("#preview-round-badge"),
-        previewStateLabel: $("#preview-state-label"),
-        previewThemeLabel: $("#preview-theme-label"),
-        previewCategory: $("#preview-category"),
-        previewQuestion: $("#preview-question"),
-        previewOptions: $("#preview-options"),
-        previewAnswer: $("#preview-answer"),
-        previewNotes: $("#preview-notes"),
-        previewModeChip: $("#preview-mode-chip"),
-      };
-    }
-  
-    function bindCoreUi() {
-      const d = state.dom;
-  
-      d.backToLoginBtn?.addEventListener("click", function () {
-        window.location.assign("/login.html");
+  }
+
+  function matchesToday(s) {
+    const label = String((s.show && s.show.dateLabel) || '').toLowerCase();
+    const now = new Date();
+    const month = now.toLocaleString('en-US', { month: 'long' }).toLowerCase();
+    const day = String(now.getDate());
+    return label.includes(month) && label.includes(day);
+  }
+
+  function loadSelectedShow() {
+    const sel = dom['show-select'];
+    if (!sel || !sel.value) return;
+    const id = sel.value;
+    const cached = state.shows.find(function (s) { return s.__id === id; });
+    if (cached) { mountShow(cached); return; }
+
+    dom['btn-load-show'].disabled = true;
+    dom['btn-load-show'].textContent = 'Loading…';
+
+    firebase.firestore().collection('publishedShows').doc(id).get()
+      .then(function (snap) {
+        if (!snap.exists) { alert('Show not found.'); return; }
+        const data = snap.data() || {};
+        data.__id = snap.id;
+        mountShow(data);
+      })
+      .catch(function (err) {
+        console.error('[live-console] loadSelectedShow:', err);
+        dom['btn-load-show'].disabled = false;
+        dom['btn-load-show'].textContent = 'Load Show';
       });
-  
-      d.sessionCode?.addEventListener("input", function () {
-        state.session.sessionCode = String(d.sessionCode.value || "").trim();
-        updateViewerUrl();
-      });
-  
-      d.sessionName?.addEventListener("input", function () {
-        state.session.sessionName = String(d.sessionName.value || "").trim();
-      });
-  
-      d.sessionShowSelect?.addEventListener("change", function () {
-        state.session.showId = String(d.sessionShowSelect.value || "").trim();
-        state.session.saved = false;
-        renderSessionStatus();
-      });
-  
-      d.btnGenerateCode?.addEventListener("click", function () {
-        state.session.sessionCode = randomCode();
-        if (d.sessionCode) d.sessionCode.value = state.session.sessionCode;
-        updateViewerUrl();
-        flashStatus("Code Updated");
-      });
-  
-      d.btnCopyViewerUrl?.addEventListener("click", function () {
-        copyText(state.session.viewerUrl);
-        flashStatus("Viewer URL Copied");
-      });
-  
-      d.btnCopyUrlInline?.addEventListener("click", function () {
-        copyText(state.session.viewerUrl);
-        flashStatus("Viewer URL Copied");
-      });
-  
-      d.btnSaveSession?.addEventListener("click", function () {
-        saveSession();
-      });
-  
-      d.btnStartSession?.addEventListener("click", function () {
-        startSession();
-      });
-  
-      d.btnPrevLive?.addEventListener("click", function () {
-        stepLive(-1);
-      });
-  
-      d.btnNextLive?.addEventListener("click", function () {
-        stepLive(1);
-      });
-  
-      d.btnPrevPreview?.addEventListener("click", function () {
-        stepPreview(-1);
-      });
-  
-      d.btnNextPreview?.addEventListener("click", function () {
-        stepPreview(1);
-      });
-  
-      d.btnOpenRevealModal?.addEventListener("click", function () {
-        openRevealModal();
-      });
-  
-      d.btnHideAnswer?.addEventListener("click", function () {
-        state.playback.revealShown = false;
-        renderAll();
-      });
-  
-      d.btnCloseRevealModal?.addEventListener("click", function () {
-        closeRevealModal();
-      });
-  
-      d.btnConfirmReveal?.addEventListener("click", function () {
-        state.playback.revealShown = true;
-        closeRevealModal();
-        renderAll();
-        flashStatus("Answer Revealed");
-      });
-  
-      d.revealModal?.addEventListener("click", function (event) {
-        if (event.target === d.revealModal) {
-          closeRevealModal();
-        }
-      });
-  
-      document.addEventListener("keydown", function (event) {
-        if (state.dom.consoleShell?.style.display !== "grid") return;
-  
-        if (event.key === "Escape") {
-          closeRevealModal();
-          return;
-        }
-  
-        if (event.target && /input|textarea|select/i.test(event.target.tagName)) return;
-  
-        if (event.key === "ArrowRight") {
-          event.preventDefault();
-          stepLive(1);
-        } else if (event.key === "ArrowLeft") {
-          event.preventDefault();
-          stepLive(-1);
-        }
-      });
-    }
-  
-    function verifyAccessAndShowPage() {
-      waitForFirebase(function () {
-        firebase.auth().onAuthStateChanged(function (user) {
-          if (!user) {
-            window.location.assign("/login.html");
-            return;
-          }
-  
-          state.auth.user = user;
-  
-          firebase.firestore().collection("employees").doc(user.uid).get()
-            .then(function (snap) {
-              if (!snap.exists) {
-                showError("No employee record found.");
-                return;
-              }
-  
-              const emp = snap.data() || {};
-              state.auth.employee = emp;
-  
-              if (emp.active === false) {
-                showError("Your account is not active.");
-                return;
-              }
-  
-              const roles = normalizeRoles(emp);
-              const hasAccess =
-                roles.indexOf("host") !== -1 ||
-                roles.indexOf("admin") !== -1 ||
-                roles.indexOf("writer") !== -1;
-  
-              if (!hasAccess) {
-                showError("You do not have access to this page.");
-                return;
-              }
-  
-              showConsole();
-            })
-            .catch(function (err) {
-              console.error("[host-live-console] access verification failed:", err);
-              showError("Could not verify access.");
-            });
+  }
+
+  function mountShow(data) {
+    state.deck.id    = data.__id;
+    state.deck.title = (data.show && data.show.title) || 'Untitled Show';
+    state.deck.slides = flattenSlides(data);
+    state.hostSlide = 0;
+    state.castSlide = 0;
+    state.revealed  = false;
+    state.live     = false;
+
+    setText('console-show-name', state.deck.title);
+    updateCastUrl();
+    updateLiveButton();
+    updateSlideCount();
+
+    hide('show-picker');
+    show('console', 'flex');
+    render();
+  }
+
+  function backToPicker() {
+    state.live = false;
+    hide('console');
+    show('show-picker', 'flex');
+    dom['btn-load-show'].disabled = !dom['show-select'].value;
+    dom['btn-load-show'].textContent = 'Load Show';
+  }
+
+  // ── Slides ─────────────────────────────────────────────────────────────────
+
+  function flattenSlides(data) {
+    const blocks = Array.isArray(data.blocks) ? data.blocks : [];
+    const slides = [];
+    blocks.forEach(function (entry) {
+      const block = entry && entry.block;
+      if (!block) return;
+      const roundBadge = block.roundName || block.label || '';
+      (Array.isArray(block.slides) ? block.slides : []).forEach(function (s) {
+        var isTitle = (s.kind === 'title' || s.type === 'title' || block.type === 'title');
+        var showTitle = (data.show && data.show.title) || '';
+        var showDate  = (data.show && data.show.dateLabel) || '';
+        slides.push({
+          stateKey:   s.stateKey    || '',
+          stateLabel: s.stateLabel  || (isTitle ? 'Title Slide' : ''),
+          roundBadge: s.title       || roundBadge,
+          category:   s.categoryName || s.category || block.categoryName || (isTitle ? showDate : ''),
+          question:   s.prompt      || s.question  || (isTitle ? showTitle : ''),
+          options:    Array.isArray(s.options) ? s.options.filter(Boolean) : [],
+          answer:     s.answer      || '',
+          notes:      s.notes       || '',
+          theme:      s.themeStyle  || 'Standard Trivia',
+          alwaysReveal: !!(s.answerVisibleByDefault || s.kind === 'summary' || s.kind === 'answers-summary'),
+          kind:       s.kind        || s.type       || (block.type === 'title' ? 'title' : 'question'),
         });
       });
+    });
+    return slides;
+  }
+
+  function stepHost(delta) {
+    const max = state.deck.slides.length - 1;
+    state.hostSlide = Math.max(0, Math.min(max, state.hostSlide + delta));
+    renderHost();
+  }
+
+  function stepCast(delta) {
+    const max = state.deck.slides.length - 1;
+    const next = Math.max(0, Math.min(max, state.castSlide + delta));
+    if (next === state.castSlide) return;
+    state.castSlide = next;
+    state.revealed = false;
+    renderCast();
+    pushState();
+  }
+
+  function setRevealed(val) {
+    state.revealed = val;
+    renderCast();
+    pushState();
+  }
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+
+  function render() {
+    renderHost();
+    renderCast();
+  }
+
+  function renderHost() {
+    const total = state.deck.slides.length;
+    const slide = state.deck.slides[state.hostSlide] || null;
+    setText('host-slide-count', total ? (state.hostSlide + 1) + ' / ' + total : '');
+    if (dom['btn-prev']) dom['btn-prev'].disabled = state.hostSlide === 0;
+    if (dom['btn-next']) dom['btn-next'].disabled = state.hostSlide >= total - 1;
+
+    if (!slide) return;
+    setText('host-badge',        slide.roundBadge);
+    setText('host-state-label',  slide.stateLabel);
+    setText('host-theme',        slide.theme || state.deck.theme);
+    setText('host-category',     slide.category);
+    setText('host-question',     slide.question);
+    setText('host-answer-value', slide.answer);
+    setText('host-notes',        slide.notes);
+    renderOptions('host-options', slide.options);
+    if (dom['host-answer']) {
+      dom['host-answer'].classList.toggle('visible', !!slide.answer);
     }
-  
-    function waitForFirebase(cb, attempts) {
-      const n = attempts || 0;
-      if (window.firebase && window.firebase.auth && window.firebase.firestore) {
-        cb();
-        return;
-      }
-      if (n > 40) {
-        showError("Firebase failed to load.");
-        return;
-      }
-      setTimeout(function () {
-        waitForFirebase(cb, n + 1);
-      }, 100);
+  }
+
+  function renderCast() {
+    const total = state.deck.slides.length;
+    const slide = state.deck.slides[state.castSlide] || null;
+    setText('cast-slide-count', total ? (state.castSlide + 1) + ' / ' + total : '');
+    if (dom['btn-cast-prev']) dom['btn-cast-prev'].disabled = state.castSlide === 0;
+    if (dom['btn-cast-next']) dom['btn-cast-next'].disabled = state.castSlide >= total - 1;
+
+    if (!slide) return;
+    const showAnswer = state.revealed || slide.alwaysReveal;
+
+    setText('cast-badge',        slide.roundBadge);
+    setText('cast-state-label',  slide.stateLabel);
+    setText('cast-theme',        slide.theme || state.deck.theme);
+    setText('cast-category',     slide.category);
+    setText('cast-question',     slide.question);
+    setText('cast-answer-value', slide.answer);
+    renderOptions('cast-options', slide.options);
+    if (dom['cast-answer']) {
+      dom['cast-answer'].classList.toggle('visible', !!(showAnswer && slide.answer));
     }
-  
-    function normalizeRoles(emp) {
-      const arr = Array.isArray(emp && emp.roles) ? emp.roles : [];
-      const single = emp && emp.role ? [emp.role] : [];
-      return arr.concat(single)
-        .filter(Boolean)
-        .map(function (role) {
-          return String(role).toLowerCase().trim();
-        });
+    setText('cast-status-label', showAnswer ? 'Answer visible to audience' : 'Answer hidden until revealed');
+  }
+
+  function renderOptions(containerId, options) {
+    const el = dom[containerId] || document.getElementById(containerId);
+    if (!el) return;
+    el.innerHTML = '';
+    if (!options || !options.length) { el.style.display = 'none'; return; }
+    el.style.display = '';
+    options.forEach(function (opt, i) {
+      const row = document.createElement('div');
+      row.className = 'slide-option';
+      const key = document.createElement('span');
+      key.className = 'opt-key';
+      key.textContent = String.fromCharCode(65 + i);
+      const txt = document.createElement('span');
+      txt.textContent = opt;
+      row.appendChild(key);
+      row.appendChild(txt);
+      el.appendChild(row);
+    });
+  }
+
+  function updateSlideCount() {
+    setText('console-slide-count', state.deck.slides.length ? state.deck.slides.length + ' slides' : '');
+  }
+
+  // ── Casting ────────────────────────────────────────────────────────────────
+
+  function toggleLive() {
+    state.live = !state.live;
+    updateLiveButton();
+    if (state.live) pushState();
+  }
+
+  function updateLiveButton() {
+    const btn = dom['btn-go-live'];
+    if (!btn) return;
+    if (state.live) {
+      btn.textContent = '● Live';
+      btn.classList.add('active');
+    } else {
+      btn.textContent = 'Go Live';
+      btn.classList.remove('active');
     }
-  
-    function showConsole() {
-      state.dom.authLoading && (state.dom.authLoading.style.display = "none");
-      state.dom.errorContainer && (state.dom.errorContainer.style.display = "none");
-      state.dom.consoleTopbar && (state.dom.consoleTopbar.style.display = "block");
-      state.dom.consoleShell && (state.dom.consoleShell.style.display = "grid");
-      renderAll();
+    // Also update cast chip
+    if (dom['cast-chip']) {
+      dom['cast-chip'].className = 'vp-chip ' + (state.live ? 'live' : 'cast');
+      dom['cast-chip'].textContent = state.live ? 'Cast Live' : 'Cast Preview';
     }
-  
-    function showError(msg) {
-      if (state.dom.authLoading) state.dom.authLoading.style.display = "none";
-      if (state.dom.consoleTopbar) state.dom.consoleTopbar.style.display = "none";
-      if (state.dom.consoleShell) state.dom.consoleShell.style.display = "none";
-      if (state.dom.errorContainer) state.dom.errorContainer.style.display = "flex";
-      if (state.dom.errorText) state.dom.errorText.textContent = msg || "Access denied.";
+  }
+
+  function updateCastUrl() {
+    const url = window.location.origin + '/cast-game/?code=' + encodeURIComponent(state.sessionCode);
+    if (dom['cast-url']) dom['cast-url'].value = url;
+  }
+
+  function pushState() {
+    if (!state.live) return;
+    const slide = state.deck.slides[state.castSlide] || {};
+    const showAnswer = state.revealed || slide.alwaysReveal;
+
+    firebase.firestore().collection('liveSessions').doc(state.sessionCode).set({
+      sessionCode:     state.sessionCode,
+      currentStateKey: slide.stateKey || '',
+      castSlideIndex: state.castSlide,
+      revealShown:     showAnswer,
+      currentSlide: {
+        roundBadge:  slide.roundBadge  || '',
+        stateLabel:  slide.stateLabel  || '',
+        category:    slide.category    || '',
+        question:    slide.question    || '',
+        options:     slide.options     || [],
+        answer:      slide.answer      || '',
+        notes:       slide.notes       || '',
+        kind:        slide.kind        || '',
+        answerVisibleByDefault: !!slide.alwaysReveal,
+      },
+      showTitle: state.deck.title,
+      theme:     state.deck.theme,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    }).catch(function (err) {
+      console.error('[live-console] pushState:', err);
+    });
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
+  function show(id, display) {
+    const el = dom[id] || document.getElementById(id);
+    if (el) el.style.display = display || 'block';
+  }
+
+  function hide(id) {
+    const el = dom[id] || document.getElementById(id);
+    if (el) el.style.display = 'none';
+  }
+
+  function setText(id, val) {
+    const el = dom[id] || document.getElementById(id);
+    if (el) el.textContent = val == null ? '' : String(val);
+  }
+
+  function on(id, evt, fn) {
+    const el = dom[id] || document.getElementById(id);
+    if (el) el.addEventListener(evt, fn);
+  }
+
+  function copyText(text) {
+    if (!text) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).catch(function () {});
+      return;
     }
-  
-    function updateViewerUrl() {
-      const code = String(state.session.sessionCode || "").trim() || "BT-0000";
-      const base = window.location.origin || "https://mybeachtrivia.com";
-      state.session.viewerUrl = base + "/cast-game/?code=" + encodeURIComponent(code);
-  
-      if (state.dom.viewerUrl) {
-        state.dom.viewerUrl.value = state.session.viewerUrl;
-      }
-    }
-  
-    function randomCode() {
-      return "BT-" + Math.floor(1000 + Math.random() * 9000);
-    }
-  
-    function copyText(value) {
-      const text = String(value || "");
-      if (!text) return;
-  
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).catch(function () {});
-        return;
-      }
-  
-      const temp = document.createElement("textarea");
-      temp.value = text;
-      document.body.appendChild(temp);
-      temp.select();
-      try {
-        document.execCommand("copy");
-      } catch (err) {
-        console.warn("[host-live-console] copy failed:", err);
-      }
-      document.body.removeChild(temp);
-    }
-  
-    function saveSession() {
-      state.session.saved = true;
-      renderSessionStatus();
-      flashStatus("Session Saved");
-      console.log("[host-live-console] save session placeholder", {
-        session: state.session,
-        playback: state.playback,
-      });
-    }
-  
-    function startSession() {
-      state.session.started = true;
-      state.session.saved = true;
-      renderSessionStatus();
-      flashStatus("Live Session Started");
-      console.log("[host-live-console] start session placeholder", {
-        session: state.session,
-        playback: state.playback,
-      });
-    }
-  
-    function stepLive(delta) {
-      const next = clamp(
-        state.playback.liveIndex + delta,
-        0,
-        state.deck.slides.length - 1
-      );
-  
-      state.playback.liveIndex = next;
-  
-      if (state.playback.previewIndex < state.playback.liveIndex) {
-        state.playback.previewIndex = clamp(
-          state.playback.liveIndex + 1,
-          0,
-          state.deck.slides.length - 1
-        );
-      }
-  
-      state.playback.revealShown = false;
-      renderAll();
-    }
-  
-    function stepPreview(delta) {
-      state.playback.previewIndex = clamp(
-        state.playback.previewIndex + delta,
-        0,
-        state.deck.slides.length - 1
-      );
-      renderAll();
-    }
-  
-    function openRevealModal() {
-      const slide = getLiveSlide();
-      if (state.dom.modalAnswerValue) {
-        state.dom.modalAnswerValue.textContent = slide.answer || "No answer available.";
-      }
-      if (state.dom.revealModal) {
-        state.dom.revealModal.classList.add("open");
-        state.dom.revealModal.setAttribute("aria-hidden", "false");
-      }
-    }
-  
-    function closeRevealModal() {
-      if (state.dom.revealModal) {
-        state.dom.revealModal.classList.remove("open");
-        state.dom.revealModal.setAttribute("aria-hidden", "true");
-      }
-    }
-  
-    function renderAll() {
-      renderSessionStatus();
-      renderStats();
-      renderStateList();
-      renderLiveViewport();
-      renderPreviewViewport();
-    }
-  
-    function renderSessionStatus() {
-      const chip = state.dom.liveStatusChip;
-      if (!chip) return;
-  
-      if (state.session.started) {
-        chip.textContent = "Live Session Active";
-        chip.className = "chip live";
-      } else if (state.session.saved) {
-        chip.textContent = "Session Saved";
-        chip.className = "chip preview";
-      } else {
-        chip.textContent = "Session Ready";
-        chip.className = "chip live";
-      }
-    }
-  
-    function renderStats() {
-      const liveSlide = getLiveSlide();
-      const previewSlide = getPreviewSlide();
-  
-      if (state.dom.currentLiveState) {
-        state.dom.currentLiveState.textContent = liveSlide.stateKey;
-      }
-      if (state.dom.currentPreviewState) {
-        state.dom.currentPreviewState.textContent = previewSlide.stateKey;
-      }
-      if (state.dom.currentShowTitle) {
-        state.dom.currentShowTitle.textContent = state.deck.title;
-      }
-      if (state.dom.currentRevealState) {
-        state.dom.currentRevealState.textContent = state.playback.revealShown ? "On" : "Off";
-      }
-      if (state.dom.liveStateChip) {
-        state.dom.liveStateChip.textContent = liveSlide.stateKey;
-      }
-      if (state.dom.previewStateChip) {
-        state.dom.previewStateChip.textContent = previewSlide.stateKey;
-      }
-    }
-  
-    function renderStateList() {
-      const root = state.dom.stateList;
-      if (!root) return;
-  
-      const items = Array.from(root.querySelectorAll(".state-item"));
-      items.forEach(function (item, idx) {
-        item.classList.remove("active");
-        const chip = item.querySelector(".chip");
-        if (chip) chip.className = "chip";
-  
-        if (idx === state.playback.liveIndex) {
-          item.classList.add("active");
-          if (chip) {
-            chip.className = "chip live";
-            chip.textContent = "Live";
-          }
-        } else if (idx === state.playback.previewIndex) {
-          if (chip) {
-            chip.className = "chip preview";
-            chip.textContent = "Preview";
-          }
-        } else if (chip && !/answer pass/i.test(chip.textContent || "")) {
-          chip.textContent = "Queued";
-        }
-      });
-    }
-  
-    function renderLiveViewport() {
-      const slide = getLiveSlide();
-      const showAnswer = slide.kind === "summary" || state.playback.revealShown;
-  
-      setText(state.dom.liveRoundBadge, slide.roundBadge);
-      setText(state.dom.liveStateLabel, slide.stateLabel);
-      setText(state.dom.liveThemeLabel, "Theme: " + state.deck.theme);
-      setText(state.dom.liveCategory, slide.category);
-      setText(state.dom.liveQuestion, slide.question);
-      setText(state.dom.liveNotes, slide.notes || "");
-      setText(state.dom.liveModeChip, showAnswer ? "Reveal Visible" : (slide.modeChip || "Reveal Hidden"));
-  
-      renderOptions(state.dom.liveOptions, slide.options);
-  
-      if (state.dom.liveAnswer) {
-        const value = state.dom.liveAnswer.querySelector(".value");
-        if (value) value.textContent = slide.answer || "";
-        state.dom.liveAnswer.classList.toggle("visible", !!showAnswer && !!slide.answer);
-      }
-    }
-  
-    function renderPreviewViewport() {
-      const slide = getPreviewSlide();
-  
-      setText(state.dom.previewRoundBadge, slide.roundBadge);
-      setText(state.dom.previewStateLabel, slide.stateLabel);
-      setText(state.dom.previewThemeLabel, "Theme: " + state.deck.theme);
-      setText(state.dom.previewCategory, slide.category);
-      setText(state.dom.previewQuestion, slide.question);
-      setText(state.dom.previewNotes, slide.notes || "");
-      setText(state.dom.previewModeChip, "Preview Only");
-  
-      renderOptions(state.dom.previewOptions, slide.options);
-  
-      if (state.dom.previewAnswer) {
-        const value = state.dom.previewAnswer.querySelector(".value");
-        if (value) value.textContent = slide.answer || "";
-        state.dom.previewAnswer.classList.toggle("visible", !!slide.answer);
-      }
-    }
-  
-    function renderOptions(container, options) {
-      if (!container) return;
-      container.innerHTML = "";
-  
-      const normalized = Array.isArray(options) ? options.filter(Boolean) : [];
-      if (!normalized.length) {
-        container.style.display = "none";
-        return;
-      }
-  
-      container.style.display = "";
-      normalized.forEach(function (option, index) {
-        const row = document.createElement("div");
-        row.className = "slide-option";
-  
-        const key = document.createElement("span");
-        key.className = "slide-option-key";
-        key.textContent = String.fromCharCode(65 + index);
-  
-        const text = document.createElement("span");
-        text.textContent = option;
-  
-        row.appendChild(key);
-        row.appendChild(text);
-        container.appendChild(row);
-      });
-    }
-  
-    function getLiveSlide() {
-      return state.deck.slides[state.playback.liveIndex] || state.deck.slides[0];
-    }
-  
-    function getPreviewSlide() {
-      return state.deck.slides[state.playback.previewIndex] || state.deck.slides[0];
-    }
-  
-    function setText(el, value) {
-      if (el) el.textContent = value == null ? "" : String(value);
-    }
-  
-    function flashStatus(text) {
-      const chip = state.dom.liveStatusChip;
-      if (!chip) return;
-  
-      const originalText = chip.textContent;
-      const originalClass = chip.className;
-  
-      chip.textContent = text;
-      chip.className = "chip preview";
-  
-      setTimeout(function () {
-        chip.textContent = originalText;
-        chip.className = originalClass;
-      }, 1400);
-    }
-  
-    function clamp(value, min, max) {
-      return Math.max(min, Math.min(max, value));
-    }
-  
-    document.addEventListener("DOMContentLoaded", init);
-  })();
+    const t = document.createElement('textarea');
+    t.value = text;
+    document.body.appendChild(t);
+    t.select();
+    try { document.execCommand('copy'); } catch (_) {}
+    document.body.removeChild(t);
+  }
+
+  function flash(el, label) {
+    if (!el) return;
+    const orig = el.textContent;
+    el.textContent = label;
+    setTimeout(function () { el.textContent = orig; }, 1600);
+  }
+
+  function showError(msg) {
+    hide('auth-loading');
+    const et = document.getElementById('error-text');
+    if (et) et.textContent = msg || 'Access denied.';
+    const ec = document.getElementById('error-container');
+    if (ec) ec.style.display = 'flex';
+  }
+
+})();
