@@ -9,6 +9,14 @@
       ]
     },
     {
+      "collectionGroup": "showDrafts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "authorUid", "order": "ASCENDING" },
+        { "fieldPath": "lastTouchedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "shiftCoverageRequests",
       "queryScope": "COLLECTION",
       "fields": [
