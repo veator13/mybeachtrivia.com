@@ -855,6 +855,13 @@ textarea {
   padding: 8px 10px;
 }
 
+/* Matches the active filmstrip thumb when the timeline selects this block */
+.template-builder-card--current {
+  border-color: rgba(96, 165, 250, 0.45);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.25);
+  background: rgba(15, 32, 62, 0.7);
+}
+
 .template-builder-head {
   display: flex;
   align-items: center;
@@ -2562,14 +2569,20 @@ textarea {
 }
 
 .small-stat-row--inline {
-  flex: 1 1 560px;
-  min-width: 420px;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
   justify-content: center;
   margin-inline: auto;
 }
 
 .show-info-bar .small-stat {
   padding: 5px 8px;
+  flex: 0 0 auto;
+  /* Hug label + value; avoid 1fr stretching pills across the row */
+  grid-template-columns: auto auto !important;
+  width: max-content;
+  max-width: min(13.5rem, 100%);
 }
 
 .show-info-bar .small-stat .label {

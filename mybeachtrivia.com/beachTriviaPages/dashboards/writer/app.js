@@ -731,6 +731,7 @@
 
     updateShowNav();
     highlightFilmstripThumb(idx);
+    syncTemplateBuilderListToCurrentSlide(idx);
   }
 
   function updateShowNav() {
@@ -1341,21 +1342,60 @@
     return inner;
   }
 
+  /** Which show block (index in `showState.blocks`) contains this flat slide index. */
+  function blockIndexForFlatIdx(flatIdx) {
+    if (!showState.blocks || !showState.blocks.length) return -1;
+    var offset = 0;
+    for (var i = 0; i < showState.blocks.length; i++) {
+      var entry = showState.blocks[i];
+      var len = (entry && entry.block && entry.block.slides) ? entry.block.slides.length : 0;
+      if (flatIdx >= offset && flatIdx < offset + len) {
+        return i;
+      }
+      offset += len;
+    }
+    return -1;
+  }
+
+  /**
+   * When a template (classic / feud) is active, keep the left Questions list aligned
+   * with the current slide: scroll the matching card into view and mark it current.
+   */
+  function syncTemplateBuilderListToCurrentSlide(flatIdx) {
+    if (!templateWorkflow.active) return;
+    if (templateWorkflow.type !== "classic-trivia" && templateWorkflow.type !== "feud-show") return;
+    var bIdx = blockIndexForFlatIdx(flatIdx);
+    if (bIdx < 0) return;
+    var entry = showState.blocks[bIdx];
+    if (!entry || !entry.block || !entry.block.id) return;
+    var blockId = String(entry.block.id);
+    var list = $("#template-builder-list");
+    if (!list) return;
+    var cards = list.querySelectorAll(".template-builder-card");
+    var found = null;
+    for (var c = 0; c < cards.length; c++) {
+      if (String(cards[c].getAttribute("data-block-id") || "") === blockId) {
+        found = cards[c];
+        break;
+      }
+    }
+    for (var d = 0; d < cards.length; d++) {
+      cards[d].classList.toggle("template-builder-card--current", cards[d] === found);
+    }
+    if (found) {
+      try {
+        found.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      } catch (err) {
+        try { found.scrollIntoView(true); } catch (e2) {}
+      }
+    }
+  }
+
   function highlightFilmstripThumb(flatIdx) {
     var strip = $("#slide-filmstrip");
     if (!strip) return;
 
-    // Find which block owns this flat index
-    var activeBlockIdx = -1;
-    var offset = 0;
-    for (var i = 0; i < showState.blocks.length; i++) {
-      var len = showState.blocks[i].block.slides.length;
-      if (flatIdx >= offset && flatIdx < offset + len) {
-        activeBlockIdx = i;
-        break;
-      }
-      offset += len;
-    }
+    var activeBlockIdx = blockIndexForFlatIdx(flatIdx);
 
     Array.from(strip.querySelectorAll(".filmstrip-thumb")).forEach(function (thumb) {
       var bIdx = parseInt(thumb.getAttribute("data-block-idx"), 10);
@@ -1570,9 +1610,9 @@
     }
   }
 
-  // ─── Questions tab: ↑/↓ move between category / question / answer fields.
-  //     In textareas, arrows move logical lines first (\n-separated); only from
-  //     first/last line do they move to the adjacent field.
+  // ─── Questions tab: ↑/↓ move between category / question / answer (and feud
+  //     survey-answer) fields. In textareas, arrows move visual lines first; only
+  //     from first/last line do they move to the adjacent field.
 
   var templateBuilderArrowNavBound = false;
 
@@ -1590,6 +1630,11 @@
       if (sel) out.push(sel);
       if (cat) out.push(cat);
       if (q) out.push(q);
+      // Feud show: ranked survey-answer inputs live between question and classic answer
+      var feudInps = card.querySelectorAll('[data-template-field="feudAnswer"]');
+      for (var fi = 0; fi < feudInps.length; fi++) {
+        out.push(feudInps[fi]);
+      }
       if (a) out.push(a);
     }
     return out;
@@ -1771,7 +1816,8 @@
       fieldName !== "questionType" &&
       fieldName !== "categoryName" &&
       fieldName !== "questionText" &&
-      fieldName !== "answerText"
+      fieldName !== "answerText" &&
+      fieldName !== "feudAnswer"
     ) {
       return;
     }
@@ -1840,6 +1886,7 @@
 
     if (templateWorkflow.type === "feud-show") {
       renderFeudTemplateBuilderList(wrap);
+      syncTemplateBuilderListToCurrentSlide(showState.currentIdx);
       return;
     }
 
@@ -1941,6 +1988,7 @@
       bindTemplateBuilderCardEvents(card, entry);
       wrap.appendChild(card);
     });
+    syncTemplateBuilderListToCurrentSlide(showState.currentIdx);
   }
 
   function buildQuestionTypeOptions(selectedValue) {
@@ -2245,7 +2293,7 @@
       var answerRowsHtml = feudAnswers.slice(0, 8).map(function (a, i) {
         return '<div class="feud-tb-answer-row" data-answer-idx="' + i + '">' +
           '<span class="feud-tb-rank">' + String(i + 1) + '</span>' +
-          '<input type="text" class="feud-tb-answer-input" placeholder="Survey answer ' + String(i + 1) + '" value="' + escapeHtml(a.text || "") + '">' +
+          '<input type="text" class="feud-tb-answer-input" data-template-field="feudAnswer" placeholder="Survey answer ' + String(i + 1) + '" value="' + escapeHtml(a.text || "") + '">' +
           '<span class="feud-tb-pts">' + String(8 - i) + ' pts</span>' +
           (feudAnswers.length > 3 ? '<button type="button" class="feud-tb-remove-btn" title="Remove">×</button>' : '') +
         '</div>';
@@ -2333,7 +2381,7 @@
         newRow.setAttribute("data-answer-idx", String(newIdx));
         newRow.innerHTML =
           '<span class="feud-tb-rank">' + String(newIdx + 1) + '</span>' +
-          '<input type="text" class="feud-tb-answer-input" placeholder="Survey answer ' + String(newIdx + 1) + '" value="">' +
+          '<input type="text" class="feud-tb-answer-input" data-template-field="feudAnswer" placeholder="Survey answer ' + String(newIdx + 1) + '" value="">' +
           '<span class="feud-tb-pts">' + String(8 - newIdx) + ' pts</span>' +
           '<button type="button" class="feud-tb-remove-btn" title="Remove">×</button>';
         list2.appendChild(newRow);
