@@ -124,7 +124,10 @@ service cloud.firestore {
     // so casted screens can join by session code without auth.
     // Writes remain restricted to host/admin.
     match /liveSessions/{sessionId} {
-      allow read: if (resource.data.publicViewer == true) || isHostOrAdmin() || isWriterOrAdmin();
+      // Cast opens /cast-game/?code=BT-xxxx (document id == code). Anonymous clients only need get.
+      // Do not allow list on the whole collection (would expose session ids).
+      allow get: if true;
+      allow list: if isHostOrAdmin() || isWriterOrAdmin();
       allow create, update: if isHostOrAdmin() || isWriterOrAdmin();
       allow delete: if isAdmin();
     }

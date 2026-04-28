@@ -294,36 +294,46 @@
         const db = firebase.firestore();
   
         state.unsubscribeSession = db.collection("liveSessions")
-          .where("sessionCode", "==", state.sessionCode)
-          .limit(1)
-          .onSnapshot(function (snapshot) {
-            showViewer();
-  
-            if (!snapshot.empty) {
-              const doc = snapshot.docs[0];
-              const data = doc.data() || {};
-              state.connected = true;
-              renderFromSessionDoc(data);
-              setStatus("Connected");
-              return;
+          .doc(state.sessionCode)
+          .onSnapshot(
+            function (docSnap) {
+              showViewer();
+
+              if (docSnap.exists) {
+                const data = docSnap.data() || {};
+                state.connected = true;
+                renderFromSessionDoc(data);
+                setStatus("Connected");
+                return;
+              }
+
+              state.connected = false;
+              renderStandbyWaiting();
+              setStatus("Waiting for host • Go Live");
+            },
+            function (err) {
+              console.error("[cast-game] session doc subscription failed:", err);
+              state.connected = false;
+              showViewer();
+              renderSlide(
+                {
+                  roundBadge: "",
+                  stateLabel: "Connection error",
+                  theme: "Standard Trivia",
+                  category: "",
+                  question:
+                    "Could not load this session. Open DevTools • Console for details.",
+                  options: [],
+                  answer: "",
+                  notes: String(err && err.message ? err.message : err),
+                  reveal: false,
+                  modeChip: "Error",
+                },
+                ""
+              );
+              setStatus("Error • see console");
             }
-  
-            state.connected = false;
-            renderFromSessionDoc({
-              currentStateKey: "round1.q2.live",
-              revealShown: false,
-            });
-            setStatus("Demo Mode • Waiting for Firestore session");
-          }, function (err) {
-            console.error("[cast-game] session subscription failed:", err);
-            state.connected = false;
-            showViewer();
-            renderFromSessionDoc({
-              currentStateKey: "round1.q2.live",
-              revealShown: false,
-            });
-            setStatus("Demo Mode");
-          });
+          );
       });
     }
   
@@ -338,22 +348,44 @@
       state.unsubscribeSession = null;
     }
   
+    function renderStandbyWaiting() {
+      renderSlide(
+        {
+          roundBadge: "",
+          stateLabel: "Standby",
+          theme: "Standard Trivia",
+          category: "",
+          question:
+            "Waiting for the host to press Go Live. This screen will match Cast Preview in the host console.",
+          options: [],
+          answer: "",
+          notes: "",
+          reveal: false,
+          modeChip: "Standby",
+        },
+        ""
+      );
+    }
+
     function renderFromSessionDoc(docData) {
-      const currentStateKey = String(docData && docData.currentStateKey || "round1.q2.live");
+      const currentStateKey = String((docData && docData.currentStateKey) || "");
       const revealShown = !!(docData && docData.revealShown);
       const currentSlide = docData && docData.currentSlide ? docData.currentSlide : null;
       const showTitle = String(docData && docData.showTitle || "");
       const theme = String(docData && docData.theme || "");
-  
+
       let slideData = null;
-  
+
       if (currentSlide && typeof currentSlide === "object") {
         slideData = normalizeIncomingSlide(currentSlide, currentStateKey, revealShown, theme);
-      } else {
+      } else if (currentStateKey) {
         slideData = getFallbackSlideForState(currentStateKey, revealShown);
         if (theme) slideData.theme = theme;
+      } else {
+        slideData = getFallbackSlideForState("waiting", revealShown);
+        if (theme) slideData.theme = theme;
       }
-  
+
       renderSlide(slideData, showTitle);
     }
   

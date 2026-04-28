@@ -400,6 +400,7 @@
     }
 
     renderMedia(effectiveType, data.block.imageUrl, data.block.audioUrl);
+    enforceInfoSlideTopClearance(data.block.type);
     syncAnswerPreviewToMode(mode);
     if (!renderOpts.skipToolbar) {
       syncRevealToolbarToMode(getMode());
@@ -487,7 +488,25 @@
       stateLabel: preferredSlide.stateLabel || "",
     });
     applyThemeClass(preferredSlide.themeStyle || block.themeStyle || "Standard Trivia");
+    enforceInfoSlideTopClearance(block.type || preferredSlide.blockType || "");
     updateRevealVisibility();
+  }
+
+  function enforceInfoSlideTopClearance(blockType) {
+    if (!dom || !dom.previewStage || !dom.previewQuestion) return;
+    dom.previewQuestion.style.marginTop = "";
+    if (String(blockType || "").toLowerCase() !== "info-slide") return;
+
+    var topRow = dom.previewStage.querySelector(".slide-top");
+    if (!topRow) return;
+
+    var topRect = topRow.getBoundingClientRect();
+    var qRect = dom.previewQuestion.getBoundingClientRect();
+    var minGap = Math.max(12, Math.round((dom.previewStage.clientWidth || 0) * 0.012));
+    var overlapPx = (topRect.bottom + minGap) - qRect.top;
+    if (overlapPx > 0) {
+      dom.previewQuestion.style.marginTop = overlapPx.toFixed(2) + "px";
+    }
   }
 
   function renderRoundBadge(text) {
@@ -672,26 +691,65 @@
       const body = document.createElement("div");
       body.className = "slide-display-content";
 
+      function stripLeadingBullet(line) {
+        const c = line.charAt(0);
+        if (c === "\u2022" || c === "\u2023" || c === "•" || c === "*") {
+          return line.substring(1).trim();
+        }
+        return line;
+      }
+
+      function appendBulletRow(target, line, scoringClass) {
+        const item = document.createElement("div");
+        const lineText = stripLeadingBullet(line);
+        item.className = "slide-rules-item" + (scoringClass ? " " + scoringClass : "");
+        const c0 = line.charAt(0);
+        const hasBullet = c0 === "\u2022" || c0 === "\u2023" || c0 === "•" || c0 === "*";
+        if (hasBullet) {
+          const bullet = document.createElement("span");
+          bullet.className = "slide-rules-bullet";
+          bullet.textContent = "\u2022";
+          const span = document.createElement("span");
+          span.className = "slide-rules-text";
+          span.textContent = lineText;
+          item.appendChild(bullet);
+          item.appendChild(span);
+        } else {
+          item.textContent = line;
+        }
+        target.appendChild(item);
+      }
+
       const lines = text.split("\n").map(function (l) { return l.trim(); }).filter(Boolean);
       if (lines.length > 1) {
+        const bodyLines = [];
+        const scoringLines = [];
         lines.forEach(function (line) {
-          const item = document.createElement("div");
-          const lineText = line.charAt(0) === "\u2022" ? line.substring(1).trim() : line;
-          // Lines over 58 chars span both columns so they don't get squashed
-          item.className = "slide-rules-item" + (lineText.length > 58 ? " slide-rules-item--wide" : "");
-          if (line.charAt(0) === "\u2022") {
-            const bullet = document.createElement("span");
-            bullet.className = "slide-rules-bullet";
-            bullet.textContent = "\u2022";
-            const span = document.createElement("span");
-            span.textContent = lineText;
-            item.appendChild(bullet);
-            item.appendChild(span);
+          const plain = stripLeadingBullet(line);
+          if (/^\s*Scoring\s*:/i.test(plain)) {
+            scoringLines.push(line);
           } else {
-            item.textContent = line;
+            bodyLines.push(line);
           }
-          body.appendChild(item);
         });
+
+        const grid = document.createElement("div");
+        grid.className = "slide-rules-grid";
+        bodyLines.forEach(function (line) {
+          appendBulletRow(grid, line, "");
+        });
+        if (bodyLines.length) {
+          body.appendChild(grid);
+        }
+
+        if (scoringLines.length) {
+          const footer = document.createElement("div");
+          footer.className = "slide-rules-scoring";
+          scoringLines.forEach(function (line) {
+            appendBulletRow(footer, line, "slide-rules-item--scoring");
+          });
+          body.appendChild(footer);
+        }
       } else {
         body.textContent = text;
       }

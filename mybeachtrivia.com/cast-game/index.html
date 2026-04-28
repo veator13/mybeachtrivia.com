@@ -9,25 +9,22 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js" defer></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js" defer></script>
   <script src="/beachTriviaPages/js/firebase-init-compat.js?v=1" defer></script>
+  <script src="/beachTriviaPages/dashboards/shared/slide-paint.js?v=20260428" defer></script>
+
+  <link rel="stylesheet" href="/beachTriviaPages/dashboards/shared/preview-stage.css?v=20260428" />
 
   <style>
     *, *::before, *::after { box-sizing: border-box; }
 
     :root {
       --bg: #081120;
-      --panel: #0f1b33;
-      --panel-2: #132443;
       --line: rgba(148, 163, 184, 0.18);
       --text: #e2e8f0;
       --muted: #9fb0c7;
       --blue: #4da3ff;
       --blue-2: #2d7fe0;
       --green: #22c55e;
-      --amber: #f59e0b;
       --shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
-      --radius-xl: 24px;
-      --radius-lg: 18px;
-      --radius-md: 14px;
     }
 
     html, body {
@@ -36,9 +33,6 @@
       background: var(--bg);
       color: var(--text);
       font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    }
-
-    body {
       line-height: 1.45;
     }
 
@@ -56,9 +50,7 @@
       text-align: center;
     }
 
-    #error-screen {
-      display: none;
-    }
+    #error-screen { display: none; }
 
     .spinner {
       border: 4px solid rgba(255,255,255,0.1);
@@ -70,41 +62,21 @@
       margin-bottom: 16px;
     }
 
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
+    /* Full-screen shell: same 16:9 preview-stage as host “Cast Live” */
     .viewer-shell {
       min-height: 100vh;
       display: none;
-      padding: 18px;
+      padding: clamp(8px, 2vmin, 20px);
+      align-items: center;
+      justify-content: center;
     }
 
-    .viewer-stage {
-      width: min(98vw, 1920px);
-      min-height: calc(100vh - 36px);
-      margin: 0 auto;
-      border-radius: 28px;
-      padding: 28px;
-      position: relative;
-      overflow: hidden;
-      border: 1px solid rgba(148, 163, 184, 0.14);
-      background:
-        radial-gradient(circle at top left, rgba(77, 163, 255, 0.16), transparent 30%),
-        linear-gradient(180deg, #142344 0%, #081120 100%);
-      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03);
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-    }
-
-    .viewer-stage::after {
-      content: "";
-      position: absolute;
-      inset: 16px;
-      border-radius: 22px;
-      border: 1px solid rgba(255,255,255,0.05);
-      pointer-events: none;
+    .viewer-shell .preview-stage {
+      width: min(96vw, calc(92vh * 16 / 9));
+      max-width: 100%;
+      max-height: 92vh;
     }
 
     .join-overlay {
@@ -151,23 +123,11 @@
       color: #f8fbff;
     }
 
-    .join-card p {
-      margin: 0 0 18px;
-      color: var(--muted);
-    }
+    .join-card p { margin: 0 0 18px; color: var(--muted); }
 
-    .field {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      margin-bottom: 16px;
-    }
+    .field { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
 
-    .field label {
-      font-size: 13px;
-      font-weight: 700;
-      color: #e2e8f0;
-    }
+    .field label { font-size: 13px; font-weight: 700; color: #e2e8f0; }
 
     input[type="text"] {
       width: 100%;
@@ -178,7 +138,6 @@
       padding: 13px 14px;
       font: inherit;
       outline: none;
-      transition: border-color 0.15s ease, box-shadow 0.15s ease;
     }
 
     input[type="text"]:focus {
@@ -186,11 +145,7 @@
       box-shadow: 0 0 0 3px rgba(77, 163, 255, 0.16);
     }
 
-    .btn-row {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
+    .btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
 
     .btn {
       border: 1px solid transparent;
@@ -200,172 +155,15 @@
       font-weight: 800;
       cursor: pointer;
       min-height: 44px;
-      transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
     }
 
-    .btn:hover { transform: translateY(-1px); }
-    .btn:active { transform: translateY(0); }
-
-    .btn-primary {
-      background: var(--blue);
-      color: #fff;
-    }
-
-    .btn-primary:hover {
-      background: var(--blue-2);
-    }
+    .btn-primary { background: var(--blue); color: #fff; }
+    .btn-primary:hover { background: var(--blue-2); }
 
     .btn-secondary {
       background: rgba(148, 163, 184, 0.12);
       border-color: rgba(148, 163, 184, 0.22);
       color: #e2e8f0;
-    }
-
-    .viewer-top {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 16px;
-      position: relative;
-      z-index: 1;
-    }
-
-    .slide-badge {
-      display: inline-flex;
-      align-items: center;
-      padding: 8px 14px;
-      border-radius: 999px;
-      font-size: 12px;
-      font-weight: 800;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      background: rgba(77,163,255,0.16);
-      color: #d8ecff;
-      border: 1px solid rgba(77,163,255,0.22);
-    }
-
-    .viewer-meta {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      gap: 8px;
-      color: #cfdef2;
-      font-size: 12px;
-      text-align: right;
-    }
-
-    .viewer-middle {
-      position: relative;
-      z-index: 1;
-      margin: 24px 0;
-      display: grid;
-      gap: 24px;
-      align-content: center;
-      flex: 1;
-    }
-
-    .slide-category {
-      font-size: clamp(22px, 2vw, 34px);
-      font-weight: 800;
-      color: #9fd0ff;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-    }
-
-    .slide-question {
-      font-size: clamp(34px, 4vw, 64px);
-      line-height: 1.1;
-      font-weight: 900;
-      color: #f8fbff;
-      word-break: break-word;
-    }
-
-    .slide-options {
-      display: grid;
-      gap: 14px;
-    }
-
-    .slide-option {
-      padding: 16px 18px;
-      border-radius: 18px;
-      background: rgba(255,255,255,0.07);
-      border: 1px solid rgba(255,255,255,0.08);
-      display: flex;
-      gap: 14px;
-      align-items: flex-start;
-      color: #e8f1fb;
-      font-size: clamp(20px, 2.2vw, 34px);
-    }
-
-    .slide-option-key {
-      width: 38px;
-      height: 38px;
-      border-radius: 999px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      background: rgba(77,163,255,0.18);
-      color: #d7ebff;
-      font-weight: 800;
-      font-size: 15px;
-    }
-
-    .slide-answer {
-      display: none;
-      border-radius: 18px;
-      border: 1px dashed rgba(34,197,94,0.38);
-      background: rgba(34,197,94,0.08);
-      padding: 18px 20px;
-    }
-
-    .slide-answer.visible {
-      display: block;
-    }
-
-    .slide-answer .label {
-      color: #86efac;
-      font-size: 12px;
-      font-weight: 900;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      margin-bottom: 6px;
-    }
-
-    .slide-answer .value {
-      color: #f0fdf4;
-      font-size: clamp(24px, 2.4vw, 38px);
-      font-weight: 900;
-      line-height: 1.15;
-    }
-
-    .viewer-bottom {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-end;
-      gap: 14px;
-      flex-wrap: wrap;
-      position: relative;
-      z-index: 1;
-      margin-top: 18px;
-    }
-
-    .viewer-notes {
-      max-width: 72%;
-      color: #d4e2f1;
-      font-size: 13px;
-    }
-
-    .mode-chip {
-      display: inline-flex;
-      align-items: center;
-      padding: 9px 13px;
-      border-radius: 999px;
-      background: rgba(245,158,11,0.12);
-      color: #fde68a;
-      border: 1px solid rgba(245,158,11,0.2);
-      font-size: 12px;
-      font-weight: 800;
     }
 
     .status-floating {
@@ -394,74 +192,28 @@
       background: var(--green);
       box-shadow: 0 0 0 4px rgba(34,197,94,0.12);
     }
-
-    @media (max-width: 900px) {
-      .viewer-shell {
-        padding: 10px;
-      }
-
-      .viewer-stage {
-        width: 100%;
-        min-height: calc(100vh - 20px);
-        border-radius: 20px;
-        padding: 18px;
-      }
-
-      .viewer-stage::after {
-        inset: 10px;
-        border-radius: 16px;
-      }
-
-      .slide-question {
-        font-size: clamp(28px, 7vw, 42px);
-      }
-
-      .slide-option {
-        font-size: clamp(18px, 5vw, 24px);
-      }
-
-      .viewer-notes {
-        max-width: 100%;
-      }
-
-      .viewer-top {
-        flex-direction: column;
-        align-items: flex-start;
-      }
-
-      .viewer-meta {
-        align-items: flex-start;
-        text-align: left;
-      }
-    }
   </style>
 </head>
 <body>
   <div id="loading-screen">
     <div class="spinner"></div>
-    <p>Loading cast viewer...</p>
+    <p>Loading cast viewer…</p>
   </div>
 
   <div id="error-screen">
     <h2 style="margin:0 0 10px;">Unable to load viewer</h2>
-    <p id="error-text" style="margin:0; max-width:540px; color:#9fb0c7;">
-      Something went wrong while loading the cast game.
-    </p>
+    <p id="error-text" style="margin:0; max-width:540px; color:#9fb0c7;">Something went wrong.</p>
   </div>
 
   <div class="join-overlay" id="join-overlay">
     <div class="join-card">
       <span class="eyebrow">Beach Trivia • Cast Viewer</span>
       <h1>Join Live Session</h1>
-      <p>
-        Open this same page on every casted screen and enter the same session code so every viewer stays synced.
-      </p>
-
+      <p>Use the session code from the host console (same code in the cast URL).</p>
       <div class="field">
         <label for="session-code-input">Session Code</label>
         <input id="session-code-input" type="text" placeholder="Example: BT-4827" />
       </div>
-
       <div class="btn-row">
         <button class="btn btn-primary" type="button" id="join-session-btn">Join Session</button>
         <button class="btn btn-secondary" type="button" id="reload-code-btn">Use URL Code</button>
@@ -469,57 +221,8 @@
     </div>
   </div>
 
-  <main class="viewer-shell" id="viewer-shell" aria-label="Casted slideshow viewer">
-    <section class="viewer-stage" id="viewer-stage">
-      <div class="viewer-top">
-        <span class="slide-badge" id="round-badge">Round 1</span>
-
-        <div class="viewer-meta">
-          <span id="state-label">Live Question</span>
-          <span id="theme-label">Theme: Standard Trivia</span>
-          <span id="session-label">Session: BT-4827</span>
-        </div>
-      </div>
-
-      <div class="viewer-middle">
-        <div class="slide-category" id="slide-category">Classic Artists</div>
-
-        <div class="slide-question" id="slide-question">
-          Which artist is known for the painting style shown on the screen?
-        </div>
-
-        <div class="slide-options" id="slide-options">
-          <div class="slide-option">
-            <span class="slide-option-key">A</span>
-            <span>Andy Warhol</span>
-          </div>
-          <div class="slide-option">
-            <span class="slide-option-key">B</span>
-            <span>Jean-Michel Basquiat</span>
-          </div>
-          <div class="slide-option">
-            <span class="slide-option-key">C</span>
-            <span>Keith Haring</span>
-          </div>
-          <div class="slide-option">
-            <span class="slide-option-key">D</span>
-            <span>Roy Lichtenstein</span>
-          </div>
-        </div>
-
-        <div class="slide-answer" id="slide-answer">
-          <div class="label">Answer</div>
-          <div class="value" id="slide-answer-value">Jean-Michel Basquiat</div>
-        </div>
-      </div>
-
-      <div class="viewer-bottom">
-        <div class="viewer-notes" id="viewer-notes">
-          Connected viewer screens should mirror the host's live session state.
-        </div>
-        <span class="mode-chip" id="mode-chip">Reveal Hidden</span>
-      </div>
-    </section>
+  <main class="viewer-shell" id="viewer-shell" aria-label="Cast slideshow">
+    <div id="cast-stage" class="preview-stage"></div>
   </main>
 
   <div class="status-floating" id="status-floating" style="display:none;">
@@ -534,78 +237,16 @@
       var errorText = document.getElementById("error-text");
       var joinOverlay = document.getElementById("join-overlay");
       var viewerShell = document.getElementById("viewer-shell");
-
+      var castStage = document.getElementById("cast-stage");
       var sessionCodeInput = document.getElementById("session-code-input");
       var joinSessionBtn = document.getElementById("join-session-btn");
       var reloadCodeBtn = document.getElementById("reload-code-btn");
-
-      var roundBadge = document.getElementById("round-badge");
-      var stateLabel = document.getElementById("state-label");
-      var themeLabel = document.getElementById("theme-label");
-      var sessionLabel = document.getElementById("session-label");
-      var slideCategory = document.getElementById("slide-category");
-      var slideQuestion = document.getElementById("slide-question");
-      var slideOptions = document.getElementById("slide-options");
-      var slideAnswer = document.getElementById("slide-answer");
-      var slideAnswerValue = document.getElementById("slide-answer-value");
-      var viewerNotes = document.getElementById("viewer-notes");
-      var modeChip = document.getElementById("mode-chip");
       var statusFloating = document.getElementById("status-floating");
       var statusFloatingText = document.getElementById("status-floating-text");
 
       var activeSessionCode = "";
       var unsubscribeSession = null;
-
-      var fallbackSlides = {
-        "round1.categories": {
-          roundBadge: "Round 1",
-          stateLabel: "Round 1 Categories",
-          theme: "Standard Trivia",
-          category: "Round Categories",
-          question: "Classic Artists • World Capitals • Famous Films • 90s Music • Strange History",
-          options: [],
-          answer: "",
-          notes: "Connected viewer screens should mirror the host's live session state.",
-          reveal: false,
-          modeChip: "Categories"
-        },
-        "round1.q2.live": {
-          roundBadge: "Round 1",
-          stateLabel: "Live Question",
-          theme: "Standard Trivia",
-          category: "Classic Artists",
-          question: "Which artist is known for the painting style shown on the screen?",
-          options: ["Andy Warhol", "Jean-Michel Basquiat", "Keith Haring", "Roy Lichtenstein"],
-          answer: "Jean-Michel Basquiat",
-          notes: "Connected viewer screens should mirror the host's live session state.",
-          reveal: false,
-          modeChip: "Reveal Hidden"
-        },
-        "round1.q2.reveal": {
-          roundBadge: "Round 1",
-          stateLabel: "Answer Reveal",
-          theme: "Standard Trivia",
-          category: "Classic Artists",
-          question: "Which artist is known for the painting style shown on the screen?",
-          options: ["Andy Warhol", "Jean-Michel Basquiat", "Keith Haring", "Roy Lichtenstein"],
-          answer: "Jean-Michel Basquiat",
-          notes: "Answer reveal state pushed from the host console.",
-          reveal: true,
-          modeChip: "Reveal Visible"
-        },
-        "round1.answers-summary": {
-          roundBadge: "Round 1",
-          stateLabel: "Answers Summary",
-          theme: "Standard Trivia",
-          category: "All Round 1 Answers",
-          question: "1) Basquiat  •  2) Basquiat  •  3) Basquiat  •  4) Basquiat  •  5) Basquiat",
-          options: [],
-          answer: "Jean-Michel Basquiat",
-          notes: "Summary slide shown after the repeated reveal pass.",
-          reveal: true,
-          modeChip: "Summary"
-        }
-      };
+      var lastSessionData = null;
 
       function showError(message) {
         if (loadingScreen) loadingScreen.style.display = "none";
@@ -628,8 +269,16 @@
         if (loadingScreen) loadingScreen.style.display = "none";
         if (errorScreen) errorScreen.style.display = "none";
         if (joinOverlay) joinOverlay.style.display = "none";
-        if (viewerShell) viewerShell.style.display = "block";
+        if (viewerShell) viewerShell.style.display = "flex";
         if (statusFloating) statusFloating.style.display = "inline-flex";
+      }
+
+      function showLoading() {
+        if (loadingScreen) loadingScreen.style.display = "flex";
+        if (errorScreen) errorScreen.style.display = "none";
+        if (joinOverlay) joinOverlay.style.display = "none";
+        if (viewerShell) viewerShell.style.display = "none";
+        if (statusFloating) statusFloating.style.display = "none";
       }
 
       function waitForFirebase(cb, attempts) {
@@ -647,10 +296,25 @@
         }, 100);
       }
 
+      function waitForSlidePaint(cb, attempts) {
+        var n = attempts || 0;
+        if (window.BeachTriviaSlidePaint && typeof window.BeachTriviaSlidePaint.paintSlide === "function") {
+          cb();
+          return;
+        }
+        if (n > 40) {
+          showError("Slide renderer failed to load.");
+          return;
+        }
+        setTimeout(function () {
+          waitForSlidePaint(cb, n + 1);
+        }, 50);
+      }
+
       function getUrlCode() {
         try {
           var params = new URLSearchParams(window.location.search);
-          return (params.get("code") || "").trim();
+          return (params.get("code") || "").trim().toUpperCase();
         } catch (err) {
           return "";
         }
@@ -660,90 +324,54 @@
         if (statusFloatingText) statusFloatingText.textContent = text || "Connected";
       }
 
-      function renderOptions(options) {
-        if (!slideOptions) return;
-
-        slideOptions.innerHTML = "";
-        var normalized = Array.isArray(options) ? options.filter(Boolean) : [];
-
-        if (!normalized.length) {
-          slideOptions.style.display = "none";
-          return;
-        }
-
-        slideOptions.style.display = "";
-        normalized.forEach(function (option, index) {
-          var row = document.createElement("div");
-          row.className = "slide-option";
-
-          var key = document.createElement("span");
-          key.className = "slide-option-key";
-          key.textContent = String.fromCharCode(65 + index);
-
-          var text = document.createElement("span");
-          text.textContent = option;
-
-          row.appendChild(key);
-          row.appendChild(text);
-          slideOptions.appendChild(row);
-        });
-      }
-
-      function renderSlide(data) {
-        if (!data) return;
-
-        if (roundBadge) roundBadge.textContent = data.roundBadge || "Round";
-        if (stateLabel) stateLabel.textContent = data.stateLabel || "Live Question";
-        if (themeLabel) themeLabel.textContent = "Theme: " + (data.theme || "Standard Trivia");
-        if (sessionLabel) sessionLabel.textContent = "Session: " + (activeSessionCode || "—");
-        if (slideCategory) slideCategory.textContent = data.category || "Category";
-        if (slideQuestion) slideQuestion.textContent = data.question || "Waiting for live slide...";
-        if (viewerNotes) viewerNotes.textContent = data.notes || "";
-        if (modeChip) modeChip.textContent = data.modeChip || "Reveal Hidden";
-        if (slideAnswerValue) slideAnswerValue.textContent = data.answer || "";
-
-        renderOptions(data.options);
-
-        if (slideAnswer) {
-          slideAnswer.classList.toggle("visible", !!data.reveal && !!data.answer);
-        }
-      }
-
-      function getFallbackSlideForState(stateKey, revealShown) {
-        if (revealShown && fallbackSlides[stateKey + ".reveal"]) {
-          return fallbackSlides[stateKey + ".reveal"];
-        }
-
-        if (fallbackSlides[stateKey]) {
-          if (revealShown && fallbackSlides[stateKey].answer) {
-            var clone = JSON.parse(JSON.stringify(fallbackSlides[stateKey]));
-            clone.reveal = true;
-            clone.modeChip = "Reveal Visible";
-            clone.stateLabel = clone.stateLabel === "Live Question" ? "Answer Reveal" : clone.stateLabel;
-            return clone;
-          }
-          return fallbackSlides[stateKey];
-        }
-
+      function sessionDocToSlide(docData) {
+        var cs = docData && docData.currentSlide ? docData.currentSlide : {};
+        var theme = cs.theme || docData.theme || "";
         return {
-          roundBadge: "Trivia Night",
-          stateLabel: stateKey || "Waiting for slide",
-          theme: "Standard Trivia",
-          category: "Beach Trivia",
-          question: "Waiting for the host to start or sync this session.",
-          options: [],
-          answer: "",
-          notes: "This viewer will update when the live session state changes.",
-          reveal: false,
-          modeChip: "Waiting"
+          stateKey: (docData && docData.currentStateKey) || "",
+          roundBadge: cs.roundBadge || "",
+          stateLabel: cs.stateLabel || "",
+          category: cs.category || "",
+          question: cs.question || "",
+          options: Array.isArray(cs.options) ? cs.options : [],
+          answer: cs.answer || "",
+          notes: cs.notes || "",
+          kind: cs.kind || "",
+          blockType: cs.blockType || "",
+          questionType: cs.questionType || "",
+          questionAlign: cs.questionAlign || "",
+          questionFontScale: typeof cs.questionFontScale === "number" ? cs.questionFontScale : 1,
+          matchingPairs: Array.isArray(cs.matchingPairs) ? cs.matchingPairs : [],
+          orderingItems: Array.isArray(cs.orderingItems) ? cs.orderingItems : [],
+          theme: theme,
+          alwaysReveal: !!cs.answerVisibleByDefault,
         };
       }
 
-      function renderFromSessionDoc(docData) {
-        var stateKey = (docData && docData.currentStateKey) || "round1.q2.live";
-        var revealShown = !!(docData && docData.revealShown);
-        var slideData = getFallbackSlideForState(stateKey, revealShown);
-        renderSlide(slideData);
+      function renderStandby(el) {
+        if (!el) return;
+        el.innerHTML =
+          '<div style="display:flex;align-items:center;justify-content:center;min-height:120px;padding:clamp(16px,4cqw,32px);text-align:center;color:#94a3b8;font-size:clamp(13px,2.5cqw,18px);line-height:1.4;">Waiting for the host to press <strong style="color:#e2e8f0;">Go Live</strong> in the host console. This display matches <strong style="color:#e2e8f0;">Cast Preview / Cast Live</strong>.</div>';
+      }
+
+      function paintFromDoc(data) {
+        if (!castStage || !window.BeachTriviaSlidePaint) return;
+        lastSessionData = data;
+        var slide = sessionDocToSlide(data || {});
+        var reveal = !!(data && data.revealShown) || !!slide.alwaysReveal;
+        window.BeachTriviaSlidePaint.paintSlide(castStage, slide, reveal);
+      }
+
+      if (castStage && typeof ResizeObserver !== "undefined") {
+        var _castResizeRaf = 0;
+        new ResizeObserver(function () {
+          if (!lastSessionData) return;
+          if (_castResizeRaf) cancelAnimationFrame(_castResizeRaf);
+          _castResizeRaf = requestAnimationFrame(function () {
+            _castResizeRaf = 0;
+            paintFromDoc(lastSessionData);
+          });
+        }).observe(castStage);
       }
 
       function joinSession(code) {
@@ -754,48 +382,56 @@
         }
 
         if (sessionCodeInput) sessionCodeInput.value = activeSessionCode;
-        showViewer();
-        setStatus("Connecting...");
+        showLoading();
+        setStatus("Connecting…");
 
         if (unsubscribeSession) {
-          try { unsubscribeSession(); } catch (err) {}
+          try {
+            unsubscribeSession();
+          } catch (err) {}
           unsubscribeSession = null;
         }
 
         waitForFirebase(function () {
-          var db = firebase.firestore();
+          waitForSlidePaint(function () {
+            if (loadingScreen) loadingScreen.style.display = "none";
+            showViewer();
+            setStatus("Connecting…");
 
-          unsubscribeSession = db.collection("liveSessions")
-            .where("sessionCode", "==", activeSessionCode)
-            .limit(1)
-            .onSnapshot(function (snapshot) {
-              if (!snapshot.empty) {
-                var doc = snapshot.docs[0];
-                var data = doc.data() || {};
-                renderFromSessionDoc(data);
-                setStatus("Connected");
-                return;
+            var db = firebase.firestore();
+            var docRef = db.collection("liveSessions").doc(activeSessionCode);
+
+            unsubscribeSession = docRef.onSnapshot(
+              function (docSnap) {
+                showViewer();
+                if (docSnap.exists) {
+                  var data = docSnap.data() || {};
+                  paintFromDoc(data);
+                  setStatus("Live • synced");
+                  return;
+                }
+                lastSessionData = null;
+                renderStandby(castStage);
+                setStatus("Waiting for host • Go Live");
+              },
+              function (err) {
+                console.error("[cast-game] session doc subscription failed:", err);
+                showViewer();
+                if (castStage) {
+                  castStage.innerHTML =
+                    '<div style="padding:24px;color:#fca5a5;font-size:clamp(13px,2cqw,16px);">Could not subscribe to this session. Check the console (F12).</div>';
+                }
+                setStatus("Error • see console");
               }
-
-              renderFromSessionDoc({
-                currentStateKey: "round1.q2.live",
-                revealShown: false
-              });
-              setStatus("Demo Mode • Waiting for Firestore session");
-            }, function (err) {
-              console.error("[cast-game] session subscription failed:", err);
-              renderFromSessionDoc({
-                currentStateKey: "round1.q2.live",
-                revealShown: false
-              });
-              setStatus("Demo Mode");
-            });
+            );
+          });
         });
       }
 
       if (joinSessionBtn) {
         joinSessionBtn.addEventListener("click", function () {
-          var code = (sessionCodeInput && sessionCodeInput.value || "").trim();
+          var code = (sessionCodeInput && sessionCodeInput.value) || "";
+          code = String(code).trim();
           if (!code) {
             sessionCodeInput && sessionCodeInput.focus();
             return;
@@ -821,13 +457,12 @@
       }
 
       var initialCode = getUrlCode();
-      if (sessionCodeInput) {
-        sessionCodeInput.value = initialCode;
-      }
+      if (sessionCodeInput) sessionCodeInput.value = initialCode;
 
       if (initialCode) {
         joinSession(initialCode);
       } else {
+        if (loadingScreen) loadingScreen.style.display = "none";
         showJoin();
       }
     });

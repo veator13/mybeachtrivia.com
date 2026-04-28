@@ -1,4 +1,4 @@
-// live-console/app.js v8
+// live-console/app.js — dedupe live/reveal in flattenSlides; Reveal buttons toggle like writer
 
 (function () {
   'use strict';
@@ -19,6 +19,8 @@
   };
 
   const dom = {};
+  var _resizeRaf = 0;
+  var _stageResizeObserver = null;
 
   // ── Boot ───────────────────────────────────────────────────────────────────
 
@@ -100,11 +102,19 @@
     on('btn-cast-prev', 'click', function () { stepCast(-1); });
     on('btn-cast-next', 'click', function () { stepCast(1); });
 
-    on('btn-host-reveal', 'click', function () { setHostRevealed(true); });
+    on('btn-host-reveal', 'click', function () {
+      toggleHostReveal();
+    });
     on('btn-host-hide',   'click', function () { setHostRevealed(false); });
 
-    on('btn-reveal', 'click', function () { setRevealed(true); });
+    on('btn-reveal', 'click', function () {
+      toggleCastReveal();
+    });
     on('btn-hide',   'click', function () { setRevealed(false); });
+
+    // Keep previews responsive when host-event iframe/container resizes.
+    window.addEventListener('resize', scheduleResponsiveRender);
+    setupStageResizeObserver();
   }
 
   // ── Shows ──────────────────────────────────────────────────────────────────
@@ -229,6 +239,20 @@
       if (!block) return;
       const roundBadge = block.roundName || block.label || '';
       (Array.isArray(block.slides) ? block.slides : []).forEach(function (s) {
+        /* Writer emits back-to-back live + reveal for the same question (same prompt).
+           Host advances with Prev/Next and uses Reveal to show answers — keep only the live
+           slide here. Standalone reveal slides (e.g. reveal pass after turn-in) stay: the
+           previous flattened slide is not the matching *.live. */
+        var sk = String(s.stateKey || '');
+        if (/\.reveal$/i.test(sk)) {
+          var liveKey = sk.replace(/\.reveal$/i, '.live');
+          if (slides.length) {
+            var prevKey = String(slides[slides.length - 1].stateKey || '');
+            if (prevKey === liveKey) {
+              return;
+            }
+          }
+        }
         var isTitle = (s.kind === 'title' || s.type === 'title' || block.type === 'title');
         var showTitle = (data.show && data.show.title) || '';
         var showDate  = (data.show && data.show.dateLabel) || '';
@@ -238,6 +262,11 @@
           roundBadge:    s.title       || roundBadge,
           category:      s.categoryName || s.category || block.categoryName || (isTitle ? showDate : ''),
           question:      s.prompt      || s.question  || (isTitle ? showTitle : ''),
+          questionAlign: s.questionAlign || block.questionAlign || 'left',
+          questionFontScale:
+            typeof s.questionFontScale === 'number'
+              ? s.questionFontScale
+              : (typeof block.questionFontScale === 'number' ? block.questionFontScale : 1.0),
           options:       Array.isArray(s.options) ? s.options.filter(Boolean) : [],
           matchingPairs: Array.isArray(s.matchingPairs) ? s.matchingPairs : [],
           orderingItems: Array.isArray(s.orderingItems) ? s.orderingItems : [],
@@ -254,9 +283,47 @@
     return slides;
   }
 
+  function slideRevealApplicable(slide) {
+    if (!slide) return false;
+    var kind = String(slide.kind || '').toLowerCase();
+    var stateLabel = String(slide.stateLabel || '').toLowerCase();
+    if (kind === 'title' || stateLabel.indexOf('title slide') !== -1) return false;
+    var blockType = slide.blockType || slide.kind || '';
+    if (DISPLAY_BLOCK_TYPES.indexOf(blockType) !== -1) return false;
+    if (String(slide.questionType || '').toLowerCase() === 'display') return false;
+    if (slide.alwaysReveal) return false;
+    return true;
+  }
+
+  function updateRevealChrome() {
+    var hs = state.deck.slides[state.hostSlide] || null;
+    var hostOk = slideRevealApplicable(hs);
+    if (dom['btn-host-reveal']) {
+      dom['btn-host-reveal'].style.display = hostOk ? '' : 'none';
+      dom['btn-host-reveal'].disabled = !hostOk;
+      dom['btn-host-reveal'].textContent = state.hostRevealed ? '\u2190 Hide answers' : 'Reveal';
+    }
+    if (dom['btn-host-hide']) {
+      dom['btn-host-hide'].style.display = hostOk ? '' : 'none';
+    }
+
+    var cs = state.deck.slides[state.castSlide] || null;
+    var castOk = slideRevealApplicable(cs);
+    if (dom['btn-reveal']) {
+      dom['btn-reveal'].style.display = castOk ? '' : 'none';
+      dom['btn-reveal'].disabled = !castOk;
+      dom['btn-reveal'].textContent = state.revealed ? '\u2190 Hide answers' : 'Reveal';
+    }
+    if (dom['btn-hide']) {
+      dom['btn-hide'].style.display = castOk ? '' : 'none';
+    }
+  }
+
   function stepHost(delta) {
     const max = state.deck.slides.length - 1;
-    state.hostSlide = Math.max(0, Math.min(max, state.hostSlide + delta));
+    const next = Math.max(0, Math.min(max, state.hostSlide + delta));
+    if (next === state.hostSlide) return;
+    state.hostSlide = next;
     state.hostRevealed = false;
     renderHost();
   }
@@ -264,6 +331,12 @@
   function setHostRevealed(val) {
     state.hostRevealed = val;
     renderHost();
+  }
+
+  function toggleHostReveal() {
+    var slide = state.deck.slides[state.hostSlide] || null;
+    if (!slideRevealApplicable(slide)) return;
+    setHostRevealed(!state.hostRevealed);
   }
 
   function stepCast(delta) {
@@ -282,11 +355,36 @@
     pushState();
   }
 
+  function toggleCastReveal() {
+    var slide = state.deck.slides[state.castSlide] || null;
+    if (!slideRevealApplicable(slide)) return;
+    setRevealed(!state.revealed);
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   function render() {
     renderHost();
     renderCast();
+  }
+
+  function scheduleResponsiveRender() {
+    if (_resizeRaf) cancelAnimationFrame(_resizeRaf);
+    _resizeRaf = requestAnimationFrame(function () {
+      _resizeRaf = 0;
+      if (!state.deck.slides.length) return;
+      render();
+    });
+  }
+
+  function setupStageResizeObserver() {
+    if (typeof ResizeObserver === 'undefined') return;
+    if (_stageResizeObserver) return;
+    _stageResizeObserver = new ResizeObserver(function () {
+      scheduleResponsiveRender();
+    });
+    if (dom['host-stage']) _stageResizeObserver.observe(dom['host-stage']);
+    if (dom['cast-stage']) _stageResizeObserver.observe(dom['cast-stage']);
   }
 
   function renderHost() {
@@ -296,10 +394,14 @@
     if (dom['btn-prev']) dom['btn-prev'].disabled = state.hostSlide === 0;
     if (dom['btn-next']) dom['btn-next'].disabled = state.hostSlide >= total - 1;
 
-    if (!slide) return;
+    if (!slide) {
+      updateRevealChrome();
+      return;
+    }
     var showHostAnswer = state.hostRevealed || slide.alwaysReveal;
-    paintSlide(dom['host-stage'], slide, showHostAnswer);
+    window.BeachTriviaSlidePaint.paintSlide(dom['host-stage'], slide, showHostAnswer);
     setText('host-notes', slide.notes || '');
+    updateRevealChrome();
   }
 
   function renderCast() {
@@ -309,292 +411,14 @@
     if (dom['btn-cast-prev']) dom['btn-cast-prev'].disabled = state.castSlide === 0;
     if (dom['btn-cast-next']) dom['btn-cast-next'].disabled = state.castSlide >= total - 1;
 
-    if (!slide) return;
-    var showAnswer = state.revealed || slide.alwaysReveal;
-    paintSlide(dom['cast-stage'], slide, showAnswer);
-    setText('cast-status-label', showAnswer ? 'Answer visible to audience' : 'Answer hidden until revealed');
-  }
-
-  function isTitleSlide(slide) {
-    if (!slide) return false;
-    const kind = String(slide.kind || '').toLowerCase();
-    const stateLabel = String(slide.stateLabel || '').toLowerCase();
-    return kind === 'title' || stateLabel.includes('title slide');
-  }
-
-  // ── Slide painter ──────────────────────────────────────────────────────────
-
-  function paintSlide(el, slide, revealed) {
-    if (!el || !slide) return;
-
-    var isTitle   = isTitleSlide(slide);
-    var blockType = slide.blockType || slide.kind || '';
-    var isDisplay = DISPLAY_BLOCK_TYPES.indexOf(blockType) !== -1
-      || String(slide.questionType || '').toLowerCase() === 'display';
-    var effectiveType = isDisplay ? 'display' : String(slide.questionType || 'multiple-choice').toLowerCase();
-
-    el.setAttribute('data-block-type', blockType);
-
-    // Title slide — show full overlay, nothing else needed
-    var overlay = ensureTitleOverlay(el);
-    if (isTitle) {
-      overlay.style.display = 'flex';
+    if (!slide) {
+      updateRevealChrome();
       return;
     }
-    overlay.style.display = 'none';
-
-    // Ensure skeleton elements exist
-    buildSkeleton(el);
-
-    // Badge
-    var badge = el.querySelector('.slide-badge');
-    if (badge) badge.textContent = slide.roundBadge || '';
-
-    // Meta stack (state label + theme)
-    var meta = el.querySelector('.slide-meta-stack');
-    if (meta) {
-      meta.innerHTML = '';
-      var stateEl = document.createElement('span');
-      stateEl.textContent = slide.stateLabel || '';
-      var themeEl = document.createElement('span');
-      themeEl.textContent = slide.theme || '';
-      meta.appendChild(stateEl);
-      meta.appendChild(themeEl);
-    }
-
-    // Category (hidden on display-type slides)
-    var cat = el.querySelector('.slide-category');
-    if (cat) {
-      cat.textContent = slide.category || '';
-      cat.style.display = isDisplay ? 'none' : '';
-    }
-
-    // Question text
-    var q = el.querySelector('.slide-question');
-    if (q) {
-      q.textContent = slide.question || '';
-      if (blockType === 'answers-summary') {
-        q.setAttribute('data-font-mode', 'summary');
-        q.style.whiteSpace = 'pre-wrap';
-      } else if (isDisplay) {
-        q.setAttribute('data-font-mode', 'display');
-        q.style.whiteSpace = '';
-      } else {
-        q.removeAttribute('data-font-mode');
-        q.style.whiteSpace = '';
-      }
-    }
-
-    // Options
-    paintOptions(el, effectiveType, slide, revealed);
-
-    // Answer panel (hidden for MC and display types; shown on reveal for others)
-    var ansWrap  = el.querySelector('.slide-answer-preview');
-    var ansValue = el.querySelector('.slide-answer-preview .value');
-    if (ansWrap && ansValue) {
-      var isMC = effectiveType === 'multiple-choice';
-      var showAns = revealed && !isMC && !isDisplay && slide.answer;
-      ansValue.textContent = slide.answer || '';
-      ansWrap.style.display = showAns ? '' : 'none';
-    }
-  }
-
-  function buildSkeleton(el) {
-    if (el.querySelector('.slide-top')) return; // already built
-    el.innerHTML = [
-      '<div class="slide-top">',
-      '  <span class="slide-badge"></span>',
-      '  <div class="slide-meta-stack"></div>',
-      '</div>',
-      '<div class="slide-middle">',
-      '  <div class="slide-category"></div>',
-      '  <div class="slide-question"></div>',
-      '  <div class="slide-options"></div>',
-      '  <div class="slide-answer-preview" style="display:none">',
-      '    <div class="label">Answer</div>',
-      '    <div class="value"></div>',
-      '  </div>',
-      '</div>',
-      '<div class="slide-bottom"></div>',
-    ].join('');
-  }
-
-  function ensureTitleOverlay(el) {
-    var overlay = el.querySelector('.slide-title-overlay');
-    if (overlay) return overlay;
-
-    overlay = document.createElement('div');
-    overlay.className = 'slide-title-overlay';
-    overlay.style.display = 'none';
-
-    var inner = document.createElement('div');
-    inner.className = 'title-slide-inner';
-
-    var eyebrowRow = document.createElement('div');
-    eyebrowRow.className = 'title-slide-eyebrow-row';
-    var lineL = document.createElement('div');
-    lineL.className = 'title-slide-eyebrow-line';
-    var eyebrow = document.createElement('div');
-    eyebrow.className = 'title-slide-eyebrow';
-    eyebrow.textContent = 'Beach Trivia Presents';
-    var lineR = document.createElement('div');
-    lineR.className = 'title-slide-eyebrow-line';
-    eyebrowRow.appendChild(lineL);
-    eyebrowRow.appendChild(eyebrow);
-    eyebrowRow.appendChild(lineR);
-
-    var heading = document.createElement('div');
-    heading.className = 'title-slide-heading';
-    heading.textContent = 'Trivia Night';
-
-    var centerRow = document.createElement('div');
-    centerRow.className = 'title-slide-center-row';
-
-    var logoWrap = document.createElement('div');
-    logoWrap.className = 'title-slide-logo';
-    var logoImg = document.createElement('img');
-    logoImg.src = WRITER_ASSETS + 'BTlogo-Round-Border.png';
-    logoImg.alt = 'Beach Trivia';
-    logoWrap.appendChild(logoImg);
-
-    centerRow.appendChild(buildQRCard(WRITER_ASSETS + 'qr-virginia.jpg', 'Virginia'));
-    centerRow.appendChild(logoWrap);
-    centerRow.appendChild(buildQRCard(WRITER_ASSETS + 'qr-new-york.jpg', 'New York'));
-
-    inner.appendChild(eyebrowRow);
-    inner.appendChild(heading);
-    inner.appendChild(centerRow);
-    overlay.appendChild(inner);
-
-    el.appendChild(overlay);
-    return overlay;
-  }
-
-  function buildQRCard(src, label) {
-    var card = document.createElement('div');
-    card.className = 'title-slide-qr-card';
-    var img = document.createElement('img');
-    img.src = src;
-    img.alt = label + ' QR Code';
-    var lbl = document.createElement('div');
-    lbl.className = 'title-slide-qr-label';
-    lbl.textContent = label;
-    var hint = document.createElement('div');
-    hint.className = 'title-slide-qr-hint';
-    hint.textContent = 'Scan to play';
-    card.appendChild(img);
-    card.appendChild(lbl);
-    card.appendChild(hint);
-    return card;
-  }
-
-  function paintOptions(el, effectiveType, slide, revealed) {
-    var optEl = el.querySelector('.slide-options');
-    if (!optEl) return;
-    optEl.innerHTML = '';
-    optEl.classList.remove('slide-options-matching', 'slide-options-display', 'slide-options--dense');
-
-    if (effectiveType === 'multiple-choice') {
-      var opts = Array.isArray(slide.options) ? slide.options.filter(Boolean) : [];
-      if (!opts.length) { optEl.style.display = 'none'; return; }
-      optEl.style.display = '';
-      optEl.classList.toggle('slide-options--dense', opts.length >= 5);
-      opts.forEach(function (opt, i) {
-        var row = document.createElement('div');
-        var isCorrect = revealed && opt === slide.answer;
-        row.className = 'slide-option' + (revealed ? (isCorrect ? ' correct' : ' incorrect') : '');
-        var key = document.createElement('span');
-        key.className = 'slide-option-key';
-        key.textContent = String.fromCharCode(65 + i);
-        var txt = document.createElement('span');
-        txt.textContent = opt;
-        row.appendChild(key);
-        row.appendChild(txt);
-        if (isCorrect) {
-          var tick = document.createElement('span');
-          tick.className = 'slide-option-tick';
-          tick.textContent = '✓';
-          row.appendChild(tick);
-        }
-        optEl.appendChild(row);
-      });
-
-    } else if (effectiveType === 'matching') {
-      var pairs = Array.isArray(slide.matchingPairs)
-        ? slide.matchingPairs.filter(function (p) { return p.left || p.right; })
-        : [];
-      if (!pairs.length) { optEl.style.display = 'none'; return; }
-      optEl.style.display = '';
-      optEl.classList.add('slide-options-matching');
-      pairs.forEach(function (pair) {
-        var row = document.createElement('div');
-        row.className = 'slide-option slide-option-pair';
-        var left = document.createElement('span');
-        left.className = 'slide-option-pair-left';
-        left.textContent = pair.left || '';
-        var arrow = document.createElement('span');
-        arrow.className = 'slide-option-pair-arrow';
-        arrow.textContent = '→';
-        var right = document.createElement('span');
-        right.className = 'slide-option-pair-right';
-        right.textContent = pair.right || '';
-        row.appendChild(left);
-        row.appendChild(arrow);
-        row.appendChild(right);
-        optEl.appendChild(row);
-      });
-
-    } else if (effectiveType === 'ordering') {
-      var items = Array.isArray(slide.orderingItems) ? slide.orderingItems.filter(Boolean) : [];
-      if (!items.length) { optEl.style.display = 'none'; return; }
-      optEl.style.display = '';
-      items.forEach(function (item, i) {
-        var row = document.createElement('div');
-        row.className = 'slide-option';
-        var key = document.createElement('span');
-        key.className = 'slide-option-key';
-        key.textContent = String(i + 1);
-        var txt = document.createElement('span');
-        txt.textContent = item;
-        row.appendChild(key);
-        row.appendChild(txt);
-        optEl.appendChild(row);
-      });
-
-    } else if (effectiveType === 'display') {
-      var text = String(slide.answer || '').trim();
-      if (!text) { optEl.style.display = 'none'; return; }
-      optEl.style.display = '';
-      optEl.classList.add('slide-options-display');
-      var body = document.createElement('div');
-      body.className = 'slide-display-content';
-      var lines = text.split('\n').map(function (l) { return l.trim(); }).filter(Boolean);
-      if (lines.length > 1) {
-        lines.forEach(function (line) {
-          var item = document.createElement('div');
-          var lineText = line.charAt(0) === '•' ? line.substring(1).trim() : line;
-          item.className = 'slide-rules-item' + (lineText.length > 58 ? ' slide-rules-item--wide' : '');
-          if (line.charAt(0) === '•') {
-            var bullet = document.createElement('span');
-            bullet.className = 'slide-rules-bullet';
-            bullet.textContent = '•';
-            var span = document.createElement('span');
-            span.textContent = lineText;
-            item.appendChild(bullet);
-            item.appendChild(span);
-          } else {
-            item.textContent = line;
-          }
-          body.appendChild(item);
-        });
-      } else {
-        body.textContent = text;
-      }
-      optEl.appendChild(body);
-
-    } else {
-      optEl.style.display = 'none';
-    }
+    var showAnswer = state.revealed || slide.alwaysReveal;
+    window.BeachTriviaSlidePaint.paintSlide(dom['cast-stage'], slide, showAnswer);
+    setText('cast-status-label', showAnswer ? 'Answer visible to audience' : 'Answer hidden until revealed');
+    updateRevealChrome();
   }
 
   function updateSlideCount() {
@@ -630,6 +454,7 @@
     if (dom['cast-url']) dom['cast-url'].value = url;
   }
 
+  // Firestore live doc mirrors the cast column only (castSlide + revealed). Host view is local.
   function pushState() {
     if (!state.live) return;
     const slide = state.deck.slides[state.castSlide] || {};
@@ -637,6 +462,7 @@
 
     firebase.firestore().collection('liveSessions').doc(state.sessionCode).set({
       sessionCode:     state.sessionCode,
+      publicViewer:    true,
       currentStateKey: slide.stateKey || '',
       castSlideIndex:  state.castSlide,
       revealShown:     showAnswer,
@@ -650,6 +476,14 @@
         notes:       slide.notes       || '',
         kind:        slide.kind        || '',
         answerVisibleByDefault: !!slide.alwaysReveal,
+        blockType:    slide.blockType    || '',
+        questionType: slide.questionType || '',
+        questionAlign: slide.questionAlign || '',
+        questionFontScale:
+          typeof slide.questionFontScale === 'number' ? slide.questionFontScale : 1,
+        matchingPairs: Array.isArray(slide.matchingPairs) ? slide.matchingPairs : [],
+        orderingItems: Array.isArray(slide.orderingItems) ? slide.orderingItems : [],
+        theme: slide.theme || state.deck.theme || '',
       },
       showTitle: state.deck.title,
       theme:     state.deck.theme,

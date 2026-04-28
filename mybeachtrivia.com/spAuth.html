@@ -51,6 +51,32 @@
   const HOST_URL         = '/beachTriviaPages/dashboards/host/host-music-bingo/host-music-bingo.html';
   const TOKEN_FN_URL     = 'https://us-central1-beach-trivia-website.cloudfunctions.net/spotifyTokenExchange';
   const REDIRECT_URI     = 'https://mybeachtrivia.com/spAuth';
+  const RETURN_URL_KEY   = 'sp:returnUrl';
+
+  function resolveReturnUrl() {
+    const fallback = HOST_URL;
+    let raw = '';
+    try {
+      raw = localStorage.getItem(RETURN_URL_KEY) || '';
+    } catch (_) {}
+
+    if (!raw) return fallback;
+
+    try {
+      const url = new URL(raw, location.origin);
+      // Only allow redirects back to this origin.
+      if (url.origin !== location.origin) return fallback;
+      return url.pathname + url.search + url.hash;
+    } catch (_) {
+      return fallback;
+    }
+  }
+
+  function redirectBack() {
+    const target = resolveReturnUrl();
+    try { localStorage.removeItem(RETURN_URL_KEY); } catch (_) {}
+    location.replace(target);
+  }
 
   function showError(msg) {
     document.getElementById('spinner').style.display = 'none';
@@ -59,7 +85,7 @@
     p.textContent = msg;
     p.className   = 'error';
     // Give the user a moment to read the error, then send them back
-    setTimeout(() => location.replace(HOST_URL), 4000);
+    setTimeout(() => redirectBack(), 4000);
   }
 
   const params = new URLSearchParams(location.search);
@@ -118,10 +144,8 @@
     expiresAt,
   }));
 
-  // Navigate back to where the auth was initiated (preserves ?companion=1 etc.)
-  const returnUrl = localStorage.getItem('sp:returnUrl') || HOST_URL;
-  localStorage.removeItem('sp:returnUrl');
-  location.replace(returnUrl);
+  // Navigate back to the exact page that initiated auth (companion-safe).
+  redirectBack();
 })();
 </script>
 </body>

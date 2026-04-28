@@ -1165,8 +1165,8 @@ textarea {
 }
 
 .preview-stage {
-  /* Typography inside slides scales with this box (main preview + filmstrip thumbs match). */
-  container-type: inline-size;
+  /* Typography + badge scale with this box; use size so cqh can shrink the round pill in short viewports. */
+  container-type: size;
   background:
     radial-gradient(circle at top left, rgba(59, 130, 246, 0.15), transparent 32%),
     linear-gradient(180deg, #13203b 0%, #081120 100%);
@@ -1211,11 +1211,15 @@ textarea {
 .slide-badge {
   display: inline-flex;
   align-items: center;
-  padding: clamp(5px, 0.8cqw, 7px) clamp(10px, 1.38cqw, 12px);
+  padding:
+    clamp(3px, 0.8cqw, 7px)
+    clamp(6px, 1.38cqw, 12px);
   border-radius: 999px;
-  font-size: clamp(10px, 1.38cqw, 12px);
+  /* Match original scale on large slides (1.38cqw); lower floor so it can shrink when the stage is narrow */
+  font-size: clamp(6px, 1.38cqw, 12px);
   font-weight: 800;
   letter-spacing: 0.05em;
+  line-height: 1.15;
   text-transform: uppercase;
   background: rgba(59, 130, 246, 0.16);
   color: #dbeafe;
@@ -1228,7 +1232,10 @@ textarea {
   align-items: flex-end;
   gap: clamp(4px, 0.92cqw, 8px);
   color: var(--soft);
-  font-size: clamp(10px, 1.38cqw, 12px);
+  font-size: clamp(6px, 1.38cqw, 12px);
+  max-width: 42%;
+  text-align: right;
+  line-height: 1.25;
 }
 
 .slide-middle {
@@ -1243,7 +1250,7 @@ textarea {
 }
 
 .slide-category {
-  font-size: clamp(15px, 2.53cqw, 22px);
+  font-size: clamp(11px, 2.53cqw, 22px);
   font-weight: 800;
   color: #93c5fd;
   text-transform: uppercase;
@@ -1251,18 +1258,19 @@ textarea {
 }
 
 .slide-question {
-  font-size: clamp(28px, 5cqw, 46px);
+  font-size: clamp(22px, 5cqw, 46px);
   line-height: 1.12;
   font-weight: 900;
   color: #f8fafc;
   max-width: 100%;
+  min-width: 0;
   word-break: break-word;
 }
 
 /* Modes toggled from preview.js (replaces vw-based inline styles; matches slide canvas) */
 .preview-stage .slide-question[data-font-mode="summary"] {
   white-space: pre-wrap;
-  font-size: clamp(28px, 3.3cqw, 40px);
+  font-size: clamp(14px, 3.3cqw, 40px);
   line-height: 1.35;
 }
 
@@ -1271,9 +1279,136 @@ textarea {
   align-content: start;
 }
 
+/* Rules/info/intro slides: switch to grid so top row and middle content can NEVER overlap */
+.preview-stage[data-block-type="intro-slide"],
+.preview-stage[data-block-type="info-slide"] {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-columns: 100%;
+  overflow: hidden;
+}
+
+.preview-stage[data-block-type="intro-slide"] .slide-top,
+.preview-stage[data-block-type="info-slide"] .slide-top {
+  grid-row: 1;
+}
+
+.preview-stage[data-block-type="intro-slide"] .slide-middle,
+.preview-stage[data-block-type="info-slide"] .slide-middle {
+  grid-row: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: clamp(6px, min(1.5cqw, 2.4cqh), 18px);
+  align-content: start;
+  margin-top: clamp(6px, min(1.5cqw, 2cqh), 18px);
+  padding-top: 0;
+  min-height: 0;
+  max-height: 100%;
+  align-self: stretch;
+  overflow: hidden;
+}
+
+.preview-stage[data-block-type="intro-slide"] .slide-category,
+.preview-stage[data-block-type="info-slide"] .slide-category {
+  flex: 0 0 auto;
+}
+
+.preview-stage[data-block-type="intro-slide"] .slide-question,
+.preview-stage[data-block-type="info-slide"] .slide-question {
+  flex: 0 0 auto;
+}
+
+.preview-stage[data-block-type="intro-slide"] .slide-media-area,
+.preview-stage[data-block-type="info-slide"] .slide-media-area {
+  flex: 0 0 auto;
+}
+
+.preview-stage[data-block-type="intro-slide"] .slide-options,
+.preview-stage[data-block-type="info-slide"] .slide-options {
+  flex: 1 1 0;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  overflow: hidden;
+}
+
+.preview-stage[data-block-type="intro-slide"] .slide-answer-preview,
+.preview-stage[data-block-type="info-slide"] .slide-answer-preview {
+  flex: 0 0 auto;
+}
+
+.preview-stage[data-block-type="intro-slide"] .slide-options .slide-display-content,
+.preview-stage[data-block-type="info-slide"] .slide-options .slide-display-content {
+  flex: 1 1 0;
+  align-self: stretch;
+  width: 100%;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: hidden;
+  justify-content: flex-start;
+}
+
+.preview-stage[data-block-type="intro-slide"] .slide-display-content,
+.preview-stage[data-block-type="info-slide"] .slide-display-content {
+  padding:
+    clamp(6px, min(1.15cqw, 2cqh), 12px)
+    clamp(8px, min(1.45cqw, 2.5cqh), 14px)
+    clamp(12px, min(3.4cqw, 5.5cqh), 48px);
+  gap: clamp(4px, min(0.95cqw, 1.7cqh), 12px);
+  font-size: clamp(9px, min(2.05cqw, 4.6cqh), 16.5px);
+}
+
+.preview-stage[data-block-type="intro-slide"] .slide-rules-item,
+.preview-stage[data-block-type="info-slide"] .slide-rules-item {
+  font-size: inherit;
+  line-height: 1.35;
+  padding-top: clamp(1px, min(0.35cqw, 0.55cqh), 5px);
+  padding-bottom: clamp(1px, min(0.35cqw, 0.55cqh), 5px);
+}
+
+.preview-stage[data-block-type="intro-slide"] .slide-rules-grid,
+.preview-stage[data-block-type="info-slide"] .slide-rules-grid {
+  gap: 2px clamp(10px, min(2.2cqw, 3.5cqh), 28px);
+}
+
+.preview-stage[data-block-type="intro-slide"] .slide-rules-scoring,
+.preview-stage[data-block-type="info-slide"] .slide-rules-scoring {
+  flex-shrink: 0;
+  padding-top: clamp(4px, min(0.85cqw, 1.4cqh), 12px);
+  margin-top: clamp(2px, min(0.45cqw, 0.75cqh), 8px);
+  padding-bottom: clamp(12px, min(2.9cqw, 4.5cqh), 42px);
+}
+
+/* Scoring row must not shrink inside the flex column (was flex-shrink: 1 on .slide-rules-item). */
+.preview-stage[data-block-type="intro-slide"] .slide-rules-item--scoring,
+.preview-stage[data-block-type="info-slide"] .slide-rules-item--scoring {
+  flex-shrink: 0;
+}
+
+.filmstrip-preview-inner .preview-stage[data-block-type="intro-slide"] .slide-middle,
+.filmstrip-preview-inner .preview-stage[data-block-type="info-slide"] .slide-middle {
+  align-content: flex-start;
+  justify-content: flex-start;
+}
+
+.preview-stage[data-block-type="intro-slide"] .slide-bottom,
+.preview-stage[data-block-type="info-slide"] .slide-bottom {
+  grid-row: 3;
+}
+
 .preview-stage .slide-question[data-font-mode="display"] {
-  font-size: clamp(18px, 2.1cqw, 28px);
+  font-size: clamp(9px, 2.1cqw, 28px);
   line-height: 1.2;
+}
+
+.preview-stage[data-block-type="intro-slide"] .slide-question[data-font-mode="display"],
+.preview-stage[data-block-type="info-slide"] .slide-question[data-font-mode="display"] {
+  font-size: clamp(11px, min(2.45cqw, 5.8cqh), 34px);
+  line-height: 1.15;
 }
 
 /* Bold text in preview gets accent color since font-weight is already maxed at 900 */
@@ -1463,10 +1598,42 @@ textarea {
     rgba(15, 23, 42, 0.45);
   color: #e0f2fe;
   padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(8px, 1.2cqw, 14px);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.slide-rules-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2px 18px;
-  overflow-wrap: break-word;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 2px clamp(12px, 2.2cqw, 28px);
+  min-width: 0;
+  align-content: start;
+}
+
+.slide-rules-scoring {
+  flex-shrink: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding-top: clamp(6px, 0.9cqw, 12px);
+  margin-top: clamp(2px, 0.4cqw, 8px);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  text-align: center;
+}
+
+.slide-rules-scoring .slide-rules-item {
+  justify-content: center;
+  max-width: 100%;
+  border-bottom: none;
+}
+
+.slide-rules-scoring .slide-rules-text {
+  text-align: center;
 }
 
 /* ── Round-start & category slides: hero title + body (filmstrip uses same data-block-type) ─ */
@@ -1483,14 +1650,13 @@ textarea {
 .preview-stage[data-block-type="round-start"] .slide-question,
 .preview-stage[data-block-type="category-slide"] .slide-question {
   text-align: center !important;
-  font-size: clamp(38px, 7.2cqw, 62px) !important;
+  font-size: clamp(31px, 7.2cqw, 62px) !important;
   letter-spacing: -0.02em;
   line-height: 1.05 !important;
 }
 
 .preview-stage[data-block-type="round-start"] .slide-display-content {
-  /* Override the 2-col rules grid — single centered tagline */
-  grid-template-columns: 1fr;
+  /* Pill wrapper — inner grid is single column */
   text-align: center;
   padding: 10px 24px;
   font-size: clamp(15px, 2.67cqw, 21px);
@@ -1506,9 +1672,13 @@ textarea {
   margin: 0 auto;
 }
 
+.preview-stage[data-block-type="round-start"] .slide-rules-grid {
+  grid-template-columns: 1fr;
+  text-align: center;
+}
+
 /* Category list slide: wide box, sentence-style copy (matches Slide Preview, not round-start pill) */
 .preview-stage[data-block-type="category-slide"] .slide-display-content {
-  grid-template-columns: 1fr;
   text-align: left;
   padding: clamp(12px, 1.8cqw, 20px) clamp(14px, 2cqw, 22px);
   font-size: clamp(12px, 2cqw, 22px);
@@ -1520,6 +1690,11 @@ textarea {
   width: 100%;
   max-width: 100%;
   margin: 0 auto;
+}
+
+.preview-stage[data-block-type="category-slide"] .slide-rules-grid {
+  grid-template-columns: 1fr;
+  text-align: left;
 }
 
 /* ────────────────────────────────────────────────────────────── */
@@ -1536,11 +1711,24 @@ textarea {
   font-size: clamp(12px, 2.16cqw, 15px);
   line-height: 1.4;
   color: #cbd5e1;
+  min-width: 0;
 }
 
-/* Long items (e.g. the scoring rule) span both columns */
+.slide-rules-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Legacy: long lines used to span both columns; scoring now uses .slide-rules-scoring */
 .slide-rules-item--wide {
   grid-column: 1 / -1;
+}
+
+.slide-rules-item--scoring {
+  font-weight: 600;
+  color: #e2e8f0;
 }
 
 .slide-rules-bullet {
@@ -2223,7 +2411,7 @@ textarea {
 
   /* Keep filmstrip thumbs on container-based type; only relax main preview on phones */
   .preview-stage-wrap .slide-question {
-    font-size: clamp(24px, 8vw, 36px);
+    font-size: clamp(18px, 8vw, 36px);
   }
 
   .preview-stage-wrap .slide-option {
@@ -3045,23 +3233,23 @@ textarea {
 }
 
 .preview-stage .title-slide-inner {
-  padding: clamp(8px, 2vmin, 20px) clamp(10px, 2.5vmin, 24px);
+  padding: clamp(8px, 1.2cqw, 20px) clamp(10px, 1.5cqw, 24px);
   min-height: 0;
   justify-content: flex-start;
-  gap: clamp(4px, 1.2vmin, 12px);
+  gap: clamp(4px, 0.8cqw, 12px);
 }
 
 .preview-stage .title-slide-heading {
-  font-size: clamp(1rem, 3.2vmin, 2rem);
+  font-size: clamp(1rem, 3.2cqw, 2rem);
 }
 
 .preview-stage .title-slide-center-row {
-  gap: clamp(8px, 1.5vmin, 20px);
+  gap: clamp(8px, 1.2cqw, 20px);
 }
 
 .preview-stage .title-slide-logo img {
-  width: min(200px, 32vmin);
-  height: min(200px, 32vmin);
+  width: min(200px, 32cqw);
+  height: min(200px, 32cqw);
   max-width: 100%;
 }
 
@@ -3070,12 +3258,24 @@ textarea {
 }
 
 .preview-stage .title-slide-qr-card img {
-  width: min(72px, 14vmin);
-  height: min(72px, 14vmin);
+  width: min(72px, 14cqw);
+  height: min(72px, 14cqw);
 }
 
 .preview-stage .title-slide-eyebrow-row {
   max-width: 100%;
+}
+
+.preview-stage .title-slide-eyebrow {
+  font-size: clamp(0.55rem, 1.2cqw, 0.72rem);
+}
+
+.preview-stage .title-slide-qr-label {
+  font-size: clamp(0.6rem, 1.1cqw, 0.72rem);
+}
+
+.preview-stage .title-slide-qr-hint {
+  font-size: clamp(0.5rem, 0.9cqw, 0.58rem);
 }
 
 /* ─── Title slide structure card chip ─────────────────────────── */

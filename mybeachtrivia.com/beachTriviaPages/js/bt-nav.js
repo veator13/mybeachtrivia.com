@@ -34,8 +34,6 @@
       { label: 'Calendar',    href: '/beachTriviaPages/dashboards/host/employee-calendar/' },
       { label: 'Scoresheet',  href: '/beachTriviaPages/dashboards/host/scoresheet/' },
       { label: 'Host Event',  href: '/beachTriviaPages/dashboards/host/host-event/' },
-      { label: 'Music Bingo',    href: '/beachTriviaPages/dashboards/host/host-music-bingo/host-music-bingo' },
-      { label: 'Last Laugh', href: '/beachTriviaPages/dashboards/host/host-last-laugh/' },
     ],
     regional: [
       { label: 'Dashboard',   href: '/beachTriviaPages/dashboards/regional-manager/regional-manager.html' },
@@ -64,6 +62,14 @@
 
   const ACTIVE_ROLE_KEY = 'bt:activeRole';
   const SELECTED_ROLE_KEY = 'bt:selectedRole';
+  const HOST_EVENT_HREF = '/beachTriviaPages/dashboards/host/host-event/';
+  const HOST_EVENT_SECTION_PATH_PREFIXES = [
+    '/beachTriviaPages/dashboards/host/host-music-bingo/',
+    '/beachTriviaPages/dashboards/host/host-funny-answers/',
+    '/beachTriviaPages/dashboards/host/scoresheet/',
+    '/beachTriviaPages/dashboards/host/host-feud/',
+    '/beachTriviaPages/dashboards/host/feud/',
+  ];
 
   // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -157,20 +163,45 @@
     return current === target || current.startsWith(target + '/');
   }
 
+  function getHostNavLinks() {
+    return (NAV_LINKS.host || []).filter(function (item) {
+      return item && item.label !== 'Music Bingo' && item.label !== 'Funny Answers';
+    });
+  }
+
+  function mapHostEventSectionPath(pathname) {
+    const current = normalizePath(pathname);
+    const isHostEventSection = HOST_EVENT_SECTION_PATH_PREFIXES.some(function (prefix) {
+      return current === normalizePath(prefix) || current.startsWith(normalizePath(prefix) + '/');
+    });
+    return isHostEventSection ? HOST_EVENT_HREF : pathname;
+  }
+
   function markActiveLink(el) {
     if (!el) return;
 
-    const path = window.location.pathname;
+    const path = mapHostEventSectionPath(window.location.pathname);
+    const normalizedPath = normalizePath(path);
+    const normalizedHostEventHref = normalizePath(HOST_EVENT_HREF);
     let bestLen = -1;
     let bestLink = null;
+    let hostEventLink = null;
 
     el.querySelectorAll('a.bt-nav__link').forEach(function (a) {
       a.classList.remove('active');
       const href = a.getAttribute('href') || '';
       if (!href) return;
+      const normalizedHref = normalizePath(href);
+
+      if (normalizedHref === normalizedHostEventHref) {
+        hostEventLink = a;
+      }
 
       if (isPathMatch(path, href)) {
-        const score = normalizePath(href).length;
+        // Force Host Event active on any mapped Host Event section path.
+        const score = (normalizedPath === normalizedHostEventHref && normalizedHref === normalizedHostEventHref)
+          ? Number.MAX_SAFE_INTEGER
+          : normalizedHref.length;
         if (score > bestLen) {
           bestLen = score;
           bestLink = a;
@@ -178,18 +209,23 @@
       }
     });
 
+    if (normalizedPath === normalizedHostEventHref && hostEventLink) {
+      hostEventLink.classList.add('active');
+      return;
+    }
+
     if (bestLink) bestLink.classList.add('active');
   }
 
   function getDashboardHrefForRole(role) {
     const normalized = normalizeRole(role);
-    const links = NAV_LINKS[normalized] || NAV_LINKS.host;
+    const links = normalized === 'host' ? getHostNavLinks() : (NAV_LINKS[normalized] || getHostNavLinks());
     return (links[0] && links[0].href) ? links[0].href : '/beachTriviaPages/dashboards/host/';
   }
 
   function isOnRoleDashboard(role) {
     const target = getDashboardHrefForRole(role);
-    const current = window.location.pathname;
+    const current = mapHostEventSectionPath(window.location.pathname);
     return isPathMatch(current, target);
   }
 
@@ -209,7 +245,7 @@
     if (!href) return;
 
     if (isOnRoleDashboard(normalized)) {
-      updateNavLinks(NAV_LINKS[normalized] || NAV_LINKS.host);
+      updateNavLinks(normalized === 'host' ? getHostNavLinks() : (NAV_LINKS[normalized] || getHostNavLinks()));
       return;
     }
 
@@ -221,7 +257,7 @@
     if (!normalized) return;
 
     saveActiveRole(normalized);
-    updateNavLinks(NAV_LINKS[normalized] || NAV_LINKS.host);
+    updateNavLinks(normalized === 'host' ? getHostNavLinks() : (NAV_LINKS[normalized] || getHostNavLinks()));
 
     const drawerSel = document.getElementById('bt-nav-drawer-role-select');
     if (drawerSel && drawerSel.value !== normalized) drawerSel.value = normalized;
@@ -540,7 +576,7 @@
             drawerSel.value = preferredRole;
           }
 
-          updateNavLinks(NAV_LINKS[preferredRole] || NAV_LINKS.host);
+          updateNavLinks(preferredRole === 'host' ? getHostNavLinks() : (NAV_LINKS[preferredRole] || getHostNavLinks()));
         }).catch(function () {});
       });
     }
@@ -1315,7 +1351,7 @@
     const emp = cached ? (cached.emp || {}) : {};
     const roles = extractRoles(emp);
     const activeRole = getActiveRole(roles);
-    const links = NAV_LINKS[activeRole] || NAV_LINKS.host;
+    const links = activeRole === 'host' ? getHostNavLinks() : (NAV_LINKS[activeRole] || getHostNavLinks());
     const displayName = getDisplayName(emp);
 
     saveActiveRole(activeRole);
@@ -1334,6 +1370,8 @@
     updateUsernameFromAuth();
     initBellCount();
   }
+
+  if (window.self !== window.top) return;
 
   if (document.body) {
     injectNav();

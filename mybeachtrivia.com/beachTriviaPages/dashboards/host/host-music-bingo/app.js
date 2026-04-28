@@ -800,7 +800,9 @@ function isCompanionMode() {
 }
 
 function getCompanionRemoteUrl() {
-  const base = new URL(location.origin + '/beachTriviaPages/dashboards/host/host-music-bingo/host-music-bingo');
+  const base = new URL(
+    location.origin + '/beachTriviaPages/dashboards/host/host-music-bingo/host-music-bingo.html'
+  );
   base.searchParams.set('companion', '1');
   if (activeSession?.id) base.searchParams.set('session', activeSession.id);
   return base.toString();

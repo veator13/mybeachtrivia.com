@@ -55,11 +55,22 @@
     location.replace('/login.html?tab=employee&next=' + next);
   }
 
+  var redirectPending = false;
+
   auth.onAuthStateChanged(function (user) {
     if (!user) {
-      redirectToLogin();
+      if (redirectPending) return;
+      redirectPending = true;
+      setTimeout(function () {
+        if (!auth.currentUser) {
+          redirectToLogin();
+        } else {
+          redirectPending = false;
+        }
+      }, 2000);
       return;
     }
+    redirectPending = false;
 
     db.doc('employees/' + user.uid).get().then(function (snap) {
       if (!snap.exists) {
