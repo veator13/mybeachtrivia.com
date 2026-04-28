@@ -20,6 +20,9 @@
       createCategoryOfTheDayBlock,
       createFinalQuestionBlock,
       createClosingSlideBlock,
+      createFeudQuestionBlock,
+      createFeudHalftimeBlock,
+      createFeudFinalBlock,
       createBlockByType,
       duplicateBlock,
       createNamedStateList,
@@ -68,7 +71,16 @@
   
         case "closing-slide":
           return createClosingSlideBlock(data);
-  
+
+        case "feud-single-question":
+          return createFeudQuestionBlock(data);
+
+        case "feud-halftime":
+          return createFeudHalftimeBlock(data);
+
+        case "feud-final":
+          return createFeudFinalBlock(data);
+
         default:
           return createSingleQuestionBlock(data);
       }
@@ -444,6 +456,126 @@
       });
     }
   
+    function buildFeudSlides(data, roundSlug, label, introKind) {
+      var feudAnswers = normalizeFeudAnswers(data.block.feudAnswers);
+      var slides = [];
+
+      if (introKind) {
+        slides.push({
+          id: makeId("sld"),
+          kind: introKind,
+          stateKey: roundSlug + ".intro",
+          stateLabel: label + " Intro",
+          audienceMode: "live",
+          title: label,
+          categoryName: data.block.categoryName || "",
+          prompt: data.block.questionText || (label + " Question"),
+          notes: data.block.questionNotes || "",
+          layout: introKind,
+          revealable: false,
+        });
+      }
+
+      slides.push({
+        id: makeId("sld"),
+        kind: "feud-question-live",
+        stateKey: roundSlug + ".live",
+        stateLabel: label + " Live",
+        audienceMode: "live",
+        title: data.block.roundName || label,
+        categoryName: data.block.categoryName || "",
+        questionType: "feud-question",
+        prompt: data.block.questionText || "",
+        feudAnswers: feudAnswers,
+        notes: data.block.questionNotes || "",
+        layout: "feud-question-live",
+        revealable: true,
+        themeStyle: data.block.themeStyle,
+        fontSizeMode: data.block.fontSizeMode,
+      });
+
+      slides.push({
+        id: makeId("sld"),
+        kind: "feud-answer-reveal",
+        stateKey: roundSlug + ".reveal",
+        stateLabel: label + " Answer Reveal",
+        audienceMode: "reveal",
+        title: data.block.roundName || label,
+        categoryName: data.block.categoryName || "",
+        questionType: "feud-question",
+        prompt: data.block.questionText || "",
+        feudAnswers: feudAnswers,
+        notes: data.block.questionNotes || "",
+        layout: "feud-answer-reveal",
+        revealable: false,
+        themeStyle: data.block.themeStyle,
+        fontSizeMode: data.block.fontSizeMode,
+      });
+
+      return slides;
+    }
+
+    function createFeudQuestionBlock(formData) {
+      var data = normalizeFormData(formData);
+      var roundSlug = slugify(data.block.roundName || "feud");
+      var label = data.block.roundName || "Feud Question";
+
+      return baseBlock({
+        id: makeId("blk"),
+        type: "feud-single-question",
+        label: label + " • " + (data.block.categoryName || "Feud Survey"),
+        roundName: data.block.roundName,
+        categoryName: data.block.categoryName,
+        questionType: "feud-question",
+        themeStyle: data.block.themeStyle,
+        fontSizeMode: data.block.fontSizeMode,
+        questionCount: 1,
+        notes: data.block.questionNotes,
+        slides: buildFeudSlides(data, roundSlug, label, null),
+        summary: { publishReady: false, reusable: true, templateEligible: true },
+      });
+    }
+
+    function createFeudHalftimeBlock(formData) {
+      var data = normalizeFormData(formData);
+      var label = "Halftime Feud";
+
+      return baseBlock({
+        id: makeId("blk"),
+        type: "feud-halftime",
+        label: label,
+        roundName: "Halftime",
+        categoryName: data.block.categoryName,
+        questionType: "feud-question",
+        themeStyle: data.block.themeStyle || "Special",
+        fontSizeMode: data.block.fontSizeMode,
+        questionCount: 1,
+        notes: data.block.questionNotes,
+        slides: buildFeudSlides(data, "feud-halftime", label, "feud-halftime-intro"),
+        summary: { publishReady: false, reusable: true, templateEligible: true },
+      });
+    }
+
+    function createFeudFinalBlock(formData) {
+      var data = normalizeFormData(formData);
+      var label = "Final Feud Question";
+
+      return baseBlock({
+        id: makeId("blk"),
+        type: "feud-final",
+        label: label,
+        roundName: "Final Question",
+        categoryName: data.block.categoryName,
+        questionType: "feud-question",
+        themeStyle: "Final Question",
+        fontSizeMode: data.block.fontSizeMode,
+        questionCount: 1,
+        notes: data.block.questionNotes,
+        slides: buildFeudSlides(data, "feud-final", label, "feud-final-intro"),
+        summary: { publishReady: false, reusable: true, templateEligible: true },
+      });
+    }
+
     function createClosingSlideBlock(formData) {
       const data = normalizeFormData(formData);
       return baseBlock({
@@ -589,12 +721,13 @@
       const data = safeClone(formData || {});
       const show = data.show || {};
       const block = data.block || {};
-  
+
       return {
         show: {
           title: stringOr(show.title, ""),
           dateLabel: stringOr(show.dateLabel, ""),
           status: stringOr(show.status, "draft"),
+          showType: stringOr(show.showType, "classic-trivia"),
         },
         block: {
           type: stringOr(block.type, "single-question"),
@@ -606,6 +739,7 @@
           questionNotes: stringOr(block.questionNotes, ""),
           optionCount: Number(block.optionCount || 0),
           options: normalizeOptions(block.options),
+          feudAnswers: normalizeFeudAnswers(block.feudAnswers),
           imageUrl: stringOr(block.imageUrl, ""),
           audioUrl: stringOr(block.audioUrl, ""),
           themeStyle: stringOr(block.themeStyle, "Standard Trivia"),
@@ -613,7 +747,17 @@
         },
       };
     }
-  
+
+    function normalizeFeudAnswers(answers) {
+      if (!Array.isArray(answers)) return [];
+      return answers.slice(0, 8).map(function (a, i) {
+        return {
+          text:   String((a && a.text) || "").trim(),
+          points: 8 - i,
+        };
+      });
+    }
+
     function normalizeOptions(options) {
       if (!Array.isArray(options)) return [];
       return options

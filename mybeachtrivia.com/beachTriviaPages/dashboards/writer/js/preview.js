@@ -22,6 +22,9 @@
     clearMessage,
     ensurePreviewSlideSkeleton,
     renderThumbnailStage,
+    feudRevealNext,
+    feudHidePrev,
+    resetFeudReveal,
   };
 
   window.WriterPreview = PREVIEW;
@@ -32,6 +35,7 @@
   let _basePreviewPx = null; // cached default font size from CSS clamp, used to anchor scaling
   let _lastFormData = null;  // cached so mode changes can trigger a full re-render
   let _lastRenderedQuestionType = "";
+  let _feudRevealCount = 0;  // how many feud answers are currently revealed
 
   function $(selector, root) {
     return (root || document).querySelector(selector);
@@ -365,7 +369,8 @@
       data.block.matchingPairs || [],
       data.block.orderingItems || [],
       mode,
-      data.block.answerText || ""
+      data.block.answerText || "",
+      data.block.feudAnswers || []
     );
     renderAnswer(data.block.answerText || "", effectiveType);
     renderNotes(data.block.questionNotes || "");
@@ -474,7 +479,8 @@
       preferredSlide.matchingPairs || [],
       preferredSlide.orderingItems || [],
       mode,
-      preferredSlide.answer || ""
+      preferredSlide.answer || "",
+      preferredSlide.feudAnswers || []
     );
     renderAnswer(preferredSlide.answer || "", effectiveType);
     renderNotes(preferredSlide.notes || block.notes || "");
@@ -565,7 +571,69 @@
     return tmp.innerHTML;
   }
 
-  function renderOptions(questionType, options, matchingPairs, orderingItems, mode, answerText) {
+  function renderFeudAnswerGrid(feudAnswers, revealCount) {
+    if (!dom || !dom.previewOptions) return;
+    dom.previewOptions.innerHTML = "";
+    dom.previewOptions.className = "slide-options slide-options-feud";
+
+    var answers = Array.isArray(feudAnswers) ? feudAnswers : [];
+    answers.forEach(function (a, i) {
+      var isRevealed = i < revealCount;
+      var row = document.createElement("div");
+      row.className = "slide-feud-row" + (isRevealed ? " revealed" : "");
+
+      var rankEl = document.createElement("span");
+      rankEl.className = "slide-feud-row-rank";
+      rankEl.textContent = String(i + 1);
+
+      var textEl = document.createElement("span");
+      textEl.className = isRevealed ? "slide-feud-row-text" : "slide-feud-row-placeholder";
+      textEl.textContent = isRevealed ? (a.text || "—") : "— — —";
+
+      var ptsEl = document.createElement("span");
+      ptsEl.className = "slide-feud-row-pts";
+      ptsEl.textContent = String(8 - i) + " pts";
+
+      row.appendChild(rankEl);
+      row.appendChild(textEl);
+      row.appendChild(ptsEl);
+      dom.previewOptions.appendChild(row);
+    });
+  }
+
+  function feudRevealNext() {
+    if (!_lastFormData) return;
+    var b = (_lastFormData && _lastFormData.block) || {};
+    var answers = Array.isArray(b.feudAnswers) ? b.feudAnswers : [];
+    if (_feudRevealCount < answers.length) {
+      _feudRevealCount++;
+      renderFeudAnswerGrid(answers, _feudRevealCount);
+      _syncFeudRevealButtons(answers.length);
+    }
+  }
+
+  function feudHidePrev() {
+    if (_feudRevealCount > 0) {
+      _feudRevealCount--;
+      var b = (_lastFormData && _lastFormData.block) || {};
+      var answers = Array.isArray(b.feudAnswers) ? b.feudAnswers : [];
+      renderFeudAnswerGrid(answers, _feudRevealCount);
+      _syncFeudRevealButtons(answers.length);
+    }
+  }
+
+  function resetFeudReveal() {
+    _feudRevealCount = 0;
+  }
+
+  function _syncFeudRevealButtons(answerCount) {
+    var nextBtn = document.getElementById("feud-reveal-next-btn");
+    var prevBtn = document.getElementById("feud-hide-prev-btn");
+    if (nextBtn) nextBtn.disabled = _feudRevealCount >= answerCount;
+    if (prevBtn) prevBtn.disabled = _feudRevealCount <= 0;
+  }
+
+  function renderOptions(questionType, options, matchingPairs, orderingItems, mode, answerText, feudAnswers) {
     if (!dom || !dom.previewOptions) return;
 
     const normalizedType = String(questionType || "").trim().toLowerCase();
@@ -574,6 +642,7 @@
     dom.previewOptions.classList.remove("slide-options-matching");
     dom.previewOptions.classList.remove("slide-options-display");
     dom.previewOptions.classList.remove("slide-options--dense");
+    dom.previewOptions.classList.remove("slide-options-feud");
 
     if (normalizedType === "multiple-choice") {
       const normalizedOptions = Array.isArray(options) ? options.filter(Boolean) : [];
@@ -679,6 +748,17 @@
         row.appendChild(text);
         dom.previewOptions.appendChild(row);
       });
+
+    } else if (normalizedType === "feud-question") {
+      var feudArr = Array.isArray(feudAnswers) ? feudAnswers : [];
+      if (!feudArr.length) {
+        dom.previewOptions.style.display = "none";
+        return;
+      }
+      dom.previewOptions.style.display = "";
+      renderFeudAnswerGrid(feudArr, isReveal ? feudArr.length : _feudRevealCount);
+      _syncFeudRevealButtons(feudArr.length);
+      return;
 
     } else if (normalizedType === "display") {
       const text = String(answerText || "").trim();
@@ -823,9 +903,31 @@
   }
 
   function syncRevealToolbarToMode(mode) {
-    if (!dom || !dom.previewRevealBtn) return;
+    if (!dom) return;
     const m = String(mode || "live").toLowerCase();
     var isDisplay = _lastRenderedQuestionType === "display";
+    var isFeud    = _lastRenderedQuestionType === "feud-question";
+
+    var feudNextBtn = document.getElementById("feud-reveal-next-btn");
+    var feudPrevBtn = document.getElementById("feud-hide-prev-btn");
+
+    // Feud mode: show feud controls, hide the generic Reveal Answer button
+    if (isFeud) {
+      if (dom.previewRevealBtn) dom.previewRevealBtn.style.display = "none";
+      if (feudNextBtn) feudNextBtn.style.display = "";
+      if (feudPrevBtn) feudPrevBtn.style.display = "";
+      // Sync disabled state based on current reveal count
+      var feudArr = (_lastFormData && _lastFormData.block && Array.isArray(_lastFormData.block.feudAnswers))
+        ? _lastFormData.block.feudAnswers : [];
+      _syncFeudRevealButtons(feudArr.length);
+      return;
+    }
+
+    // Non-feud: hide feud controls
+    if (feudNextBtn) feudNextBtn.style.display = "none";
+    if (feudPrevBtn) feudPrevBtn.style.display = "none";
+
+    if (!dom.previewRevealBtn) return;
     dom.previewRevealBtn.style.display = isDisplay ? "none" : "";
     if (isDisplay) return;
     dom.previewRevealBtn.disabled = false;
@@ -900,6 +1002,7 @@
         title: stringOr(show.title, ""),
         dateLabel: stringOr(show.dateLabel, ""),
         status: stringOr(show.status, "draft"),
+        showType: stringOr(show.showType, "classic-trivia"),
       },
       block: {
         type: stringOr(block.type, "single-question"),
@@ -912,6 +1015,7 @@
         options: normalizeOptions(block.options),
         matchingPairs: Array.isArray(block.matchingPairs) ? block.matchingPairs : [],
         orderingItems: Array.isArray(block.orderingItems) ? block.orderingItems : [],
+        feudAnswers: Array.isArray(block.feudAnswers) ? block.feudAnswers : [],
         imageUrl: stringOr(block.imageUrl, ""),
         audioUrl: stringOr(block.audioUrl, ""),
         themeStyle: stringOr(block.themeStyle, "Standard Trivia"),

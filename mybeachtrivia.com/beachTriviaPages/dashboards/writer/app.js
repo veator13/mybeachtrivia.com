@@ -221,6 +221,7 @@
   var FORM_UNEDITABLE_BLOCK_TYPES = [
     "intro-slide", "info-slide", "round-start",
     "category-slide", "answers-summary", "closing-slide",
+    "feud-round-intro", "feud-turn-in", "feud-closing",
   ];
 
   function syncCurrentEntryFromForm(formData) {
@@ -247,7 +248,10 @@
       currentBlockType === "category-of-the-day" ||
       currentBlockType === "category-slide" ||
       currentBlockType === "intro-slide" ||
-      currentBlockType === "closing-slide"
+      currentBlockType === "closing-slide" ||
+      currentBlockType === "feud-single-question" ||
+      currentBlockType === "feud-halftime" ||
+      currentBlockType === "feud-final"
     ) {
       entry.block = WriterBlockBuilder.createBlockByType(currentBlockType, updated);
       rebuildFlatSlides();
@@ -301,12 +305,30 @@
   }
 
   function maybeAutoAdvanceTemplate(formData) {
-    if (!templateWorkflow.active || templateWorkflow.type !== "classic-trivia") return;
+    if (!templateWorkflow.active) return;
     var item = getCurrentFlatItem();
     if (!item || !item.blockEntry || !item.blockEntry.block) return;
 
     var block = item.blockEntry.block;
     var blockType = String(block.type || "").toLowerCase();
+
+    if (templateWorkflow.type === "feud-show") {
+      if (blockType !== "feud-single-question") return;
+      var fb = (formData && formData.block) || {};
+      var feudReady = stripHtml(String(fb.questionText || "")).trim() &&
+        Array.isArray(fb.feudAnswers) && fb.feudAnswers.length >= 3 &&
+        fb.feudAnswers.some(function (a) { return String(a.text || "").trim(); });
+      if (!feudReady) return;
+      if (templateWorkflow.advancedBlockIds[block.id]) return;
+      templateWorkflow.advancedBlockIds[block.id] = true;
+      var nextIdx = findNextEditableBlockFirstSlideIndex(showState.currentIdx);
+      if (nextIdx !== -1) {
+        setTimeout(function () { navigateToSlide(nextIdx); }, 120);
+      }
+      return;
+    }
+
+    if (templateWorkflow.type !== "classic-trivia") return;
     if (blockType !== "single-question") return;
 
     var b = (formData && formData.block) || {};
@@ -333,6 +355,10 @@
       var item = showState.flatSlides[i];
       if (!item || item.blockIdx === currentBlockIdx) continue;
       if (isTitleFlatItem(item)) continue;
+      // Skip uneditable structural blocks
+      var bt = String((item.blockEntry && item.blockEntry.block && item.blockEntry.block.type) || "").toLowerCase();
+      if (FORM_UNEDITABLE_BLOCK_TYPES.indexOf(bt) !== -1) continue;
+      if (item.slideIdx !== 0) continue;
       return i;
     }
     return -1;
@@ -667,8 +693,13 @@
     idx = Math.max(0, Math.min(idx, showState.flatSlides.length - 1));
     showState.currentIdx = idx;
 
+    if (window.WriterPreview && typeof WriterPreview.resetFeudReveal === "function") {
+      WriterPreview.resetFeudReveal();
+    }
+
     var item = showState.flatSlides[idx];
     var slideType = (item.slide.type || "").toLowerCase();
+    var slideKind  = (item.slide.kind  || "").toLowerCase();
 
     if (slideType === "title") {
       if (window.WriterPreview) {
@@ -682,8 +713,19 @@
         suppressFormBridge = false;
       }
       if (window.WriterPreview) {
-        WriterPreview.setMode(mode);
-        WriterPreview.renderFromFormData(item.blockEntry.formData);
+        // Feud intro slides (halftime/final intro): render as display-type using a
+        // synthetic formData so the question text shows without feud controls.
+        if (slideKind === "feud-halftime-intro" || slideKind === "feud-final-intro") {
+          var introFd = safeClone(item.blockEntry.formData || {});
+          introFd.block = introFd.block || {};
+          introFd.block.questionType = "display";
+          introFd.block.answerText = item.slide.prompt || introFd.block.questionText || "";
+          WriterPreview.setMode("live");
+          WriterPreview.renderFromFormData(introFd);
+        } else {
+          WriterPreview.setMode(mode);
+          WriterPreview.renderFromFormData(item.blockEntry.formData);
+        }
       }
     }
 
@@ -927,16 +969,19 @@
     { value: "ordering",        label: "Ordering"            },
     { value: "image-question",  label: "Image Question"      },
     { value: "audio-question",  label: "Audio / Media Prompt"},
+    { value: "feud-question",   label: "Feud Survey Question"},
   ];
 
   function addNewSlide(questionType) {
     if (!window.WriterBlockBuilder || !window.WriterQuestionForm) return;
 
     var showMeta = WriterQuestionForm.getFormData().show;
+    var isFeud = questionType === "feud-question";
+    var blockType = isFeud ? "feud-single-question" : "single-question";
     var formData = {
       show: showMeta,
       block: {
-        type: "single-question",
+        type: blockType,
         questionType: questionType,
         roundName: "Round 1",
         categoryName: "",
@@ -948,6 +993,7 @@
         correctOptionIndex: null,
         matchingPairs: [],
         orderingItems: [],
+        feudAnswers: isFeud ? [{ text: "", points: 8 }, { text: "", points: 7 }, { text: "", points: 6 }] : [],
         themeStyle: "Standard Trivia",
         fontSizeMode: "Auto Fit",
         questionAlign: "left",
@@ -955,7 +1001,7 @@
       },
     };
 
-    var block = WriterBlockBuilder.createBlockFromFormData(formData);
+    var block = WriterBlockBuilder.createBlockByType(blockType, formData);
     showState.blocks.push({ block: block, formData: formData });
     rebuildFlatSlides();
 
@@ -1259,6 +1305,9 @@
     if ((!mb.orderingItems || !mb.orderingItems.length) && Array.isArray(sLive.orderingItems) && sLive.orderingItems.length) {
       mb.orderingItems = sLive.orderingItems.slice();
     }
+    if ((!mb.feudAnswers || !mb.feudAnswers.length) && Array.isArray(sLive.feudAnswers) && sLive.feudAnswers.length) {
+      mb.feudAnswers = sLive.feudAnswers.slice();
+    }
 
     return merged;
   }
@@ -1458,6 +1507,18 @@
       templateWorkflow.type = "classic-trivia";
       templateWorkflow.advancedBlockIds = {};
       setTemplateBuilderTabVisible(true);
+    } else if (normalized === "feud-show") {
+      templateEntries = buildFeudShowTemplateEntries(formData);
+      templateWorkflow.active = true;
+      templateWorkflow.type = "feud-show";
+      templateWorkflow.advancedBlockIds = {};
+      setTemplateBuilderTabVisible(true);
+      // Update the show-type toggle to Feud
+      document.querySelectorAll(".show-type-btn").forEach(function (b) {
+        b.classList.toggle("active", b.getAttribute("data-show-type") === "feud");
+      });
+      var hiddenShowType = $("#show-type");
+      if (hiddenShowType) hiddenShowType.value = "feud";
     } else {
       var fallbackBlock = WriterBlockBuilder.createBlockByType(normalized, formData);
       templateEntries = [{ block: fallbackBlock, formData: formData }];
@@ -1694,7 +1755,8 @@
   }
 
   function onTemplateBuilderArrowNavKeydown(e) {
-    if (!templateWorkflow.active || templateWorkflow.type !== "classic-trivia") return;
+    if (!templateWorkflow.active) return;
+    if (templateWorkflow.type !== "classic-trivia" && templateWorkflow.type !== "feud-show") return;
     var key = e.key;
     if (key !== "ArrowDown" && key !== "ArrowUp") return;
     if (e.defaultPrevented) return;
@@ -1771,7 +1833,17 @@
     var wrap = $("#template-builder-list");
     if (!wrap) return;
 
-    if (!templateWorkflow.active || templateWorkflow.type !== "classic-trivia") {
+    if (!templateWorkflow.active) {
+      wrap.innerHTML = '<div class="filmstrip-empty">Choose a template to start building.</div>';
+      return;
+    }
+
+    if (templateWorkflow.type === "feud-show") {
+      renderFeudTemplateBuilderList(wrap);
+      return;
+    }
+
+    if (templateWorkflow.type !== "classic-trivia") {
       wrap.innerHTML = '<div class="filmstrip-empty">Choose a template to start building.</div>';
       return;
     }
@@ -1879,6 +1951,7 @@
       { value: "ordering", label: "Ordering" },
       { value: "image-question", label: "Image Question" },
       { value: "audio-question", label: "Audio / Media Prompt" },
+      { value: "feud-question", label: "Feud Survey Question" },
     ];
     return types.map(function (t) {
       var selected = String(selectedValue || "") === t.value ? " selected" : "";
@@ -2148,6 +2221,319 @@
       if (curId === id) return i;
     }
     return -1;
+  }
+
+  // ─── Feud template builder ─────────────────────────────────────
+
+  function renderFeudTemplateBuilderList(wrap) {
+    var feudEntries = showState.blocks.filter(function (entry) {
+      var t = String((entry && entry.block && entry.block.type) || "").toLowerCase();
+      return t === "feud-single-question" || t === "feud-halftime" || t === "feud-final";
+    });
+    if (!feudEntries.length) {
+      wrap.innerHTML = '<div class="filmstrip-empty">No feud question slides found for this template.</div>';
+      return;
+    }
+    wrap.innerHTML = "";
+    feudEntries.forEach(function (entry, idx) {
+      var b = (entry.formData && entry.formData.block) || {};
+      var blockType = String((entry.block && entry.block.type) || "").toLowerCase();
+      var label = entry.block.label || ("Feud Question " + String(idx + 1));
+      var feudAnswers = Array.isArray(b.feudAnswers) ? b.feudAnswers : [];
+      while (feudAnswers.length < 3) feudAnswers.push({ text: "", points: 8 - feudAnswers.length });
+
+      var answerRowsHtml = feudAnswers.slice(0, 8).map(function (a, i) {
+        return '<div class="feud-tb-answer-row" data-answer-idx="' + i + '">' +
+          '<span class="feud-tb-rank">' + String(i + 1) + '</span>' +
+          '<input type="text" class="feud-tb-answer-input" placeholder="Survey answer ' + String(i + 1) + '" value="' + escapeHtml(a.text || "") + '">' +
+          '<span class="feud-tb-pts">' + String(8 - i) + ' pts</span>' +
+          (feudAnswers.length > 3 ? '<button type="button" class="feud-tb-remove-btn" title="Remove">×</button>' : '') +
+        '</div>';
+      }).join("");
+
+      var canAdd = feudAnswers.length < 8;
+      var card = document.createElement("article");
+      card.className = "template-builder-card";
+      card.setAttribute("data-block-id", entry.block.id);
+      card.innerHTML =
+        '<div class="template-builder-head">' +
+          '<strong>' + escapeHtml(label) + '</strong>' +
+          '<span class="subtle-chip feud-chip">' + escapeHtml(blockType === "feud-halftime" ? "Halftime" : blockType === "feud-final" ? "Final" : b.roundName || "Feud") + '</span>' +
+        '</div>' +
+        '<div class="template-builder-grid">' +
+          '<div class="field">' +
+            '<label>Question</label>' +
+            '<textarea data-template-field="questionText" placeholder="Survey question">' +
+            escapeHtml(b.questionText || "") +
+            '</textarea>' +
+          '</div>' +
+          '<div class="field">' +
+            '<label>Survey Answers <span class="answer-type-hint-inline">ranked best → last</span></label>' +
+            '<div class="feud-tb-answers-list">' + answerRowsHtml + '</div>' +
+            (canAdd ? '<button type="button" class="template-add-btn feud-tb-add-btn">+ Add Response</button>' : '') +
+          '</div>' +
+        '</div>';
+
+      bindFeudTemplateBuilderCardEvents(card, entry);
+      wrap.appendChild(card);
+    });
+  }
+
+  function bindFeudTemplateBuilderCardEvents(card, entry) {
+    if (!card || !entry) return;
+
+    var qTextEl = card.querySelector('[data-template-field="questionText"]');
+    if (qTextEl) {
+      qTextEl.addEventListener("input", function () {
+        updateFeudTemplateBuilderEntry(entry, card);
+      });
+      qTextEl.addEventListener("focus", function () {
+        focusTemplateBuilderEntry(entry);
+      });
+    }
+
+    card.addEventListener("input", function (e) {
+      if (e.target.classList.contains("feud-tb-answer-input")) {
+        updateFeudTemplateBuilderEntry(entry, card);
+      }
+    });
+
+    card.addEventListener("focus", function (e) {
+      if (e.target.classList.contains("feud-tb-answer-input") ||
+          e.target.getAttribute("data-template-field") === "questionText") {
+        focusTemplateBuilderEntry(entry);
+      }
+    }, true);
+
+    card.addEventListener("click", function (e) {
+      // Remove answer row
+      var removeBtn = e.target.closest(".feud-tb-remove-btn");
+      if (removeBtn) {
+        var list = card.querySelector(".feud-tb-answers-list");
+        var rows = list ? list.querySelectorAll(".feud-tb-answer-row") : [];
+        if (rows.length > 3) {
+          var row = removeBtn.closest(".feud-tb-answer-row");
+          if (row) {
+            row.remove();
+            updateFeudTbRanks(card);
+            updateFeudTemplateBuilderEntry(entry, card);
+          }
+        }
+        return;
+      }
+      // Add answer row
+      if (e.target.classList.contains("feud-tb-add-btn")) {
+        var list2 = card.querySelector(".feud-tb-answers-list");
+        if (!list2) return;
+        var currentRows = list2.querySelectorAll(".feud-tb-answer-row");
+        if (currentRows.length >= 8) return;
+        var newIdx = currentRows.length;
+        var newRow = document.createElement("div");
+        newRow.className = "feud-tb-answer-row";
+        newRow.setAttribute("data-answer-idx", String(newIdx));
+        newRow.innerHTML =
+          '<span class="feud-tb-rank">' + String(newIdx + 1) + '</span>' +
+          '<input type="text" class="feud-tb-answer-input" placeholder="Survey answer ' + String(newIdx + 1) + '" value="">' +
+          '<span class="feud-tb-pts">' + String(8 - newIdx) + ' pts</span>' +
+          '<button type="button" class="feud-tb-remove-btn" title="Remove">×</button>';
+        list2.appendChild(newRow);
+        // Update all remove button visibility and add-btn
+        updateFeudTbRanks(card);
+        // Show/hide add btn
+        var addBtn = card.querySelector(".feud-tb-add-btn");
+        if (addBtn && list2.querySelectorAll(".feud-tb-answer-row").length >= 8) {
+          addBtn.style.display = "none";
+        }
+        updateFeudTemplateBuilderEntry(entry, card);
+      }
+    });
+  }
+
+  function updateFeudTbRanks(card) {
+    var list = card.querySelector(".feud-tb-answers-list");
+    if (!list) return;
+    var rows = Array.from(list.querySelectorAll(".feud-tb-answer-row"));
+    rows.forEach(function (row, i) {
+      var rankEl = row.querySelector(".feud-tb-rank");
+      var ptsEl  = row.querySelector(".feud-tb-pts");
+      var input  = row.querySelector(".feud-tb-answer-input");
+      if (rankEl) rankEl.textContent = String(i + 1);
+      if (ptsEl)  ptsEl.textContent  = String(8 - i) + " pts";
+      if (input)  input.placeholder  = "Survey answer " + String(i + 1);
+      // Show remove button only when above minimum
+      var removeBtn = row.querySelector(".feud-tb-remove-btn");
+      if (removeBtn) removeBtn.style.display = rows.length > 3 ? "" : "none";
+    });
+    var addBtn = card.querySelector(".feud-tb-add-btn");
+    if (addBtn) addBtn.style.display = rows.length >= 8 ? "none" : "";
+  }
+
+  function updateFeudTemplateBuilderEntry(entry, card) {
+    if (!entry || !entry.formData || !card || !window.WriterBlockBuilder) return;
+    var blockData = safeClone(entry.formData.block || {});
+
+    var qTextEl = card.querySelector('[data-template-field="questionText"]');
+    if (qTextEl) blockData.questionText = String(qTextEl.value || "");
+
+    var answerInputs = Array.from(card.querySelectorAll(".feud-tb-answer-input"));
+    blockData.feudAnswers = answerInputs.map(function (inp, i) {
+      return { text: String(inp.value || "").trim(), points: 8 - i };
+    });
+
+    entry.formData.block = blockData;
+    entry.block = WriterBlockBuilder.createBlockByType(entry.block.type, entry.formData);
+
+    templateBuilderSyncing = true;
+    rebuildFlatSlides();
+    renderFilmstrip();
+    updateStatCounters();
+    focusTemplateBuilderEntry(entry);
+    templateBuilderSyncing = false;
+    markDirty();
+  }
+
+  function makeFeudQuestionEntry(config) {
+    var feudAnswers = Array.isArray(config.feudAnswers) ? config.feudAnswers : [
+      { text: "", points: 8 },
+      { text: "", points: 7 },
+      { text: "", points: 6 },
+    ];
+    var blockType = config.blockType || "feud-single-question";
+    var formData = {
+      show: safeClone(config.show || {}),
+      block: {
+        type: blockType,
+        questionType: "feud-question",
+        roundName: config.roundName || "Feud",
+        categoryName: config.categoryName || "",
+        questionText: "",
+        answerText: "",
+        questionNotes: "Feud Question " + String(config.questionNumber || 1),
+        optionCount: 0,
+        options: [],
+        correctOptionIndex: null,
+        matchingPairs: [],
+        orderingItems: [],
+        feudAnswers: feudAnswers,
+        themeStyle: config.themeStyle || "Standard Trivia",
+        fontSizeMode: config.fontSizeMode || "Auto Fit",
+        questionAlign: "left",
+        questionFontScale: 1.0,
+      },
+    };
+    var block = WriterBlockBuilder.createBlockByType(blockType, formData);
+    block.label = (config.roundName || "Feud") + " • Question " + String(config.questionNumber || 1);
+    return { block: block, formData: formData };
+  }
+
+  function buildFeudShowTemplateEntries(baseData) {
+    var source = baseData || {};
+    var showMeta = safeClone((source && source.show) || {});
+    var themeStyle = ((source.block || {}).themeStyle) || "Standard Trivia";
+    var fontSizeMode = ((source.block || {}).fontSizeMode) || "Auto Fit";
+
+    var entries = [];
+    entries.push(makeTitleSlideEntry());
+
+    entries.push(makeInfoSlideEntry({
+      show: showMeta,
+      label: "Beach Feud Rules",
+      blockType: "intro-slide",
+      roundName: "Rules",
+      categoryName: "How to Play",
+      questionType: "display",
+      questionText: "Beach Feud Rules",
+      answerText:
+        "• Each team faces off on a survey question.\n" +
+        "• Top answer = 8 pts, descending by rank.\n" +
+        "• Answers are revealed one at a time.\n" +
+        "• 4 rounds, 5 questions per round.\n" +
+        "• Halftime question after Round 2.\n" +
+        "• Final question to close the show.\n" +
+        "• Good luck and have fun!",
+      notes: "Beach Feud house rules slide.",
+      themeStyle: themeStyle,
+      fontSizeMode: fontSizeMode,
+      stateKey: "feud.rules",
+      stateLabel: "Feud Rules",
+      layout: "intro-rules",
+      audienceMode: "live",
+    }));
+
+    var rounds = ["Round One", "Round Two", "Round Three", "Round Four"];
+    rounds.forEach(function (roundName, rIdx) {
+      var roundSlug = slugify(roundName);
+
+      entries.push(makeInfoSlideEntry({
+        show: showMeta,
+        label: roundName + " Start",
+        blockType: "round-start",
+        roundName: roundName,
+        categoryName: "Get Ready",
+        questionType: "display",
+        questionText: roundName,
+        answerText: "Get ready!",
+        notes: "Announce round start.",
+        themeStyle: themeStyle,
+        fontSizeMode: fontSizeMode,
+        stateKey: roundSlug + ".start",
+        stateLabel: roundName + " Start",
+        layout: "round-start",
+        audienceMode: "live",
+      }));
+
+      for (var q = 1; q <= 5; q++) {
+        entries.push(makeFeudQuestionEntry({
+          show: showMeta,
+          roundName: roundName,
+          questionNumber: q,
+          blockType: "feud-single-question",
+          themeStyle: themeStyle,
+          fontSizeMode: fontSizeMode,
+        }));
+      }
+
+      // Halftime after Round Two
+      if (rIdx === 1) {
+        entries.push(makeFeudQuestionEntry({
+          show: showMeta,
+          roundName: "Halftime",
+          questionNumber: 1,
+          blockType: "feud-halftime",
+          themeStyle: themeStyle,
+          fontSizeMode: fontSizeMode,
+        }));
+      }
+    });
+
+    entries.push(makeFeudQuestionEntry({
+      show: showMeta,
+      roundName: "Final Question",
+      questionNumber: 1,
+      blockType: "feud-final",
+      themeStyle: "Final Question",
+      fontSizeMode: fontSizeMode,
+    }));
+
+    entries.push(makeInfoSlideEntry({
+      show: showMeta,
+      label: "Closing Slide",
+      blockType: "closing-slide",
+      roundName: "Closing",
+      categoryName: "See You Next Time",
+      questionType: "display",
+      questionText: "Thanks for Playing Beach Feud!",
+      answerText: "Thanks for playing tonight.",
+      notes: "Closing slide.",
+      themeStyle: themeStyle,
+      fontSizeMode: fontSizeMode,
+      stateKey: "closing.thank-you",
+      stateLabel: "Closing",
+      layout: "closing",
+      audienceMode: "live",
+    }));
+
+    return entries;
   }
 
   function buildClassicTriviaTemplateEntries(baseData) {
@@ -2620,9 +3006,35 @@
     return hasTitle && singleQ >= 10;
   }
 
+  function detectFeudShowFromBlocks(blocks) {
+    if (!Array.isArray(blocks) || blocks.length < 5) return false;
+    var feudQ = 0;
+    blocks.forEach(function (entry) {
+      var t = entry && entry.block ? String(entry.block.type || "").toLowerCase() : "";
+      if (t === "feud-single-question" || t === "feud-halftime" || t === "feud-final") feudQ++;
+    });
+    return feudQ >= 3;
+  }
+
   function applyRestoredWriterUi(data) {
     var wf = (data && data.writerUi) || {};
-    var active = !!wf.templateWorkflowActive && String(wf.templateWorkflowType || "") === "classic-trivia";
+    var wfType = String(wf.templateWorkflowType || "");
+
+    if (!!wf.templateWorkflowActive && wfType === "feud-show" || detectFeudShowFromBlocks(showState.blocks)) {
+      templateWorkflow.active = true;
+      templateWorkflow.type = "feud-show";
+      templateWorkflow.advancedBlockIds = {};
+      setTemplateBuilderTabVisible(true);
+      renderTemplateBuilderList();
+      document.querySelectorAll(".show-type-btn").forEach(function (b) {
+        b.classList.toggle("active", b.getAttribute("data-show-type") === "feud");
+      });
+      var hiddenShowType = $("#show-type");
+      if (hiddenShowType) hiddenShowType.value = "feud";
+      return;
+    }
+
+    var active = !!wf.templateWorkflowActive && wfType === "classic-trivia";
     if (!active && detectClassicTriviaFromBlocks(showState.blocks)) {
       active = true;
     }
@@ -3078,6 +3490,48 @@
     window.syncFilmstripCanvasVars = syncFilmstripCanvasVars;
   }
 
+  // ─── Show type toggle ──────────────────────────────────────────
+
+  function bindShowTypeToggle() {
+    document.querySelectorAll(".show-type-btn").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var type = btn.getAttribute("data-show-type");
+        document.querySelectorAll(".show-type-btn").forEach(function (b) {
+          b.classList.toggle("active", b === btn);
+        });
+        var hiddenInput = $("#show-type");
+        if (hiddenInput) {
+          hiddenInput.value = type || "classic-trivia";
+          hiddenInput.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+        markDirty();
+      });
+    });
+  }
+
+  // ─── Feud reveal controls ──────────────────────────────────────
+
+  function bindFeudRevealControls() {
+    var nextBtn = $("#feud-reveal-next-btn");
+    var prevBtn = $("#feud-hide-prev-btn");
+
+    if (nextBtn) {
+      nextBtn.addEventListener("click", function () {
+        if (window.WriterPreview && typeof WriterPreview.feudRevealNext === "function") {
+          WriterPreview.feudRevealNext();
+        }
+      });
+    }
+
+    if (prevBtn) {
+      prevBtn.addEventListener("click", function () {
+        if (window.WriterPreview && typeof WriterPreview.feudHidePrev === "function") {
+          WriterPreview.feudHidePrev();
+        }
+      });
+    }
+  }
+
   // ─── Module init ───────────────────────────────────────────────
 
   function initApp() {
@@ -3100,6 +3554,8 @@
     bindDatePicker();
     bindOpenShowModal();
     bindTemplateBuilderArrowNav();
+    bindFeudRevealControls();
+    bindShowTypeToggle();
 
     // Auto-insert the title slide as the first block on every session load
     insertDefaultTitleSlide();

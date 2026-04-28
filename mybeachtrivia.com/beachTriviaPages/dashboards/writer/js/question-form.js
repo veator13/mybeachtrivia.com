@@ -30,11 +30,15 @@
     correctOptionIndex: null,
     matchingPairs: [],
     orderingItems: [],
+    feudAnswers: [],
     imageUrl: "",
     audioUrl: "",
     themeStyle: "Standard Trivia",
     fontSizeMode: "Auto Fit",
   };
+
+  const FEUD_MAX_ANSWERS = 8;
+  const FEUD_MIN_ANSWERS = 3;
 
   let dom = null;
 
@@ -72,10 +76,13 @@
       answerTypeShort: $("#answer-type-short"),
       answerTypeMatching: $("#answer-type-matching"),
       answerTypeOrdering: $("#answer-type-ordering"),
+      answerTypeFeud: $("#answer-type-feud"),
       matchingPairsList: $("#matching-pairs-list"),
       orderingItemsList: $("#ordering-items-list"),
+      feudAnswersList: $("#feud-answers-list"),
       addPairBtn: $("#add-pair-btn"),
       addOrderingItemBtn: $("#add-ordering-item-btn"),
+      addFeudAnswerBtn: $("#add-feud-answer-btn"),
       answerTypeImageUrl: $("#answer-type-image-url"),
       answerTypeAudioUrl: $("#answer-type-audio-url"),
       questionImageUrl: $("#question-image-url"),
@@ -85,6 +92,7 @@
       showTitle: $("#show-title"),
       showDate: $("#show-date"),
       showStatus: $("#show-status"),
+      showType: $("#show-type"),
       saveBlockButtons: $$('[data-writer-action="save-block"], .inline-actions .btn'),
       toolbarButtons: $$('.toolbar [data-format]'),
     };
@@ -94,6 +102,7 @@
     syncOptionCountToRows();
     initMatchingPairs();
     initOrderingItems();
+    initFeudAnswers();
     applyAlignToEditor();
     applyFontScaleToEditor();
     updateToolbarActiveStates();
@@ -149,6 +158,23 @@
       });
     }
 
+    if (dom.addFeudAnswerBtn) {
+      dom.addFeudAnswerBtn.addEventListener("click", function () {
+        var rows = getFeudAnswerRows();
+        if (rows.length >= FEUD_MAX_ANSWERS) return;
+        addFeudAnswerRow("");
+        updateFeudAnswerBadges();
+        emitChange("feud-answer-added");
+      });
+    }
+
+    if (dom.feudAnswersList) {
+      dom.feudAnswersList.addEventListener("click", onFeudAnswerListClick);
+      dom.feudAnswersList.addEventListener("input", function () {
+        emitChange("feud-answer-input");
+      });
+    }
+
     [
       dom.blockType,
       dom.roundName,
@@ -163,6 +189,7 @@
       dom.showTitle,
       dom.showDate,
       dom.showStatus,
+      dom.showType,
     ].forEach(function (el) {
       if (!el) return;
       el.addEventListener("input", function () {
@@ -254,13 +281,19 @@
     var isShort    = type === "short-response" || type === "image-question" || type === "audio-question";
     var isMatching = type === "matching";
     var isOrdering = type === "ordering";
+    var isFeud     = type === "feud-question";
 
-    if (dom.answerTypeMC)       dom.answerTypeMC.style.display       = isMC                      ? "" : "none";
-    if (dom.answerTypeShort)    dom.answerTypeShort.style.display    = isShort                   ? "" : "none";
-    if (dom.answerTypeMatching) dom.answerTypeMatching.style.display = isMatching                ? "" : "none";
-    if (dom.answerTypeOrdering) dom.answerTypeOrdering.style.display = isOrdering                ? "" : "none";
+    if (dom.answerTypeMC)       dom.answerTypeMC.style.display       = isMC       ? "" : "none";
+    if (dom.answerTypeShort)    dom.answerTypeShort.style.display    = isShort    ? "" : "none";
+    if (dom.answerTypeMatching) dom.answerTypeMatching.style.display = isMatching ? "" : "none";
+    if (dom.answerTypeOrdering) dom.answerTypeOrdering.style.display = isOrdering ? "" : "none";
+    if (dom.answerTypeFeud)     dom.answerTypeFeud.style.display     = isFeud     ? "" : "none";
     if (dom.answerTypeImageUrl) dom.answerTypeImageUrl.style.display = (type === "image-question") ? "" : "none";
     if (dom.answerTypeAudioUrl) dom.answerTypeAudioUrl.style.display = (type === "audio-question") ? "" : "none";
+
+    if (isFeud && dom.addFeudAnswerBtn) {
+      dom.addFeudAnswerBtn.disabled = getFeudAnswerRows().length >= FEUD_MAX_ANSWERS;
+    }
   }
 
   // ─── Multiple choice options ───────────────────────────────────
@@ -566,6 +599,101 @@
       .filter(function (v) { return v.length > 0; });
   }
 
+  // ─── Feud answers ──────────────────────────────────────────────
+
+  function initFeudAnswers() {
+    if (!dom || !dom.feudAnswersList || dom.feudAnswersList.children.length > 0) return;
+    addFeudAnswerRow("");
+    addFeudAnswerRow("");
+    addFeudAnswerRow("");
+  }
+
+  function addFeudAnswerRow(text) {
+    if (!dom || !dom.feudAnswersList) return null;
+    var rows = getFeudAnswerRows();
+    if (rows.length >= FEUD_MAX_ANSWERS) return null;
+
+    var rank = rows.length; // 0-indexed, so points = 8 - rank
+    var pts  = 8 - rank;
+
+    var row = document.createElement("div");
+    row.className = "feud-answer-row";
+
+    var rankSpan = document.createElement("span");
+    rankSpan.className = "feud-answer-rank";
+    rankSpan.textContent = String(rank + 1);
+
+    var input = document.createElement("input");
+    input.type = "text";
+    input.value = text || "";
+    input.placeholder = "Survey answer " + String(rank + 1);
+    input.className = "feud-answer-input";
+
+    var ptsBadge = document.createElement("span");
+    ptsBadge.className = "feud-answer-pts";
+    ptsBadge.textContent = String(pts) + " pts";
+
+    var removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "remove-feud-answer";
+    removeBtn.textContent = "×";
+    removeBtn.setAttribute("aria-label", "Remove answer");
+
+    row.appendChild(rankSpan);
+    row.appendChild(input);
+    row.appendChild(ptsBadge);
+    row.appendChild(removeBtn);
+
+    dom.feudAnswersList.appendChild(row);
+    updateFeudAnswerBadges();
+    if (dom.addFeudAnswerBtn) {
+      dom.addFeudAnswerBtn.disabled = getFeudAnswerRows().length >= FEUD_MAX_ANSWERS;
+    }
+    return row;
+  }
+
+  function getFeudAnswerRows() {
+    if (!dom || !dom.feudAnswersList) return [];
+    return Array.from(dom.feudAnswersList.querySelectorAll(".feud-answer-row"));
+  }
+
+  function updateFeudAnswerBadges() {
+    getFeudAnswerRows().forEach(function (row, i) {
+      var rankEl = row.querySelector(".feud-answer-rank");
+      var ptsEl  = row.querySelector(".feud-answer-pts");
+      var input  = row.querySelector(".feud-answer-input");
+      if (rankEl) rankEl.textContent = String(i + 1);
+      if (ptsEl)  ptsEl.textContent  = String(8 - i) + " pts";
+      if (input)  input.placeholder  = "Survey answer " + String(i + 1);
+    });
+  }
+
+  function onFeudAnswerListClick(event) {
+    var removeBtn = event.target.closest(".remove-feud-answer");
+    if (!removeBtn || !dom || !dom.feudAnswersList) return;
+    var rows = getFeudAnswerRows();
+    if (rows.length <= FEUD_MIN_ANSWERS) return;
+    var row = removeBtn.closest(".feud-answer-row");
+    if (row) {
+      row.remove();
+      updateFeudAnswerBadges();
+      if (dom.addFeudAnswerBtn) {
+        dom.addFeudAnswerBtn.disabled = getFeudAnswerRows().length >= FEUD_MAX_ANSWERS;
+      }
+      emitChange("feud-answer-removed");
+    }
+  }
+
+  function serializeFeudAnswers() {
+    return getFeudAnswerRows().map(function (row, i) {
+      var input = row.querySelector(".feud-answer-input");
+      return {
+        text:   String((input && input.value) || "").trim(),
+        points: 8 - i,
+      };
+    });
+  }
+
   // ─── Answer text helper ────────────────────────────────────────
 
   function getAnswerText() {
@@ -600,6 +728,7 @@
         title: getValue(dom && dom.showTitle, ""),
         dateLabel: getValue(dom && dom.showDate, ""),
         status: getValue(dom && dom.showStatus, "draft"),
+        showType: getValue(dom && dom.showType, "classic-trivia"),
       },
       block: {
         type: getValue(dom && dom.blockType, DEFAULTS.blockType),
@@ -614,6 +743,7 @@
         correctOptionIndex: correctOptionIndex,
         matchingPairs: serializeMatchingPairs(),
         orderingItems: serializeOrderingItems(),
+        feudAnswers: serializeFeudAnswers(),
         imageUrl: getValue(dom && dom.questionImageUrl, DEFAULTS.imageUrl),
         audioUrl: getValue(dom && dom.questionAudioUrl, DEFAULTS.audioUrl),
         themeStyle: getValue(dom && dom.themeStyle, DEFAULTS.themeStyle),
@@ -635,6 +765,14 @@
       dom.showDate.dispatchEvent(new Event("writer:date-set", { bubbles: false }));
     }
     setValue(dom && dom.showStatus, show.status, "draft");
+    setValue(dom && dom.showType, show.showType, "classic-trivia");
+    // Sync show-type toggle buttons
+    if (dom && dom.showType) {
+      var st = dom.showType.value || "classic-trivia";
+      document.querySelectorAll(".show-type-btn").forEach(function (btn) {
+        btn.classList.toggle("active", btn.getAttribute("data-show-type") === st);
+      });
+    }
 
     setValue(dom && dom.blockType, block.type, DEFAULTS.blockType);
     setValue(dom && dom.questionType, block.questionType, DEFAULTS.questionType);
@@ -689,6 +827,21 @@
       items.forEach(function (item) { addOrderingItemRow(item || ""); });
     }
 
+    // Restore feud answers
+    if (dom && dom.feudAnswersList) {
+      dom.feudAnswersList.innerHTML = "";
+      var feudItems = Array.isArray(block.feudAnswers) && block.feudAnswers.length
+        ? block.feudAnswers
+        : [{ text: "" }, { text: "" }, { text: "" }];
+      feudItems.slice(0, FEUD_MAX_ANSWERS).forEach(function (a) {
+        addFeudAnswerRow(a ? (a.text || "") : "");
+      });
+      while (getFeudAnswerRows().length < FEUD_MIN_ANSWERS) {
+        addFeudAnswerRow("");
+      }
+      updateFeudAnswerBadges();
+    }
+
     syncQuestionTypeUI();
     emitChange("set-form-data");
   }
@@ -700,6 +853,7 @@
         title: getValue(dom && dom.showTitle, ""),
         dateLabel: getValue(dom && dom.showDate, ""),
         status: getValue(dom && dom.showStatus, "draft"),
+        showType: getValue(dom && dom.showType, "classic-trivia"),
       },
       block: {
         type: DEFAULTS.blockType,
@@ -713,6 +867,7 @@
         correctOptionIndex: null,
         matchingPairs: [],
         orderingItems: [],
+        feudAnswers: [],
         themeStyle: DEFAULTS.themeStyle,
         fontSizeMode: DEFAULTS.fontSizeMode,
         questionAlign: "left",

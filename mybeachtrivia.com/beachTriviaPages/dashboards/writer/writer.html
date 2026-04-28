@@ -11,7 +11,7 @@
   <script src="/beachTriviaPages/js/bt-nav.js" defer></script>
 
   <!-- Writer styles -->
-  <link rel="stylesheet" href="style.css?v=writer-20260428-pill-proportional-type" />
+  <link rel="stylesheet" href="style.css?v=writer-20260428-feud" />
 
   <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js" defer></script>
@@ -158,6 +158,16 @@
                   value="New Trivia Show Draft"
                 />
               </div>
+              <div class="field">
+                <label>Show Type</label>
+                <div class="show-type-toggle" role="group" aria-label="Show type">
+                  <button type="button" class="show-type-btn active" data-show-type="classic-trivia">Classic Trivia</button>
+                  <button type="button" class="show-type-btn" data-show-type="themed-trivia">Themed Trivia</button>
+                  <button type="button" class="show-type-btn" data-show-type="feud">Feud</button>
+                  <button type="button" class="show-type-btn" data-show-type="mixed">Mixed</button>
+                </div>
+                <input type="hidden" id="show-type" value="classic-trivia" />
+              </div>
               <div class="form-grid two">
                 <div class="field">
                   <label>Show Date(s)</label>
@@ -226,6 +236,7 @@
                 <option value="ordering">Ordering</option>
                 <option value="image-question">Image Question</option>
                 <option value="audio-question">Audio / Media Prompt</option>
+                <option value="feud-question">Feud Survey Question</option>
               </select>
             </div>
           </div>
@@ -352,6 +363,16 @@
                   <span class="media-url-alt-label">or paste a URL</span>
                   <input type="url" id="question-audio-url" placeholder="https://example.com/audio.mp3">
                 </div>
+              </div>
+
+              <!-- Feud survey answers: shown for feud-question -->
+              <div id="answer-type-feud" class="answer-type-panel" style="display:none;">
+                <div class="answer-type-header">
+                  <label>Survey Answers <span class="answer-type-hint-inline">ranked best → last</span></label>
+                  <button class="btn btn-secondary" type="button" id="add-feud-answer-btn">+ Add Response</button>
+                </div>
+                <div id="feud-answers-list"></div>
+                <p class="answer-type-hint">Top answer = 8 pts, descending by rank. Min 3, max 8 answers.</p>
               </div>
 
             </div>
@@ -517,6 +538,78 @@
                 </div>
               </article>
 
+              <article class="template-card">
+                <div class="template-head">
+                  <div>
+                    <div class="template-title">Feud Round Block</div>
+                    <div class="template-meta">Single feud survey question with answer grid</div>
+                  </div>
+                  <span class="subtle-chip feud-chip">Feud</span>
+                </div>
+                <div class="template-body">
+                  One feud-style survey question with ranked answer reveal (1 at a time, 8 pts max).
+                </div>
+                <div class="template-actions">
+                  <button class="btn btn-secondary" type="button" data-template="feud-single-question">
+                    Use Template
+                  </button>
+                </div>
+              </article>
+
+              <article class="template-card">
+                <div class="template-head">
+                  <div>
+                    <div class="template-title">Feud Halftime Block</div>
+                    <div class="template-meta">Halftime feud question with special styling</div>
+                  </div>
+                  <span class="subtle-chip feud-chip">Feud</span>
+                </div>
+                <div class="template-body">
+                  Halftime feud survey question with special halftime branding and ranked reveal.
+                </div>
+                <div class="template-actions">
+                  <button class="btn btn-secondary" type="button" data-template="feud-halftime">
+                    Use Template
+                  </button>
+                </div>
+              </article>
+
+              <article class="template-card">
+                <div class="template-head">
+                  <div>
+                    <div class="template-title">Feud Final Question</div>
+                    <div class="template-meta">Final feud survey question</div>
+                  </div>
+                  <span class="subtle-chip feud-chip">Feud</span>
+                </div>
+                <div class="template-body">
+                  Final feud survey question with dramatic reveal and ranked answer grid.
+                </div>
+                <div class="template-actions">
+                  <button class="btn btn-secondary" type="button" data-template="feud-final">
+                    Use Template
+                  </button>
+                </div>
+              </article>
+
+              <article class="template-card">
+                <div class="template-head">
+                  <div>
+                    <div class="template-title">Full Feud Show</div>
+                    <div class="template-meta">4 rounds &rarr; halftime &rarr; final &rarr; closing</div>
+                  </div>
+                  <span class="subtle-chip feud-chip">Feud Show</span>
+                </div>
+                <div class="template-body">
+                  Complete Beach Feud show: 4 rounds of 5 questions, halftime, final question, and closing.
+                </div>
+                <div class="template-actions">
+                  <button class="btn btn-secondary" type="button" data-template="feud-show">
+                    Use Template
+                  </button>
+                </div>
+              </article>
+
             </div>
           </div>
 
@@ -589,6 +682,8 @@
               <button class="btn btn-secondary" type="button">Prev</button>
               <button class="btn btn-secondary" type="button">Next</button>
               <button class="btn btn-primary" type="button">Reveal Answer</button>
+              <button class="btn btn-secondary feud-reveal-btn" type="button" id="feud-hide-prev-btn" style="display:none;" aria-label="Hide previous answer">&#8592; Hide</button>
+              <button class="btn btn-primary feud-reveal-btn" type="button" id="feud-reveal-next-btn" style="display:none;" aria-label="Reveal next answer">Reveal Next &#8594;</button>
             </div>
           </div>
         </div>
@@ -655,10 +750,10 @@
   </main>
 
   <!-- JS modules — load order: form → builder → preview → app -->
-  <script src="js/question-form.js" defer></script>
-  <script src="js/block-builder.js" defer></script>
-  <script src="js/preview.js?v=writer-20260428-rules-scoring" defer></script>
-  <script src="app.js?v=writer-20260407-thumbnail" defer></script>
+  <script src="js/question-form.js?v=writer-20260428-feud" defer></script>
+  <script src="js/block-builder.js?v=writer-20260428-feud" defer></script>
+  <script src="js/preview.js?v=writer-20260428-feud" defer></script>
+  <script src="app.js?v=writer-20260428-feud" defer></script>
 
 </body>
 </html>
