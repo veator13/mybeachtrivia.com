@@ -554,6 +554,7 @@
     dom.previewOptions.innerHTML = "";
     dom.previewOptions.classList.remove("slide-options-matching");
     dom.previewOptions.classList.remove("slide-options-display");
+    dom.previewOptions.classList.remove("slide-options--dense");
 
     if (normalizedType === "multiple-choice") {
       const normalizedOptions = Array.isArray(options) ? options.filter(Boolean) : [];
@@ -562,6 +563,7 @@
         return;
       }
       dom.previewOptions.style.display = "";
+      dom.previewOptions.classList.toggle("slide-options--dense", normalizedOptions.length >= 5);
       normalizedOptions.forEach(function (option, index) {
         const row = document.createElement("div");
         const isCorrect = isReveal && option === answerText;

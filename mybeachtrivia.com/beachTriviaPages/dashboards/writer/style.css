@@ -1564,6 +1564,21 @@ textarea {
   align-items: flex-start;
 }
 
+.slide-options--dense {
+  gap: clamp(4px, 0.69cqw, 6px);
+}
+
+.slide-options--dense .slide-option {
+  font-size: clamp(12px, 2.07cqw, 18px);
+  padding: clamp(4px, 0.8cqw, 7px) clamp(8px, 1.38cqw, 12px);
+}
+
+.slide-options--dense .slide-option-key {
+  width: clamp(18px, 2.76cqw, 24px);
+  height: clamp(18px, 2.76cqw, 24px);
+  font-size: clamp(9px, 1.15cqw, 11px);
+}
+
 .slide-option.correct {
   background: rgba(16, 185, 129, 0.18);
   border-color: rgba(16, 185, 129, 0.55);

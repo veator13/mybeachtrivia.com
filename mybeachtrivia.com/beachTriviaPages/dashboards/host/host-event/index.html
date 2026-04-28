@@ -130,6 +130,13 @@
       box-shadow: var(--host-shadow);
       backdrop-filter: blur(10px);
       padding: 22px;
+      transition: width 0.2s ease, padding 0.2s ease;
+    }
+
+    .page-stage.game-open {
+      width: calc(100vw - 32px);
+      padding: 12px;
+      border-radius: 16px;
     }
 
     .page-header {
@@ -393,9 +400,6 @@
         <div class="page-header-copy">
           <p class="page-eyebrow">Host Tools</p>
           <h1 class="page-title">Host Event</h1>
-          <p class="page-subtitle">
-            Event-specific tools live here. Use this page as the home for future live event controls and host workflow actions.
-          </p>
         </div>
       </header>
 

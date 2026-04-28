@@ -5,6 +5,8 @@
     "ignore": [
       "firebase.json",
       "**/.*",
+      "**/.claude/**",
+      "**/worktrees/**",
       "**/node_modules/**",
       "functions_gcfv1/**",
       "app.js",

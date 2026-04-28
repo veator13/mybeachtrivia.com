@@ -55,17 +55,20 @@
   const gameIframe = document.getElementById('game-iframe');
   const gameLabel = document.getElementById('game-label');
   const backToMenu = document.getElementById('back-to-menu');
+  const pageStage = document.querySelector('.page-stage');
 
   function openGame(url, label) {
     gameIframe.src = url + '?t=' + Date.now();
     if (gameLabel) gameLabel.textContent = label;
     if (contentGrid) contentGrid.style.display = 'none';
     if (gameFrameView) gameFrameView.style.display = 'block';
+    if (pageStage) pageStage.classList.add('game-open');
   }
 
   function closeGame() {
     if (gameFrameView) gameFrameView.style.display = 'none';
     if (contentGrid) contentGrid.style.display = 'grid';
+    if (pageStage) pageStage.classList.remove('game-open');
     gameIframe.src = '';
   }
 

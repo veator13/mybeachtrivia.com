@@ -15,7 +15,7 @@
 
   <script src="/beachTriviaPages/js/firebase-init-compat.js?v=1" defer></script>
   <script src="/beachTriviaPages/dashboards/host/guard-host.js?v=2" defer></script>
-  <script src="app.js?v=5" defer></script>
+  <script src="app.js?v=8" defer></script>
 
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -27,6 +27,7 @@
       --line:     rgba(148, 163, 184, 0.14);
       --text:     #e8f0fb;
       --muted:    #8aa3c0;
+      --soft:     #cbd5e1;
       --blue:     #4da3ff;
       --blue2:    #2b7de0;
       --green:    #22c55e;
@@ -158,7 +159,6 @@
       gap: 14px;
     }
 
-    /* Console header bar */
     .console-bar {
       display: flex;
       align-items: center;
@@ -238,6 +238,7 @@
       grid-template-columns: 1fr 1fr;
       gap: 14px;
       flex: 1;
+      align-items: start;
     }
 
     .viewport-col {
@@ -245,8 +246,6 @@
       flex-direction: column;
       gap: 10px;
     }
-
-    .viewport-label { display: flex; align-items: center; gap: 8px; }
 
     .vp-bar {
       display: flex;
@@ -271,6 +270,8 @@
       display: flex;
       gap: 6px;
       margin-left: auto;
+      flex-basis: 100%;
+      margin-top: 4px;
     }
 
     .vp-chip {
@@ -298,124 +299,8 @@
       color: #86efac;
     }
 
-    /* Slide card */
-    .slide-card {
-      flex: 1;
-      border-radius: 20px;
-      border: 1px solid var(--line);
-      padding: 24px;
-      display: flex;
-      flex-direction: column;
-      gap: 18px;
-      min-height: 440px;
-    }
-
-    .slide-card.host-card {
-      background: linear-gradient(160deg, #152540 0%, #0d1b30 100%);
-    }
-
-    .slide-card.cast-card {
-      background: linear-gradient(160deg, #0e1e3a 0%, #09121f 100%);
-      border-color: rgba(77,163,255,0.18);
-    }
-
-    .slide-top {
-      display: flex; justify-content: space-between; align-items: flex-start;
-    }
-
-    .slide-badge {
-      display: inline-flex; align-items: center;
-      padding: 6px 12px; border-radius: 999px;
-      font-size: 11px; font-weight: 800;
-      letter-spacing: 0.05em; text-transform: uppercase;
-      background: rgba(77,163,255,0.14);
-      border: 1px solid rgba(77,163,255,0.2);
-      color: #c8e6ff;
-    }
-
-    .slide-meta {
-      text-align: right; font-size: 12px; color: var(--muted);
-      display: flex; flex-direction: column; gap: 3px;
-    }
-
-    .slide-body { flex: 1; display: flex; flex-direction: column; gap: 16px; }
-
-    .slide-category {
-      font-size: 13px; font-weight: 800;
-      letter-spacing: 0.07em; text-transform: uppercase;
-      color: #7ec8ff;
-    }
-
-    .slide-question {
-      font-size: clamp(20px, 2.2vw, 30px);
-      font-weight: 900; line-height: 1.15; color: #f0f8ff;
-    }
-
-    .slide-options { display: grid; gap: 10px; }
-
-    .slide-option {
-      display: flex; align-items: flex-start; gap: 10px;
-      background: rgba(255,255,255,0.05);
-      border: 1px solid rgba(255,255,255,0.07);
-      border-radius: 12px;
-      padding: 11px 14px;
-      color: #ddeeff;
-      font-size: clamp(14px, 1.4vw, 18px);
-    }
-
-    .opt-key {
-      width: 28px; height: 28px; flex-shrink: 0;
-      border-radius: 999px;
-      background: rgba(77,163,255,0.16);
-      color: #c8e6ff; font-weight: 800; font-size: 12px;
-      display: inline-flex; align-items: center; justify-content: center;
-    }
-
-    .slide-answer {
-      display: none;
-      background: rgba(34,197,94,0.08);
-      border: 1px dashed rgba(34,197,94,0.3);
-      border-radius: 14px;
-      padding: 14px 16px;
-    }
-    .slide-answer.visible { display: block; }
-
-    .answer-label {
-      font-size: 11px; font-weight: 800;
-      letter-spacing: 0.06em; text-transform: uppercase;
-      color: #86efac; margin-bottom: 4px;
-    }
-
-    .answer-value {
-      font-size: 20px; font-weight: 900; color: #dcfce7;
-    }
-
-    .slide-footer {
-      display: flex;
-      gap: 8px;
-      padding-top: 14px;
-      border-top: 1px solid rgba(255,255,255,0.07);
-      margin-top: auto;
-      flex-shrink: 0;
-    }
-
-    .slide-notes {
-      font-size: 13px; color: var(--muted);
-      font-style: italic;
-      border-top: 1px solid rgba(255,255,255,0.06);
-      padding-top: 12px;
-    }
-
-    .slide-notes:empty { display: none; }
-    .slide-category:empty { display: none; }
-
-    /* Viewport control rows */
-    .vp-controls {
-      display: flex; gap: 8px;
-    }
-
+    /* ── Viewport nav buttons ──────────────────────── */
     .btn-nav {
-      flex: 1;
       border: 1px solid rgba(148,163,184,0.2);
       border-radius: 12px;
       padding: 11px;
@@ -430,7 +315,6 @@
     .btn-nav:disabled { opacity: 0.3; cursor: not-allowed; transform: none; }
 
     .btn-reveal {
-      flex: 1;
       border: 1px solid rgba(245,158,11,0.25);
       border-radius: 12px;
       padding: 11px;
@@ -444,7 +328,6 @@
     .btn-reveal:active { transform: none; }
 
     .btn-hide {
-      flex: 1;
       border: 1px solid rgba(239,68,68,0.22);
       border-radius: 12px;
       padding: 11px;
@@ -456,6 +339,551 @@
     }
     .btn-hide:hover { background: rgba(239,68,68,0.14); transform: translateY(-1px); }
     .btn-hide:active { transform: none; }
+
+    /* ── Host notes ────────────────────────────────── */
+    .host-notes-area {
+      background: rgba(245,158,11,0.06);
+      border: 1px solid rgba(245,158,11,0.15);
+      border-radius: 14px;
+      padding: 12px 16px;
+      font-size: 13px;
+      color: #fde68a;
+      font-style: italic;
+      line-height: 1.5;
+    }
+    .host-notes-area:empty { display: none; }
+
+    /* ══════════════════════════════════════════════════════════
+       Writer preview-stage CSS — exact copy so slides render
+       identically to the writer/slideshow-generator preview.
+       ══════════════════════════════════════════════════════════ */
+
+    .preview-stage {
+      container-type: inline-size;
+      background:
+        radial-gradient(circle at top left, rgba(59, 130, 246, 0.15), transparent 32%),
+        linear-gradient(180deg, #13203b 0%, #081120 100%);
+      border: 1px solid rgba(148, 163, 184, 0.15);
+      border-radius: clamp(14px, 2.53cqw, 22px);
+      padding: clamp(10px, 1.85cqw, 16px) clamp(12px, 2.07cqw, 18px);
+      width: 100%;
+      max-width: 100%;
+      aspect-ratio: 16 / 9;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .preview-stage::after {
+      content: "";
+      position: absolute;
+      inset: clamp(8px, 1.61cqw, 14px);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: clamp(10px, 2.07cqw, 18px);
+      pointer-events: none;
+    }
+
+    .slide-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: clamp(10px, 1.84cqw, 16px);
+      position: relative;
+      z-index: 1;
+    }
+
+    .slide-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: clamp(5px, 0.8cqw, 7px) clamp(10px, 1.38cqw, 12px);
+      border-radius: 999px;
+      font-size: clamp(10px, 1.38cqw, 12px);
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      background: rgba(59, 130, 246, 0.16);
+      color: #dbeafe;
+      border: 1px solid rgba(59, 130, 246, 0.24);
+    }
+
+    .slide-meta-stack {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: clamp(4px, 0.92cqw, 8px);
+      color: var(--soft);
+      font-size: clamp(10px, 1.38cqw, 12px);
+    }
+
+    .slide-middle {
+      position: relative;
+      z-index: 1;
+      margin: clamp(6px, 2.3cqw, 20px) 0;
+      display: grid;
+      gap: clamp(10px, 2.53cqw, 22px);
+      align-content: center;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .slide-category {
+      font-size: clamp(15px, 2.53cqw, 22px);
+      font-weight: 800;
+      color: #93c5fd;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .slide-question {
+      font-size: clamp(28px, 5cqw, 46px);
+      line-height: 1.12;
+      font-weight: 900;
+      color: #f8fafc;
+      max-width: 100%;
+      word-break: break-word;
+    }
+
+    .preview-stage .slide-question[data-font-mode="summary"] {
+      white-space: pre-wrap;
+      font-size: clamp(28px, 3.3cqw, 40px);
+      line-height: 1.35;
+    }
+
+    .preview-stage[data-block-type="answers-summary"] .slide-middle {
+      align-content: start;
+    }
+
+    .preview-stage .slide-question[data-font-mode="display"] {
+      font-size: clamp(18px, 2.1cqw, 28px);
+      line-height: 1.2;
+    }
+
+    .slide-question strong,
+    .slide-question b {
+      color: #93c5fd;
+      font-weight: 900;
+    }
+
+    .slide-answer-preview {
+      border-radius: clamp(10px, 1.84cqw, 16px);
+      border: 1px dashed rgba(16, 185, 129, 0.35);
+      background: rgba(16, 185, 129, 0.08);
+      padding: clamp(10px, 1.84cqw, 16px) clamp(12px, 2.07cqw, 18px);
+    }
+
+    .slide-answer-preview .label {
+      color: #86efac;
+      font-size: clamp(10px, 1.38cqw, 12px);
+      text-transform: uppercase;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      margin-bottom: clamp(4px, 0.69cqw, 6px);
+    }
+
+    .slide-answer-preview .value {
+      color: #f0fdf4;
+      font-size: clamp(14px, 2.3cqw, 20px);
+      font-weight: 800;
+      line-height: 1.2;
+    }
+
+    .slide-options {
+      display: grid;
+      gap: clamp(8px, 1.38cqw, 12px);
+    }
+
+    .slide-options-display {
+      margin-top: 2px;
+    }
+
+    .slide-display-content {
+      border-radius: 14px;
+      border: 1px solid rgba(56, 189, 248, 0.22);
+      background:
+        linear-gradient(180deg, rgba(14, 165, 233, 0.10), rgba(14, 165, 233, 0.03)),
+        rgba(15, 23, 42, 0.45);
+      color: #e0f2fe;
+      padding: 12px 14px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2px 18px;
+      overflow-wrap: break-word;
+    }
+
+    .preview-stage[data-block-type="round-start"] .slide-middle,
+    .preview-stage[data-block-type="category-slide"] .slide-middle {
+      text-align: center;
+      gap: clamp(12px, 2cqw, 20px);
+      align-content: center;
+      justify-items: center;
+    }
+
+    .preview-stage[data-block-type="round-start"] .slide-question,
+    .preview-stage[data-block-type="category-slide"] .slide-question {
+      text-align: center !important;
+      font-size: clamp(38px, 7.2cqw, 62px) !important;
+      letter-spacing: -0.02em;
+      line-height: 1.05 !important;
+    }
+
+    .preview-stage[data-block-type="round-start"] .slide-display-content {
+      grid-template-columns: 1fr;
+      text-align: center;
+      padding: 10px 24px;
+      font-size: clamp(15px, 2.67cqw, 21px);
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #7dd3fc;
+      border-color: rgba(56, 189, 248, 0.45);
+      background: linear-gradient(135deg, rgba(14, 165, 233, 0.14), rgba(14, 165, 233, 0.04));
+      box-shadow: 0 0 24px rgba(14, 165, 233, 0.12), inset 0 1px 0 rgba(255,255,255,0.06);
+      border-radius: 999px;
+      width: fit-content;
+      margin: 0 auto;
+    }
+
+    .preview-stage[data-block-type="category-slide"] .slide-display-content {
+      grid-template-columns: 1fr;
+      text-align: left;
+      padding: clamp(12px, 1.8cqw, 20px) clamp(14px, 2cqw, 22px);
+      font-size: clamp(12px, 2cqw, 22px);
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      text-transform: none;
+      color: #e0f2fe;
+      border-radius: clamp(10px, 1.84cqw, 16px);
+      width: 100%;
+      max-width: 100%;
+      margin: 0 auto;
+    }
+
+    .slide-rules-item {
+      display: flex;
+      align-items: baseline;
+      gap: 7px;
+      padding: 5px 6px;
+      border-radius: 0;
+      background: none;
+      border: none;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      font-size: clamp(12px, 2.16cqw, 15px);
+      line-height: 1.4;
+      color: #cbd5e1;
+    }
+
+    .slide-rules-item--wide {
+      grid-column: 1 / -1;
+    }
+
+    .slide-rules-bullet {
+      color: #38bdf8;
+      font-weight: 700;
+      font-size: 0.95em;
+      flex-shrink: 0;
+      line-height: 1;
+      margin-top: 1px;
+    }
+
+    .slide-option {
+      font-size: clamp(18px, 3.1cqw, 28px);
+      padding: clamp(8px, 1.61cqw, 14px) clamp(10px, 1.84cqw, 16px);
+      border-radius: clamp(10px, 1.84cqw, 16px);
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: #e2e8f0;
+      display: flex;
+      gap: clamp(8px, 1.38cqw, 12px);
+      align-items: flex-start;
+    }
+
+    .slide-options--dense {
+      gap: clamp(4px, 0.69cqw, 6px);
+    }
+
+    .slide-options--dense .slide-option {
+      font-size: clamp(12px, 2.07cqw, 18px);
+      padding: clamp(4px, 0.8cqw, 7px) clamp(8px, 1.38cqw, 12px);
+    }
+
+    .slide-options--dense .slide-option-key {
+      width: clamp(18px, 2.76cqw, 24px);
+      height: clamp(18px, 2.76cqw, 24px);
+      font-size: clamp(9px, 1.15cqw, 11px);
+    }
+
+    .slide-option.correct {
+      background: rgba(16, 185, 129, 0.18);
+      border-color: rgba(16, 185, 129, 0.55);
+      color: #d1fae5;
+    }
+
+    .slide-option.correct .slide-option-key {
+      background: #10b981;
+      color: #fff;
+      border-color: #10b981;
+    }
+
+    .slide-option.incorrect {
+      opacity: 0.38;
+    }
+
+    .slide-option-tick {
+      margin-left: auto;
+      color: #10b981;
+      font-size: 1.1em;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .slide-options-matching {
+      width: max-content;
+      max-width: 100%;
+      margin-inline: auto;
+    }
+
+    .slide-option-pair {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 16px;
+      align-items: center;
+      padding: 10px 20px;
+      font-size: clamp(14px, 2.25cqw, 20px);
+    }
+
+    .slide-option-pair-left {
+      text-align: right;
+      color: #e2e8f0;
+    }
+
+    .slide-option-pair-right {
+      text-align: left;
+      color: #e2e8f0;
+    }
+
+    .slide-option-pair-arrow {
+      color: #93c5fd;
+      font-size: 18px;
+      flex-shrink: 0;
+      text-align: center;
+    }
+
+    .slide-option-key {
+      display: inline-flex;
+      width: clamp(24px, 3.91cqw, 34px);
+      height: clamp(24px, 3.91cqw, 34px);
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      border-radius: 999px;
+      background: rgba(59, 130, 246, 0.16);
+      color: #dbeafe;
+      font-weight: 800;
+      font-size: clamp(11px, 1.61cqw, 14px);
+    }
+
+    .slide-bottom {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: clamp(10px, 1.84cqw, 16px);
+      flex-wrap: wrap;
+      position: relative;
+      z-index: 1;
+      margin-top: clamp(8px, 1.84cqw, 16px);
+    }
+
+    .slide-notes {
+      max-width: 70%;
+      color: #cbd5e1;
+      font-size: 13px;
+      opacity: 0.95;
+    }
+
+    /* ── Title slide overlay ───────────────────────── */
+
+    .slide-title-overlay {
+      position: absolute;
+      inset: 0;
+      display: none;
+      flex-direction: column;
+      align-items: stretch;
+      background:
+        radial-gradient(ellipse at 50% 0%, rgba(14, 165, 233, 0.18) 0%, transparent 60%),
+        radial-gradient(ellipse at 50% 100%, rgba(14, 165, 233, 0.10) 0%, transparent 55%),
+        linear-gradient(180deg, #0d1f3c 0%, #061428 100%);
+      border-radius: 22px;
+      z-index: 10;
+      overflow: hidden;
+    }
+
+    .slide-title-overlay::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, transparent 0%, #0ea5e9 40%, #22d3ee 60%, transparent 100%);
+      opacity: 0.9;
+    }
+
+    .title-slide-inner {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      height: 100%;
+      padding: 32px 36px 26px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .title-slide-eyebrow-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      width: 100%;
+      max-width: 480px;
+    }
+
+    .title-slide-eyebrow-line {
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(14, 165, 233, 0.7), transparent);
+    }
+
+    .title-slide-eyebrow {
+      font-size: clamp(0.55rem, 1.3vw, 0.72rem);
+      font-weight: 700;
+      letter-spacing: 0.26em;
+      text-transform: uppercase;
+      color: #38bdf8;
+      text-align: center;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .title-slide-heading {
+      font-size: clamp(2rem, 6vw, 3.2rem);
+      font-weight: 900;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #f0f9ff;
+      text-align: center;
+      line-height: 1;
+      text-shadow:
+        0 0 40px rgba(14, 165, 233, 0.55),
+        0 0 80px rgba(14, 165, 233, 0.25);
+    }
+
+    .title-slide-center-row {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 28px;
+      min-height: 0;
+      width: 100%;
+    }
+
+    .title-slide-logo {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .title-slide-logo img {
+      width: 400px;
+      height: 400px;
+      object-fit: contain;
+      filter: drop-shadow(0 0 22px rgba(14, 165, 233, 0.4));
+    }
+
+    .title-slide-qr-card {
+      flex: 0 0 auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(14, 165, 233, 0.3);
+      border-radius: 14px;
+      padding: 12px 16px 12px;
+      backdrop-filter: blur(4px);
+    }
+
+    .title-slide-qr-card img {
+      width: 120px;
+      height: 120px;
+      object-fit: contain;
+      border-radius: 50%;
+      display: block;
+    }
+
+    .title-slide-qr-label {
+      margin-top: 8px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #7dd3fc;
+      text-align: center;
+    }
+
+    .title-slide-qr-hint {
+      font-size: 0.58rem;
+      letter-spacing: 0.08em;
+      color: rgba(148, 163, 184, 0.7);
+      text-align: center;
+      margin-top: 2px;
+    }
+
+    /* Scale title overlay content to fit the preview card */
+    .preview-stage .slide-title-overlay {
+      overflow-x: hidden;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .preview-stage .title-slide-inner {
+      padding: clamp(8px, 2vmin, 20px) clamp(10px, 2.5vmin, 24px);
+      min-height: 0;
+      justify-content: flex-start;
+      gap: clamp(4px, 1.2vmin, 12px);
+    }
+
+    .preview-stage .title-slide-heading {
+      font-size: clamp(1rem, 3.2vmin, 2rem);
+    }
+
+    .preview-stage .title-slide-center-row {
+      gap: clamp(8px, 1.5vmin, 20px);
+    }
+
+    .preview-stage .title-slide-logo img {
+      width: min(200px, 32vmin);
+      height: min(200px, 32vmin);
+      max-width: 100%;
+    }
+
+    .preview-stage .title-slide-qr-card {
+      padding: 8px 10px;
+    }
+
+    .preview-stage .title-slide-qr-card img {
+      width: min(72px, 14vmin);
+      height: min(72px, 14vmin);
+    }
+
+    .preview-stage .title-slide-eyebrow-row {
+      max-width: 100%;
+    }
+
+    /* ══════════════════════════════════════════════════════════ */
 
     @media (max-width: 900px) {
       .viewports { grid-template-columns: 1fr; }
@@ -525,28 +953,14 @@
           <div class="vp-bar-controls">
             <button class="btn-nav" id="btn-prev" type="button">← Prev</button>
             <button class="btn-nav" id="btn-next" type="button">Next →</button>
+            <button class="btn-reveal" id="btn-host-reveal" type="button">Reveal</button>
+            <button class="btn-hide" id="btn-host-hide" type="button">Hide</button>
           </div>
         </div>
 
-        <div class="slide-card host-card" id="host-slide">
-          <div class="slide-top">
-            <span class="slide-badge" id="host-badge"></span>
-            <div class="slide-meta">
-              <span id="host-state-label"></span>
-              <span id="host-theme"></span>
-            </div>
-          </div>
-          <div class="slide-body">
-            <div class="slide-category" id="host-category"></div>
-            <div class="slide-question" id="host-question"></div>
-            <div class="slide-options" id="host-options"></div>
-            <div class="slide-answer visible" id="host-answer">
-              <div class="answer-label">Answer</div>
-              <div class="answer-value" id="host-answer-value"></div>
-            </div>
-            <div class="slide-notes" id="host-notes"></div>
-          </div>
-        </div>
+        <div class="preview-stage" id="host-stage"></div>
+
+        <div class="host-notes-area" id="host-notes"></div>
       </div>
 
       <!-- RIGHT: Cast Preview -->
@@ -554,7 +968,6 @@
         <div class="vp-bar">
           <span class="vp-chip cast" id="cast-chip">Cast Preview</span>
           <span class="vp-count" id="cast-slide-count"></span>
-          <span class="vp-status" id="cast-status-label">Answer hidden</span>
           <div class="vp-bar-controls">
             <button class="btn-nav" id="btn-cast-prev" type="button">← Prev</button>
             <button class="btn-nav" id="btn-cast-next" type="button">Next →</button>
@@ -563,24 +976,7 @@
           </div>
         </div>
 
-        <div class="slide-card cast-card" id="cast-slide">
-          <div class="slide-top">
-            <span class="slide-badge" id="cast-badge"></span>
-            <div class="slide-meta">
-              <span id="cast-state-label"></span>
-              <span id="cast-theme"></span>
-            </div>
-          </div>
-          <div class="slide-body">
-            <div class="slide-category" id="cast-category"></div>
-            <div class="slide-question" id="cast-question"></div>
-            <div class="slide-options" id="cast-options"></div>
-            <div class="slide-answer" id="cast-answer">
-              <div class="answer-label">Answer</div>
-              <div class="answer-value" id="cast-answer-value"></div>
-            </div>
-          </div>
-        </div>
+        <div class="preview-stage" id="cast-stage"></div>
       </div>
     </div>
   </div>

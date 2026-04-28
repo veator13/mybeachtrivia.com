@@ -1,13 +1,18 @@
-// live-console/app.js v4
+// live-console/app.js v8
 
 (function () {
   'use strict';
 
+  var WRITER_ASSETS = '/beachTriviaPages/dashboards/writer/assets/images/';
+
+  var DISPLAY_BLOCK_TYPES = ['intro-slide', 'info-slide', 'round-start', 'category-slide'];
+
   const state = {
     shows: [],
     deck: { id: null, title: '', theme: 'Standard Trivia', slides: [] },
-    hostSlide: 0,   // host-only view index
-    castSlide: 0,   // cast/audience index
+    hostSlide: 0,
+    castSlide: 0,
+    hostRevealed: false,
     revealed: false,
     live: false,
     sessionCode: 'BT-' + Math.floor(1000 + Math.random() * 9000),
@@ -60,12 +65,9 @@
       'btn-prev', 'btn-next', 'btn-cast-prev', 'btn-cast-next',
       'btn-reveal', 'btn-hide',
       'host-slide-count', 'cast-slide-count',
-      'host-badge', 'host-state-label', 'host-theme',
-      'host-category', 'host-question', 'host-options',
-      'host-answer', 'host-answer-value', 'host-notes',
-      'cast-badge', 'cast-state-label', 'cast-theme',
-      'cast-category', 'cast-question', 'cast-options',
-      'cast-answer', 'cast-answer-value',
+      'btn-host-reveal', 'btn-host-hide',
+      'host-stage', 'cast-stage',
+      'host-notes',
       'cast-chip', 'cast-status-label',
     ].forEach(function (id) {
       dom[id] = document.getElementById(id);
@@ -97,6 +99,9 @@
     on('btn-next',      'click', function () { stepHost(1); });
     on('btn-cast-prev', 'click', function () { stepCast(-1); });
     on('btn-cast-next', 'click', function () { stepCast(1); });
+
+    on('btn-host-reveal', 'click', function () { setHostRevealed(true); });
+    on('btn-host-hide',   'click', function () { setHostRevealed(false); });
 
     on('btn-reveal', 'click', function () { setRevealed(true); });
     on('btn-hide',   'click', function () { setRevealed(false); });
@@ -133,7 +138,6 @@
       return;
     }
 
-    // Blank default
     const blank = document.createElement('option');
     blank.value = '';
     blank.textContent = '— Select a show —';
@@ -148,7 +152,6 @@
       sel.appendChild(opt);
     });
 
-    // Auto-select today's show if found
     const today = state.shows.find(matchesToday);
     if (today) {
       sel.value = today.__id;
@@ -192,10 +195,11 @@
     state.deck.id    = data.__id;
     state.deck.title = (data.show && data.show.title) || 'Untitled Show';
     state.deck.slides = flattenSlides(data);
-    state.hostSlide = 0;
-    state.castSlide = 0;
-    state.revealed  = false;
-    state.live     = false;
+    state.hostSlide    = 0;
+    state.castSlide    = 0;
+    state.hostRevealed = false;
+    state.revealed     = false;
+    state.live         = false;
 
     setText('console-show-name', state.deck.title);
     updateCastUrl();
@@ -229,17 +233,21 @@
         var showTitle = (data.show && data.show.title) || '';
         var showDate  = (data.show && data.show.dateLabel) || '';
         slides.push({
-          stateKey:   s.stateKey    || '',
-          stateLabel: s.stateLabel  || (isTitle ? 'Title Slide' : ''),
-          roundBadge: s.title       || roundBadge,
-          category:   s.categoryName || s.category || block.categoryName || (isTitle ? showDate : ''),
-          question:   s.prompt      || s.question  || (isTitle ? showTitle : ''),
-          options:    Array.isArray(s.options) ? s.options.filter(Boolean) : [],
-          answer:     s.answer      || '',
-          notes:      s.notes       || '',
-          theme:      s.themeStyle  || 'Standard Trivia',
-          alwaysReveal: !!(s.answerVisibleByDefault || s.kind === 'summary' || s.kind === 'answers-summary'),
-          kind:       s.kind        || s.type       || (block.type === 'title' ? 'title' : 'question'),
+          stateKey:      s.stateKey    || '',
+          stateLabel:    s.stateLabel  || (isTitle ? 'Title Slide' : ''),
+          roundBadge:    s.title       || roundBadge,
+          category:      s.categoryName || s.category || block.categoryName || (isTitle ? showDate : ''),
+          question:      s.prompt      || s.question  || (isTitle ? showTitle : ''),
+          options:       Array.isArray(s.options) ? s.options.filter(Boolean) : [],
+          matchingPairs: Array.isArray(s.matchingPairs) ? s.matchingPairs : [],
+          orderingItems: Array.isArray(s.orderingItems) ? s.orderingItems : [],
+          answer:        s.answer      || '',
+          notes:         s.notes       || '',
+          theme:         s.themeStyle  || block.themeStyle || 'Standard Trivia',
+          alwaysReveal:  !!(s.answerVisibleByDefault || s.kind === 'summary' || s.kind === 'answers-summary'),
+          kind:          s.kind        || s.type       || (block.type === 'title' ? 'title' : 'question'),
+          blockType:     block.type    || '',
+          questionType:  s.questionType || block.questionType || 'multiple-choice',
         });
       });
     });
@@ -249,6 +257,12 @@
   function stepHost(delta) {
     const max = state.deck.slides.length - 1;
     state.hostSlide = Math.max(0, Math.min(max, state.hostSlide + delta));
+    state.hostRevealed = false;
+    renderHost();
+  }
+
+  function setHostRevealed(val) {
+    state.hostRevealed = val;
     renderHost();
   }
 
@@ -283,17 +297,9 @@
     if (dom['btn-next']) dom['btn-next'].disabled = state.hostSlide >= total - 1;
 
     if (!slide) return;
-    setText('host-badge',        slide.roundBadge);
-    setText('host-state-label',  slide.stateLabel);
-    setText('host-theme',        slide.theme || state.deck.theme);
-    setText('host-category',     slide.category);
-    setText('host-question',     slide.question);
-    setText('host-answer-value', slide.answer);
-    setText('host-notes',        slide.notes);
-    renderOptions('host-options', slide.options);
-    if (dom['host-answer']) {
-      dom['host-answer'].classList.toggle('visible', !!slide.answer);
-    }
+    var showHostAnswer = state.hostRevealed || slide.alwaysReveal;
+    paintSlide(dom['host-stage'], slide, showHostAnswer);
+    setText('host-notes', slide.notes || '');
   }
 
   function renderCast() {
@@ -304,39 +310,291 @@
     if (dom['btn-cast-next']) dom['btn-cast-next'].disabled = state.castSlide >= total - 1;
 
     if (!slide) return;
-    const showAnswer = state.revealed || slide.alwaysReveal;
-
-    setText('cast-badge',        slide.roundBadge);
-    setText('cast-state-label',  slide.stateLabel);
-    setText('cast-theme',        slide.theme || state.deck.theme);
-    setText('cast-category',     slide.category);
-    setText('cast-question',     slide.question);
-    setText('cast-answer-value', slide.answer);
-    renderOptions('cast-options', slide.options);
-    if (dom['cast-answer']) {
-      dom['cast-answer'].classList.toggle('visible', !!(showAnswer && slide.answer));
-    }
+    var showAnswer = state.revealed || slide.alwaysReveal;
+    paintSlide(dom['cast-stage'], slide, showAnswer);
     setText('cast-status-label', showAnswer ? 'Answer visible to audience' : 'Answer hidden until revealed');
   }
 
-  function renderOptions(containerId, options) {
-    const el = dom[containerId] || document.getElementById(containerId);
-    if (!el) return;
-    el.innerHTML = '';
-    if (!options || !options.length) { el.style.display = 'none'; return; }
-    el.style.display = '';
-    options.forEach(function (opt, i) {
-      const row = document.createElement('div');
-      row.className = 'slide-option';
-      const key = document.createElement('span');
-      key.className = 'opt-key';
-      key.textContent = String.fromCharCode(65 + i);
-      const txt = document.createElement('span');
-      txt.textContent = opt;
-      row.appendChild(key);
-      row.appendChild(txt);
-      el.appendChild(row);
-    });
+  function isTitleSlide(slide) {
+    if (!slide) return false;
+    const kind = String(slide.kind || '').toLowerCase();
+    const stateLabel = String(slide.stateLabel || '').toLowerCase();
+    return kind === 'title' || stateLabel.includes('title slide');
+  }
+
+  // ── Slide painter ──────────────────────────────────────────────────────────
+
+  function paintSlide(el, slide, revealed) {
+    if (!el || !slide) return;
+
+    var isTitle   = isTitleSlide(slide);
+    var blockType = slide.blockType || slide.kind || '';
+    var isDisplay = DISPLAY_BLOCK_TYPES.indexOf(blockType) !== -1
+      || String(slide.questionType || '').toLowerCase() === 'display';
+    var effectiveType = isDisplay ? 'display' : String(slide.questionType || 'multiple-choice').toLowerCase();
+
+    el.setAttribute('data-block-type', blockType);
+
+    // Title slide — show full overlay, nothing else needed
+    var overlay = ensureTitleOverlay(el);
+    if (isTitle) {
+      overlay.style.display = 'flex';
+      return;
+    }
+    overlay.style.display = 'none';
+
+    // Ensure skeleton elements exist
+    buildSkeleton(el);
+
+    // Badge
+    var badge = el.querySelector('.slide-badge');
+    if (badge) badge.textContent = slide.roundBadge || '';
+
+    // Meta stack (state label + theme)
+    var meta = el.querySelector('.slide-meta-stack');
+    if (meta) {
+      meta.innerHTML = '';
+      var stateEl = document.createElement('span');
+      stateEl.textContent = slide.stateLabel || '';
+      var themeEl = document.createElement('span');
+      themeEl.textContent = slide.theme || '';
+      meta.appendChild(stateEl);
+      meta.appendChild(themeEl);
+    }
+
+    // Category (hidden on display-type slides)
+    var cat = el.querySelector('.slide-category');
+    if (cat) {
+      cat.textContent = slide.category || '';
+      cat.style.display = isDisplay ? 'none' : '';
+    }
+
+    // Question text
+    var q = el.querySelector('.slide-question');
+    if (q) {
+      q.textContent = slide.question || '';
+      if (blockType === 'answers-summary') {
+        q.setAttribute('data-font-mode', 'summary');
+        q.style.whiteSpace = 'pre-wrap';
+      } else if (isDisplay) {
+        q.setAttribute('data-font-mode', 'display');
+        q.style.whiteSpace = '';
+      } else {
+        q.removeAttribute('data-font-mode');
+        q.style.whiteSpace = '';
+      }
+    }
+
+    // Options
+    paintOptions(el, effectiveType, slide, revealed);
+
+    // Answer panel (hidden for MC and display types; shown on reveal for others)
+    var ansWrap  = el.querySelector('.slide-answer-preview');
+    var ansValue = el.querySelector('.slide-answer-preview .value');
+    if (ansWrap && ansValue) {
+      var isMC = effectiveType === 'multiple-choice';
+      var showAns = revealed && !isMC && !isDisplay && slide.answer;
+      ansValue.textContent = slide.answer || '';
+      ansWrap.style.display = showAns ? '' : 'none';
+    }
+  }
+
+  function buildSkeleton(el) {
+    if (el.querySelector('.slide-top')) return; // already built
+    el.innerHTML = [
+      '<div class="slide-top">',
+      '  <span class="slide-badge"></span>',
+      '  <div class="slide-meta-stack"></div>',
+      '</div>',
+      '<div class="slide-middle">',
+      '  <div class="slide-category"></div>',
+      '  <div class="slide-question"></div>',
+      '  <div class="slide-options"></div>',
+      '  <div class="slide-answer-preview" style="display:none">',
+      '    <div class="label">Answer</div>',
+      '    <div class="value"></div>',
+      '  </div>',
+      '</div>',
+      '<div class="slide-bottom"></div>',
+    ].join('');
+  }
+
+  function ensureTitleOverlay(el) {
+    var overlay = el.querySelector('.slide-title-overlay');
+    if (overlay) return overlay;
+
+    overlay = document.createElement('div');
+    overlay.className = 'slide-title-overlay';
+    overlay.style.display = 'none';
+
+    var inner = document.createElement('div');
+    inner.className = 'title-slide-inner';
+
+    var eyebrowRow = document.createElement('div');
+    eyebrowRow.className = 'title-slide-eyebrow-row';
+    var lineL = document.createElement('div');
+    lineL.className = 'title-slide-eyebrow-line';
+    var eyebrow = document.createElement('div');
+    eyebrow.className = 'title-slide-eyebrow';
+    eyebrow.textContent = 'Beach Trivia Presents';
+    var lineR = document.createElement('div');
+    lineR.className = 'title-slide-eyebrow-line';
+    eyebrowRow.appendChild(lineL);
+    eyebrowRow.appendChild(eyebrow);
+    eyebrowRow.appendChild(lineR);
+
+    var heading = document.createElement('div');
+    heading.className = 'title-slide-heading';
+    heading.textContent = 'Trivia Night';
+
+    var centerRow = document.createElement('div');
+    centerRow.className = 'title-slide-center-row';
+
+    var logoWrap = document.createElement('div');
+    logoWrap.className = 'title-slide-logo';
+    var logoImg = document.createElement('img');
+    logoImg.src = WRITER_ASSETS + 'BTlogo-Round-Border.png';
+    logoImg.alt = 'Beach Trivia';
+    logoWrap.appendChild(logoImg);
+
+    centerRow.appendChild(buildQRCard(WRITER_ASSETS + 'qr-virginia.jpg', 'Virginia'));
+    centerRow.appendChild(logoWrap);
+    centerRow.appendChild(buildQRCard(WRITER_ASSETS + 'qr-new-york.jpg', 'New York'));
+
+    inner.appendChild(eyebrowRow);
+    inner.appendChild(heading);
+    inner.appendChild(centerRow);
+    overlay.appendChild(inner);
+
+    el.appendChild(overlay);
+    return overlay;
+  }
+
+  function buildQRCard(src, label) {
+    var card = document.createElement('div');
+    card.className = 'title-slide-qr-card';
+    var img = document.createElement('img');
+    img.src = src;
+    img.alt = label + ' QR Code';
+    var lbl = document.createElement('div');
+    lbl.className = 'title-slide-qr-label';
+    lbl.textContent = label;
+    var hint = document.createElement('div');
+    hint.className = 'title-slide-qr-hint';
+    hint.textContent = 'Scan to play';
+    card.appendChild(img);
+    card.appendChild(lbl);
+    card.appendChild(hint);
+    return card;
+  }
+
+  function paintOptions(el, effectiveType, slide, revealed) {
+    var optEl = el.querySelector('.slide-options');
+    if (!optEl) return;
+    optEl.innerHTML = '';
+    optEl.classList.remove('slide-options-matching', 'slide-options-display', 'slide-options--dense');
+
+    if (effectiveType === 'multiple-choice') {
+      var opts = Array.isArray(slide.options) ? slide.options.filter(Boolean) : [];
+      if (!opts.length) { optEl.style.display = 'none'; return; }
+      optEl.style.display = '';
+      optEl.classList.toggle('slide-options--dense', opts.length >= 5);
+      opts.forEach(function (opt, i) {
+        var row = document.createElement('div');
+        var isCorrect = revealed && opt === slide.answer;
+        row.className = 'slide-option' + (revealed ? (isCorrect ? ' correct' : ' incorrect') : '');
+        var key = document.createElement('span');
+        key.className = 'slide-option-key';
+        key.textContent = String.fromCharCode(65 + i);
+        var txt = document.createElement('span');
+        txt.textContent = opt;
+        row.appendChild(key);
+        row.appendChild(txt);
+        if (isCorrect) {
+          var tick = document.createElement('span');
+          tick.className = 'slide-option-tick';
+          tick.textContent = '✓';
+          row.appendChild(tick);
+        }
+        optEl.appendChild(row);
+      });
+
+    } else if (effectiveType === 'matching') {
+      var pairs = Array.isArray(slide.matchingPairs)
+        ? slide.matchingPairs.filter(function (p) { return p.left || p.right; })
+        : [];
+      if (!pairs.length) { optEl.style.display = 'none'; return; }
+      optEl.style.display = '';
+      optEl.classList.add('slide-options-matching');
+      pairs.forEach(function (pair) {
+        var row = document.createElement('div');
+        row.className = 'slide-option slide-option-pair';
+        var left = document.createElement('span');
+        left.className = 'slide-option-pair-left';
+        left.textContent = pair.left || '';
+        var arrow = document.createElement('span');
+        arrow.className = 'slide-option-pair-arrow';
+        arrow.textContent = '→';
+        var right = document.createElement('span');
+        right.className = 'slide-option-pair-right';
+        right.textContent = pair.right || '';
+        row.appendChild(left);
+        row.appendChild(arrow);
+        row.appendChild(right);
+        optEl.appendChild(row);
+      });
+
+    } else if (effectiveType === 'ordering') {
+      var items = Array.isArray(slide.orderingItems) ? slide.orderingItems.filter(Boolean) : [];
+      if (!items.length) { optEl.style.display = 'none'; return; }
+      optEl.style.display = '';
+      items.forEach(function (item, i) {
+        var row = document.createElement('div');
+        row.className = 'slide-option';
+        var key = document.createElement('span');
+        key.className = 'slide-option-key';
+        key.textContent = String(i + 1);
+        var txt = document.createElement('span');
+        txt.textContent = item;
+        row.appendChild(key);
+        row.appendChild(txt);
+        optEl.appendChild(row);
+      });
+
+    } else if (effectiveType === 'display') {
+      var text = String(slide.answer || '').trim();
+      if (!text) { optEl.style.display = 'none'; return; }
+      optEl.style.display = '';
+      optEl.classList.add('slide-options-display');
+      var body = document.createElement('div');
+      body.className = 'slide-display-content';
+      var lines = text.split('\n').map(function (l) { return l.trim(); }).filter(Boolean);
+      if (lines.length > 1) {
+        lines.forEach(function (line) {
+          var item = document.createElement('div');
+          var lineText = line.charAt(0) === '•' ? line.substring(1).trim() : line;
+          item.className = 'slide-rules-item' + (lineText.length > 58 ? ' slide-rules-item--wide' : '');
+          if (line.charAt(0) === '•') {
+            var bullet = document.createElement('span');
+            bullet.className = 'slide-rules-bullet';
+            bullet.textContent = '•';
+            var span = document.createElement('span');
+            span.textContent = lineText;
+            item.appendChild(bullet);
+            item.appendChild(span);
+          } else {
+            item.textContent = line;
+          }
+          body.appendChild(item);
+        });
+      } else {
+        body.textContent = text;
+      }
+      optEl.appendChild(body);
+
+    } else {
+      optEl.style.display = 'none';
+    }
   }
 
   function updateSlideCount() {
@@ -361,7 +619,6 @@
       btn.textContent = 'Go Live';
       btn.classList.remove('active');
     }
-    // Also update cast chip
     if (dom['cast-chip']) {
       dom['cast-chip'].className = 'vp-chip ' + (state.live ? 'live' : 'cast');
       dom['cast-chip'].textContent = state.live ? 'Cast Live' : 'Cast Preview';
@@ -381,7 +638,7 @@
     firebase.firestore().collection('liveSessions').doc(state.sessionCode).set({
       sessionCode:     state.sessionCode,
       currentStateKey: slide.stateKey || '',
-      castSlideIndex: state.castSlide,
+      castSlideIndex:  state.castSlide,
       revealShown:     showAnswer,
       currentSlide: {
         roundBadge:  slide.roundBadge  || '',
