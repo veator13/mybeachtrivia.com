@@ -35,7 +35,7 @@
   let _basePreviewPx = null; // cached default font size from CSS clamp, used to anchor scaling
   let _lastFormData = null;  // cached so mode changes can trigger a full re-render
   let _lastRenderedQuestionType = "";
-  let _feudRevealCount = 0;  // how many feud answers are currently revealed
+  let _feudRevealCount = 0;  // # of filled answers revealed, lowest points first
 
   function $(selector, root) {
     return (root || document).querySelector(selector);
@@ -480,7 +480,9 @@
       preferredSlide.orderingItems || [],
       mode,
       preferredSlide.answer || "",
-      preferredSlide.feudAnswers || []
+      (Array.isArray(preferredSlide.feudAnswers) && preferredSlide.feudAnswers.length
+        ? preferredSlide.feudAnswers
+        : (block.feudAnswers || []))
     );
     renderAnswer(preferredSlide.answer || "", effectiveType);
     renderNotes(preferredSlide.notes || block.notes || "");
@@ -571,54 +573,204 @@
     return tmp.innerHTML;
   }
 
-  function renderFeudAnswerGrid(feudAnswers, revealCount) {
+  var FEUD_BOARD_SLOTS = 8;
+
+  function getFeudSlots8(feudAnswers) {
+    var raw = Array.isArray(feudAnswers) ? feudAnswers : [];
+    var slots = [];
+    for (var s = 0; s < FEUD_BOARD_SLOTS; s++) {
+      var o = raw[s];
+      slots.push(o && typeof o === "object" ? o : { text: "" });
+    }
+    return slots;
+  }
+
+  function getFeudFilledRevealOrder(slots8) {
+    var order = [];
+    for (var i = 0; i < slots8.length; i++) {
+      if (String((slots8[i] && slots8[i].text) != null ? slots8[i].text : "").trim()) {
+        order.push(i);
+      }
+    }
+    order.sort(function (a, b) {
+      return b - a;
+    });
+    return order;
+  }
+
+  function renderFeudAnswerGrid(feudAnswers, fullReveal, flipOpts) {
+    flipOpts = flipOpts || {};
     if (!dom || !dom.previewOptions) return;
     dom.previewOptions.innerHTML = "";
     dom.previewOptions.className = "slide-options slide-options-feud";
+    dom.previewOptions.style.gridTemplateRows = "repeat(4, minmax(0, auto))";
 
-    var answers = Array.isArray(feudAnswers) ? feudAnswers : [];
-    answers.forEach(function (a, i) {
-      var isRevealed = i < revealCount;
+    var slots8 = getFeudSlots8(feudAnswers);
+    var order = getFeudFilledRevealOrder(slots8);
+    var nFilled = order.length;
+    if (_feudRevealCount > nFilled) {
+      _feudRevealCount = nFilled;
+    }
+    var k = fullReveal ? nFilled : Math.max(0, Math.min(_feudRevealCount, nFilled));
+
+    for (var i = 0; i < FEUD_BOARD_SLOTS; i++) {
+      var a = slots8[i] || { text: "" };
+      var hasText = String(a.text != null ? a.text : "").trim().length > 0;
+      var posInOrder = order.indexOf(i);
+      var isRevealed = hasText && (fullReveal || (posInOrder >= 0 && posInOrder < k));
+
       var row = document.createElement("div");
-      row.className = "slide-feud-row" + (isRevealed ? " revealed" : "");
+      row.className = "slide-feud-row";
+      var deferFlip =
+        isRevealed &&
+        !fullReveal &&
+        flipOpts.deferRevealIndex === i;
+      if (isRevealed && !deferFlip) row.className += " revealed";
+      if (!hasText) row.className += " slide-feud-row--vacant";
 
-      var rankEl = document.createElement("span");
-      rankEl.className = "slide-feud-row-rank";
-      rankEl.textContent = String(i + 1);
+      if (!hasText) {
+        var rankV = document.createElement("span");
+        rankV.className = "slide-feud-row-rank";
+        rankV.textContent = String(i + 1);
+        var sil = document.createElement("span");
+        sil.className = "slide-feud-row-silhouette";
+        sil.setAttribute("aria-hidden", "true");
+        var ptsV = document.createElement("span");
+        ptsV.className = "slide-feud-row-pts";
+        ptsV.textContent = "";
+        row.appendChild(rankV);
+        row.appendChild(sil);
+        row.appendChild(ptsV);
+        dom.previewOptions.appendChild(row);
+        continue;
+      }
 
-      var textEl = document.createElement("span");
-      textEl.className = isRevealed ? "slide-feud-row-text" : "slide-feud-row-placeholder";
-      textEl.textContent = isRevealed ? (a.text || "—") : "— — —";
+      var trimAns = String(a.text != null ? a.text : "").trim();
+      var ptsStr = String(8 - i) + " pts";
+      row.className += " slide-feud-row--card";
+      row.setAttribute("data-feud-idx", String(i));
 
-      var ptsEl = document.createElement("span");
-      ptsEl.className = "slide-feud-row-pts";
-      ptsEl.textContent = String(8 - i) + " pts";
-
-      row.appendChild(rankEl);
-      row.appendChild(textEl);
-      row.appendChild(ptsEl);
+      var flipper = document.createElement("div");
+      flipper.className = "slide-feud-row-flipper";
+      var inner = document.createElement("div");
+      inner.className = "slide-feud-row-flip-inner";
+      function makeRowFace(isBack) {
+        var face = document.createElement("div");
+        face.className = "slide-feud-row-face" + (isBack ? " slide-feud-row-face--back" : " slide-feud-row-face--front");
+        var r = document.createElement("span");
+        r.className = "slide-feud-row-rank";
+        r.textContent = String(i + 1);
+        var mid = document.createElement("span");
+        if (isBack) {
+          mid.className = "slide-feud-row-text" + (trimAns ? "" : " slide-feud-row-empty");
+          mid.textContent = trimAns || "—";
+        } else {
+          mid.className = "slide-feud-rank-bubble";
+          mid.textContent = String(i + 1);
+          mid.setAttribute("aria-label", "Concealed answer, rank " + String(i + 1));
+        }
+        var p = document.createElement("span");
+        p.className = "slide-feud-row-pts";
+        if (isBack) {
+          p.textContent = ptsStr;
+        } else {
+          p.setAttribute("aria-hidden", "true");
+        }
+        face.appendChild(r);
+        face.appendChild(mid);
+        face.appendChild(p);
+        return face;
+      }
+      inner.appendChild(makeRowFace(false));
+      inner.appendChild(makeRowFace(true));
+      flipper.appendChild(inner);
+      row.appendChild(flipper);
       dom.previewOptions.appendChild(row);
-    });
+      if (deferFlip) {
+        (function (el) {
+          if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+            el.classList.add("revealed");
+            return;
+          }
+          requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+              el.classList.add("revealed");
+            });
+          });
+        })(row);
+      }
+    }
   }
 
   function feudRevealNext() {
     if (!_lastFormData) return;
     var b = (_lastFormData && _lastFormData.block) || {};
     var answers = Array.isArray(b.feudAnswers) ? b.feudAnswers : [];
-    if (_feudRevealCount < answers.length) {
+    var nFilled = getFeudFilledRevealOrder(getFeudSlots8(answers)).length;
+    if (_feudRevealCount < nFilled) {
       _feudRevealCount++;
-      renderFeudAnswerGrid(answers, _feudRevealCount);
-      _syncFeudRevealButtons(answers.length);
+      var order = getFeudFilledRevealOrder(getFeudSlots8(answers));
+      var flipIdx = order[_feudRevealCount - 1];
+      renderFeudAnswerGrid(answers, false, { deferRevealIndex: flipIdx });
+      _syncFeudRevealButtons();
     }
   }
 
   function feudHidePrev() {
-    if (_feudRevealCount > 0) {
+    if (_feudRevealCount <= 0) return;
+    var b = (_lastFormData && _lastFormData.block) || {};
+    var answers = Array.isArray(b.feudAnswers) ? b.feudAnswers : [];
+    var order = getFeudFilledRevealOrder(getFeudSlots8(answers));
+    var hideIdx = order[_feudRevealCount - 1];
+    var host = dom && dom.previewOptions;
+    var row = host && host.querySelector
+      ? host.querySelector('.slide-feud-row--card[data-feud-idx="' + hideIdx + '"]')
+      : null;
+    if (!row || !row.classList.contains("revealed")) {
       _feudRevealCount--;
-      var b = (_lastFormData && _lastFormData.block) || {};
-      var answers = Array.isArray(b.feudAnswers) ? b.feudAnswers : [];
-      renderFeudAnswerGrid(answers, _feudRevealCount);
-      _syncFeudRevealButtons(answers.length);
+      renderFeudAnswerGrid(answers, false);
+      _syncFeudRevealButtons();
+      return;
+    }
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      row.classList.remove("revealed");
+      _feudRevealCount--;
+      renderFeudAnswerGrid(answers, false);
+      _syncFeudRevealButtons();
+      return;
+    }
+    var inner = row.querySelector(".slide-feud-row-flip-inner");
+    var finished = false;
+    var hideTid = null;
+    function applyHideSync() {
+      if (finished) return;
+      finished = true;
+      if (hideTid != null) {
+        clearTimeout(hideTid);
+        hideTid = null;
+      }
+      _feudRevealCount--;
+      renderFeudAnswerGrid(answers, false);
+      _syncFeudRevealButtons();
+    }
+    if (inner) {
+      var onEnd = function (e) {
+        if (e && e.propertyName && e.propertyName.indexOf("transform") === -1) {
+          return;
+        }
+        inner.removeEventListener("transitionend", onEnd);
+        if (hideTid != null) {
+          clearTimeout(hideTid);
+          hideTid = null;
+        }
+        applyHideSync();
+      };
+      inner.addEventListener("transitionend", onEnd);
+      hideTid = setTimeout(applyHideSync, 800);
+    }
+    row.classList.remove("revealed");
+    if (!inner) {
+      applyHideSync();
     }
   }
 
@@ -626,10 +778,13 @@
     _feudRevealCount = 0;
   }
 
-  function _syncFeudRevealButtons(answerCount) {
+  function _syncFeudRevealButtons() {
+    var b = _lastFormData && _lastFormData.block;
+    var answers = b && Array.isArray(b.feudAnswers) ? b.feudAnswers : [];
+    var nFilled = getFeudFilledRevealOrder(getFeudSlots8(answers)).length;
     var nextBtn = document.getElementById("feud-reveal-next-btn");
     var prevBtn = document.getElementById("feud-hide-prev-btn");
-    if (nextBtn) nextBtn.disabled = _feudRevealCount >= answerCount;
+    if (nextBtn) nextBtn.disabled = nFilled === 0 || _feudRevealCount >= nFilled;
     if (prevBtn) prevBtn.disabled = _feudRevealCount <= 0;
   }
 
@@ -751,13 +906,13 @@
 
     } else if (normalizedType === "feud-question") {
       var feudArr = Array.isArray(feudAnswers) ? feudAnswers : [];
-      if (!feudArr.length) {
-        dom.previewOptions.style.display = "none";
-        return;
+      var filledOrder = getFeudFilledRevealOrder(getFeudSlots8(feudArr));
+      if (_feudRevealCount > filledOrder.length) {
+        _feudRevealCount = filledOrder.length;
       }
       dom.previewOptions.style.display = "";
-      renderFeudAnswerGrid(feudArr, isReveal ? feudArr.length : _feudRevealCount);
-      _syncFeudRevealButtons(feudArr.length);
+      renderFeudAnswerGrid(feudArr, isReveal);
+      _syncFeudRevealButtons();
       return;
 
     } else if (normalizedType === "display") {
@@ -917,9 +1072,7 @@
       if (feudNextBtn) feudNextBtn.style.display = "";
       if (feudPrevBtn) feudPrevBtn.style.display = "";
       // Sync disabled state based on current reveal count
-      var feudArr = (_lastFormData && _lastFormData.block && Array.isArray(_lastFormData.block.feudAnswers))
-        ? _lastFormData.block.feudAnswers : [];
-      _syncFeudRevealButtons(feudArr.length);
+      _syncFeudRevealButtons();
       return;
     }
 
