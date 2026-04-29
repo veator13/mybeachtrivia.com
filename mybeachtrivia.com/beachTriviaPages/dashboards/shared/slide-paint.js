@@ -392,6 +392,101 @@
       }
       optEl.appendChild(body);
 
+    } else if (effectiveType === 'feud-question') {
+      var feudAnswers = Array.isArray(slide.feudAnswers) ? slide.feudAnswers : [];
+      if (!feudAnswers.length) { optEl.style.display = 'none'; return; }
+      optEl.style.display = '';
+      optEl.className = 'slide-options slide-options-feud';
+
+      // Sort by points descending so rank 1 (most points) is at the top
+      var slots = feudAnswers.slice().sort(function (a, b) {
+        return (b.points || 0) - (a.points || 0);
+      });
+      while (slots.length < 8) slots.push({ text: '', points: 0 });
+      slots = slots.slice(0, 8);
+
+      // revealCount comes from slide.feudRevealCount (set by host player before paint)
+      // or falls back to: all revealed if `revealed`, none if not
+      var revealCount = typeof slide.feudRevealCount === 'number'
+        ? slide.feudRevealCount
+        : (revealed ? 999 : 0);
+
+      var filledSeen = 0;
+      slots.forEach(function (slot, i) {
+        var hasText = String(slot.text || '').trim().length > 0;
+        var isRevealed = false;
+        if (hasText) {
+          filledSeen++;
+          isRevealed = filledSeen <= revealCount;
+        }
+
+        var row = document.createElement('div');
+
+        if (!hasText) {
+          // Vacant slot — board shape only
+          row.className = 'slide-feud-row slide-feud-row--vacant';
+          var vRank = document.createElement('span');
+          vRank.className = 'slide-feud-row-rank';
+          vRank.textContent = String(i + 1);
+          var vSil = document.createElement('span');
+          vSil.className = 'slide-feud-row-silhouette';
+          var vPts = document.createElement('span');
+          vPts.className = 'slide-feud-row-pts';
+          row.appendChild(vRank);
+          row.appendChild(vSil);
+          row.appendChild(vPts);
+        } else {
+          // Filled slot: flip-card (front = concealed, back = revealed)
+          row.className = 'slide-feud-row slide-feud-row--card' + (isRevealed ? ' revealed' : '');
+          row.setAttribute('data-feud-idx', String(i));
+
+          var flipper = document.createElement('div');
+          flipper.className = 'slide-feud-row-flipper';
+
+          var inner = document.createElement('div');
+          inner.className = 'slide-feud-row-flip-inner';
+
+          // Front face — show circled rank number
+          var front = document.createElement('div');
+          front.className = 'slide-feud-row-face slide-feud-row-face--front';
+          var fRank = document.createElement('span');
+          fRank.className = 'slide-feud-row-rank';
+          fRank.textContent = String(i + 1);
+          var bubble = document.createElement('span');
+          bubble.className = 'slide-feud-rank-bubble';
+          bubble.textContent = String(i + 1);
+          var fPts = document.createElement('span');
+          fPts.className = 'slide-feud-row-pts';
+          fPts.textContent = String(slot.points || 0);
+          front.appendChild(fRank);
+          front.appendChild(bubble);
+          front.appendChild(fPts);
+
+          // Back face — rank + answer text + points
+          var back = document.createElement('div');
+          back.className = 'slide-feud-row-face slide-feud-row-face--back';
+          var bRank = document.createElement('span');
+          bRank.className = 'slide-feud-row-rank';
+          bRank.textContent = String(i + 1);
+          var bText = document.createElement('span');
+          bText.className = 'slide-feud-row-text';
+          bText.textContent = String(slot.text || '');
+          var bPts = document.createElement('span');
+          bPts.className = 'slide-feud-row-pts';
+          bPts.textContent = String(slot.points || 0);
+          back.appendChild(bRank);
+          back.appendChild(bText);
+          back.appendChild(bPts);
+
+          inner.appendChild(front);
+          inner.appendChild(back);
+          flipper.appendChild(inner);
+          row.appendChild(flipper);
+        }
+
+        optEl.appendChild(row);
+      });
+
     } else {
       optEl.style.display = 'none';
     }
