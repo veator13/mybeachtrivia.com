@@ -629,6 +629,10 @@
     input.placeholder = "Survey answer " + String(rank + 1);
     input.className = "feud-answer-input";
 
+    var inputWrap = document.createElement("div");
+    inputWrap.className = "feud-answer-input-wrap";
+    inputWrap.appendChild(input);
+
     var ptsBadge = document.createElement("span");
     ptsBadge.className = "feud-answer-pts";
     ptsBadge.textContent = String(pts) + " pts";
@@ -638,11 +642,11 @@
     removeBtn.className = "remove-feud-answer";
     removeBtn.textContent = "×";
     removeBtn.setAttribute("aria-label", "Remove answer");
+    inputWrap.appendChild(removeBtn);
 
     row.appendChild(rankSpan);
-    row.appendChild(input);
+    row.appendChild(inputWrap);
     row.appendChild(ptsBadge);
-    row.appendChild(removeBtn);
 
     dom.feudAnswersList.appendChild(row);
     updateFeudAnswerBadges();
@@ -879,6 +883,30 @@
 
   // ─── Validation ────────────────────────────────────────────────
 
+  function isFeudAnswerPanelVisible() {
+    if (!dom || !dom.answerTypeFeud) return false;
+    if (dom.answerTypeFeud.style.display === "none") return false;
+    try {
+      var c = window.getComputedStyle(dom.answerTypeFeud);
+      if (c && (c.display === "none" || c.visibility === "hidden")) return false;
+    } catch (e) { /* no-op */ }
+    return true;
+  }
+
+  function isFeudQuestionForPublish(data) {
+    var type = (data.block.questionType || "").trim();
+    if (type === "feud-question") return true;
+    if (isFeudAnswerPanelVisible()) return true;
+    var feud = Array.isArray(data.block.feudAnswers) ? data.block.feudAnswers : [];
+    var filled = feud.filter(function (a) {
+      return a && String(a.text || "").trim();
+    });
+    if ((data.show.showType || "").trim() === "feud" && filled.length >= 3) {
+      return true;
+    }
+    return false;
+  }
+
   function validateForDraft() {
     const data = getFormData();
     const messages = [];
@@ -893,16 +921,33 @@
   function validateForPublish() {
     const data = getFormData();
     const errors = [];
+    const type = (data.block.questionType || "").trim();
+    const isFeudQuestion = isFeudQuestionForPublish(data);
+    const isFeudShow = (data.show.showType || "").trim() === "feud";
 
     if (!data.show.title.trim()) errors.push("Show title is required.");
     if (!data.show.dateLabel.trim()) errors.push("Show date / label is required.");
     if (!data.block.type.trim()) errors.push("Block type is required.");
-    if (!data.block.questionType.trim()) errors.push("Question type is required.");
-    if (!data.block.roundName.trim()) errors.push("Round / section name is required.");
-    if (!data.block.categoryName.trim()) errors.push("Category is required.");
-    if (!getPlainText(dom && dom.questionText).trim()) errors.push("Question text is required.");
+    if (!type) errors.push("Question type is required.");
+    if (!isFeudQuestion && !isFeudShow) {
+      if (!data.block.roundName.trim()) errors.push("Round / section name is required.");
+      if (!data.block.categoryName.trim()) errors.push("Category is required.");
+    }
+    if (isFeudQuestion) {
+      if (!blockQuestionTextPlain()) {
+        errors.push("Survey prompt (question) text is required.");
+      }
+      var feud = Array.isArray(data.block.feudAnswers) ? data.block.feudAnswers : [];
+      var filled = feud.filter(function (a) {
+        return a && String(a.text || "").trim();
+      });
+      if (filled.length < 3) {
+        errors.push("Feud survey needs at least 3 answers in the 1–8 slots.");
+      }
+    } else {
+      if (!blockQuestionTextPlain()) errors.push("Question text is required.");
+    }
 
-    var type = data.block.questionType;
     if (type === "multiple-choice") {
       if (data.block.options.length < 2) errors.push("Multiple choice questions need at least 2 options.");
       data.block.options.forEach(function (option, idx) {
@@ -915,8 +960,10 @@
       if (data.block.matchingPairs.length < 2) errors.push("Matching questions need at least 2 pairs.");
     } else if (type === "ordering") {
       if (data.block.orderingItems.length < 2) errors.push("Ordering questions need at least 2 items.");
+    } else if (isFeudQuestion) {
+      // answers validated via feud 1–8 slots above
     } else {
-      if (!data.block.answerText.trim()) errors.push("Answer text is required.");
+      if (!String(data.block.answerText || "").trim()) errors.push("Answer text is required.");
     }
 
     return {
@@ -943,6 +990,21 @@
     if (!el) return "";
     if (el.isContentEditable) return el.textContent || "";
     return typeof el.value === "string" ? el.value : "";
+  }
+
+  function blockQuestionTextPlain() {
+    var t = (getPlainText(dom && dom.questionText) || "").trim();
+    if (t) return t;
+    var h = getValue(dom && dom.questionText, DEFAULTS.questionText);
+    if (h == null) return "";
+    h = String(h);
+    if (!h.replace(/\s/g, "")) return "";
+    if (h.indexOf("<") !== -1 && document && document.createElement) {
+      var d = document.createElement("div");
+      d.innerHTML = h;
+      return (d.textContent || d.innerText || "").trim();
+    }
+    return h.trim();
   }
 
   function setValue(el, value, fallback) {

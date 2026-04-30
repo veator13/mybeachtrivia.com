@@ -65,6 +65,7 @@
   const HOST_EVENT_HREF = '/beachTriviaPages/dashboards/host/host-event/';
   const HOST_EVENT_SECTION_PATH_PREFIXES = [
     '/beachTriviaPages/dashboards/host/host-music-bingo/',
+    '/beachTriviaPages/dashboards/host/host-last-laugh/',
     '/beachTriviaPages/dashboards/host/host-funny-answers/',
     '/beachTriviaPages/dashboards/host/scoresheet/',
     '/beachTriviaPages/dashboards/host/host-feud/',
@@ -165,7 +166,7 @@
 
   function getHostNavLinks() {
     return (NAV_LINKS.host || []).filter(function (item) {
-      return item && item.label !== 'Music Bingo' && item.label !== 'Funny Answers';
+      return item && item.label !== 'Music Bingo' && item.label !== 'Last Laugh';
     });
   }
 

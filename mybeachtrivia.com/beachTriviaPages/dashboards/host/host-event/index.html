@@ -6,7 +6,7 @@
   <title>Host Event</title>
 
   <link rel="stylesheet" href="/beachTriviaPages/js/bt-nav.css" />
-  <script src="/beachTriviaPages/js/bt-nav.js?v=hostnav-20260424-3" defer></script>
+  <script src="/beachTriviaPages/js/bt-nav.js?v=hostnav-20260430-last-laugh" defer></script>
 
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js" defer></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js" defer></script>
@@ -118,7 +118,8 @@
     .page-shell {
       display: none;
       min-height: 100vh;
-      padding: 88px 20px 28px;
+      /* Nav #bt-nav is 56px tall; small gap below sticky bar */
+      padding: 64px 20px 28px;
     }
 
     .page-stage {
@@ -129,7 +130,7 @@
       border-radius: 24px;
       box-shadow: var(--host-shadow);
       backdrop-filter: blur(10px);
-      padding: 22px;
+      padding: 18px;
       transition: width 0.2s ease, padding 0.2s ease;
     }
 
@@ -140,12 +141,12 @@
     }
 
     .page-header {
-      margin-bottom: 20px;
+      margin-bottom: 14px;
     }
 
     .page-header-copy {
       min-width: 0;
-      margin-bottom: 18px;
+      margin-bottom: 12px;
     }
 
     .page-eyebrow {
@@ -201,6 +202,14 @@
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 14px;
+      align-items: start;
+    }
+
+    .event-tiles-col {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      min-width: 0;
     }
 
     .event-tile {
@@ -344,7 +353,7 @@
 
     .game-iframe {
       width: 100%;
-      height: calc(100vh - 180px);
+      height: calc(100vh - 156px);
       min-height: 500px;
       border: none;
       border-radius: 16px;
@@ -353,7 +362,7 @@
 
     @media (max-width: 640px) {
       .page-shell {
-        padding: 82px 12px 18px;
+        padding: 58px 12px 18px;
       }
 
       .page-stage {
@@ -375,7 +384,7 @@
       }
 
       .game-iframe {
-        height: calc(100vh - 160px);
+        height: calc(100vh - 142px);
       }
     }
   </style>
@@ -416,41 +425,45 @@
           <h2 id="event-tools-title">Choose Event Type</h2>
 
           <div class="event-tiles">
-            <button class="event-tile" type="button" data-game-url="/beachTriviaPages/dashboards/host/live-console/" data-game-name="Classic Trivia">
-              <h3 class="event-tile-title">Classic Trivia</h3>
-              <p class="event-tile-copy">Launch host tools for standard trivia and run your classic game flow.</p>
-              <span class="event-tile-badge">Live</span>
-            </button>
+            <div class="event-tiles-col" aria-label="Trivia formats">
+              <button class="event-tile" type="button" data-game-url="/beachTriviaPages/dashboards/host/live-console/" data-game-name="Classic Trivia">
+                <h3 class="event-tile-title">Classic Trivia</h3>
+                <p class="event-tile-copy">Launch host tools for standard trivia and run your classic game flow.</p>
+                <span class="event-tile-badge">Live</span>
+              </button>
 
-            <button class="event-tile" type="button" data-game-url="/beachTriviaPages/dashboards/host/host-themed-trivia/" data-game-name="Themed Trivia">
-              <h3 class="event-tile-title">Themed Trivia</h3>
-              <p class="event-tile-copy">Host a themed trivia show — load themed shows and run your presentation.</p>
-              <span class="event-tile-badge">Live</span>
-            </button>
+              <button class="event-tile" type="button" data-game-url="/beachTriviaPages/dashboards/host/host-themed-trivia/" data-game-name="Themed Trivia">
+                <h3 class="event-tile-title">Themed Trivia</h3>
+                <p class="event-tile-copy">Host a themed trivia show — load themed shows and run your presentation.</p>
+                <span class="event-tile-badge">Live</span>
+              </button>
 
-            <button class="event-tile" type="button" data-game-url="/beachTriviaPages/dashboards/host/host-feud/" data-game-name="Beach Feud">
-              <h3 class="event-tile-title">Beach Feud</h3>
-              <p class="event-tile-copy">Host a Beach Feud show — reveal survey answers one by one and run the full feud flow.</p>
-              <span class="event-tile-badge">Live</span>
-            </button>
+              <button class="event-tile" type="button" data-game-url="/beachTriviaPages/dashboards/host/host-mixed/" data-game-name="Mixed Events">
+                <h3 class="event-tile-title">Mixed Events</h3>
+                <p class="event-tile-copy">Host a mixed-format event — all published shows are available regardless of type.</p>
+                <span class="event-tile-badge">Live</span>
+              </button>
+            </div>
 
-            <button class="event-tile" type="button" data-game-url="/beachTriviaPages/dashboards/host/host-mixed/" data-game-name="Mixed Events">
-              <h3 class="event-tile-title">Mixed Events</h3>
-              <p class="event-tile-copy">Host a mixed-format event — all published shows are available regardless of type.</p>
-              <span class="event-tile-badge">Live</span>
-            </button>
+            <div class="event-tiles-col" aria-label="Other host formats">
+              <button class="event-tile" type="button" data-game-url="/beachTriviaPages/dashboards/host/host-music-bingo/host-music-bingo.html" data-game-name="Music Bingo">
+                <h3 class="event-tile-title">Music Bingo</h3>
+                <p class="event-tile-copy">Open the music bingo host console and start your playlist flow.</p>
+                <span class="event-tile-badge">Live</span>
+              </button>
 
-            <button class="event-tile" type="button" data-game-url="/beachTriviaPages/dashboards/host/host-music-bingo/host-music-bingo.html" data-game-name="Music Bingo">
-              <h3 class="event-tile-title">Music Bingo</h3>
-              <p class="event-tile-copy">Open the music bingo host console and start your playlist flow.</p>
-              <span class="event-tile-badge">Live</span>
-            </button>
+              <button class="event-tile" type="button" data-game-url="/beachTriviaPages/dashboards/host/host-feud/" data-game-name="Beach Feud">
+                <h3 class="event-tile-title">Beach Feud</h3>
+                <p class="event-tile-copy">Host a Beach Feud show — reveal survey answers one by one and run the full feud flow.</p>
+                <span class="event-tile-badge">Live</span>
+              </button>
 
-            <button class="event-tile" type="button" data-game-url="/beachTriviaPages/dashboards/host/host-funny-answers/" data-game-name="Funny Answers">
-              <h3 class="event-tile-title">Funny Answers</h3>
-              <p class="event-tile-copy">Run funny answers mode and manage game prompts.</p>
-              <span class="event-tile-badge">Live</span>
-            </button>
+              <button class="event-tile" type="button" data-game-url="/beachTriviaPages/dashboards/host/host-last-laugh/" data-game-name="Last Laugh">
+                <h3 class="event-tile-title">Last Laugh</h3>
+                <p class="event-tile-copy">Run prompts, collect answers, launch voting, and reveal results.</p>
+                <span class="event-tile-badge">Live</span>
+              </button>
+            </div>
           </div>
 
           <div class="utility-links">

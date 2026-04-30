@@ -459,17 +459,28 @@
     function buildFeudSlides(data, roundSlug, label, introKind) {
       var feudAnswers = normalizeFeudAnswers(data.block.feudAnswers);
       var slides = [];
+      var addIntro = introKind && !data.block.suppressFeudIntro;
 
-      if (introKind) {
+      if (addIntro) {
+        // Intro matches round-start: badge + hero title (uppercase) + "Get ready!" pill; survey Q is on the next slide.
+        var introTitle = label;
+        var introPrompt = "Get ready!";
+        if (introKind === "feud-halftime-intro") {
+          introTitle = "Halftime Question";
+        } else if (introKind === "feud-final-intro") {
+          introTitle = "Final Question";
+        } else {
+          introPrompt = data.block.questionText || (label + " Question");
+        }
         slides.push({
           id: makeId("sld"),
           kind: introKind,
           stateKey: roundSlug + ".intro",
-          stateLabel: label + " Intro",
+          stateLabel: label + " — Intro",
           audienceMode: "live",
-          title: label,
+          title: introTitle,
           categoryName: data.block.categoryName || "",
-          prompt: data.block.questionText || (label + " Question"),
+          prompt: introPrompt,
           notes: data.block.questionNotes || "",
           layout: introKind,
           revealable: false,
@@ -740,6 +751,7 @@
           optionCount: Number(block.optionCount || 0),
           options: normalizeOptions(block.options),
           feudAnswers: normalizeFeudAnswers(block.feudAnswers),
+          suppressFeudIntro: !!block.suppressFeudIntro,
           imageUrl: stringOr(block.imageUrl, ""),
           audioUrl: stringOr(block.audioUrl, ""),
           themeStyle: stringOr(block.themeStyle, "Standard Trivia"),

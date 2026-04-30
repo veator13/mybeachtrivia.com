@@ -108,7 +108,8 @@ body {
 
 .dashboard-shell {
     min-height: 100vh;
-    padding: 88px 20px 24px;
+    /* #bt-nav bar is 56px; keep a short gap under the sticky header */
+    padding: 64px 20px 24px;
     position: relative;
 }
 
@@ -553,7 +554,7 @@ footer,
 
 @media (max-width: 640px) {
     .dashboard-shell {
-        padding: 82px 12px 16px;
+        padding: 58px 12px 16px;
     }
 
     .host-dashboard-stage {
@@ -589,7 +590,7 @@ footer,
 /* Compatibility layer for legacy host/index.html markup */
 .dashboard {
     max-width: 1180px;
-    margin: 88px auto 24px;
+    margin: 64px auto 24px;
     padding: 18px;
     border-radius: 22px;
     background: var(--host-stage);

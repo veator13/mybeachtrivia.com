@@ -173,13 +173,51 @@
 
   // ─── Show info bar ─────────────────────────────────────────────
 
+  function buildMinimalDataForTypeInference() {
+    var fd = window.WriterQuestionForm ? window.WriterQuestionForm.getFormData() : {};
+    return {
+      show: (fd && fd.show) || {},
+      blocks: (showState && showState.blocks) || [],
+      writerUi: {
+        templateWorkflowActive: !!(templateWorkflow && templateWorkflow.active),
+        templateWorkflowType: (templateWorkflow && String(templateWorkflow.type)) || "",
+      },
+    };
+  }
+
+  function isDefaultTriviaShowTitle(title) {
+    var t = String(title || "").trim();
+    if (!t) return true;
+    return t === "New Trivia Show Draft";
+  }
+
+  function defaultShowInfoBarTitleForType(typeKey) {
+    var m = {
+      "feud": "New Feud Draft",
+      "classic-trivia": "New Classic Trivia Draft",
+      "themed-trivia": "New Themed Trivia Draft",
+      "mixed": "New Mixed Event Draft",
+    };
+    return m[typeKey] || "New Trivia Show Draft";
+  }
+
   function updateShowInfoBar(data) {
     var show = (data && data.show) || {};
     var titleEl = $("#ri-show-title");
     var dateEl = $("#ri-show-date");
     var statusEl = $("#ri-show-status");
 
-    if (titleEl) titleEl.textContent = show.title || "Untitled Show";
+    var typeKey = "classic-trivia";
+    try {
+      typeKey = getShowTypeFromOpenShowData(buildMinimalDataForTypeInference());
+    } catch (err) {
+      console.error("[writer] type inference for info bar", err);
+    }
+    var displayTitle = isDefaultTriviaShowTitle(show.title)
+      ? defaultShowInfoBarTitleForType(typeKey)
+      : (show.title || "Untitled Show");
+
+    if (titleEl) titleEl.textContent = displayTitle;
     if (dateEl) dateEl.textContent = show.dateLabel || "No date set";
     if (statusEl) statusEl.textContent = show.status || "draft";
   }
@@ -237,6 +275,14 @@
     if (FORM_UNEDITABLE_BLOCK_TYPES.indexOf(currentBlockType) !== -1) return;
     var updated = safeClone(formData || {});
     updated.show = safeClone((formData && formData.show) || {});
+
+    var prevBlock = (entry.formData && entry.formData.block) || {};
+    if (typeof prevBlock.suppressFeudIntro === "boolean") {
+      updated.block = updated.block || {};
+      if (typeof updated.block.suppressFeudIntro !== "boolean") {
+        updated.block.suppressFeudIntro = prevBlock.suppressFeudIntro;
+      }
+    }
 
     entry.formData = updated;
 
@@ -430,7 +476,7 @@
       banner.setAttribute("aria-label", pubMsg);
     } else {
       var draftMsg =
-        "You have unsaved changes — click Save Draft to save your progress.";
+        "You have unsaved changes — use Save Draft, or update the current draft / save a new one in the top bar.";
       bannerText.textContent = "Unsaved";
       banner.setAttribute("title", draftMsg);
       banner.setAttribute("aria-label", draftMsg);
@@ -453,6 +499,8 @@
 
   function bindTopbarButtons() {
     var btnSaveDraft = $("#btn-save-draft");
+    var btnUpdateDraft = $("#btn-update-draft");
+    var btnSaveNewDraft = $("#btn-save-new-draft");
     var btnValidate = $("#btn-preview-publish");
     var btnPublish = $("#btn-publish");
     var btnBack = $("#back-to-login");
@@ -465,40 +513,20 @@
 
     if (btnSaveDraft) {
       btnSaveDraft.addEventListener("click", function () {
-        if (!window.WriterQuestionForm) return;
-
-        var db = firebase.firestore();
-        var data = serializeShowForSave();
-
-        btnSaveDraft.disabled = true;
-        updateAutosavePill("saving");
-
-        var savePromise;
-        if (activeDraftId) {
-          // Update the existing draft doc
-          savePromise = db.collection("showDrafts").doc(activeDraftId).set(data);
-        } else {
-          // First save — auto-generate a new doc ID and store it for this session
-          var newRef = db.collection("showDrafts").doc();
-          activeDraftId = newRef.id;
-          data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
-          savePromise = newRef.set(data);
-        }
-
-        savePromise
-          .then(function () {
-            console.log("[writer] draft saved:", activeDraftId);
-            updateAutosavePill("saved");
-            markClean();
-            btnSaveDraft.disabled = false;
-          })
-          .catch(function (err) {
-            console.error("[writer] draft save failed:", err);
-            updateAutosavePill("error");
-            btnSaveDraft.disabled = false;
-          });
+        performDraftSave(false);
       });
     }
+    if (btnUpdateDraft) {
+      btnUpdateDraft.addEventListener("click", function () {
+        performDraftSave(true);
+      });
+    }
+    if (btnSaveNewDraft) {
+      btnSaveNewDraft.addEventListener("click", function () {
+        performDraftSave(false);
+      });
+    }
+    syncDraftSaveButtons();
 
     if (btnValidate) {
       btnValidate.addEventListener("click", function () {
@@ -554,6 +582,7 @@
           })
           .then(function () {
             markClean();
+            syncDraftSaveButtons();
             btnPublish.disabled = false;
             alert("Show published successfully!");
           })
@@ -576,6 +605,67 @@
   // or just published. Publish will update this doc in-place rather than
   // creating a new one.
   var activePublishedId = null;
+
+  function syncDraftSaveButtons() {
+    var btnFirst = $("#btn-save-draft");
+    var btnUpdate = $("#btn-update-draft");
+    var btnNew = $("#btn-save-new-draft");
+    if (!btnFirst) return;
+    if (activeDraftId) {
+      btnFirst.classList.add("hidden");
+      if (btnUpdate) btnUpdate.classList.remove("hidden");
+      if (btnNew) btnNew.classList.remove("hidden");
+    } else {
+      btnFirst.classList.remove("hidden");
+      if (btnUpdate) btnUpdate.classList.add("hidden");
+      if (btnNew) btnNew.classList.add("hidden");
+    }
+  }
+
+  function setDraftSaveButtonsDisabled(disabled) {
+    ["btn-save-draft", "btn-update-draft", "btn-save-new-draft"].forEach(function (id) {
+      var b = document.getElementById(id);
+      if (b) b.disabled = !!disabled;
+    });
+  }
+
+  // updateExisting: true = write to activeDraftId; false = new Firestore doc, set activeDraftId to it.
+  function performDraftSave(updateExisting) {
+    if (!window.WriterQuestionForm) return;
+    if (updateExisting && !activeDraftId) {
+      setDraftSaveButtonsDisabled(false);
+      updateAutosavePill("error");
+      console.error("[writer] performDraftSave(update) called without activeDraftId");
+      return;
+    }
+    var db = firebase.firestore();
+    var data = serializeShowForSave();
+    setDraftSaveButtonsDisabled(true);
+    updateAutosavePill("saving");
+    var savePromise;
+    if (updateExisting) {
+      savePromise = db.collection("showDrafts").doc(activeDraftId).set(data);
+    } else {
+      var newRef = db.collection("showDrafts").doc();
+      activeDraftId = newRef.id;
+      data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+      savePromise = newRef.set(data);
+    }
+    savePromise
+      .then(function () {
+        console.log("[writer] draft saved:", activeDraftId, updateExisting ? "update" : "new");
+        updateAutosavePill("saved");
+        markClean();
+        syncDraftSaveButtons();
+      })
+      .catch(function (err) {
+        console.error("[writer] draft save failed:", err);
+        updateAutosavePill("error");
+      })
+      .then(function () {
+        setDraftSaveButtonsDisabled(false);
+      });
+  }
 
   // True once all initial setup is complete. Prevents dirty-tracking from
   // firing during the boot sequence (default title slide insert, form init).
@@ -718,8 +808,20 @@
         if (slideKind === "feud-halftime-intro" || slideKind === "feud-final-intro") {
           var introFd = safeClone(item.blockEntry.formData || {});
           introFd.block = introFd.block || {};
+          // Match round-start slides (e.g. “Round Three”): hero title + “Get ready!” pill, not a plain rules body.
+          introFd.block.type = "round-start";
           introFd.block.questionType = "display";
-          introFd.block.answerText = item.slide.prompt || introFd.block.questionText || "";
+          var isHalf = slideKind === "feud-halftime-intro";
+          var label = isHalf ? "Halftime Question" : "Final Question";
+          introFd.block.roundName = label;
+          introFd.block.categoryName = "Get Ready";
+          introFd.block.questionText = label;
+          introFd.block.answerText = "Get ready!";
+          introFd.block.questionAlign = "center";
+          introFd.block.questionFontScale = 1.2;
+          introFd.block.themeStyle = isHalf
+            ? (introFd.block.themeStyle || "Standard Trivia")
+            : "Final Question";
           WriterPreview.setMode("live");
           WriterPreview.renderFromFormData(introFd);
         } else {
@@ -2293,9 +2395,11 @@
       var answerRowsHtml = feudAnswers.slice(0, 8).map(function (a, i) {
         return '<div class="feud-tb-answer-row" data-answer-idx="' + i + '">' +
           '<span class="feud-tb-rank">' + String(i + 1) + '</span>' +
-          '<input type="text" class="feud-tb-answer-input" data-template-field="feudAnswer" placeholder="Survey answer ' + String(i + 1) + '" value="' + escapeHtml(a.text || "") + '">' +
+          '<div class="feud-tb-input-wrap">' +
+            '<input type="text" class="feud-tb-answer-input" data-template-field="feudAnswer" placeholder="Survey answer ' + String(i + 1) + '" value="' + escapeHtml(a.text || "") + '">' +
+            (feudAnswers.length > 3 ? '<button type="button" class="feud-tb-remove-btn" title="Remove">×</button>' : '') +
+          '</div>' +
           '<span class="feud-tb-pts">' + String(8 - i) + ' pts</span>' +
-          (feudAnswers.length > 3 ? '<button type="button" class="feud-tb-remove-btn" title="Remove">×</button>' : '') +
         '</div>';
       }).join("");
 
@@ -2381,9 +2485,11 @@
         newRow.setAttribute("data-answer-idx", String(newIdx));
         newRow.innerHTML =
           '<span class="feud-tb-rank">' + String(newIdx + 1) + '</span>' +
-          '<input type="text" class="feud-tb-answer-input" data-template-field="feudAnswer" placeholder="Survey answer ' + String(newIdx + 1) + '" value="">' +
-          '<span class="feud-tb-pts">' + String(8 - newIdx) + ' pts</span>' +
-          '<button type="button" class="feud-tb-remove-btn" title="Remove">×</button>';
+          '<div class="feud-tb-input-wrap">' +
+            '<input type="text" class="feud-tb-answer-input" data-template-field="feudAnswer" placeholder="Survey answer ' + String(newIdx + 1) + '" value="">' +
+            '<button type="button" class="feud-tb-remove-btn" title="Remove">×</button>' +
+          '</div>' +
+          '<span class="feud-tb-pts">' + String(8 - newIdx) + ' pts</span>';
         list2.appendChild(newRow);
         // Update all remove button visibility and add-btn
         updateFeudTbRanks(card);
@@ -2395,6 +2501,7 @@
         updateFeudTemplateBuilderEntry(entry, card);
       }
     });
+    updateFeudTbRanks(card);
   }
 
   function updateFeudTbRanks(card) {
@@ -2405,9 +2512,11 @@
       var rankEl = row.querySelector(".feud-tb-rank");
       var ptsEl  = row.querySelector(".feud-tb-pts");
       var input  = row.querySelector(".feud-tb-answer-input");
+      var inputWrap = row.querySelector(".feud-tb-input-wrap");
       if (rankEl) rankEl.textContent = String(i + 1);
       if (ptsEl)  ptsEl.textContent  = String(8 - i) + " pts";
       if (input)  input.placeholder  = "Survey answer " + String(i + 1);
+      if (inputWrap) inputWrap.classList.toggle("feud-tb-input-wrap--can-remove", rows.length > 3);
       // Show remove button only when above minimum
       var removeBtn = row.querySelector(".feud-tb-remove-btn");
       if (removeBtn) removeBtn.style.display = rows.length > 3 ? "" : "none";
@@ -2467,6 +2576,7 @@
         fontSizeMode: config.fontSizeMode || "Auto Fit",
         questionAlign: "left",
         questionFontScale: 1.0,
+        suppressFeudIntro: config.suppressFeudIntro === true,
       },
     };
     var block = WriterBlockBuilder.createBlockByType(blockType, formData);
@@ -2541,8 +2651,26 @@
         }));
       }
 
-      // Halftime after Round Two
+      // Halftime: separate round-start block (1 filmstrip tile) + feud question block (1 tile), so the
+      // grid question is not skipped when moving along the filmstrip.
       if (rIdx === 1) {
+        entries.push(makeInfoSlideEntry({
+          show: showMeta,
+          label: "Halftime Question",
+          blockType: "round-start",
+          roundName: "Halftime Question",
+          categoryName: "Get Ready",
+          questionType: "display",
+          questionText: "Halftime Question",
+          answerText: "Get ready!",
+          notes: "Title before the Halftime Feud question.",
+          themeStyle: themeStyle,
+          fontSizeMode: fontSizeMode,
+          stateKey: "halftime.title",
+          stateLabel: "Halftime Question",
+          layout: "round-start",
+          audienceMode: "live",
+        }));
         entries.push(makeFeudQuestionEntry({
           show: showMeta,
           roundName: "Halftime",
@@ -2550,9 +2678,28 @@
           blockType: "feud-halftime",
           themeStyle: themeStyle,
           fontSizeMode: fontSizeMode,
+          suppressFeudIntro: true,
         }));
       }
     });
+
+    entries.push(makeInfoSlideEntry({
+      show: showMeta,
+      label: "Final Question",
+      blockType: "round-start",
+      roundName: "Final Question",
+      categoryName: "Get Ready",
+      questionType: "display",
+      questionText: "Final Question",
+      answerText: "Get ready!",
+      notes: "Title before the final Feud question.",
+      themeStyle: "Final Question",
+      fontSizeMode: fontSizeMode,
+      stateKey: "feud-final.title",
+      stateLabel: "Final Question",
+      layout: "round-start",
+      audienceMode: "live",
+    }));
 
     entries.push(makeFeudQuestionEntry({
       show: showMeta,
@@ -2561,6 +2708,7 @@
       blockType: "feud-final",
       themeStyle: "Final Question",
       fontSizeMode: fontSizeMode,
+      suppressFeudIntro: true,
     }));
 
     entries.push(makeInfoSlideEntry({
@@ -3346,10 +3494,111 @@
     applyRestoredWriterUi(data);
 
     markClean();
+    syncDraftSaveButtons();
+    if (window.WriterQuestionForm) {
+      updateShowInfoBar(WriterQuestionForm.getFormData());
+    }
     console.log("[writer] show restored:", id, type);
   }
 
   // ─── Open Show modal ───────────────────────────────────────────
+
+  var openShowDraftsCache = null;
+  var openShowPublishedCache = null;
+
+  function inferOpenShowTypeFromData(data) {
+    if (!data) return "classic-trivia";
+    if (data.writerUi && String(data.writerUi.templateWorkflowType || "") === "feud-show") {
+      return "feud";
+    }
+    var blocks = Array.isArray(data.blocks) ? data.blocks : [];
+    var hasFeud = false;
+    var hasClassicQ = false;
+    blocks.forEach(function (entry) {
+      var bt = String((entry && entry.block && entry.block.type) || "").toLowerCase();
+      if (bt.indexOf("feud") !== -1) {
+        hasFeud = true;
+        return;
+      }
+      if (
+        bt === "single-question" ||
+        bt === "image-question" ||
+        bt === "audio-question" ||
+        bt === "true-false" ||
+        bt === "ordering" ||
+        bt === "matching"
+      ) {
+        hasClassicQ = true;
+      }
+    });
+    if (hasFeud && hasClassicQ) return "mixed";
+    if (hasFeud) return "feud";
+    return "classic-trivia";
+  }
+
+  function getShowTypeFromOpenShowData(data) {
+    var inferred = inferOpenShowTypeFromData(data);
+    var st = (data && data.show && data.show.showType) ? String(data.show.showType) : "";
+    // Feud (and other) full shows often still have the default "classic-trivia" on the root
+    // show object; prefer writerUi/blocks when the stored value is that default.
+    if (st === "classic-trivia" && (inferred === "feud" || inferred === "mixed")) {
+      return inferred;
+    }
+    if (st) return st;
+    return inferred;
+  }
+
+  function showTypeToLabelForPicker(st) {
+    var map = {
+      "classic-trivia": "Classic Trivia",
+      "themed-trivia": "Themed Trivia",
+      "feud": "Feud",
+      "mixed": "Mixed",
+    };
+    return map[st] || "Classic Trivia";
+  }
+
+  function getOpenShowTypeFilterValue() {
+    var sel = $("#open-show-type-filter");
+    return (sel && sel.value) || "all";
+  }
+
+  function filterOpenShowItemsByType(items) {
+    var f = getOpenShowTypeFilterValue();
+    if (f === "all") return items;
+    return items.filter(function (item) {
+      return getShowTypeFromOpenShowData(item.data) === f;
+    });
+  }
+
+  function refreshOpenShowPickerLists() {
+    if (openShowDraftsCache) {
+      var dFiltered = filterOpenShowItemsByType(openShowDraftsCache);
+      renderPickerList("open-show-drafts-list", dFiltered, "draft", openShowDraftsCache);
+    }
+    if (openShowPublishedCache) {
+      var pFiltered = filterOpenShowItemsByType(openShowPublishedCache);
+      renderPickerList("open-show-published-list", pFiltered, "published", openShowPublishedCache);
+    }
+  }
+
+  function lastTouchedMsForOpenShow(data) {
+    if (!data) return 0;
+    var t = data.lastTouchedAt;
+    if (!t) return 0;
+    if (t.toMillis) return t.toMillis();
+    if (t.seconds != null) return t.seconds * 1000;
+    return 0;
+  }
+
+  function sortOpenShowItemsByRecencyThenTrim(items, max) {
+    var list = (items || []).slice();
+    list.sort(function (a, b) {
+      return lastTouchedMsForOpenShow(b.data) - lastTouchedMsForOpenShow(a.data);
+    });
+    if (max && list.length > max) list = list.slice(0, max);
+    return list;
+  }
 
   function formatTimestamp(ts) {
     if (!ts) return "Unknown date";
@@ -3357,12 +3606,17 @@
     return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
   }
 
-  function renderPickerList(containerId, items, type) {
+  function renderPickerList(containerId, items, type, allUnfiltered) {
     var container = $("#" + containerId);
     if (!container) return;
 
+    var totalAvailable = (allUnfiltered && allUnfiltered.length) || 0;
     if (!items.length) {
-      container.innerHTML = '<p class="picker-empty">No ' + (type === "draft" ? "saved drafts" : "published shows") + ' found.</p>';
+      if (totalAvailable) {
+        container.innerHTML = '<p class="picker-empty">No shows match this type. Try &ldquo;All types&rdquo; or another type.</p>';
+      } else {
+        container.innerHTML = '<p class="picker-empty">No ' + (type === "draft" ? "saved drafts" : "published shows") + ' found.</p>';
+      }
       return;
     }
 
@@ -3371,15 +3625,20 @@
       var title = (item.data.show && item.data.show.title) || "Untitled Show";
       var dateLabel = (item.data.show && item.data.show.dateLabel) || "";
       var touched = formatTimestamp(item.data.lastTouchedAt);
+      var typeLine = showTypeToLabelForPicker(getShowTypeFromOpenShowData(item.data));
       var badge = type === "draft" ? "draft" : "published";
       var badgeLabel = type === "draft" ? "Draft" : "Published";
+      var metaBits = [typeLine];
+      if (dateLabel) metaBits.push(dateLabel);
+      metaBits.push("Last saved " + touched);
+      var metaLine = metaBits.join(" \u00b7 ");
 
       var el = document.createElement("div");
       el.className = "picker-item";
       el.innerHTML =
         '<div class="picker-item-info">' +
           '<div class="picker-item-title">' + escapeHtml(title) + '</div>' +
-          '<div class="picker-item-meta">' + escapeHtml(dateLabel) + (dateLabel ? " &bull; " : "") + "Last saved " + escapeHtml(touched) + '</div>' +
+          '<div class="picker-item-meta">' + escapeHtml(metaLine) + '</div>' +
         '</div>' +
         '<span class="picker-item-badge ' + badge + '">' + badgeLabel + '</span>';
 
@@ -3397,6 +3656,8 @@
     if (!user) return;
 
     var db = firebase.firestore();
+    openShowDraftsCache = null;
+    openShowPublishedCache = null;
 
     // Drafts
     var draftsContainer = $("#open-show-drafts-list");
@@ -3409,7 +3670,9 @@
       .get()
       .then(function (snap) {
         var items = snap.docs.map(function (doc) { return { id: doc.id, data: doc.data() }; });
-        renderPickerList("open-show-drafts-list", items, "draft");
+        openShowDraftsCache = items;
+        var filtered = filterOpenShowItemsByType(items);
+        renderPickerList("open-show-drafts-list", filtered, "draft", items);
       })
       .catch(function (err) {
         console.error("[writer] failed to load drafts:", err);
@@ -3427,7 +3690,9 @@
       .get()
       .then(function (snap) {
         var items = snap.docs.map(function (doc) { return { id: doc.id, data: doc.data() }; });
-        renderPickerList("open-show-published-list", items, "published");
+        openShowPublishedCache = items;
+        var filtered = filterOpenShowItemsByType(items);
+        renderPickerList("open-show-published-list", filtered, "published", items);
       })
       .catch(function (err) {
         console.error("[writer] failed to load published shows:", err);
@@ -3439,6 +3704,13 @@
     var modal = $("#open-show-modal");
     var btnOpen = $("#btn-open-show");
     var btnClose = $("#btn-close-open-modal");
+    var typeFilter = $("#open-show-type-filter");
+
+    if (typeFilter) {
+      typeFilter.addEventListener("change", function () {
+        refreshOpenShowPickerLists();
+      });
+    }
 
     if (btnOpen) {
       btnOpen.addEventListener("click", function () {
@@ -3557,7 +3829,79 @@
     });
   }
 
-  // ─── Feud reveal controls ──────────────────────────────────────
+  // ─── Dev: one-shot Feud fill (see dev-feud-paste.js for console drop-in) ─
+
+  function buildFeudAnswerRowsFromSurvey(answers) {
+    if (!Array.isArray(answers) || !answers.length) {
+      var empty = [];
+      for (var e = 0; e < 8; e++) {
+        empty.push({ text: "", points: 8 - e });
+      }
+      return empty;
+    }
+    var sorted = answers
+      .filter(function (a) {
+        return a && String(a.text || "").trim();
+      })
+      .sort(function (a, b) {
+        return (Number(b.points) || 0) - (Number(a.points) || 0);
+      });
+    var row = [];
+    for (var r = 0; r < 8; r++) {
+      row.push({
+        text: sorted[r] ? String(sorted[r].text || "").trim() : "",
+        points: 8 - r,
+      });
+    }
+    return row;
+  }
+
+  function installWriterDevFillFeud() {
+    /**
+     * Fills 20 regular Feud round questions (Full Feud template). Halftime + final Feud stay blank.
+     * Used by the dev console drop-in in dev-feud-paste.js
+     * @param {{ fills: Array<{ question: string, answers: Array<{ text: string, points?: number }> }> }} payload
+     */
+    window.WriterDevFillFeud = function (payload) {
+      if (!window.WriterQuestionForm || !window.WriterBlockBuilder) {
+        console.error("[WriterDevFillFeud] Question form or block builder not ready.");
+        return;
+      }
+      if (!payload || !Array.isArray(payload.fills) || payload.fills.length !== 20) {
+        console.error("[WriterDevFillFeud] Expected { fills: Array(20) }.");
+        return;
+      }
+      applyTemplate("feud-show");
+      var list = payload.fills;
+      var n = 0;
+      showState.blocks.forEach(function (entry) {
+        var t = (entry.block && entry.block.type) || "";
+        if (t === "feud-single-question" && n < 20) {
+          var f = list[n];
+          n += 1;
+          entry.formData = entry.formData || {};
+          entry.formData.block = entry.formData.block || {};
+          entry.formData.block.questionText = f.question || "";
+          entry.formData.block.feudAnswers = buildFeudAnswerRowsFromSurvey(f.answers);
+          entry.block = window.WriterBlockBuilder.createBlockByType("feud-single-question", entry.formData);
+        }
+      });
+      if (n !== 20) {
+        console.warn("[WriterDevFillFeud] Matched " + n + " round slots (expected 20).");
+      }
+      rebuildFlatSlides();
+      renderFilmstrip();
+      updateStatCounters();
+      markDirty();
+      renderTemplateBuilderList();
+      navigateToSlide(0);
+      if (n === 20) {
+        console.log(
+          "[WriterDevFillFeud] Populated 20 Feud questions. Halftime + final Feud left blank."
+        );
+      }
+    };
+  }
 
   function bindFeudRevealControls() {
     var nextBtn = $("#feud-reveal-next-btn");
@@ -3607,6 +3951,8 @@
 
     // Auto-insert the title slide as the first block on every session load
     insertDefaultTitleSlide();
+
+    installWriterDevFillFeud();
 
     // Mark app as ready — dirty tracking is now active
     appReady = true;
