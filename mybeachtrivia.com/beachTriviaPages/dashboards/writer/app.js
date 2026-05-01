@@ -1065,44 +1065,144 @@
 
   // ─── Add slide (+ button) ──────────────────────────────────────
 
-  var SLIDE_TYPES = [
-    { value: "short-response",  label: "Short Response"      },
-    { value: "multiple-choice", label: "Multiple Choice"     },
-    { value: "matching",        label: "Matching"            },
-    { value: "ordering",        label: "Ordering"            },
-    { value: "image-question",  label: "Image Question"      },
-    { value: "audio-question",  label: "Audio / Media Prompt"},
-    { value: "feud-question",   label: "Feud Survey Question"},
+  var SLIDE_TYPE_GROUPS = [
+    {
+      label: "Classic / Mixed",
+      types: [
+        { value: "short-response",  label: "Short Response"       },
+        { value: "multiple-choice", label: "Multiple Choice"      },
+        { value: "image-question",  label: "Image Question"       },
+        { value: "audio-question",  label: "Audio / Media"        },
+        { value: "matching",        label: "Matching"             },
+        { value: "ordering",        label: "Ordering"             },
+      ],
+    },
+    {
+      label: "Structure",
+      types: [
+        { value: "title",           label: "Title Slide"          },
+        { value: "intro-slide",     label: "Intro / Show Start"   },
+        { value: "category-slide",  label: "Category Header"      },
+        { value: "halftime",        label: "Halftime"             },
+        { value: "final-question",  label: "Final Question"       },
+        { value: "closing-slide",   label: "Closing"              },
+      ],
+    },
+    {
+      label: "Feud",
+      types: [
+        { value: "feud-question",   label: "Feud Survey Question" },
+        { value: "feud-halftime",   label: "Feud Halftime"        },
+        { value: "feud-final",      label: "Feud Final"           },
+      ],
+    },
   ];
 
-  function addNewSlide(questionType) {
+  // Flat list kept for any code that iterates all types
+  var SLIDE_TYPES = SLIDE_TYPE_GROUPS.reduce(function (acc, g) {
+    return acc.concat(g.types);
+  }, []);
+
+  // Structural block types added directly (not wrapped in single-question).
+  // These use the slide type value as the block type directly.
+  var DIRECT_BLOCK_TYPES = [
+    "intro-slide", "category-slide", "halftime",
+    "final-question", "closing-slide",
+    "feud-halftime", "feud-final",
+  ];
+
+  function addNewSlide(slideTypeValue) {
     if (!window.WriterBlockBuilder || !window.WriterQuestionForm) return;
 
     var showMeta = WriterQuestionForm.getFormData().show;
-    var isFeud = questionType === "feud-question";
-    var blockType = isFeud ? "feud-single-question" : "single-question";
-    var formData = {
-      show: showMeta,
-      block: {
-        type: blockType,
-        questionType: questionType,
-        roundName: "Round 1",
-        categoryName: "",
-        questionText: "",
-        answerText: "",
-        questionNotes: "",
-        optionCount: 4,
-        options: ["", "", "", ""],
-        correctOptionIndex: null,
-        matchingPairs: [],
-        orderingItems: [],
-        feudAnswers: isFeud ? [{ text: "", points: 8 }, { text: "", points: 7 }, { text: "", points: 6 }] : [],
-        themeStyle: "Standard Trivia",
-        fontSizeMode: "Auto Fit",
-        questionAlign: "left",
-        questionFontScale: 1.0,
-      },
-    };
+
+    // ── Title slide: reuse existing logic (only one allowed) ──────
+    if (slideTypeValue === "title") {
+      var existingTitleIdx = -1;
+      for (var ti = 0; ti < showState.flatSlides.length; ti++) {
+        if ((showState.flatSlides[ti].slide.type || "") === "title") {
+          existingTitleIdx = ti;
+          break;
+        }
+      }
+      if (existingTitleIdx !== -1) {
+        navigateToSlide(existingTitleIdx);
+        switchToTab("questions");
+        return;
+      }
+      var titleBlock = {
+        id: "title-slide-" + Date.now(),
+        type: "title",
+        label: "Title Slide",
+        slides: [{ type: "title", audienceMode: "live" }],
+        questionCount: 0,
+        questionType: "title",
+      };
+      showState.blocks.unshift({ block: titleBlock, formData: null });
+      rebuildFlatSlides();
+      navigateToSlide(0);
+      renderFilmstrip();
+      updateStatCounters();
+      markDirty();
+      switchToTab("questions");
+      return;
+    }
+
+    var blockType, formData, openCustomize;
+
+    if (DIRECT_BLOCK_TYPES.indexOf(slideTypeValue) !== -1) {
+      // Structural / feud variant blocks
+      blockType = slideTypeValue;
+      var isFeudVariant = slideTypeValue === "feud-halftime" || slideTypeValue === "feud-final";
+      formData = {
+        show: showMeta,
+        block: {
+          type: blockType,
+          questionType: isFeudVariant ? "feud-question" : "display",
+          roundName: "Round 1",
+          categoryName: "",
+          questionText: "",
+          answerText: "",
+          questionNotes: "",
+          feudAnswers: isFeudVariant
+            ? [{ text: "", points: 8 }, { text: "", points: 7 }, { text: "", points: 6 }]
+            : [],
+          themeStyle: "Standard Trivia",
+          fontSizeMode: "Auto Fit",
+        },
+      };
+      // Non-editable structural types stay on the Slides tab after insert
+      openCustomize = FORM_UNEDITABLE_BLOCK_TYPES.indexOf(blockType) === -1;
+    } else {
+      // Standard question types (short-response, multiple-choice, etc.)
+      var isFeud = slideTypeValue === "feud-question";
+      blockType = isFeud ? "feud-single-question" : "single-question";
+      formData = {
+        show: showMeta,
+        block: {
+          type: blockType,
+          questionType: slideTypeValue,
+          roundName: "Round 1",
+          categoryName: "",
+          questionText: "",
+          answerText: "",
+          questionNotes: "",
+          optionCount: 4,
+          options: ["", "", "", ""],
+          correctOptionIndex: null,
+          matchingPairs: [],
+          orderingItems: [],
+          feudAnswers: isFeud
+            ? [{ text: "", points: 8 }, { text: "", points: 7 }, { text: "", points: 6 }]
+            : [],
+          themeStyle: "Standard Trivia",
+          fontSizeMode: "Auto Fit",
+          questionAlign: "left",
+          questionFontScale: 1.0,
+        },
+      };
+      openCustomize = true;
+    }
 
     var block = WriterBlockBuilder.createBlockByType(blockType, formData);
     showState.blocks.push({ block: block, formData: formData });
@@ -1111,16 +1211,21 @@
     var newFirstIdx = showState.flatSlides.length - block.slides.length;
     navigateToSlide(newFirstIdx);
 
-    WriterQuestionForm.setFormData(formData);
+    if (openCustomize) {
+      WriterQuestionForm.setFormData(formData);
+    }
     renderFilmstrip();
     updateStatCounters();
     markDirty();
 
-    // Take the user straight to the editing form
-    var newBlockIdx = showState.blocks.length - 1;
-    var newLabel = document.getElementById("customize-slide-label");
-    if (newLabel) newLabel.textContent = "Slide " + (newBlockIdx + 1) + " — new slide";
-    switchToTab("question-details");
+    if (openCustomize) {
+      var newBlockIdx = showState.blocks.length - 1;
+      var newLabel = document.getElementById("customize-slide-label");
+      if (newLabel) newLabel.textContent = "Slide " + (newBlockIdx + 1) + " — new slide";
+      switchToTab("question-details");
+    } else {
+      switchToTab("questions");
+    }
   }
 
   function showTypePickerPopover(anchorEl) {
@@ -1132,17 +1237,24 @@
     popover.id = "slide-type-popover";
     popover.className = "slide-type-popover";
 
-    SLIDE_TYPES.forEach(function (t) {
-      var item = document.createElement("button");
-      item.type = "button";
-      item.className = "slide-type-option";
-      item.textContent = t.label;
-      item.addEventListener("click", function (e) {
-        e.stopPropagation();
-        popover.remove();
-        addNewSlide(t.value);
+    SLIDE_TYPE_GROUPS.forEach(function (group) {
+      var header = document.createElement("div");
+      header.className = "slide-type-group-header";
+      header.textContent = group.label;
+      popover.appendChild(header);
+
+      group.types.forEach(function (t) {
+        var item = document.createElement("button");
+        item.type = "button";
+        item.className = "slide-type-option";
+        item.textContent = t.label;
+        item.addEventListener("click", function (e) {
+          e.stopPropagation();
+          popover.remove();
+          addNewSlide(t.value);
+        });
+        popover.appendChild(item);
       });
-      popover.appendChild(item);
     });
 
     document.body.appendChild(popover);
@@ -1150,7 +1262,7 @@
     // Position below anchor, flip up if it would overflow viewport
     var rect = anchorEl.getBoundingClientRect();
     var below = rect.bottom + 6;
-    var popH  = SLIDE_TYPES.length * 38 + 8; // approximate height
+    var popH  = SLIDE_TYPES.length * 36 + SLIDE_TYPE_GROUPS.length * 28 + 8;
     if (below + popH > window.innerHeight) {
       popover.style.top = (rect.top - popH - 6) + "px";
     } else {

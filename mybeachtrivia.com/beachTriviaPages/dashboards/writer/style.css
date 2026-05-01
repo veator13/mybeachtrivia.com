@@ -3033,10 +3033,22 @@ textarea {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
   padding: 4px;
   z-index: 9999;
-  min-width: 180px;
+  min-width: 190px;
   display: flex;
   flex-direction: column;
   gap: 1px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.slide-type-group-header {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(148, 163, 184, 0.5);
+  padding: 8px 12px 3px;
+  pointer-events: none;
 }
 
 .slide-type-option {
