@@ -108,17 +108,17 @@
 
       <nav class="tab-nav" role="tablist" aria-label="Control panel tabs">
         <button
-          class="tab-btn"
+          class="tab-btn active"
           data-tab="show-details"
           role="tab"
-          aria-selected="false"
+          aria-selected="true"
           aria-controls="tab-show-details"
         >Show Setup</button>
         <button
-          class="tab-btn active"
+          class="tab-btn"
           data-tab="questions"
           role="tab"
-          aria-selected="true"
+          aria-selected="false"
           aria-controls="tab-questions"
         >Questions</button>
         <button
@@ -144,7 +144,7 @@
       <div class="tab-body panel-body">
 
         <!-- ── Tab: Show Details ──────────────────────────────── -->
-        <div id="tab-show-details" class="tab-pane" role="tabpanel">
+        <div id="tab-show-details" class="tab-pane active" role="tabpanel">
 
           <div class="section-block">
             <div class="section-label">
@@ -223,7 +223,7 @@
         </div><!-- /tab-show-details -->
 
         <!-- ── Tab: Questions (quick-fill list) ──────────────── -->
-        <div id="tab-questions" class="tab-pane active" role="tabpanel">
+        <div id="tab-questions" class="tab-pane" role="tabpanel">
           <div class="questions-tab-toolbar">
             <button class="btn btn-primary btn-sm" type="button" id="btn-add-slide-questions">+ Add Slide</button>
           </div>
