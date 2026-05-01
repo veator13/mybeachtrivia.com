@@ -108,19 +108,19 @@
 
       <nav class="tab-nav" role="tablist" aria-label="Control panel tabs">
         <button
-          class="tab-btn active"
+          class="tab-btn"
           data-tab="show-details"
           role="tab"
-          aria-selected="true"
-          aria-controls="tab-show-details"
-        >Show Details</button>
-        <button
-          class="tab-btn"
-          data-tab="question-details"
-          role="tab"
           aria-selected="false"
-          aria-controls="tab-question-details"
-        >Question Details</button>
+          aria-controls="tab-show-details"
+        >Show Setup</button>
+        <button
+          class="tab-btn active"
+          data-tab="questions"
+          role="tab"
+          aria-selected="true"
+          aria-controls="tab-questions"
+        >Questions</button>
         <button
           class="tab-btn"
           data-tab="templates"
@@ -138,13 +138,13 @@
           aria-controls="tab-template-builder"
           aria-hidden="true"
           hidden
-        >Questions</button>
+        >Template Builder</button>
       </nav>
 
       <div class="tab-body panel-body">
 
         <!-- ── Tab: Show Details ──────────────────────────────── -->
-        <div id="tab-show-details" class="tab-pane active" role="tabpanel">
+        <div id="tab-show-details" class="tab-pane" role="tabpanel">
 
           <div class="section-block">
             <div class="section-label">
@@ -222,13 +222,29 @@
 
         </div><!-- /tab-show-details -->
 
-        <!-- ── Tab: Question Details ──────────────────────────── -->
+        <!-- ── Tab: Questions (quick-fill list) ──────────────── -->
+        <div id="tab-questions" class="tab-pane active" role="tabpanel">
+          <div class="questions-tab-toolbar">
+            <button class="btn btn-primary btn-sm" type="button" id="btn-add-slide-questions">+ Add Slide</button>
+          </div>
+          <div id="questions-quick-list" class="questions-quick-list">
+            <div class="qlist-empty">No slides yet — click + Add Slide to get started.</div>
+          </div>
+        </div><!-- /tab-questions -->
+
+        <!-- ── Tab: Question Details (Customize Slide) ────────── -->
         <div id="tab-question-details" class="tab-pane" role="tabpanel">
+
+          <!-- Customize Slide header bar -->
+          <div class="customize-slide-header">
+            <button class="btn btn-outline btn-sm" type="button" id="btn-back-to-questions">&#8592; Questions</button>
+            <span class="customize-slide-label" id="customize-slide-label">Customize Slide</span>
+          </div>
 
           <!-- Action bar ──────────────────────────────────────── -->
           <div class="question-actions-bar">
             <div class="question-actions-group">
-              <button class="btn btn-success btn-sm" type="button" id="btn-add-to-show">Add to Show</button>
+              <button class="btn btn-success btn-sm" type="button" id="btn-add-to-show">Save Slide</button>
               <button class="btn btn-secondary btn-sm" type="button" id="btn-duplicate-block">Duplicate</button>
               <button class="btn btn-outline btn-sm" type="button" id="btn-save-block">Save Block</button>
             </div>

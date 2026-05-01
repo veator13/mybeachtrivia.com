@@ -1117,6 +1117,9 @@
     markDirty();
 
     // Take the user straight to the editing form
+    var newBlockIdx = showState.blocks.length - 1;
+    var newLabel = document.getElementById("customize-slide-label");
+    if (newLabel) newLabel.textContent = "Slide " + (newBlockIdx + 1) + " — new slide";
     switchToTab("question-details");
   }
 
@@ -1316,6 +1319,153 @@
 
     highlightFilmstripThumb(showState.currentIdx);
     syncFilmstripCanvasVars();
+    renderQuestionsList();
+  }
+
+  // ─── Questions quick-fill list ─────────────────────────────────
+
+  function renderQuestionsList() {
+    var list = document.getElementById("questions-quick-list");
+    if (!list) return;
+
+    if (showState.blocks.length === 0) {
+      list.innerHTML = '<div class="qlist-empty">No slides yet — click + Add Slide to get started.</div>';
+      return;
+    }
+
+    list.innerHTML = "";
+
+    showState.blocks.forEach(function (entry, blockIdx) {
+      var block = entry.block;
+      var blockType = String((block && block.type) || "").toLowerCase();
+      var fd = (entry.formData && entry.formData.block) || {};
+      var isEditable = FORM_UNEDITABLE_BLOCK_TYPES.indexOf(blockType) === -1 && blockType !== "title";
+
+      var card = document.createElement("div");
+      card.className = "qlist-card";
+
+      var numBadge = document.createElement("div");
+      numBadge.className = "qlist-num";
+      numBadge.textContent = String(blockIdx + 1);
+
+      var content = document.createElement("div");
+      content.className = "qlist-content";
+
+      var typeChip = document.createElement("span");
+      typeChip.className = "qlist-type-chip";
+      typeChip.textContent = (block.questionType || blockType || "slide").replace(/-/g, " ");
+
+      var qText = document.createElement("div");
+      qText.className = "qlist-question";
+      var rawQ = fd.questionText || (block && block.questionText) || (block && block.title) || "";
+      var tempDiv = document.createElement("div");
+      tempDiv.innerHTML = rawQ;
+      var plainQ = (tempDiv.textContent || tempDiv.innerText || "").trim();
+      qText.textContent = plainQ || "(no question text)";
+
+      content.appendChild(typeChip);
+      content.appendChild(qText);
+
+      if (fd.answerText) {
+        var aText = document.createElement("div");
+        aText.className = "qlist-answer";
+        aText.textContent = "A: " + fd.answerText;
+        content.appendChild(aText);
+      }
+
+      var actions = document.createElement("div");
+      actions.className = "qlist-actions";
+
+      if (isEditable) {
+        var gearBtn = document.createElement("button");
+        gearBtn.type = "button";
+        gearBtn.className = "qlist-customize-btn";
+        gearBtn.title = "Customize slide";
+        gearBtn.innerHTML = "&#9881;";
+        gearBtn.addEventListener("click", function (e) {
+          e.stopPropagation();
+          openCustomizeSlide(blockIdx);
+        });
+        actions.appendChild(gearBtn);
+      }
+
+      var delBtn = document.createElement("button");
+      delBtn.type = "button";
+      delBtn.className = "qlist-delete-btn";
+      delBtn.title = "Delete slide";
+      delBtn.innerHTML = "&#x2715;";
+      delBtn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        showState.blocks.splice(blockIdx, 1);
+        rebuildFlatSlides();
+        if (showState.blocks.length === 0) {
+          showState.currentIdx = 0;
+        } else if (showState.currentIdx >= showState.flatSlides.length) {
+          showState.currentIdx = showState.flatSlides.length - 1;
+        }
+        renderFilmstrip();
+        updateStatCounters();
+        markDirty();
+        if (showState.flatSlides.length > 0) {
+          navigateToSlide(showState.currentIdx);
+        }
+      });
+      actions.appendChild(delBtn);
+
+      card.appendChild(numBadge);
+      card.appendChild(content);
+      card.appendChild(actions);
+
+      card.addEventListener("click", function () {
+        var offset = 0;
+        for (var i = 0; i < blockIdx; i++) {
+          offset += ((showState.blocks[i].block && showState.blocks[i].block.slides) || []).length;
+        }
+        navigateToSlide(offset);
+      });
+
+      list.appendChild(card);
+    });
+  }
+
+  function openCustomizeSlide(blockIdx) {
+    var entry = showState.blocks[blockIdx];
+    if (!entry) return;
+
+    var offset = 0;
+    for (var i = 0; i < blockIdx; i++) {
+      offset += ((showState.blocks[i].block && showState.blocks[i].block.slides) || []).length;
+    }
+    navigateToSlide(offset);
+
+    var label = document.getElementById("customize-slide-label");
+    if (label) {
+      var fd = (entry.formData && entry.formData.block) || {};
+      var rawQ = fd.questionText || (entry.block && entry.block.questionText) || "";
+      var td = document.createElement("div");
+      td.innerHTML = rawQ;
+      var plainQ = (td.textContent || td.innerText || "").trim();
+      var preview = plainQ.length > 38 ? plainQ.slice(0, 38) + "…" : plainQ;
+      label.textContent = "Slide " + (blockIdx + 1) + (preview ? ": " + preview : "");
+    }
+
+    switchToTab("question-details");
+  }
+
+  function bindQuestionsTab() {
+    var btnAddSlide = document.getElementById("btn-add-slide-questions");
+    if (btnAddSlide) {
+      btnAddSlide.addEventListener("click", function () {
+        showTypePickerPopover(btnAddSlide);
+      });
+    }
+
+    var btnBack = document.getElementById("btn-back-to-questions");
+    if (btnBack) {
+      btnBack.addEventListener("click", function () {
+        switchToTab("questions");
+      });
+    }
   }
 
   /** Deep-clone formData for filmstrip paint (never mutate stored draft). */
@@ -3943,6 +4093,7 @@
     bindAnswerReveal();
     bindMediaUploads();
     bindTemplateButtons();
+    bindQuestionsTab();
     bindDatePicker();
     bindOpenShowModal();
     bindTemplateBuilderArrowNav();
