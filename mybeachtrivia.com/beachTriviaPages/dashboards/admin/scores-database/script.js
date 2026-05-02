@@ -885,6 +885,12 @@
       setLoadedStatus(`Loaded scoresheet ${docId}.`);
       setButtonsForMode();
       renderLoadedScoresheet();
+
+      // Scroll to the viewer card
+      const viewerCard = document.querySelector('.viewer-card');
+      if (viewerCard) {
+        viewerCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     } catch (err) {
       console.error('[scores-database] loadScoresheet error:', err);
       setLoadedStatus(err?.message || 'Failed to load scoresheet.');
