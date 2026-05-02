@@ -198,6 +198,29 @@
 
     .muted { color: var(--muted); }
 
+    .period-toggles {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .period-btn {
+      padding: 6px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--panel-border);
+      background: rgba(255,255,255,0.06);
+      color: var(--muted);
+      font: inherit;
+      font-size: 0.83rem;
+      cursor: pointer;
+      transition: background .15s, color .15s, border-color .15s;
+    }
+    .period-btn:hover { background: rgba(255,255,255,0.1); color: var(--text); }
+    .period-btn.active {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+
     #report-status {
       font-size: 0.9rem;
       color: var(--muted);
@@ -298,7 +321,13 @@
     <section class="card" aria-labelledby="heatmap-title">
       <div class="card-head">
         <h2 id="heatmap-title" class="card-title">Revenue Projection</h2>
-        <span class="muted" style="font-size:0.83rem;">avg teams × players/team × $/player</span>
+        <div class="period-toggles" role="group" aria-label="Projection period">
+          <button class="period-btn active" data-events="1">1 Event</button>
+          <button class="period-btn" data-events="4">1 Month</button>
+          <button class="period-btn" data-events="12">3 Months</button>
+          <button class="period-btn" data-events="24">6 Months</button>
+          <button class="period-btn" data-events="48">1 Year</button>
+        </div>
       </div>
       <div class="card-body" style="overflow-x:auto;">
         <div id="heatmap-container">

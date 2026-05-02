@@ -9,6 +9,7 @@
     employee: null,
     venues: [],
     avgTeams: 0,
+    projectionEvents: 1,
     totalTeams: 0,
     totalEvents: 0,
     lastEventDate: '',
@@ -240,7 +241,8 @@
   }
 
   // ── Revenue projection heatmap ────────────────────────────────────────────
-  function renderHeatmap(avgTeams, maxSpend) {
+  function renderHeatmap(avgTeams, maxSpend, events) {
+    events = events || state.projectionEvents || 1;
     const container = $('#heatmap-container');
     if (!container) return;
 
@@ -255,7 +257,7 @@
     if (!spendSteps.length) spendSteps.push(5);
 
     // Compute max revenue for gradient scaling
-    const maxRevenue = avgTeams * 10 * (spendSteps[spendSteps.length - 1]);
+    const maxRevenue = avgTeams * 10 * (spendSteps[spendSteps.length - 1]) * events;
 
     function cellColor(revenue) {
       const ratio = Math.min(revenue / maxRevenue, 1);
@@ -274,7 +276,7 @@
     spendSteps.forEach((spend) => {
       html += `<tr><td class="heatmap-label">$${spend}/player</td>`;
       playersRange.forEach((players) => {
-        const revenue = avgTeams * players * spend;
+        const revenue = avgTeams * players * spend * events;
         const bg = cellColor(revenue);
         html += `<td style="background:${bg};">$${revenue.toFixed(0)}</td>`;
       });
@@ -306,6 +308,19 @@
     if (dateStart && !dateStart.value) dateStart.value = prior.toISOString().slice(0, 10);
 
     $('#generate-btn')?.addEventListener('click', generateReport);
+
+    // Period toggles
+    document.querySelectorAll('.period-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.period-btn').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        state.projectionEvents = parseInt(btn.dataset.events, 10) || 1;
+        if (state.reportLoaded) {
+          const maxSpend = parseFloat($('#max-spend')?.value) || 60;
+          renderHeatmap(state.avgTeams, maxSpend, state.projectionEvents);
+        }
+      });
+    });
   }
 
   document.addEventListener('venue-reports:boot-ready', (ev) => {
