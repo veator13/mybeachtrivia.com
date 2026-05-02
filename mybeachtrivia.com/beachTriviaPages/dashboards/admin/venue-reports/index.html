@@ -232,11 +232,23 @@
       font-size: 0.88rem;
       min-width: 100px;
     }
-    #teams-slider {
+    .slider-wrap {
       flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    #teams-slider {
+      width: 100%;
       accent-color: var(--primary);
-      height: 6px;
       cursor: pointer;
+    }
+    .slider-ticks {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.72rem;
+      color: var(--muted);
+      padding: 0 2px;
     }
 
     #report-status {
@@ -350,7 +362,12 @@
       <div class="card-body" style="overflow-x:auto;">
         <div class="teams-slider-row">
           <label for="teams-slider" class="label">Teams: <strong id="teams-slider-value">—</strong></label>
-          <input id="teams-slider" type="range" min="3" max="100" step="1" value="8" />
+          <div class="slider-wrap">
+            <input id="teams-slider" type="range" min="3" max="100" step="1" value="8" list="teams-ticks" />
+            <div class="slider-ticks">
+              <span>3</span><span>10</span><span>20</span><span>30</span><span>40</span><span>50</span><span>60</span><span>70</span><span>80</span><span>90</span><span>100</span>
+            </div>
+          </div>
         </div>
         <div id="heatmap-container">
           <p class="muted">Generate a report to see revenue projections.</p>
