@@ -151,12 +151,17 @@
 
   function fillBg(s) {
     // Dark-to-darker gradient matching preview-stage.css linear-gradient(180deg,#13203b,#081120)
+    // PptxGenJS gradient API uses `stops` with stopPct, angle in degrees
     s.addShape("rect", {
       x: 0, y: 0, w: SW, h: SH,
-      fill: { type: "gradient", color: [
-        { color: "13203b", position: 0 },
-        { color: "081120", position: 100 },
-      ]},
+      fill: {
+        type: "gradient",
+        stops: [
+          { stopPct: 0,   color: "13203b" },
+          { stopPct: 100, color: "081120" },
+        ],
+        angle: 90,
+      },
       line: { color: "081120", width: 0 },
     });
   }
