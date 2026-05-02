@@ -141,7 +141,7 @@
     disp_text:       "e0f2fe",
   };
 
-  // Slide geometry (LAYOUT_16x9: 13.333" × 7.5")
+  // Slide geometry (LAYOUT_WIDE: 13.333" × 7.5")
   var SW = 13.333;
   var SH = 7.5;
   var ML = 0.4;
@@ -566,7 +566,7 @@
     var deckTitle = showMeta.title || "Untitled Show";
 
     var pptx = new PptxGen();
-    pptx.layout  = "LAYOUT_16x9";
+    pptx.layout  = "LAYOUT_WIDE"; // 13.333" × 7.5" — matches SW/SH constants
     pptx.author  = "My Beach Trivia";
     pptx.title   = deckTitle + " — host backup";
     pptx.subject = "Emergency offline slideshow backup";
@@ -579,8 +579,8 @@
       if (isTitle) {
         paintTitleSlide(s, slide, showMeta);
       } else {
-        // Host backup: always reveal answers so the host can see everything
-        paintQuestionSlide(s, slide, true);
+        // Only reveal answers on summary/answers slides — question slides stay clean
+        paintQuestionSlide(s, slide, !!slide.alwaysReveal);
       }
 
       // Speaker notes
