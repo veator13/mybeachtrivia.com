@@ -27,6 +27,7 @@
       { label: 'Employees',       href: '/beachTriviaPages/dashboards/admin/employees-management/' },
       { label: 'Locations',       href: '/beachTriviaPages/dashboards/admin/locations-management/' },
       { label: 'Scores Database', href: '/beachTriviaPages/dashboards/admin/scores-database/' },
+      { label: 'Venue Reports',   href: '/beachTriviaPages/dashboards/admin/venue-reports/' },
       { label: 'Music Bingo',     href: '/beachTriviaPages/dashboards/admin/music-bingo-generator/' },
     ],
     host: [
