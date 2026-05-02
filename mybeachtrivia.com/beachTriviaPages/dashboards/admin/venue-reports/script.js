@@ -249,13 +249,13 @@
       return;
     }
 
-    const playersRange = [3, 4, 5, 6, 7, 8];
+    const playersRange = [3, 4, 5, 6, 7, 8, 9, 10];
     const spendSteps = [];
     for (let s = 5; s <= maxSpend; s += 5) spendSteps.push(s);
     if (!spendSteps.length) spendSteps.push(5);
 
     // Compute max revenue for gradient scaling
-    const maxRevenue = avgTeams * 8 * (spendSteps[spendSteps.length - 1]);
+    const maxRevenue = avgTeams * 10 * (spendSteps[spendSteps.length - 1]);
 
     function cellColor(revenue) {
       const ratio = Math.min(revenue / maxRevenue, 1);
