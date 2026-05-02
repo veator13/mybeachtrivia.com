@@ -65,14 +65,27 @@
         <form id="scores-search-form" class="search-grid" novalidate>
           <div class="field">
             <label for="venue-filter" class="label">Venue</label>
-            <input
-              id="venue-filter"
-              name="venue"
-              type="text"
-              class="input"
-              placeholder="COVA Brewing Company"
-              autocomplete="off"
-            />
+            <div class="venue-combobox">
+              <input
+                id="venue-filter"
+                name="venue"
+                type="text"
+                class="input"
+                placeholder="Type to search — suggestions narrow as you type"
+                autocomplete="off"
+                aria-autocomplete="list"
+                aria-expanded="false"
+                aria-controls="venue-suggest-panel"
+                role="combobox"
+              />
+              <div
+                id="venue-suggest-panel"
+                class="venue-suggest-panel"
+                role="listbox"
+                aria-label="Venues from locations database"
+                hidden
+              ></div>
+            </div>
           </div>
 
           <div class="field">
@@ -178,7 +191,10 @@
         <div class="loaded-meta-grid">
           <div class="field">
             <label for="loaded-venue" class="label">Venue</label>
-            <input id="loaded-venue" type="text" class="input" readonly />
+            <select id="loaded-venue" class="input" disabled>
+              <option value="">Choose venue…</option>
+            </select>
+            <input id="loaded-venue-other" type="text" class="input" style="margin-top:6px;display:none;" placeholder="Custom venue name" readonly />
           </div>
 
           <div class="field">
@@ -348,6 +364,16 @@
     }
 
     .input[readonly] {
+      opacity: 0.9;
+      cursor: default;
+    }
+
+    select.input option {
+      background: #1a2030;
+      color: #f4f7fb;
+    }
+
+    select.input:disabled {
       opacity: 0.9;
       cursor: default;
     }

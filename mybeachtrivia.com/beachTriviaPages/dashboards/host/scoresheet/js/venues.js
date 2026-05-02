@@ -139,7 +139,7 @@
 
     try {
       unsubscribe = db
-        .collection("publicLocations")
+        .collection("locations")
         .orderBy("name")
         .onSnapshot(
           // ✅ Critical: Firestore can "succeed" while offline by serving cache.

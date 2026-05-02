@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Venue Reports — Beach Trivia Admin</title>
+
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta name="theme-color" content="#101317">
+  <meta name="color-scheme" content="light dark" />
+
+  <!-- Unified nav bar -->
+  <link rel="stylesheet" href="/beachTriviaPages/js/bt-nav.css">
+  <script src="/beachTriviaPages/js/bt-nav.js" defer></script>
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js" defer></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
+
+  <!-- App init + page logic -->
+  <script src="/firebase-init.js?v=1" defer></script>
+  <script src="./auth-guard.js" defer></script>
+  <script src="./boot.js" defer></script>
+  <script src="./script.js" defer></script>
+
+  <style>
+    :root {
+      --bg: #101317;
+      --panel: rgba(255,255,255,0.05);
+      --panel-border: rgba(255,255,255,0.08);
+      --text: #f4f7fb;
+      --muted: rgba(244,247,251,0.65);
+      --primary: #3699ff;
+      --radius: 14px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+    }
+
+    body.bt-nav-active .page-shell { padding-top: 24px; }
+
+    /* ── Auth overlays ── */
+    .auth-overlay {
+      position: fixed; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      background: rgba(0,0,0,.82); color: #fff; z-index: 9999;
+    }
+    .spinner {
+      width: 40px; height: 40px;
+      border: 4px solid rgba(255,255,255,.2);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .error-overlay {
+      position: fixed; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(0,0,0,.82); z-index: 9999;
+    }
+    .error-message {
+      background: #1e2530; border-radius: 12px;
+      padding: 32px 40px; max-width: 420px; text-align: center;
+    }
+    .error-message button {
+      margin-top: 16px; padding: 10px 24px;
+      background: var(--primary); color: #fff;
+      border: none; border-radius: 8px; cursor: pointer; font-size: 1rem;
+    }
+
+    /* ── Layout ── */
+    .page-shell {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .page-header { margin-bottom: 24px; }
+    .page-title { margin: 0 0 6px; font-size: clamp(1.8rem, 2.8vw, 2.2rem); letter-spacing: -.02em; }
+    .page-subtitle { margin: 0; color: var(--muted); }
+
+    /* ── Card ── */
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius);
+      margin-bottom: 24px;
+      overflow: hidden;
+    }
+    .card-head {
+      padding: 18px 24px;
+      border-bottom: 1px solid var(--panel-border);
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    }
+    .card-title { margin: 0; font-size: 1.1rem; font-weight: 600; }
+    .card-body { padding: 24px; }
+
+    /* ── Filter grid ── */
+    .filter-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+      align-items: end;
+    }
+
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .label { font-size: 0.82rem; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: .04em; }
+
+    .input {
+      width: 100%; min-height: 42px;
+      border-radius: 10px;
+      border: 1px solid var(--panel-border);
+      background: rgba(255,255,255,0.06);
+      color: var(--text);
+      padding: 10px 12px;
+      font: inherit;
+    }
+
+    select.input option { background: #1a2030; color: #f4f7fb; }
+
+    .btn {
+      min-height: 42px; padding: 0 20px;
+      border-radius: 10px; border: none; cursor: pointer;
+      font: inherit; font-weight: 600; font-size: 0.93rem;
+      transition: background .15s;
+    }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: #258cff; }
+
+    /* ── Stats strip ── */
+    .stats-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      text-align: center;
+    }
+    .stat-value {
+      font-size: 2rem; font-weight: 700;
+      letter-spacing: -.03em; line-height: 1;
+      margin-bottom: 6px;
+    }
+    .stat-label { font-size: 0.78rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+
+    /* ── Trend chart ── */
+    .chart-wrap {
+      position: relative;
+      height: 320px;
+    }
+
+    /* ── Heatmap ── */
+    .heatmap-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+    .heatmap-table th, .heatmap-table td {
+      padding: 10px 12px;
+      text-align: center;
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+    .heatmap-table th {
+      background: rgba(255,255,255,0.06);
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .heatmap-label {
+      font-weight: 600;
+      color: var(--muted);
+      text-align: left !important;
+      white-space: nowrap;
+    }
+    .heatmap-table td { font-variant-numeric: tabular-nums; }
+
+    .muted { color: var(--muted); }
+
+    #report-status {
+      font-size: 0.9rem;
+      color: var(--muted);
+      min-height: 20px;
+      padding: 4px 0;
+    }
+  </style>
+</head>
+
+<body data-page="venue-reports">
+  <div id="auth-loading" class="auth-overlay" aria-live="polite">
+    <div class="spinner" role="status" aria-label="Loading"></div>
+    <p>Verifying access...</p>
+  </div>
+
+  <div id="error-container" class="error-overlay" style="display:none;" aria-live="assertive">
+    <div class="error-message">
+      <p id="error-text">An error occurred. Please try again.</p>
+      <button id="back-to-login" type="button">Return to Login</button>
+    </div>
+  </div>
+
+  <div class="page-shell" style="display:none;">
+    <header class="page-header">
+      <div>
+        <h1 class="page-title">📈 Venue Reports</h1>
+        <p class="page-subtitle">Attendance trends and revenue projections by venue and date range.</p>
+      </div>
+    </header>
+
+    <!-- Filters -->
+    <section class="card" aria-labelledby="filters-title">
+      <div class="card-head">
+        <h2 id="filters-title" class="card-title">Filters</h2>
+      </div>
+      <div class="card-body">
+        <div class="filter-grid">
+          <div class="field">
+            <label for="venue-select" class="label">Venue</label>
+            <select id="venue-select" class="input">
+              <option value="">All venues</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="date-start" class="label">Date From</label>
+            <input id="date-start" type="date" class="input" />
+          </div>
+          <div class="field">
+            <label for="date-end" class="label">Date To</label>
+            <input id="date-end" type="date" class="input" />
+          </div>
+          <div class="field">
+            <label for="max-spend" class="label">Max $/Player</label>
+            <input id="max-spend" type="number" class="input" min="5" max="200" step="5" value="20" />
+          </div>
+          <div class="field">
+            <label class="label">&nbsp;</label>
+            <button id="generate-btn" type="button" class="btn btn-primary">Generate Report</button>
+          </div>
+        </div>
+        <div id="report-status"></div>
+      </div>
+    </section>
+
+    <!-- Stats strip -->
+    <div class="stats-strip" aria-label="Summary statistics">
+      <div class="stat-card">
+        <div id="stat-events" class="stat-value">—</div>
+        <div class="stat-label">Events in Period</div>
+      </div>
+      <div class="stat-card">
+        <div id="stat-avg-teams" class="stat-value">—</div>
+        <div class="stat-label">Avg Teams / Event</div>
+      </div>
+      <div class="stat-card">
+        <div id="stat-total-teams" class="stat-value">—</div>
+        <div class="stat-label">Total Teams</div>
+      </div>
+      <div class="stat-card">
+        <div id="stat-last-event" class="stat-value" style="font-size:1.3rem;">—</div>
+        <div class="stat-label">Last Event</div>
+      </div>
+    </div>
+
+    <!-- Attendance Trend -->
+    <section class="card" aria-labelledby="trend-title">
+      <div class="card-head">
+        <h2 id="trend-title" class="card-title">Attendance Trend</h2>
+      </div>
+      <div class="card-body">
+        <div class="chart-wrap">
+          <canvas id="trend-chart"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- Revenue Projection Heatmap -->
+    <section class="card" aria-labelledby="heatmap-title">
+      <div class="card-head">
+        <h2 id="heatmap-title" class="card-title">Revenue Projection</h2>
+        <span class="muted" style="font-size:0.83rem;">avg teams × players/team × $/player</span>
+      </div>
+      <div class="card-body" style="overflow-x:auto;">
+        <div id="heatmap-container">
+          <p class="muted">Generate a report to see revenue projections.</p>
+        </div>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

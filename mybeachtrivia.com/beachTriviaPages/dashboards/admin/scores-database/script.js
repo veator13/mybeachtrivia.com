@@ -97,6 +97,7 @@
   const els = {
     form: $('#scores-search-form'),
     venueFilter: $('#venue-filter'),
+    venueSuggestPanel: $('#venue-suggest-panel'),
     hostFilter: $('#host-filter'),
     eventTypeFilter: $('#event-type-filter'),
     dateStart: $('#date-start'),
@@ -109,6 +110,7 @@
     resultsTableBody: $('#results-table-body'),
     loadedStatus: $('#loaded-record-status'),
     loadedVenue: $('#loaded-venue'),
+    loadedVenueOther: $('#loaded-venue-other'),
     loadedEventDate: $('#loaded-event-date'),
     loadedHost: $('#loaded-host'),
     loadedEventType: $('#loaded-event-type'),
@@ -129,6 +131,243 @@
       throw new Error('Firebase Firestore is not available.');
     }
     return firebase.firestore();
+  }
+
+  let unsubscribeVenueLocations = null;
+  /** @type {string[]} */
+  let venueLocationNames = [];
+  let venueComboOpen = false;
+  let venueLocationsSnapshotSeen = false;
+  let venueLocationsLoadError = false;
+
+  function stopVenueLocationsListener() {
+    if (typeof unsubscribeVenueLocations === 'function') {
+      unsubscribeVenueLocations();
+      unsubscribeVenueLocations = null;
+    }
+  }
+
+  function syncVenueLocationNames(names) {
+    const seen = new Set();
+    venueLocationNames = [];
+    names.forEach((name) => {
+      const n = String(name || '').trim();
+      if (!n || seen.has(n)) return;
+      seen.add(n);
+      venueLocationNames.push(n);
+    });
+    venueLocationNames.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+    if (venueComboOpen) renderVenueSuggestions();
+    populateVenueSelect();
+  }
+
+  function populateVenueSelect() {
+    const sel = els.loadedVenue;
+    if (!sel || sel.tagName !== 'SELECT') return;
+    const current = sel.value;
+    // Remove all options except any unmatched placeholder
+    while (sel.options.length) sel.remove(0);
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = 'Choose venue…';
+    sel.appendChild(placeholder);
+    venueLocationNames.forEach((name) => {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      sel.appendChild(opt);
+    });
+    const otherOpt = document.createElement('option');
+    otherOpt.value = 'other';
+    otherOpt.textContent = 'Other';
+    sel.appendChild(otherOpt);
+    // Restore previous selection if still valid
+    if (current) sel.value = current;
+  }
+
+  function setVenueSelectValue(meta) {
+    const sel = els.loadedVenue;
+    const otherInput = els.loadedVenueOther;
+    if (!sel || sel.tagName !== 'SELECT') return;
+
+    const venueId = (meta.venueId || '').trim();
+    const venueName = (meta.venueName || meta.venue || '').trim();
+
+    // Check if this is an "Other" submission
+    if (venueId === 'other' || meta.venueSource === 'manual_other') {
+      sel.value = 'other';
+      if (otherInput) {
+        otherInput.value = venueName;
+        otherInput.style.display = '';
+      }
+      return;
+    }
+
+    // Hide other input for non-other venues
+    if (otherInput) {
+      otherInput.value = '';
+      otherInput.style.display = 'none';
+    }
+
+    // Try matching by name
+    for (let i = 0; i < sel.options.length; i++) {
+      if (sel.options[i].value === venueName || sel.options[i].textContent === venueName) {
+        sel.selectedIndex = i;
+        return;
+      }
+    }
+
+    // No match — insert a temporary unmatched option so the name still displays
+    if (venueName) {
+      const temp = document.createElement('option');
+      temp.value = '__unmatched__';
+      temp.dataset.unmatched = 'true';
+      temp.textContent = venueName;
+      sel.insertBefore(temp, sel.options[1]); // after placeholder
+      sel.value = '__unmatched__';
+    } else {
+      sel.value = '';
+    }
+  }
+
+  function setVenueComboExpanded(open) {
+    const inp = els.venueFilter;
+    if (inp) inp.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+
+  function getFilteredVenueNames() {
+    const q = normalizeText(els.venueFilter?.value || '');
+    const max = 200;
+    if (!q) return venueLocationNames.slice(0, max);
+    const out = [];
+    for (let i = 0; i < venueLocationNames.length && out.length < max; i += 1) {
+      const n = venueLocationNames[i];
+      if (normalizeText(n).includes(q)) out.push(n);
+    }
+    return out;
+  }
+
+  function renderVenueSuggestions() {
+    const panel = els.venueSuggestPanel;
+    if (!panel) return;
+
+    panel.innerHTML = '';
+
+    if (!venueLocationNames.length) {
+      const empty = document.createElement('div');
+      empty.className = 'venue-suggest-empty muted';
+      if (!venueLocationsSnapshotSeen) empty.textContent = 'Loading venues…';
+      else if (venueLocationsLoadError) empty.textContent = 'Could not load venues.';
+      else empty.textContent = 'No venues in locations database.';
+      panel.appendChild(empty);
+      return;
+    }
+
+    const items = getFilteredVenueNames();
+    if (!items.length) {
+      const empty = document.createElement('div');
+      empty.className = 'venue-suggest-empty muted';
+      empty.textContent = 'No matching venues';
+      panel.appendChild(empty);
+      return;
+    }
+
+    items.forEach((name) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'venue-suggest-item';
+      btn.setAttribute('role', 'option');
+      btn.textContent = name;
+      btn.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        if (els.venueFilter) els.venueFilter.value = name;
+        closeVenuePanel();
+        els.venueFilter?.focus();
+      });
+      panel.appendChild(btn);
+    });
+  }
+
+  function openVenuePanel() {
+    if (!els.venueSuggestPanel) return;
+    venueComboOpen = true;
+    els.venueSuggestPanel.hidden = false;
+    setVenueComboExpanded(true);
+    renderVenueSuggestions();
+  }
+
+  function closeVenuePanel() {
+    venueComboOpen = false;
+    if (els.venueSuggestPanel) els.venueSuggestPanel.hidden = true;
+    setVenueComboExpanded(false);
+  }
+
+  function initVenueCombobox() {
+    const inp = els.venueFilter;
+    const panel = els.venueSuggestPanel;
+    if (!inp || !panel) return;
+
+    inp.addEventListener('focus', () => openVenuePanel());
+    inp.addEventListener('click', () => openVenuePanel());
+    inp.addEventListener('input', () => {
+      if (venueComboOpen) renderVenueSuggestions();
+    });
+    inp.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeVenuePanel();
+      }
+    });
+
+    document.addEventListener(
+      'pointerdown',
+      (e) => {
+        if (!venueComboOpen) return;
+        const wrap = inp.closest('.venue-combobox');
+        if (wrap && !wrap.contains(e.target)) closeVenuePanel();
+      },
+      true
+    );
+  }
+
+  function startVenueLocationsListener() {
+    stopVenueLocationsListener();
+
+    let db;
+    try {
+      db = getDb();
+    } catch (_) {
+      venueLocationsSnapshotSeen = true;
+      venueLocationsLoadError = true;
+      syncVenueLocationNames([]);
+      return;
+    }
+
+    venueLocationsSnapshotSeen = false;
+    venueLocationsLoadError = false;
+
+    unsubscribeVenueLocations = db
+      .collection('locations')
+      .orderBy('name')
+      .onSnapshot(
+        (snap) => {
+          venueLocationsSnapshotSeen = true;
+          venueLocationsLoadError = false;
+          const names = [];
+          snap.forEach((doc) => {
+            const d = doc.data() || {};
+            const name = String(d.name || '').trim();
+            if (name) names.push(name);
+          });
+          syncVenueLocationNames(names);
+        },
+        (err) => {
+          console.error('[scores-database] locations listener error:', err);
+          venueLocationsSnapshotSeen = true;
+          venueLocationsLoadError = true;
+          syncVenueLocationNames([]);
+        }
+      );
   }
 
   function setSearchStatus(message) {
@@ -173,6 +412,17 @@
     if (els.editBanner) {
       els.editBanner.style.display = editing ? '' : 'none';
     }
+    // Venue select + other input lock/unlock
+    if (els.loadedVenue && els.loadedVenue.tagName === 'SELECT') {
+      els.loadedVenue.disabled = !editing;
+    }
+    if (els.loadedVenueOther) {
+      const isOther = els.loadedVenue && els.loadedVenue.value === 'other';
+      if (els.loadedVenueOther.style.display !== 'none') {
+        els.loadedVenueOther.readOnly = !editing;
+      }
+      if (!isOther) els.loadedVenueOther.style.display = 'none';
+    }
   }
 
   function renderEmptyMount(message) {
@@ -197,6 +447,7 @@
 
   function resetLoadedMetaFields() {
     if (els.loadedVenue) els.loadedVenue.value = '';
+    if (els.loadedVenueOther) { els.loadedVenueOther.value = ''; els.loadedVenueOther.style.display = 'none'; }
     if (els.loadedEventDate) els.loadedEventDate.value = '';
     if (els.loadedHost) els.loadedHost.value = '';
     if (els.loadedEventType) els.loadedEventType.value = '';
@@ -347,7 +598,7 @@
     if (!state.loadedDocData) return;
 
     const meta = state.loadedDocData.meta || {};
-    if (els.loadedVenue) els.loadedVenue.value = meta.venueName || meta.venue || '';
+    setVenueSelectValue(meta);
     if (els.loadedEventDate) els.loadedEventDate.value = meta.eventDate || '';
     if (els.loadedHost) els.loadedHost.value = getDisplayHost(meta);
     if (els.loadedEventType) els.loadedEventType.value = formatEventType(meta.eventType || state.loadedDocData.eventName || '');
@@ -651,8 +902,27 @@
     const meta = updated.meta || {};
     updated.meta = meta;
 
-    meta.venue = String(els.loadedVenue?.value || '').trim();
-    meta.venueName = meta.venue;
+    const venueSelect = els.loadedVenue;
+    if (venueSelect && venueSelect.tagName === 'SELECT') {
+      const selectedVal = venueSelect.value || '';
+      if (selectedVal === 'other') {
+        meta.venueId     = 'other';
+        meta.venueName   = String(els.loadedVenueOther?.value || '').trim();
+        meta.venueSource = 'manual_other';
+      } else if (selectedVal === '__unmatched__') {
+        // Keep original venueId; update venueName from the option text
+        const opt = venueSelect.options[venueSelect.selectedIndex];
+        meta.venueName = (opt?.textContent || '').trim();
+      } else {
+        meta.venueId   = selectedVal;
+        meta.venueName = selectedVal;
+        if (selectedVal) meta.venueSource = 'dropdown';
+      }
+      meta.venue = meta.venueName;
+    } else {
+      meta.venue     = String(els.loadedVenue?.value || '').trim();
+      meta.venueName = meta.venue;
+    }
     meta.eventDate = String(els.loadedEventDate?.value || '').trim();
     meta.eventType = normalizeText(els.loadedEventType?.value).replace(/\s+/g, '_');
     updated.eventName = meta.eventType || updated.eventName || '';
@@ -755,6 +1025,7 @@
 
   async function runSearch(evt) {
     if (evt) evt.preventDefault();
+    closeVenuePanel();
 
     try {
       if (els.searchBtn) {
@@ -786,6 +1057,7 @@
   }
 
   function clearSearch() {
+    closeVenuePanel();
     if (els.form) els.form.reset();
     state.searchResults = [];
     renderResultsTable();
@@ -795,6 +1067,7 @@
   function attachEvents() {
     els.form?.addEventListener('submit', runSearch);
     els.clearBtn?.addEventListener('click', clearSearch);
+
     els.editBtn?.addEventListener('click', enterEditMode);
     els.updateBtn?.addEventListener('click', updateExistingScoresheet);
 
@@ -818,6 +1091,17 @@
         window.addTeam();
       }
     });
+
+    // Venue select — show/hide "Other" companion input
+    if (els.loadedVenue && els.loadedVenue.tagName === 'SELECT') {
+      els.loadedVenue.addEventListener('change', () => {
+        const isOther = els.loadedVenue.value === 'other';
+        if (els.loadedVenueOther) {
+          els.loadedVenueOther.style.display = isOther ? '' : 'none';
+          if (!isOther) els.loadedVenueOther.value = '';
+        }
+      });
+    }
   }
 
   function start(detail) {
@@ -828,6 +1112,8 @@
     state.employee = detail?.emp || window.__SCORES_DATABASE_EMPLOYEE__ || null;
 
     attachEvents();
+    initVenueCombobox();
+    startVenueLocationsListener();
     resetLoadedState();
     renderResultsTable();
     setSearchStatus('Ready to search saved scoresheets.');
