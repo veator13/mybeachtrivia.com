@@ -225,6 +225,15 @@
   // ─── Module event bridge ───────────────────────────────────────
 
   function bindModuleEvents() {
+    document.addEventListener("writer:title-slide-eyebrow", function (e) {
+      var item = getCurrentFlatItem();
+      if (!item || !isTitleFlatItem(item) || !item.blockEntry) return;
+      ensureTitleSlideFormData(item.blockEntry);
+      var t = String((e.detail && e.detail.text) || "").trim() || "Beach Trivia Presents";
+      item.blockEntry.formData.block.titleEyebrow = t;
+      markDirty();
+    });
+
     document.addEventListener("writer:question-form-change", function (e) {
       if (!e || !e.detail || !e.detail.data) return;
       var reason = String((e.detail && e.detail.reason) || "");
@@ -234,13 +243,28 @@
         reason === "set-form-data" || reason === "init";
 
       updateShowInfoBar(e.detail.data);
+      var curTitleItem = getCurrentFlatItem();
+      if (
+        curTitleItem &&
+        isTitleFlatItem(curTitleItem) &&
+        curTitleItem.blockEntry &&
+        curTitleItem.blockEntry.formData
+      ) {
+        curTitleItem.blockEntry.formData.show = safeClone(
+          (e.detail.data && e.detail.data.show) || {}
+        );
+      }
       if (!suppressFormBridge) {
         syncCurrentEntryFromForm(e.detail.data);
         // Only advance on real edits — not programmatic setFormData (navigation,
         // filmstrip, restore), or the classic template would chain-advance through
         // every already-complete question when landing on a slide.
+        // Same for Slide Preview contenteditable: sync looks like a "complete" question
+        // every keystroke and must not auto-advance.
         var skipAutoAdvance =
-          reason === "set-form-data" || reason === "init";
+          reason === "set-form-data" ||
+          reason === "init" ||
+          reason === "preview-inline-edit";
         if (!skipAutoAdvance) {
           maybeAutoAdvanceTemplate(e.detail.data);
         }
@@ -270,9 +294,13 @@
     var entry = item.blockEntry;
     var currentBlockType = String((entry.block && entry.block.type) || "").toLowerCase();
 
-    // Display-only / template-managed blocks must never be overwritten by the
-    // question form — the form cannot represent their full data.
-    if (FORM_UNEDITABLE_BLOCK_TYPES.indexOf(currentBlockType) !== -1) return;
+    // Template “shell” slides (rules, round intro, category header, etc.): the form
+    // still maps 1:1 to slide[0] (round / category / question / display body). Sync
+    // so Slide Preview inline edits persist.
+    if (FORM_UNEDITABLE_BLOCK_TYPES.indexOf(currentBlockType) !== -1) {
+      syncStructuralBlockFromForm(entry, formData);
+      return;
+    }
     var updated = safeClone(formData || {});
     updated.show = safeClone((formData && formData.show) || {});
 
@@ -328,6 +356,43 @@
       entry.block.slides[0].themeStyle = blockData.themeStyle || entry.block.slides[0].themeStyle || "Standard Trivia";
       entry.block.slides[0].fontSizeMode = blockData.fontSizeMode || entry.block.slides[0].fontSizeMode || "Auto Fit";
     }
+  }
+
+  /**
+   * Merge question-form fields into a structural / template block’s formData and
+   * mirror them onto block.slides[0] (same mapping as patchInfoBlockFromForm).
+   */
+  function syncStructuralBlockFromForm(entry, incoming) {
+    if (!entry || !entry.formData || !entry.block) return;
+    var inc = incoming || {};
+    var incBlock = (inc.block) || {};
+    var fd = safeClone(entry.formData);
+    fd.show = safeClone((inc.show) || fd.show || {});
+    fd.block = fd.block || {};
+
+    var preservedType = String((entry.block && entry.block.type) || fd.block.type || "").trim();
+    var prevB = (entry.formData && entry.formData.block) || {};
+
+    var mergeKeys = [
+      "roundName", "categoryName", "questionText", "answerText",
+      "questionNotes", "questionType", "themeStyle", "fontSizeMode",
+      "questionAlign", "questionFontScale",
+    ];
+    mergeKeys.forEach(function (k) {
+      if (incBlock[k] !== undefined && incBlock[k] !== null) {
+        fd.block[k] = incBlock[k];
+      }
+    });
+    fd.block.type = preservedType || fd.block.type;
+    if (typeof prevB.suppressFeudIntro === "boolean") {
+      fd.block.suppressFeudIntro = prevB.suppressFeudIntro;
+    }
+
+    entry.formData = fd;
+    patchInfoBlockFromForm(entry, fd);
+    preserveCurrentSelection(entry);
+    renderFilmstrip();
+    updateStatCounters();
   }
 
   function preserveCurrentSelection(entryRef) {
@@ -740,9 +805,6 @@
     renderFilmstrip();
     updateStatCounters();
     markDirty();
-    if (templateWorkflow.active) {
-      renderTemplateBuilderList();
-    }
   }
 
   function suppressQlistReorderChildDrag(el) {
@@ -888,8 +950,16 @@
     var slideKind  = (item.slide.kind  || "").toLowerCase();
 
     if (slideType === "title") {
+      if (window.WriterQuestionForm && item.blockEntry) {
+        ensureTitleSlideFormData(item.blockEntry);
+        var mergedTitleFd = safeClone(item.blockEntry.formData);
+        mergedTitleFd.show = safeClone(WriterQuestionForm.getFormData().show || {});
+        suppressFormBridge = true;
+        WriterQuestionForm.setFormData(mergedTitleFd);
+        suppressFormBridge = false;
+      }
       if (window.WriterPreview) {
-        WriterPreview.renderTitleSlide();
+        WriterPreview.renderTitleSlide(buildTitleSlidePreviewPayload(item));
       }
     } else {
       var mode = (item.slide.audienceMode || "live").toLowerCase();
@@ -930,6 +1000,7 @@
     updateShowNav();
     highlightFilmstripThumb(idx);
     syncTemplateBuilderListToCurrentSlide(idx);
+    syncQuestionBuilderTabVisibility();
   }
 
   function updateShowNav() {
@@ -1226,15 +1297,7 @@
         switchToTab("questions");
         return;
       }
-      var titleBlock = {
-        id: "title-slide-" + Date.now(),
-        type: "title",
-        label: "Title Slide",
-        slides: [{ type: "title", audienceMode: "live" }],
-        questionCount: 0,
-        questionType: "title",
-      };
-      showState.blocks.unshift({ block: titleBlock, formData: null });
+      showState.blocks.unshift(newTitleSlideBlockEntry());
       rebuildFlatSlides();
       navigateToSlide(0);
       renderFilmstrip();
@@ -1455,6 +1518,9 @@
         showTypePickerPopover(addBtnEmpty);
       });
       strip.appendChild(addBtnEmpty);
+      if (!templateBuilderSyncing) {
+        renderTemplateBuilderList();
+      }
       return;
     }
 
@@ -1495,9 +1561,6 @@
         renderFilmstrip();
         updateStatCounters();
         markDirty();
-        if (templateWorkflow.active) {
-          renderTemplateBuilderList();
-        }
         if (showState.flatSlides.length > 0) {
           navigateToSlide(showState.currentIdx);
         }
@@ -1601,6 +1664,9 @@
     highlightFilmstripThumb(showState.currentIdx);
     syncFilmstripCanvasVars();
     renderQuestionsList();
+    if (!templateBuilderSyncing) {
+      renderTemplateBuilderList();
+    }
   }
 
   // ─── Questions quick-fill list ─────────────────────────────────
@@ -1687,9 +1753,6 @@
         renderFilmstrip();
         updateStatCounters();
         markDirty();
-        if (templateWorkflow.active) {
-          renderTemplateBuilderList();
-        }
         if (showState.flatSlides.length > 0) {
           navigateToSlide(showState.currentIdx);
         }
@@ -1996,13 +2059,82 @@
     return -1;
   }
 
+  function isQuestionBuilderBlockType(type) {
+    var t = String(type || "").toLowerCase();
+    return (
+      t === "single-question" ||
+      t === "halftime" ||
+      t === "final-question" ||
+      t === "category-of-the-day" ||
+      t === "feud-single-question" ||
+      t === "feud-halftime" ||
+      t === "feud-final"
+    );
+  }
+
+  function isFeudQuestionBuilderBlockType(type) {
+    var t = String(type || "").toLowerCase();
+    return t === "feud-single-question" || t === "feud-halftime" || t === "feud-final";
+  }
+
   /**
-   * When a template (classic / feud) is active, keep the left Questions list aligned
-   * with the current slide: scroll the matching card into view and mark it current.
+   * Resolve block.type for builder logic when Firestore payloads omit it but
+   * slides / formData still describe a question block.
+   */
+  function inferBuilderBlockTypeFromEntry(entry) {
+    if (!entry) return "";
+    var t = String((entry.block && entry.block.type) || "").toLowerCase();
+    if (t) return t;
+    var fd = entry.formData && entry.formData.block;
+    t = String((fd && fd.type) || "").toLowerCase();
+    if (t) return t;
+    var slides = entry.block && Array.isArray(entry.block.slides) ? entry.block.slides : [];
+    var sawFeudLive = false;
+    for (var i = 0; i < slides.length; i++) {
+      var k = String((slides[i] && slides[i].kind) || "").toLowerCase();
+      if (k === "question") return "single-question";
+      if (k === "halftime" || k === "halftime-answer") return "halftime";
+      if (k === "final-question" || k === "final-answer") return "final-question";
+      if (k === "category-of-the-day") return "category-of-the-day";
+      if (k === "feud-question-live" || k === "feud-answer-reveal") {
+        sawFeudLive = true;
+      }
+    }
+    if (sawFeudLive) {
+      for (var j = 0; j < slides.length; j++) {
+        var kj = String((slides[j] && slides[j].kind) || "").toLowerCase();
+        if (kj === "feud-halftime-intro") return "feud-halftime";
+        if (kj === "feud-final-intro") return "feud-final";
+      }
+      return "feud-single-question";
+    }
+    return "";
+  }
+
+  function getQuestionBuilderEntriesInOrder() {
+    var out = [];
+    showState.blocks.forEach(function (entry, blockIdx) {
+      var t = inferBuilderBlockTypeFromEntry(entry);
+      if (isQuestionBuilderBlockType(t)) {
+        out.push({ entry: entry, blockIdx: blockIdx });
+      }
+    });
+    return out;
+  }
+
+  function syncQuestionBuilderTabVisibility() {
+    var show = !!templateWorkflow.active || getQuestionBuilderEntriesInOrder().length > 0;
+    setTemplateBuilderTabVisible(show);
+  }
+
+  /**
+   * When the Questions (template builder) list is shown, keep it aligned with the
+   * current slide: scroll the matching card into view and mark it current.
    */
   function syncTemplateBuilderListToCurrentSlide(flatIdx) {
-    if (!templateWorkflow.active) return;
-    if (templateWorkflow.type !== "classic-trivia" && templateWorkflow.type !== "feud-show") return;
+    var manualQ = getQuestionBuilderEntriesInOrder().length;
+    if (!templateWorkflow.active && manualQ === 0) return;
+    if (templateWorkflow.active && templateWorkflow.type !== "classic-trivia" && templateWorkflow.type !== "feud-show") return;
     var bIdx = blockIndexForFlatIdx(flatIdx);
     if (bIdx < 0) return;
     var entry = showState.blocks[bIdx];
@@ -2089,6 +2221,7 @@
         var formData = WriterQuestionForm.getFormData();
         var block = WriterBlockBuilder.createBlockFromFormData(formData);
 
+        var builderRowsBefore = getQuestionBuilderEntriesInOrder().length;
         showState.blocks.push({ block: block, formData: formData });
         rebuildFlatSlides();
 
@@ -2099,6 +2232,15 @@
         renderFilmstrip();
         updateStatCounters();
         markDirty();
+        renderTemplateBuilderList();
+        var builderRowsAfter = getQuestionBuilderEntriesInOrder().length;
+        if (
+          !templateWorkflow.active &&
+          builderRowsBefore === 0 &&
+          builderRowsAfter > 0
+        ) {
+          switchToTab("template-builder");
+        }
         console.log("[writer] block added to show", block);
       });
     }
@@ -2141,17 +2283,8 @@
         return;
       }
 
-      var titleBlock = {
-        id: "title-slide-" + Date.now(),
-        type: "title",
-        label: "Title Slide",
-        slides: [{ type: "title", audienceMode: "live" }],
-        questionCount: 0,
-        questionType: "title",
-      };
-
       // Prepend so it's always first
-      showState.blocks.unshift({ block: titleBlock, formData: null });
+      showState.blocks.unshift(newTitleSlideBlockEntry());
       rebuildFlatSlides();
       navigateToSlide(0);
       renderFilmstrip();
@@ -2204,7 +2337,6 @@
       templateWorkflow.active = false;
       templateWorkflow.type = "";
       templateWorkflow.advancedBlockIds = {};
-      setTemplateBuilderTabVisible(false);
     }
 
     if (!templateEntries.length) return;
@@ -2220,32 +2352,30 @@
     // Prev/Next) when they're ready to start filling in content.
     navigateToSlide(0);
     renderTemplateBuilderList();
-    switchToTab(templateWorkflow.active ? "template-builder" : "question-details");
+    switchToTab(templateWorkflow.active ? "template-builder" : "questions");
   }
 
   function setTemplateBuilderTabVisible(isVisible) {
     var btn = $("#tab-btn-template-builder");
     if (!btn) return;
+    /* Questions tab stays in the tab strip whenever the builder has rows or a template
+       is active; we never hide the button so users always have a stable fourth tab. */
+    btn.classList.remove("hidden");
+    btn.removeAttribute("hidden");
+    btn.setAttribute("aria-hidden", "false");
     if (isVisible) {
-      btn.classList.remove("hidden");
-      btn.removeAttribute("hidden");
-      btn.setAttribute("aria-hidden", "false");
       try {
         btn.scrollIntoView({ inline: "end", block: "nearest", behavior: "smooth" });
       } catch (_) {
         try { btn.scrollIntoView(true); } catch (__) {}
       }
-    } else {
-      btn.classList.add("hidden");
-      btn.setAttribute("hidden", "hidden");
-      btn.setAttribute("aria-hidden", "true");
+      return;
     }
-    if (isVisible) return;
 
     var pane = $("#tab-template-builder");
     if (pane) pane.classList.remove("active");
     if (btn.classList.contains("active")) {
-      switchToTab("templates");
+      switchToTab("questions");
     }
   }
 
@@ -2439,8 +2569,9 @@
   }
 
   function onTemplateBuilderArrowNavKeydown(e) {
-    if (!templateWorkflow.active) return;
-    if (templateWorkflow.type !== "classic-trivia" && templateWorkflow.type !== "feud-show") return;
+    var manualQ = getQuestionBuilderEntriesInOrder().length;
+    if (!templateWorkflow.active && manualQ === 0) return;
+    if (templateWorkflow.active && templateWorkflow.type !== "classic-trivia" && templateWorkflow.type !== "feud-show") return;
     var key = e.key;
     if (key !== "ArrowDown" && key !== "ArrowUp") return;
     if (e.defaultPrevented) return;
@@ -2514,121 +2645,198 @@
     wrap.addEventListener("keydown", onTemplateBuilderArrowNavKeydown, true);
   }
 
+  function appendClassicTemplateBuilderCard(wrap, entry, idx) {
+    var b = (entry.formData && entry.formData.block) || {};
+    var n = idx + 1;
+    var phCategory = "Category " + n;
+    var phQuestion = "Question " + n;
+    var phAnswer = "Answer " + n;
+    var qType = b.questionType || "short-response";
+    var isMC = qType === "multiple-choice";
+    var correctIdx = typeof b.correctOptionIndex === "number" ? b.correctOptionIndex : null;
+
+    var card = document.createElement("article");
+    card.className = "template-builder-card";
+    card.setAttribute("data-block-id", entry.block.id);
+    card.innerHTML =
+      '<div class="template-builder-head">' +
+        '<strong>' + escapeHtml(entry.block.label || ("Question " + String(idx + 1))) + '</strong>' +
+        '<span class="subtle-chip">' + escapeHtml(b.roundName || "Round") + '</span>' +
+      '</div>' +
+      '<div class="template-builder-grid">' +
+        '<div class="field">' +
+          '<label>Question Type</label>' +
+          '<select data-template-field="questionType">' + buildQuestionTypeOptions(b.questionType) + '</select>' +
+        '</div>' +
+        '<div class="field">' +
+          '<label>Question Category</label>' +
+          '<input type="text" data-template-field="categoryName" ' +
+            'placeholder="' + escapeHtml(phCategory) + '" ' +
+            'value="' + escapeHtml(b.categoryName || "") + '" />' +
+        '</div>' +
+        '<div class="field">' +
+          '<label>Question</label>' +
+          '<textarea data-template-field="questionText" placeholder="' + escapeHtml(phQuestion) + '">' +
+          escapeHtml(b.questionText || "") +
+          '</textarea>' +
+        '</div>' +
+        '<div class="field template-image-url-field template-media-upload-wrap"' + (qType !== "image-question" ? ' style="display:none;"' : '') + '>' +
+          '<div class="media-dropzone" role="button" tabindex="0" aria-label="Upload image" data-accept="image/*">' +
+            '<span class="media-dropzone-icon">🖼</span>' +
+            '<strong>Drop image here or click to upload</strong>' +
+            '<span class="media-dropzone-sub">JPG, PNG, GIF, WEBP</span>' +
+            '<input type="file" class="media-file-input" accept="image/*" style="display:none;">' +
+          '</div>' +
+          '<div class="media-upload-status" style="display:none;"></div>' +
+          '<div class="media-url-alt">' +
+            '<span class="media-url-alt-label">or paste a URL</span>' +
+            '<input type="url" class="template-media-url" data-media-field="imageUrl" placeholder="https://example.com/image.jpg" value="' + escapeHtml(b.imageUrl || "") + '">' +
+          '</div>' +
+        '</div>' +
+        '<div class="field template-audio-url-field template-media-upload-wrap"' + (qType !== "audio-question" ? ' style="display:none;"' : '') + '>' +
+          '<div class="media-dropzone" role="button" tabindex="0" aria-label="Upload audio" data-accept="audio/*">' +
+            '<span class="media-dropzone-icon">🔊</span>' +
+            '<strong>Drop audio here or click to upload</strong>' +
+            '<span class="media-dropzone-sub">MP3, WAV, OGG</span>' +
+            '<input type="file" class="media-file-input" accept="audio/*" style="display:none;">' +
+          '</div>' +
+          '<div class="media-upload-status" style="display:none;"></div>' +
+          '<div class="media-url-alt">' +
+            '<span class="media-url-alt-label">or paste a URL</span>' +
+            '<input type="url" class="template-media-url" data-media-field="audioUrl" placeholder="https://example.com/audio.mp3" value="' + escapeHtml(b.audioUrl || "") + '">' +
+          '</div>' +
+        '</div>' +
+        '<div class="field template-answer-field"' + (isMC || qType === "matching" || qType === "ordering" ? ' style="display:none;"' : '') + '>' +
+          '<label>Answer</label>' +
+          '<textarea data-template-field="answerText" placeholder="' + escapeHtml(phAnswer) + '">' +
+          escapeHtml(b.answerText || "") +
+          '</textarea>' +
+        '</div>' +
+        '<div class="field template-mc-field"' + (qType !== "multiple-choice" ? ' style="display:none;"' : '') + '>' +
+          '<label>Answer Options</label>' +
+          buildTemplateMCOptions(b.options || [], correctIdx) +
+        '</div>' +
+        '<div class="field template-matching-field"' + (qType !== "matching" ? ' style="display:none;"' : '') + '>' +
+          '<label>Matching Pairs</label>' +
+          buildTemplateMatchingPairs(b.matchingPairs || []) +
+        '</div>' +
+        '<div class="field template-ordering-field"' + (qType !== "ordering" ? ' style="display:none;"' : '') + '>' +
+          '<label>Ordering Items</label>' +
+          buildTemplateOrderingItems(b.orderingItems || []) +
+        '</div>' +
+      '</div>';
+
+    bindTemplateBuilderCardEvents(card, entry);
+    attachTemplateBuilderCustomizeGear(card, entry);
+    wrap.appendChild(card);
+  }
+
+  function appendFeudTemplateBuilderCard(wrap, entry, idx) {
+    var b = (entry.formData && entry.formData.block) || {};
+    var blockType = String((entry.block && entry.block.type) || "").toLowerCase();
+    var label = entry.block.label || ("Feud Question " + String(idx + 1));
+    var feudAnswers = Array.isArray(b.feudAnswers) ? b.feudAnswers : [];
+    while (feudAnswers.length < 3) feudAnswers.push({ text: "", points: 8 - feudAnswers.length });
+
+    var answerRowsHtml = feudAnswers.slice(0, 8).map(function (a, i) {
+      return '<div class="feud-tb-answer-row" data-answer-idx="' + i + '">' +
+        '<span class="feud-tb-rank">' + String(i + 1) + '</span>' +
+        '<div class="feud-tb-input-wrap">' +
+          '<input type="text" class="feud-tb-answer-input" data-template-field="feudAnswer" placeholder="Survey answer ' + String(i + 1) + '" value="' + escapeHtml(a.text || "") + '">' +
+          (feudAnswers.length > 3 ? '<button type="button" class="feud-tb-remove-btn" title="Remove">×</button>' : '') +
+        '</div>' +
+        '<span class="feud-tb-pts">' + String(8 - i) + ' pts</span>' +
+      '</div>';
+    }).join("");
+
+    var canAdd = feudAnswers.length < 8;
+    var card = document.createElement("article");
+    card.className = "template-builder-card";
+    card.setAttribute("data-block-id", entry.block.id);
+    card.innerHTML =
+      '<div class="template-builder-head">' +
+        '<strong>' + escapeHtml(label) + '</strong>' +
+        '<span class="subtle-chip feud-chip">' + escapeHtml(blockType === "feud-halftime" ? "Halftime" : blockType === "feud-final" ? "Final" : b.roundName || "Feud") + '</span>' +
+      '</div>' +
+      '<div class="template-builder-grid">' +
+        '<div class="field">' +
+          '<label>Question</label>' +
+          '<textarea data-template-field="questionText" placeholder="Survey question">' +
+          escapeHtml(b.questionText || "") +
+          '</textarea>' +
+        '</div>' +
+        '<div class="field">' +
+          '<label>Survey Answers <span class="answer-type-hint-inline">ranked best → last</span></label>' +
+          '<div class="feud-tb-answers-list">' + answerRowsHtml + '</div>' +
+          (canAdd ? '<button type="button" class="template-add-btn feud-tb-add-btn">+ Add Response</button>' : '') +
+        '</div>' +
+      '</div>';
+
+    bindFeudTemplateBuilderCardEvents(card, entry);
+    attachTemplateBuilderCustomizeGear(card, entry);
+    wrap.appendChild(card);
+  }
+
   function renderTemplateBuilderList() {
     var wrap = $("#template-builder-list");
-    if (!wrap) return;
 
-    if (!templateWorkflow.active) {
-      wrap.innerHTML = '<div class="filmstrip-empty">Choose a template to start building.</div>';
+    function finish() {
+      syncQuestionBuilderTabVisibility();
+    }
+
+    if (!wrap) {
+      finish();
       return;
     }
 
-    if (templateWorkflow.type === "feud-show") {
+    if (templateWorkflow.active && templateWorkflow.type === "feud-show") {
       renderFeudTemplateBuilderList(wrap);
       syncTemplateBuilderListToCurrentSlide(showState.currentIdx);
+      finish();
       return;
     }
 
-    if (templateWorkflow.type !== "classic-trivia") {
+    if (templateWorkflow.active && templateWorkflow.type === "classic-trivia") {
+      var questionEntries = showState.blocks.filter(function (entry) {
+        return inferBuilderBlockTypeFromEntry(entry) === "single-question";
+      });
+      if (!questionEntries.length) {
+        wrap.innerHTML = '<div class="filmstrip-empty">No question slides found for this template.</div>';
+        finish();
+        return;
+      }
+      wrap.innerHTML = "";
+      questionEntries.forEach(function (entry, idx) {
+        appendClassicTemplateBuilderCard(wrap, entry, idx);
+      });
+      syncTemplateBuilderListToCurrentSlide(showState.currentIdx);
+      finish();
+      return;
+    }
+
+    var manualRows = getQuestionBuilderEntriesInOrder();
+    if (manualRows.length > 0 && !templateWorkflow.active) {
+      wrap.innerHTML = "";
+      manualRows.forEach(function (row, idx) {
+        var entry = row.entry;
+        var bt = inferBuilderBlockTypeFromEntry(entry);
+        if (isFeudQuestionBuilderBlockType(bt)) {
+          appendFeudTemplateBuilderCard(wrap, entry, idx);
+        } else {
+          appendClassicTemplateBuilderCard(wrap, entry, idx);
+        }
+      });
+      syncTemplateBuilderListToCurrentSlide(showState.currentIdx);
+      finish();
+      return;
+    }
+
+    if (templateWorkflow.active) {
       wrap.innerHTML = '<div class="filmstrip-empty">Choose a template to start building.</div>';
-      return;
+    } else {
+      wrap.innerHTML = '<div class="filmstrip-empty">Choose a template to start building, or add question slides from the Slides tab.</div>';
     }
-
-    var questionEntries = showState.blocks.filter(function (entry) {
-      return String((entry && entry.block && entry.block.type) || "").toLowerCase() === "single-question";
-    });
-    if (!questionEntries.length) {
-      wrap.innerHTML = '<div class="filmstrip-empty">No question slides found for this template.</div>';
-      return;
-    }
-
-    wrap.innerHTML = "";
-    questionEntries.forEach(function (entry, idx) {
-      var b = (entry.formData && entry.formData.block) || {};
-      var n = idx + 1;
-      var phCategory = "Category " + n;
-      var phQuestion = "Question " + n;
-      var phAnswer = "Answer " + n;
-      var qType = b.questionType || "short-response";
-      var isMC = qType === "multiple-choice";
-      var correctIdx = typeof b.correctOptionIndex === "number" ? b.correctOptionIndex : null;
-
-      var card = document.createElement("article");
-      card.className = "template-builder-card";
-      card.setAttribute("data-block-id", entry.block.id);
-      card.innerHTML =
-        '<div class="template-builder-head">' +
-          '<strong>' + escapeHtml(entry.block.label || ("Question " + String(idx + 1))) + '</strong>' +
-          '<span class="subtle-chip">' + escapeHtml(b.roundName || "Round") + '</span>' +
-        '</div>' +
-        '<div class="template-builder-grid">' +
-          '<div class="field">' +
-            '<label>Question Type</label>' +
-            '<select data-template-field="questionType">' + buildQuestionTypeOptions(b.questionType) + '</select>' +
-          '</div>' +
-          '<div class="field">' +
-            '<label>Question Category</label>' +
-            '<input type="text" data-template-field="categoryName" ' +
-              'placeholder="' + escapeHtml(phCategory) + '" ' +
-              'value="' + escapeHtml(b.categoryName || "") + '" />' +
-          '</div>' +
-          '<div class="field">' +
-            '<label>Question</label>' +
-            '<textarea data-template-field="questionText" placeholder="' + escapeHtml(phQuestion) + '">' +
-            escapeHtml(b.questionText || "") +
-            '</textarea>' +
-          '</div>' +
-          '<div class="field template-image-url-field template-media-upload-wrap"' + (qType !== "image-question" ? ' style="display:none;"' : '') + '>' +
-            '<div class="media-dropzone" role="button" tabindex="0" aria-label="Upload image" data-accept="image/*">' +
-              '<span class="media-dropzone-icon">🖼</span>' +
-              '<strong>Drop image here or click to upload</strong>' +
-              '<span class="media-dropzone-sub">JPG, PNG, GIF, WEBP</span>' +
-              '<input type="file" class="media-file-input" accept="image/*" style="display:none;">' +
-            '</div>' +
-            '<div class="media-upload-status" style="display:none;"></div>' +
-            '<div class="media-url-alt">' +
-              '<span class="media-url-alt-label">or paste a URL</span>' +
-              '<input type="url" class="template-media-url" data-media-field="imageUrl" placeholder="https://example.com/image.jpg" value="' + escapeHtml(b.imageUrl || "") + '">' +
-            '</div>' +
-          '</div>' +
-          '<div class="field template-audio-url-field template-media-upload-wrap"' + (qType !== "audio-question" ? ' style="display:none;"' : '') + '>' +
-            '<div class="media-dropzone" role="button" tabindex="0" aria-label="Upload audio" data-accept="audio/*">' +
-              '<span class="media-dropzone-icon">🔊</span>' +
-              '<strong>Drop audio here or click to upload</strong>' +
-              '<span class="media-dropzone-sub">MP3, WAV, OGG</span>' +
-              '<input type="file" class="media-file-input" accept="audio/*" style="display:none;">' +
-            '</div>' +
-            '<div class="media-upload-status" style="display:none;"></div>' +
-            '<div class="media-url-alt">' +
-              '<span class="media-url-alt-label">or paste a URL</span>' +
-              '<input type="url" class="template-media-url" data-media-field="audioUrl" placeholder="https://example.com/audio.mp3" value="' + escapeHtml(b.audioUrl || "") + '">' +
-            '</div>' +
-          '</div>' +
-          '<div class="field template-answer-field"' + (isMC || qType === "matching" || qType === "ordering" ? ' style="display:none;"' : '') + '>' +
-            '<label>Answer</label>' +
-            '<textarea data-template-field="answerText" placeholder="' + escapeHtml(phAnswer) + '">' +
-            escapeHtml(b.answerText || "") +
-            '</textarea>' +
-          '</div>' +
-          '<div class="field template-mc-field"' + (qType !== "multiple-choice" ? ' style="display:none;"' : '') + '>' +
-            '<label>Answer Options</label>' +
-            buildTemplateMCOptions(b.options || [], correctIdx) +
-          '</div>' +
-          '<div class="field template-matching-field"' + (qType !== "matching" ? ' style="display:none;"' : '') + '>' +
-            '<label>Matching Pairs</label>' +
-            buildTemplateMatchingPairs(b.matchingPairs || []) +
-          '</div>' +
-          '<div class="field template-ordering-field"' + (qType !== "ordering" ? ' style="display:none;"' : '') + '>' +
-            '<label>Ordering Items</label>' +
-            buildTemplateOrderingItems(b.orderingItems || []) +
-          '</div>' +
-        '</div>';
-
-      bindTemplateBuilderCardEvents(card, entry);
-      attachTemplateBuilderCustomizeGear(card, entry);
-      wrap.appendChild(card);
-    });
-    syncTemplateBuilderListToCurrentSlide(showState.currentIdx);
+    finish();
   }
 
   function buildQuestionTypeOptions(selectedValue) {
@@ -2883,7 +3091,8 @@
     }
 
     entry.formData.block = blockData;
-    entry.block = WriterBlockBuilder.createBlockByType("single-question", entry.formData);
+    var bt = String((entry.block && entry.block.type) || "single-question").toLowerCase();
+    entry.block = WriterBlockBuilder.createBlockByType(bt, entry.formData);
 
     templateBuilderSyncing = true;
     rebuildFlatSlides();
@@ -2915,8 +3124,7 @@
 
   function renderFeudTemplateBuilderList(wrap) {
     var feudEntries = showState.blocks.filter(function (entry) {
-      var t = String((entry && entry.block && entry.block.type) || "").toLowerCase();
-      return t === "feud-single-question" || t === "feud-halftime" || t === "feud-final";
+      return isFeudQuestionBuilderBlockType(inferBuilderBlockTypeFromEntry(entry));
     });
     if (!feudEntries.length) {
       wrap.innerHTML = '<div class="filmstrip-empty">No feud question slides found for this template.</div>';
@@ -2924,49 +3132,7 @@
     }
     wrap.innerHTML = "";
     feudEntries.forEach(function (entry, idx) {
-      var b = (entry.formData && entry.formData.block) || {};
-      var blockType = String((entry.block && entry.block.type) || "").toLowerCase();
-      var label = entry.block.label || ("Feud Question " + String(idx + 1));
-      var feudAnswers = Array.isArray(b.feudAnswers) ? b.feudAnswers : [];
-      while (feudAnswers.length < 3) feudAnswers.push({ text: "", points: 8 - feudAnswers.length });
-
-      var answerRowsHtml = feudAnswers.slice(0, 8).map(function (a, i) {
-        return '<div class="feud-tb-answer-row" data-answer-idx="' + i + '">' +
-          '<span class="feud-tb-rank">' + String(i + 1) + '</span>' +
-          '<div class="feud-tb-input-wrap">' +
-            '<input type="text" class="feud-tb-answer-input" data-template-field="feudAnswer" placeholder="Survey answer ' + String(i + 1) + '" value="' + escapeHtml(a.text || "") + '">' +
-            (feudAnswers.length > 3 ? '<button type="button" class="feud-tb-remove-btn" title="Remove">×</button>' : '') +
-          '</div>' +
-          '<span class="feud-tb-pts">' + String(8 - i) + ' pts</span>' +
-        '</div>';
-      }).join("");
-
-      var canAdd = feudAnswers.length < 8;
-      var card = document.createElement("article");
-      card.className = "template-builder-card";
-      card.setAttribute("data-block-id", entry.block.id);
-      card.innerHTML =
-        '<div class="template-builder-head">' +
-          '<strong>' + escapeHtml(label) + '</strong>' +
-          '<span class="subtle-chip feud-chip">' + escapeHtml(blockType === "feud-halftime" ? "Halftime" : blockType === "feud-final" ? "Final" : b.roundName || "Feud") + '</span>' +
-        '</div>' +
-        '<div class="template-builder-grid">' +
-          '<div class="field">' +
-            '<label>Question</label>' +
-            '<textarea data-template-field="questionText" placeholder="Survey question">' +
-            escapeHtml(b.questionText || "") +
-            '</textarea>' +
-          '</div>' +
-          '<div class="field">' +
-            '<label>Survey Answers <span class="answer-type-hint-inline">ranked best → last</span></label>' +
-            '<div class="feud-tb-answers-list">' + answerRowsHtml + '</div>' +
-            (canAdd ? '<button type="button" class="template-add-btn feud-tb-add-btn">+ Add Response</button>' : '') +
-          '</div>' +
-        '</div>';
-
-      bindFeudTemplateBuilderCardEvents(card, entry);
-      attachTemplateBuilderCustomizeGear(card, entry);
-      wrap.appendChild(card);
+      appendFeudTemplateBuilderCard(wrap, entry, idx);
     });
   }
 
@@ -3649,18 +3815,71 @@
     return entries;
   }
 
-  function makeTitleSlideEntry() {
+  function newTitleSlideBlockEntry(fixedId) {
+    var id = fixedId || "title-slide-" + Date.now();
     return {
       block: {
-        id: "title-slide-" + Date.now(),
+        id: id,
         type: "title",
         label: "Title Slide",
         slides: [{ type: "title", audienceMode: "live" }],
         questionCount: 0,
         questionType: "title",
       },
-      formData: null,
+      formData: {
+        show: {},
+        block: {
+          type: "title",
+          titleEyebrow: "Beach Trivia Presents",
+        },
+      },
     };
+  }
+
+  function ensureTitleSlideFormData(entry) {
+    if (!entry) return;
+    var showSnap =
+      window.WriterQuestionForm && typeof WriterQuestionForm.getFormData === "function"
+        ? safeClone(WriterQuestionForm.getFormData().show || {})
+        : {};
+    if (!entry.formData) {
+      entry.formData = {
+        show: showSnap,
+        block: {
+          type: "title",
+          titleEyebrow: "Beach Trivia Presents",
+        },
+      };
+      return;
+    }
+    entry.formData.show = entry.formData.show || {};
+    entry.formData.block = entry.formData.block || {};
+    entry.formData.block.type = "title";
+    if (
+      entry.formData.block.titleEyebrow == null ||
+      String(entry.formData.block.titleEyebrow).trim() === ""
+    ) {
+      entry.formData.block.titleEyebrow = "Beach Trivia Presents";
+    }
+  }
+
+  function buildTitleSlidePreviewPayload(item) {
+    var eyebrow = "Beach Trivia Presents";
+    var entry = item && item.blockEntry;
+    if (entry && entry.formData && entry.formData.block && entry.formData.block.titleEyebrow != null) {
+      var eb = String(entry.formData.block.titleEyebrow).trim();
+      if (eb) eyebrow = eb;
+    }
+    var heading = "Trivia Night";
+    if (window.WriterQuestionForm && typeof WriterQuestionForm.getFormData === "function") {
+      var st = String((WriterQuestionForm.getFormData().show || {}).title || "").trim();
+      if (st) heading = st;
+    }
+    return { eyebrow: eyebrow, heading: heading };
+  }
+
+  function makeTitleSlideEntry() {
+    return newTitleSlideBlockEntry();
   }
 
   function makeClassicQuestionEntry(config) {
@@ -3835,19 +4054,10 @@
   // ─── Default title slide ───────────────────────────────────────
 
   function insertDefaultTitleSlide() {
-    var titleBlock = {
-      id: "title-slide-default",
-      type: "title",
-      label: "Title Slide",
-      slides: [{ type: "title", audienceMode: "live" }],
-      questionCount: 0,
-      questionType: "title",
-    };
-    showState.blocks = [{ block: titleBlock, formData: null }];
+    showState.blocks = [newTitleSlideBlockEntry("title-slide-default")];
     templateWorkflow.active = false;
     templateWorkflow.type = "";
     templateWorkflow.advancedBlockIds = {};
-    setTemplateBuilderTabVisible(false);
     rebuildFlatSlides();
     navigateToSlide(0);
     renderFilmstrip();
@@ -3908,7 +4118,7 @@
       templateWorkflow.active = false;
       templateWorkflow.type = "";
       templateWorkflow.advancedBlockIds = {};
-      setTemplateBuilderTabVisible(false);
+      renderTemplateBuilderList();
     }
   }
 
@@ -4156,6 +4366,12 @@
     }
 
     applyRestoredWriterUi(data);
+
+    // Land the user on a visible main tab — either the Questions (template-builder)
+    // tab if the workflow is active, or the Slides (questions) tab otherwise.
+    // Without this, the panel stays on whatever sub-panel was open before the load
+    // (often "question-details") which hides both the Slides and Questions lists.
+    switchToTab(templateWorkflow.active ? "template-builder" : "questions");
 
     markClean();
     syncDraftSaveButtons();
