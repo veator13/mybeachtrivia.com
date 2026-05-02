@@ -1330,8 +1330,10 @@
           fontSizeMode: "Auto Fit",
         },
       };
-      // Non-editable structural types stay on the Slides tab after insert
-      openCustomize = FORM_UNEDITABLE_BLOCK_TYPES.indexOf(blockType) === -1;
+      // Non-editable structural types stay on the Slides tab after insert,
+      // except category-slide which has an editable category name.
+      openCustomize = FORM_UNEDITABLE_BLOCK_TYPES.indexOf(blockType) === -1 ||
+        blockType === "category-slide";
     } else {
       // Standard question types (short-response, multiple-choice, etc.)
       var isFeud = slideTypeValue === "feud-question";
@@ -1686,7 +1688,10 @@
       var block = entry.block;
       var blockType = String((block && block.type) || "").toLowerCase();
       var fd = (entry.formData && entry.formData.block) || {};
-      var isEditable = FORM_UNEDITABLE_BLOCK_TYPES.indexOf(blockType) === -1 && blockType !== "title";
+      // category-slide has an editable category name so it gets the gear button
+      // even though it lives in FORM_UNEDITABLE_BLOCK_TYPES for sync purposes.
+      var isEditable = (FORM_UNEDITABLE_BLOCK_TYPES.indexOf(blockType) === -1 ||
+        blockType === "category-slide") && blockType !== "title";
 
       var card = document.createElement("div");
       card.className = "qlist-card";
@@ -1880,9 +1885,12 @@
 
     var block = entry.block;
     var blockType = String((block && block.type) || "").toLowerCase();
+    // category-slide has an editable category name so it gets the gear button
+    // even though it lives in FORM_UNEDITABLE_BLOCK_TYPES for sync purposes.
     var isEditable =
       block &&
-      FORM_UNEDITABLE_BLOCK_TYPES.indexOf(blockType) === -1 &&
+      (FORM_UNEDITABLE_BLOCK_TYPES.indexOf(blockType) === -1 ||
+        blockType === "category-slide") &&
       blockType !== "title";
     if (!isEditable) return;
 
