@@ -10,6 +10,7 @@
     venues: [],
     avgTeams: 0,
     projectionEvents: 1,
+    projectionTeams: 8,
     totalTeams: 0,
     totalEvents: 0,
     lastEventDate: '',
@@ -129,10 +130,15 @@
       state.lastEventDate = lastDate;
       state.reportLoaded = true;
 
+      // Default slider to rounded avg teams
+      const roundedAvg = Math.max(3, Math.min(100, Math.round(avgTeams)));
+      state.projectionTeams = roundedAvg;
+      updateTeamsSlider(roundedAvg);
+
       const venueLabel = venueFilter || 'All Venues';
       renderStats(docs.length, avgTeams, totalTeams, lastDate);
       renderTrendChart(docs, avgTeams, venueLabel, dateStart, dateEnd);
-      renderHeatmap(avgTeams, maxSpend);
+      renderHeatmap(avgTeams, maxSpend, state.projectionEvents, roundedAvg);
 
       if (statusEl) statusEl.textContent = '';
     } catch (err) {
@@ -241,8 +247,16 @@
   }
 
   // ── Revenue projection heatmap ────────────────────────────────────────────
-  function renderHeatmap(avgTeams, maxSpend, events) {
+  function updateTeamsSlider(teams) {
+    const slider = $('#teams-slider');
+    const label = $('#teams-slider-value');
+    if (slider) slider.value = teams;
+    if (label) label.textContent = teams;
+  }
+
+  function renderHeatmap(avgTeams, maxSpend, events, teams) {
     events = events || state.projectionEvents || 1;
+    teams = teams || state.projectionTeams || 8;
     const container = $('#heatmap-container');
     if (!container) return;
 
@@ -256,8 +270,8 @@
     for (let s = 20; s <= maxSpend; s += 5) spendSteps.push(s);
     if (!spendSteps.length) spendSteps.push(5);
 
-    // Compute max revenue for gradient scaling (players × spend × events, no avg-teams multiplier)
-    const maxRevenue = 10 * (spendSteps[spendSteps.length - 1]) * events;
+    // Compute max revenue for gradient scaling
+    const maxRevenue = teams * 10 * (spendSteps[spendSteps.length - 1]) * events;
 
     function cellColor(revenue) {
       const ratio = Math.min(revenue / maxRevenue, 1);
@@ -276,7 +290,7 @@
     spendSteps.forEach((spend) => {
       html += `<tr><td class="heatmap-label">$${spend}/player</td>`;
       playersRange.forEach((players) => {
-        const revenue = players * spend * events;
+        const revenue = teams * players * spend * events;
         const bg = cellColor(revenue);
         html += `<td style="background:${bg};">$${revenue.toFixed(0)}</td>`;
       });
@@ -309,6 +323,21 @@
 
     $('#generate-btn')?.addEventListener('click', generateReport);
 
+    // Teams slider
+    const teamsSlider = $('#teams-slider');
+    const teamsLabel = $('#teams-slider-value');
+    if (teamsSlider) {
+      teamsSlider.addEventListener('input', () => {
+        const t = parseInt(teamsSlider.value, 10);
+        if (teamsLabel) teamsLabel.textContent = t;
+        state.projectionTeams = t;
+        if (state.reportLoaded) {
+          const maxSpend = parseFloat($('#max-spend')?.value) || 60;
+          renderHeatmap(state.avgTeams, maxSpend, state.projectionEvents, t);
+        }
+      });
+    }
+
     // Period toggles
     document.querySelectorAll('.period-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -317,7 +346,7 @@
         state.projectionEvents = parseInt(btn.dataset.events, 10) || 1;
         if (state.reportLoaded) {
           const maxSpend = parseFloat($('#max-spend')?.value) || 60;
-          renderHeatmap(state.avgTeams, maxSpend, state.projectionEvents);
+          renderHeatmap(state.avgTeams, maxSpend, state.projectionEvents, state.projectionTeams);
         }
       });
     });

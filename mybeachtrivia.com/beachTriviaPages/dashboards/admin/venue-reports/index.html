@@ -221,6 +221,24 @@
       color: #fff;
     }
 
+    .teams-slider-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .teams-slider-row .label {
+      white-space: nowrap;
+      font-size: 0.88rem;
+      min-width: 100px;
+    }
+    #teams-slider {
+      flex: 1;
+      accent-color: var(--primary);
+      height: 6px;
+      cursor: pointer;
+    }
+
     #report-status {
       font-size: 0.9rem;
       color: var(--muted);
@@ -330,6 +348,10 @@
         </div>
       </div>
       <div class="card-body" style="overflow-x:auto;">
+        <div class="teams-slider-row">
+          <label for="teams-slider" class="label">Teams: <strong id="teams-slider-value">—</strong></label>
+          <input id="teams-slider" type="range" min="3" max="100" step="1" value="8" />
+        </div>
         <div id="heatmap-container">
           <p class="muted">Generate a report to see revenue projections.</p>
         </div>
