@@ -548,7 +548,7 @@
 
     // — Answer panel (for non-MC, non-display slides) —
     var ans = stripHtml(slide.answer || "");
-    if (ans && !isMC && y < SH - 0.45) {
+    if (showAnswer && ans && !isMC && y < SH - 0.45) {
       paintAnswerPanel(s, ans, Math.min(y, SH - 0.95));
     }
   }
@@ -566,7 +566,10 @@
     var deckTitle = showMeta.title || "Untitled Show";
 
     var pptx = new PptxGen();
-    pptx.layout  = "LAYOUT_WIDE"; // 13.333" × 7.5" — matches SW/SH constants
+    // Define an explicit 13.333"×7.5" layout — LAYOUT_WIDE string may not be
+    // recognized in all CDN builds; defineLayout is always reliable.
+    pptx.defineLayout({ name: "WIDE_1333", width: 13.333, height: 7.5 });
+    pptx.layout  = "WIDE_1333";
     pptx.author  = "My Beach Trivia";
     pptx.title   = deckTitle + " — host backup";
     pptx.subject = "Emergency offline slideshow backup";
