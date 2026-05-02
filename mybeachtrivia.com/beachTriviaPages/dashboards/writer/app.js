@@ -1096,6 +1096,49 @@
   }
 
   /** Populate the category-slide form inputs from the current block entry. */
+  /** Build one category row (input + remove button) and attach listeners. */
+  function _buildCatRow(value, autoFilled) {
+    var row = document.createElement("div");
+    row.className = "cat-slide-row";
+
+    var inp = document.createElement("input");
+    inp.type = "text";
+    inp.className = "cat-slide-cat-input";
+    inp.autocomplete = "off";
+    inp.value = value || "";
+    inp.placeholder = "Category name";
+    if (autoFilled && value) inp.setAttribute("data-autofilled", "true");
+    inp.addEventListener("input", function () {
+      inp.setAttribute("data-autofilled", "false");
+      flushCategorySlideForm();
+    });
+
+    var removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "cat-slide-remove-btn";
+    removeBtn.title = "Remove category";
+    removeBtn.innerHTML = "&#x2715;";
+    removeBtn.addEventListener("click", function () {
+      row.remove();
+      flushCategorySlideForm();
+    });
+
+    row.appendChild(inp);
+    row.appendChild(removeBtn);
+    return row;
+  }
+
+  /** Render the category rows list from an array of values. */
+  function _renderCatRows(cats, autoFilled) {
+    var grid = document.getElementById("cat-slide-inputs");
+    if (!grid) return;
+    grid.innerHTML = "";
+    var list = cats.length ? cats : [""];  // always show at least one empty slot
+    list.forEach(function (cat) {
+      grid.appendChild(_buildCatRow(cat, autoFilled));
+    });
+  }
+
   function populateCategorySlideForm(entry) {
     if (!entry) return;
     var fd = (entry.formData && entry.formData.block) || {};
@@ -1107,15 +1150,10 @@
     var badge = document.getElementById("cat-slide-autofill-badge");
     if (badge) badge.style.display = autoFilled && cats.length ? "" : "none";
 
-    var inputs = document.querySelectorAll(".cat-slide-cat-input");
-    inputs.forEach(function (inp, i) {
-      var val = cats[i] ? String(cats[i]) : "";
-      inp.value = val;
-      inp.setAttribute("data-autofilled", autoFilled && val ? "true" : "false");
-    });
+    _renderCatRows(cats, autoFilled);
   }
 
-  /** Read category-slide form inputs and push changes into the block + preview. */
+  /** Read all category rows and push changes into the block + preview. */
   function flushCategorySlideForm() {
     var item = getCurrentFlatItem();
     if (!item || !item.blockEntry) return;
@@ -1125,9 +1163,8 @@
     var roundInput = document.getElementById("cat-slide-round-name");
     var newRound = roundInput ? roundInput.value.trim() : "";
 
-    var inputs = document.querySelectorAll(".cat-slide-cat-input");
     var newCats = [];
-    inputs.forEach(function (inp) {
+    document.querySelectorAll("#cat-slide-inputs .cat-slide-cat-input").forEach(function (inp) {
       var v = inp.value.trim();
       if (v) newCats.push(v);
     });
@@ -1137,7 +1174,7 @@
     if (!entry.formData.block) entry.formData.block = {};
     if (newRound) entry.formData.block.roundName = newRound;
     entry.formData.block.categories = newCats;
-    entry.formData.block.autoFilledCategories = false; // user is manually editing
+    entry.formData.block.autoFilledCategories = false;
 
     // Sync onto the block itself
     if (entry.block) {
@@ -1148,31 +1185,33 @@
       }
     }
 
-    // Live re-render the preview
     if (window.WriterPreview) {
       WriterPreview.renderFromFormData(entry.formData);
     }
-
     markDirty();
   }
 
-  /** Bind the category-slide form inputs (called once during init). */
+  /** Bind the category-slide form controls (called once during init). */
   function bindCategorySlideForm() {
     var roundInput = document.getElementById("cat-slide-round-name");
     if (roundInput) {
       roundInput.addEventListener("input", function () {
         flushCategorySlideForm();
-        // Re-sync blocks so other category slides for this round also update
         rebuildFlatSlides();
         renderFilmstrip();
       });
     }
-    var inputs = document.querySelectorAll(".cat-slide-cat-input");
-    inputs.forEach(function (inp) {
-      inp.addEventListener("input", function () {
-        flushCategorySlideForm();
+
+    var addBtn = document.getElementById("cat-slide-add-btn");
+    if (addBtn) {
+      addBtn.addEventListener("click", function () {
+        var grid = document.getElementById("cat-slide-inputs");
+        if (grid) grid.appendChild(_buildCatRow("", false));
+        // Focus the new input
+        var rows = grid ? grid.querySelectorAll(".cat-slide-cat-input") : [];
+        if (rows.length) rows[rows.length - 1].focus();
       });
-    });
+    }
   }
 
   function updateShowNav() {
