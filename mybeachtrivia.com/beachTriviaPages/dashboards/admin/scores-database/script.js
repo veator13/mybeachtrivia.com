@@ -886,10 +886,12 @@
       setButtonsForMode();
       renderLoadedScoresheet();
 
-      // Scroll to the viewer card
+      // Scroll to the viewer card, offsetting for the sticky nav
       const viewerCard = document.querySelector('.viewer-card');
       if (viewerCard) {
-        viewerCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        const navHeight = document.querySelector('.bt-nav, nav, header.nav')?.offsetHeight || 64;
+        const top = viewerCard.getBoundingClientRect().top + window.scrollY - navHeight - 12;
+        window.scrollTo({ top, behavior: 'smooth' });
       }
     } catch (err) {
       console.error('[scores-database] loadScoresheet error:', err);
