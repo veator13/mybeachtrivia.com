@@ -11,7 +11,11 @@
   <script src="/beachTriviaPages/js/bt-nav.js" defer></script>
 
   <!-- Writer styles -->
-  <link rel="stylesheet" href="style.css?v=writer-20260501-validate-always-amber" />
+  <link rel="stylesheet" href="style.css?v=writer-20260429-slide-type-tabs" />
+
+  <!-- PPTX export -->
+  <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3/dist/pptxgen.bundle.js" defer></script>
+  <script src="/beachTriviaPages/dashboards/host/js/export-show-pptx.js?v=20260502" defer></script>
 
   <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js" defer></script>
@@ -56,6 +60,7 @@
             Draft autosave ready
           </span>
           <button class="btn btn-outline" type="button" id="btn-open-show">Open Show</button>
+          <button class="btn btn-outline" type="button" id="btn-export-pptx" title="Export current show as a host-backup .pptx">Export PPTX</button>
           <button class="btn btn-secondary" type="button" id="btn-save-draft">Save Draft</button>
           <button class="btn btn-primary topbar-update-draft-cta hidden" type="button" id="btn-update-draft" aria-label="Update current draft">Update Current Draft</button>
           <button class="btn btn-outline hidden" type="button" id="btn-save-new-draft" aria-label="Save as a new draft">Save New Draft</button>
@@ -237,7 +242,7 @@
 
           <!-- Customize Slide header bar -->
           <div class="customize-slide-header">
-            <button class="btn btn-outline btn-sm" type="button" id="btn-back-to-questions">&#8592; Questions</button>
+            <button class="btn btn-outline btn-sm" type="button" id="btn-back-to-questions">&#8592; Slides</button>
             <span class="customize-slide-label" id="customize-slide-label">Customize Slide</span>
           </div>
 
@@ -462,12 +467,12 @@
                 <div class="template-head">
                   <div>
                     <div class="template-title">Classic Trivia Template</div>
-                    <div class="template-meta">Title &rarr; Rules &rarr; Round 1/2 starts, categories, answers</div>
+                    <div class="template-meta">Title &rarr; Rules &rarr; 4 rounds &rarr; halftime &rarr; final &rarr; closing</div>
                   </div>
                   <span class="subtle-chip">Classic</span>
                 </div>
                 <div class="template-body">
-                  Builds your requested classic trivia flow with editable placeholders that align to your current writer styling.
+                  Builds classic trivia—including halftime after Round Two, a finale after Round Four, and a thank-you closing slide—with placeholders aligned to Classic or Themed styling.
                 </div>
                 <div class="template-actions">
                   <button class="btn btn-secondary" type="button" data-template="classic-trivia">
@@ -782,7 +787,7 @@
   <script src="js/question-form.js?v=writer-20260502-feud-validate-v2" defer></script>
   <script src="js/block-builder.js?v=writer-20260429-feud-halftime-filmstrip-split" defer></script>
   <script src="js/preview.js?v=writer-20260429-feud-rank-bubble" defer></script>
-  <script src="app.js?v=writer-20260501-validate-always-amber" defer></script>
+  <script src="app.js?v=writer-20260429-classic-template-closing" defer></script>
 
 </body>
 </html>

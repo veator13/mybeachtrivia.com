@@ -504,6 +504,33 @@
     var btnValidate = $("#btn-preview-publish");
     var btnPublish = $("#btn-publish");
     var btnBack = $("#back-to-login");
+    var btnExportPptx = $("#btn-export-pptx");
+
+    if (btnExportPptx) {
+      btnExportPptx.addEventListener("click", function () {
+        if (typeof window.BeachTriviaExportPPTX === "undefined") {
+          alert("PPTX export library not loaded yet — please wait a moment and try again.");
+          return;
+        }
+        var formData = window.WriterQuestionForm ? WriterQuestionForm.getFormData() : {};
+        var showMeta = (formData && formData.show) || {};
+        var payload = {
+          show: showMeta,
+          blocks: (showState && showState.blocks) || [],
+        };
+        btnExportPptx.disabled = true;
+        btnExportPptx.textContent = "Exporting…";
+        window.BeachTriviaExportPPTX.downloadEmergencyDeck(payload)
+          .catch(function (e) {
+            console.error("[ExportPPTX]", e);
+            alert("Export failed: " + (e && e.message ? e.message : String(e)));
+          })
+          .finally(function () {
+            btnExportPptx.disabled = false;
+            btnExportPptx.textContent = "Export PPTX";
+          });
+      });
+    }
 
     if (btnBack) {
       btnBack.addEventListener("click", function () {
@@ -676,6 +703,52 @@
 
   // Tracks the source block index while a drag-and-drop reorder is in progress.
   var dragSrcBlockIdx = null;
+  // Hit-test midpoint: horizontal split on filmstrip, vertical split on Slides list.
+  var writerBlockReorderInsertBefore = true;
+
+  /** Clear drop markers on filmstrip thumbnails and Slides-tab list cards. */
+  function clearWriterBlockReorderMarkers() {
+    var stripEl = $("#slide-filmstrip");
+    if (stripEl) {
+      stripEl.querySelectorAll(".filmstrip-thumb").forEach(function (t) {
+        t.classList.remove(
+          "filmstrip-drop-before",
+          "filmstrip-drop-after",
+          "drag-over"
+        );
+      });
+    }
+    var listEl = document.getElementById("questions-quick-list");
+    if (listEl) {
+      listEl.querySelectorAll(".qlist-card").forEach(function (c) {
+        c.classList.remove(
+          "qlist-drop-before",
+          "qlist-drop-after",
+          "qlist-dragging"
+        );
+      });
+    }
+  }
+
+  /** Same block/array mutation for filmstrip + Slides-tab reorder (keeps all UIs in sync). */
+  function applyWriterBlockReorder(srcIdx, tgtIdx, insertBeforeTarget) {
+    var moved = showState.blocks.splice(srcIdx, 1)[0];
+    var to = insertBeforeTarget ? tgtIdx : tgtIdx + 1;
+    if (srcIdx < to) to--;
+    showState.blocks.splice(to, 0, moved);
+    rebuildFlatSlides();
+    renderFilmstrip();
+    updateStatCounters();
+    markDirty();
+    if (templateWorkflow.active) {
+      renderTemplateBuilderList();
+    }
+  }
+
+  function suppressQlistReorderChildDrag(el) {
+    if (!el) return;
+    el.setAttribute("draggable", "false");
+  }
 
   var showState = {
     blocks: [],      // array of { block, formData }
@@ -689,6 +762,29 @@
     advancedBlockIds: {},
   };
   var templateBuilderSyncing = false;
+  /** Tab `data-tab` to return to when leaving Customize Slide (see captureCustomizeReturnTab). */
+  var customizeReturnTab = "questions";
+
+  function updateCustomizeBackButtonLabel() {
+    var btnBack = document.getElementById("btn-back-to-questions");
+    if (!btnBack) return;
+    var tab = customizeReturnTab || "questions";
+    var arrow = "\u2190 ";
+    var labels = {
+      "template-builder": arrow + "Questions",
+      "questions": arrow + "Slides",
+      "show-details": arrow + "Show Setup",
+      "templates": arrow + "Templates",
+    };
+    btnBack.textContent = labels[tab] || arrow + "Back";
+  }
+
+  function captureCustomizeReturnTab() {
+    var btn = document.querySelector(".tab-btn.active[data-tab]");
+    var t = btn && btn.getAttribute("data-tab");
+    if (t && t !== "question-details") customizeReturnTab = t;
+    updateCustomizeBackButtonLabel();
+  }
 
   function rebuildFlatSlides() {
     showState.flatSlides = [];
@@ -1222,6 +1318,7 @@
       var newBlockIdx = showState.blocks.length - 1;
       var newLabel = document.getElementById("customize-slide-label");
       if (newLabel) newLabel.textContent = "Slide " + (newBlockIdx + 1) + " — new slide";
+      captureCustomizeReturnTab();
       switchToTab("question-details");
     } else {
       switchToTab("questions");
@@ -1231,17 +1328,53 @@
   function showTypePickerPopover(anchorEl) {
     // Toggle: clicking the + button again closes the popover
     var existing = document.getElementById("slide-type-popover");
-    if (existing) { existing.remove(); return; }
+    if (existing) {
+      existing.remove();
+      return;
+    }
 
     var popover = document.createElement("div");
     popover.id = "slide-type-popover";
     popover.className = "slide-type-popover";
 
-    SLIDE_TYPE_GROUPS.forEach(function (group) {
-      var header = document.createElement("div");
-      header.className = "slide-type-group-header";
-      header.textContent = group.label;
-      popover.appendChild(header);
+    var tabRow = document.createElement("div");
+    tabRow.className = "slide-type-popover-tabs";
+    tabRow.setAttribute("role", "tablist");
+    tabRow.setAttribute("aria-label", "Slide type categories");
+
+    var panelsWrap = document.createElement("div");
+    panelsWrap.className = "slide-type-popover-panels";
+
+    function activateGroup(activeIdx) {
+      tabRow.querySelectorAll(".slide-type-tab").forEach(function (btn, bi) {
+        var on = bi === activeIdx;
+        btn.classList.toggle("active", on);
+        btn.setAttribute("aria-selected", on ? "true" : "false");
+      });
+      panelsWrap.querySelectorAll(".slide-type-panel").forEach(function (pan, pi) {
+        pan.classList.toggle("active", pi === activeIdx);
+      });
+    }
+
+    SLIDE_TYPE_GROUPS.forEach(function (group, gi) {
+      var tabBtn = document.createElement("button");
+      tabBtn.type = "button";
+      tabBtn.className = "slide-type-tab" + (gi === 0 ? " active" : "");
+      tabBtn.setAttribute("role", "tab");
+      tabBtn.setAttribute("aria-selected", gi === 0 ? "true" : "false");
+      tabBtn.id = "slide-type-tab-" + gi;
+      tabBtn.textContent = group.label;
+      tabBtn.setAttribute("data-group-idx", String(gi));
+      tabBtn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        activateGroup(gi);
+      });
+      tabRow.appendChild(tabBtn);
+
+      var panel = document.createElement("div");
+      panel.className = "slide-type-panel" + (gi === 0 ? " active" : "");
+      panel.setAttribute("role", "tabpanel");
+      panel.setAttribute("aria-labelledby", "slide-type-tab-" + gi);
 
       group.types.forEach(function (t) {
         var item = document.createElement("button");
@@ -1253,22 +1386,26 @@
           popover.remove();
           addNewSlide(t.value);
         });
-        popover.appendChild(item);
+        panel.appendChild(item);
       });
+      panelsWrap.appendChild(panel);
     });
+
+    popover.appendChild(tabRow);
+    popover.appendChild(panelsWrap);
 
     document.body.appendChild(popover);
 
-    // Position below anchor, flip up if it would overflow viewport
     var rect = anchorEl.getBoundingClientRect();
-    var below = rect.bottom + 6;
-    var popH  = SLIDE_TYPES.length * 36 + SLIDE_TYPE_GROUPS.length * 28 + 8;
-    if (below + popH > window.innerHeight) {
-      popover.style.top = (rect.top - popH - 6) + "px";
-    } else {
-      popover.style.top = below + "px";
-    }
+    var gap = 6;
+    var margin = 10;
+    var top = rect.bottom + gap;
+    popover.style.top = top + "px";
     popover.style.left = rect.left + "px";
+    // Always open downward; scroll inside the menu instead of flipping above (avoids clipped headers).
+    var maxH = window.innerHeight - top - margin;
+    if (maxH < 120) maxH = 120;
+    popover.style.maxHeight = maxH + "px";
 
     // Close on any outside click
     function onOutside(e) {
@@ -1283,6 +1420,24 @@
   }
 
   // ─── Slide filmstrip ───────────────────────────────────────────
+
+  /** Type line shown on filmstrip thumbs + Slides tab list chips. */
+  function writerBlockListTypeLabel(entry) {
+    var block = entry && entry.block;
+    if (!block) return "slide";
+    var bt = String(block.type || "").toLowerCase();
+    if (bt === "title") return "title";
+    if (bt === "category-slide") return "Category Slide";
+    if (bt === "round-start") return "Round Intro";
+    if (bt === "intro-slide") return "Trivia Rules";
+    if (bt === "answers-summary") return "Answers Slide";
+    if (bt === "halftime") return "Halftime";
+    if (bt === "final-question") return "Final Question";
+    if (bt === "closing-slide") return "Closing";
+    var qt = String(block.questionType || "").trim();
+    if (qt) return qt.replace(/-/g, " ");
+    return bt.replace(/-/g, " ") || "slide";
+  }
 
   function renderFilmstrip() {
     var strip = $("#slide-filmstrip");
@@ -1340,6 +1495,9 @@
         renderFilmstrip();
         updateStatCounters();
         markDirty();
+        if (templateWorkflow.active) {
+          renderTemplateBuilderList();
+        }
         if (showState.flatSlides.length > 0) {
           navigateToSlide(showState.currentIdx);
         }
@@ -1358,8 +1516,7 @@
 
       var modeLabel = document.createElement("span");
       modeLabel.className = "filmstrip-thumb-mode";
-      modeLabel.textContent = blockType === "title" ? "title"
-        : (block.questionType || "q").replace(/-/g, " ");
+      modeLabel.textContent = writerBlockListTypeLabel(entry);
 
       labelRow.appendChild(num);
       labelRow.appendChild(modeLabel);
@@ -1385,34 +1542,46 @@
       });
       thumb.addEventListener("dragend", function () {
         thumb.classList.remove("dragging");
-        // Clean up any lingering drag-over highlights
-        strip.querySelectorAll(".filmstrip-thumb").forEach(function (t) {
-          t.classList.remove("drag-over");
-        });
+        clearWriterBlockReorderMarkers();
+        dragSrcBlockIdx = null;
       });
       thumb.addEventListener("dragover", function (e) {
         e.preventDefault();
+        if (dragSrcBlockIdx === null) return;
         e.dataTransfer.dropEffect = "move";
-        thumb.classList.add("drag-over");
+        clearWriterBlockReorderMarkers();
+        var rect = thumb.getBoundingClientRect();
+        var mid = rect.left + rect.width / 2;
+        var before = e.clientX < mid;
+        writerBlockReorderInsertBefore = before;
+        thumb.classList.add(
+          before ? "filmstrip-drop-before" : "filmstrip-drop-after"
+        );
       });
-      thumb.addEventListener("dragleave", function () {
-        thumb.classList.remove("drag-over");
+      thumb.addEventListener("dragleave", function (e) {
+        if (
+          e.relatedTarget &&
+          typeof thumb.contains === "function" &&
+          thumb.contains(e.relatedTarget)
+        ) {
+          return;
+        }
+        thumb.classList.remove(
+          "filmstrip-drop-before",
+          "filmstrip-drop-after",
+          "drag-over"
+        );
       });
       thumb.addEventListener("drop", function (e) {
         e.preventDefault();
-        thumb.classList.remove("drag-over");
-        if (dragSrcBlockIdx === null || dragSrcBlockIdx === blockIdx) return;
-        var src = dragSrcBlockIdx;
-        var tgt = blockIdx;
-        var moved = showState.blocks.splice(src, 1)[0];
-        // Adjust target index after removal
-        if (src < tgt) tgt--;
-        showState.blocks.splice(tgt, 0, moved);
+        clearWriterBlockReorderMarkers();
+        if (dragSrcBlockIdx === null) return;
+        applyWriterBlockReorder(
+          dragSrcBlockIdx,
+          blockIdx,
+          writerBlockReorderInsertBefore
+        );
         dragSrcBlockIdx = null;
-        rebuildFlatSlides();
-        renderFilmstrip();
-        updateStatCounters();
-        markDirty();
       });
 
       strip.appendChild(thumb);
@@ -1465,7 +1634,7 @@
 
       var typeChip = document.createElement("span");
       typeChip.className = "qlist-type-chip";
-      typeChip.textContent = (block.questionType || blockType || "slide").replace(/-/g, " ");
+      typeChip.textContent = writerBlockListTypeLabel(entry);
 
       var qText = document.createElement("div");
       qText.className = "qlist-question";
@@ -1518,6 +1687,9 @@
         renderFilmstrip();
         updateStatCounters();
         markDirty();
+        if (templateWorkflow.active) {
+          renderTemplateBuilderList();
+        }
         if (showState.flatSlides.length > 0) {
           navigateToSlide(showState.currentIdx);
         }
@@ -1527,6 +1699,61 @@
       card.appendChild(numBadge);
       card.appendChild(content);
       card.appendChild(actions);
+
+      suppressQlistReorderChildDrag(delBtn);
+      var gearOnCard = actions.querySelector(".qlist-customize-btn");
+      if (gearOnCard) suppressQlistReorderChildDrag(gearOnCard);
+
+      card.setAttribute("draggable", "true");
+      card.addEventListener("dragstart", function (e) {
+        dragSrcBlockIdx = blockIdx;
+        card.classList.add("qlist-dragging");
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", String(blockIdx));
+      });
+      card.addEventListener("dragend", function () {
+        card.classList.remove("qlist-dragging");
+        clearWriterBlockReorderMarkers();
+        dragSrcBlockIdx = null;
+      });
+      card.addEventListener("dragover", function (e) {
+        e.preventDefault();
+        if (dragSrcBlockIdx === null) return;
+        e.dataTransfer.dropEffect = "move";
+        clearWriterBlockReorderMarkers();
+        var rect = card.getBoundingClientRect();
+        var mid = rect.top + rect.height / 2;
+        var before = e.clientY < mid;
+        writerBlockReorderInsertBefore = before;
+        card.classList.add(
+          before ? "qlist-drop-before" : "qlist-drop-after"
+        );
+      });
+      card.addEventListener("dragleave", function (e) {
+        if (
+          e.relatedTarget &&
+          typeof card.contains === "function" &&
+          card.contains(e.relatedTarget)
+        ) {
+          return;
+        }
+        card.classList.remove(
+          "qlist-drop-before",
+          "qlist-drop-after"
+        );
+      });
+      card.addEventListener("drop", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        clearWriterBlockReorderMarkers();
+        if (dragSrcBlockIdx === null) return;
+        applyWriterBlockReorder(
+          dragSrcBlockIdx,
+          blockIdx,
+          writerBlockReorderInsertBefore
+        );
+        dragSrcBlockIdx = null;
+      });
 
       card.addEventListener("click", function () {
         var offset = 0;
@@ -1543,6 +1770,8 @@
   function openCustomizeSlide(blockIdx) {
     var entry = showState.blocks[blockIdx];
     if (!entry) return;
+
+    captureCustomizeReturnTab();
 
     var offset = 0;
     for (var i = 0; i < blockIdx; i++) {
@@ -1564,6 +1793,52 @@
     switchToTab("question-details");
   }
 
+  function findBlockIndexByEntry(entry) {
+    if (!entry || !entry.block || entry.block.id == null) return -1;
+    var bid = String(entry.block.id);
+    for (var i = 0; i < showState.blocks.length; i++) {
+      var b = showState.blocks[i] && showState.blocks[i].block;
+      if (b && String(b.id || "") === bid) return i;
+    }
+    return -1;
+  }
+
+  function attachTemplateBuilderCustomizeGear(card, entry) {
+    if (!card || !entry) return;
+    var head = card.querySelector(".template-builder-head");
+    if (!head) return;
+
+    var main = document.createElement("div");
+    main.className = "template-builder-head-main";
+    while (head.firstChild) {
+      main.appendChild(head.firstChild);
+    }
+    head.appendChild(main);
+
+    var block = entry.block;
+    var blockType = String((block && block.type) || "").toLowerCase();
+    var isEditable =
+      block &&
+      FORM_UNEDITABLE_BLOCK_TYPES.indexOf(blockType) === -1 &&
+      blockType !== "title";
+    if (!isEditable) return;
+
+    var blockIdx = findBlockIndexByEntry(entry);
+    if (blockIdx < 0) return;
+
+    var gearBtn = document.createElement("button");
+    gearBtn.type = "button";
+    gearBtn.className = "qlist-customize-btn";
+    gearBtn.title = "Customize slide";
+    gearBtn.innerHTML = "&#9881;";
+    gearBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      e.preventDefault();
+      openCustomizeSlide(blockIdx);
+    });
+    head.appendChild(gearBtn);
+  }
+
   function bindQuestionsTab() {
     var btnAddSlide = document.getElementById("btn-add-slide-questions");
     if (btnAddSlide) {
@@ -1575,7 +1850,7 @@
     var btnBack = document.getElementById("btn-back-to-questions");
     if (btnBack) {
       btnBack.addEventListener("click", function () {
-        switchToTab("questions");
+        switchToTab(customizeReturnTab || "questions");
       });
     }
   }
@@ -2350,6 +2625,7 @@
         '</div>';
 
       bindTemplateBuilderCardEvents(card, entry);
+      attachTemplateBuilderCustomizeGear(card, entry);
       wrap.appendChild(card);
     });
     syncTemplateBuilderListToCurrentSlide(showState.currentIdx);
@@ -2689,6 +2965,7 @@
         '</div>';
 
       bindFeudTemplateBuilderCardEvents(card, entry);
+      attachTemplateBuilderCustomizeGear(card, entry);
       wrap.appendChild(card);
     });
   }
@@ -3014,6 +3291,9 @@
       answerText:
         "• Grab a packet and pen before we begin.\n" +
         "• 4 rounds total, 5 questions per round.\n" +
+        "• One halftime specialty question after Round Two.\n" +
+        "• One final question after Round Four.\n" +
+        "• Thank-you slide at the end of the night.\n" +
         "• Categories are announced at the start of each round.\n" +
         "• About 1 minute per question.\n" +
         "• Hold your answer slip until the end of the round.\n" +
@@ -3168,6 +3448,31 @@
 
     entries.push(makeInfoSlideEntry({
       show: showMeta,
+      label: "Halftime Start",
+      blockType: "round-start",
+      roundName: "Halftime",
+      categoryName: "Get Ready",
+      questionType: "display",
+      questionText: "Halftime",
+      answerText: "Get ready!",
+      notes: "Intro before the halftime specialty question.",
+      themeStyle: themeStyle,
+      fontSizeMode: fontSizeMode,
+      stateKey: "halftime.start",
+      stateLabel: "Halftime Start",
+      layout: "round-start",
+      audienceMode: "live",
+    }));
+
+    entries.push(makeHalftimeEntry({
+      show: showMeta,
+      questionType: questionType,
+      themeStyle: themeStyle,
+      fontSizeMode: fontSizeMode,
+    }));
+
+    entries.push(makeInfoSlideEntry({
+      show: showMeta,
       label: "Round Three Start",
       blockType: "round-start",
       roundName: "Round Three",
@@ -3298,6 +3603,49 @@
       audienceMode: "live",
     }));
 
+    entries.push(makeInfoSlideEntry({
+      show: showMeta,
+      label: "Final Question Start",
+      blockType: "round-start",
+      roundName: "Final Question",
+      categoryName: "Get Ready",
+      questionType: "display",
+      questionText: "Final Question",
+      answerText: "Get ready!",
+      notes: "Intro before the finale question.",
+      themeStyle: "Final Question",
+      fontSizeMode: fontSizeMode,
+      stateKey: "final.question.start",
+      stateLabel: "Final Question Start",
+      layout: "round-start",
+      audienceMode: "live",
+    }));
+
+    entries.push(makeFinalQuestionEntry({
+      show: showMeta,
+      questionType: questionType,
+      themeStyle: themeStyle,
+      fontSizeMode: fontSizeMode,
+    }));
+
+    entries.push(makeInfoSlideEntry({
+      show: showMeta,
+      label: "Closing Slide",
+      blockType: "closing-slide",
+      roundName: "Closing",
+      categoryName: "See You Next Time",
+      questionType: "display",
+      questionText: "Thanks for Playing Beach Trivia!",
+      answerText: "Thanks for playing tonight.",
+      notes: "Closing slide.",
+      themeStyle: themeStyle,
+      fontSizeMode: fontSizeMode,
+      stateKey: "closing.thank-you",
+      stateLabel: "Closing",
+      layout: "closing",
+      audienceMode: "live",
+    }));
+
     return entries;
   }
 
@@ -3339,6 +3687,60 @@
     };
     var block = WriterBlockBuilder.createBlockByType("single-question", formData);
     block.label = (config.roundName || "Round") + " • Question " + String(config.questionNumber || 1);
+    return { block: block, formData: formData };
+  }
+
+  function makeHalftimeEntry(config) {
+    var formData = {
+      show: safeClone(config.show || {}),
+      block: {
+        type: "halftime",
+        questionType: config.questionType || "short-response",
+        roundName: "Halftime",
+        categoryName: "Halftime",
+        questionText: "",
+        answerText: "",
+        questionNotes: "Halftime question",
+        optionCount: 4,
+        options: ["", "", "", ""],
+        correctOptionIndex: null,
+        matchingPairs: [],
+        orderingItems: [],
+        themeStyle: config.themeStyle || "Standard Trivia",
+        fontSizeMode: config.fontSizeMode || "Auto Fit",
+        questionAlign: "left",
+        questionFontScale: 1.0,
+      },
+    };
+    var block = WriterBlockBuilder.createBlockByType("halftime", formData);
+    block.label = "Halftime • Specialty Question";
+    return { block: block, formData: formData };
+  }
+
+  function makeFinalQuestionEntry(config) {
+    var formData = {
+      show: safeClone(config.show || {}),
+      block: {
+        type: "final-question",
+        questionType: config.questionType || "short-response",
+        roundName: "Final Question",
+        categoryName: "Final Question",
+        questionText: "",
+        answerText: "",
+        questionNotes: "Final question",
+        optionCount: 4,
+        options: ["", "", "", ""],
+        correctOptionIndex: null,
+        matchingPairs: [],
+        orderingItems: [],
+        themeStyle: "Final Question",
+        fontSizeMode: config.fontSizeMode || "Auto Fit",
+        questionAlign: "left",
+        questionFontScale: 1.0,
+      },
+    };
+    var block = WriterBlockBuilder.createBlockByType("final-question", formData);
+    block.label = "Final Question • Finale";
     return { block: block, formData: formData };
   }
 
@@ -4206,6 +4608,7 @@
     bindMediaUploads();
     bindTemplateButtons();
     bindQuestionsTab();
+    updateCustomizeBackButtonLabel();
     bindDatePicker();
     bindOpenShowModal();
     bindTemplateBuilderArrowNav();
