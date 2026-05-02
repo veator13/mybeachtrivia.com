@@ -4145,7 +4145,8 @@ textarea {
 #tab-question-details[data-block-type="category-slide"] #category-slide-panel { display: block; }
 
 /* When a category slide is active, hide the unrelated question sections */
-#tab-question-details[data-block-type="category-slide"] #question-type-panel { display: none; }
+#tab-question-details[data-block-type="category-slide"] #question-type-panel    { display: none; }
+#tab-question-details[data-block-type="category-slide"] #question-content-panel { display: none; }
 #tab-question-details[data-block-type="category-slide"] .question-text-field-row,
 #tab-question-details[data-block-type="category-slide"] #answer-section          { display: none; }
 
