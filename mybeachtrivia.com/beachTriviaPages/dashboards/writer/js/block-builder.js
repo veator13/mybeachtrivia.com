@@ -292,7 +292,7 @@
         slides: [
           {
             id: makeId("sld"),
-            kind: "round-categories",
+            kind: "category-slide",
             stateKey: `${roundSlug}.categories`,
             stateLabel: `${data.block.roundName || "Round"} Categories`,
             audienceMode: "live",

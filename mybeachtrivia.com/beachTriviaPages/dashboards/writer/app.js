@@ -1313,15 +1313,26 @@
       // Structural / feud variant blocks
       blockType = slideTypeValue;
       var isFeudVariant = slideTypeValue === "feud-halftime" || slideTypeValue === "feud-final";
+
+      // Category slides pre-populate like the template does — matching the round name
+      // into the questionText so the preview shows the heading right away.
+      var isCatSlide = slideTypeValue === "category-slide";
+      var defaultRoundName = isCatSlide ? "Round 1" : "Round 1";
+      var defaultCategoryName = isCatSlide ? "Round 1 Categories" : "";
+      var defaultQuestionText = isCatSlide ? "Round 1 Categories" : "";
+      var defaultAnswerText   = isCatSlide
+        ? "Categories populate as you add question slides to this round."
+        : "";
+
       formData = {
         show: showMeta,
         block: {
           type: blockType,
           questionType: isFeudVariant ? "feud-question" : "display",
-          roundName: "Round 1",
-          categoryName: "",
-          questionText: "",
-          answerText: "",
+          roundName: defaultRoundName,
+          categoryName: defaultCategoryName,
+          questionText: defaultQuestionText,
+          answerText: defaultAnswerText,
           questionNotes: "",
           feudAnswers: isFeudVariant
             ? [{ text: "", points: 8 }, { text: "", points: 7 }, { text: "", points: 6 }]
