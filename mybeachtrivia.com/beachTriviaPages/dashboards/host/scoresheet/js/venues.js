@@ -23,6 +23,7 @@
   "use strict";
 
   let unsubscribe = null;
+  let unsubscribeAuth = null;
   let started = false;
 
   function getDb() {
@@ -170,16 +171,24 @@
           (err) => {
             console.error("[venues] listener error:", err);
 
-            // ✅ auth/rules errors are NOT "offline"
-            if (!shouldTreatAsOfflineError(err)) {
-              // If browser is online, keep ONLINE badge; Firestore listener may recover after auth.
+            const code = String(err?.code || "").toLowerCase();
+
+            // permission-denied: likely fired before real auth resolved.
+            // Watch for a real (non-anonymous) user signing in and retry.
+            if (code === "permission-denied" || code === "unauthenticated") {
               setAppOffline(false);
+              stopListener();
+              waitForRealUserThenRestart();
               return;
             }
 
             // network/unavailable => OFFLINE
-            stopListener();
-            setAppOffline(true);
+            if (shouldTreatAsOfflineError(err)) {
+              stopListener();
+              setAppOffline(true);
+            } else {
+              setAppOffline(false);
+            }
           }
         );
     } catch (e) {
@@ -187,6 +196,24 @@
       stopListener();
       setAppOffline(true);
     }
+  }
+
+  function waitForRealUserThenRestart() {
+    // Clear any previous auth watcher
+    try { if (typeof unsubscribeAuth === "function") unsubscribeAuth(); } catch (_) {}
+    unsubscribeAuth = null;
+
+    const auth = window.FirebaseHelpers?.getAuth?.() || window.firebase?.auth?.() || null;
+    if (!auth) return;
+
+    unsubscribeAuth = auth.onAuthStateChanged((user) => {
+      // Retry once we have a real (non-anonymous) signed-in user
+      if (user && !user.isAnonymous) {
+        try { if (typeof unsubscribeAuth === "function") unsubscribeAuth(); } catch (_) {}
+        unsubscribeAuth = null;
+        startVenuesListener();
+      }
+    });
   }
 
   function restartWithAuth() {
