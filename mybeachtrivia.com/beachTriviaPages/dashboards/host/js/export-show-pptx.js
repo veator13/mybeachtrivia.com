@@ -150,10 +150,22 @@
   // ── Low-level drawing helpers ────────────────────────────────────────────────
 
   function fillBg(s) {
+    // Dark-to-darker gradient matching preview-stage.css linear-gradient(180deg,#13203b,#081120)
     s.addShape("rect", {
       x: 0, y: 0, w: SW, h: SH,
-      fill: { color: C.bg },
-      line: { color: C.bg, width: 0 },
+      fill: { type: "gradient", color: [
+        { color: "13203b", position: 0 },
+        { color: "081120", position: 100 },
+      ]},
+      line: { color: "081120", width: 0 },
+    });
+  }
+
+  function addTopStripe(s) {
+    s.addShape("rect", {
+      x: 0, y: 0, w: SW, h: 0.05,
+      fill: { color: C.badge_line },
+      line: { color: C.badge_line, width: 0 },
     });
   }
 
@@ -191,8 +203,9 @@
 
   function paintTitleSlide(s, slide, showMeta) {
     fillBg(s);
+    addTopStripe(s);
 
-    // Top accent stripe
+    // Top accent stripe (thicker, branded)
     s.addShape("rect", {
       x: 0, y: 0, w: SW, h: 0.06,
       fill: { color: C.accent },
@@ -391,16 +404,19 @@
 
   function paintQuestionSlide(s, slide, showAnswer) {
     fillBg(s);
+    addTopStripe(s);
 
-    var blockType = String(slide.blockType || slide.kind || "").toLowerCase();
-    var qType     = String(slide.questionType || "").toLowerCase();
-    var isDisp    = qType === "display"
-                  || blockType === "intro-slide"
-                  || blockType === "info-slide";
-    var isCenter  = blockType === "round-start" || blockType === "category-slide";
-    var isMC      = qType === "multiple-choice";
-    var isFeud    = isFeudSlide(slide);
-    var isSummary = slide.kind === "answers-summary" || blockType === "answers-summary";
+    var blockType    = String(slide.blockType || slide.kind || "").toLowerCase();
+    var qType        = String(slide.questionType || "").toLowerCase();
+    var isDisp       = qType === "display"
+                     || blockType === "intro-slide"
+                     || blockType === "info-slide";
+    var isRoundStart = blockType === "round-start";
+    var isCatSlide   = blockType === "category-slide";
+    var isCenter     = isRoundStart || isCatSlide;
+    var isMC         = qType === "multiple-choice";
+    var isFeud       = isFeudSlide(slide);
+    var isSummary    = slide.kind === "answers-summary" || blockType === "answers-summary";
 
     // — Top row: badge + state label —
     var badge = stripHtml(slide.roundBadge || "");
@@ -417,9 +433,61 @@
 
     var y = 0.62;
 
-    // — Category —
+    // — Display slides (intro-slide / info-slide): heading + content box —
+    // These are handled completely separately so the content box gets full height.
+    if (isDisp && !isCenter) {
+      var heading = stripHtml(slide.question || "");
+      if (heading) {
+        s.addText(heading, {
+          x: ML, y: y, w: CW, h: 0.50,
+          fontSize: 20, bold: true, color: C.q,
+          valign: "middle",
+        });
+        y += 0.56;
+      }
+      var dispText = stripHtml(slide.answer || "");
+      if (dispText) {
+        var boxH = Math.max(1.0, SH - y - 0.20);
+        s.addShape("roundRect", {
+          x: ML, y: y, w: CW, h: boxH,
+          rectRadius: 0.08,
+          fill: { color: C.disp_bg },
+          line: { color: C.disp_line, width: 1 },
+        });
+        s.addText(dispText, {
+          x: ML + 0.22, y: y + 0.18, w: CW - 0.44, h: boxH - 0.30,
+          fontSize: 14, color: C.disp_text,
+          valign: "top",
+        });
+      }
+      return;
+    }
+
+    // — Answers-summary: "ANSWER REVIEW" header + centered Q list —
+    if (isSummary) {
+      var cat = stripHtml(slide.category || "Answer Review");
+      s.addText(cat.toUpperCase(), {
+        x: ML, y: y, w: CW, h: 0.42,
+        fontSize: 16, bold: true, color: C.cat,
+        align: "center", charSpacing: 2,
+      });
+      y += 0.52;
+
+      var qText = stripHtml(slide.question || "");
+      var fz    = Math.min(22, autoQFontSize(qText, blockType));
+      var qH    = Math.max(1.0, SH - y - 0.25);
+      s.addText(qText, {
+        x: ML, y: y, w: CW, h: qH,
+        fontSize: fz, bold: true, color: C.q,
+        valign: "top", align: "center",
+      });
+      // No answer panel on summary slides — the Q list IS the answer content
+      return;
+    }
+
+    // — Category (normal question slides) —
     var cat = stripHtml(slide.category || "");
-    if (cat && !isDisp && !isSummary) {
+    if (cat && !isDisp) {
       s.addText(cat.toUpperCase(), {
         x: ML, y: y, w: CW, h: 0.37,
         fontSize: 14, bold: true, color: C.cat,
@@ -432,7 +500,6 @@
     // — Question text —
     var qText = stripHtml(slide.question || "");
     var fz    = autoQFontSize(qText, blockType);
-    if (isSummary) fz = Math.min(fz, 20);
 
     // Calculate available height for question box
     var reservedBelow = 0;
@@ -444,12 +511,15 @@
                     + 0.25;
     } else if (isFeud) {
       reservedBelow = 4 * 0.92 + 3 * 0.08 + 0.45;
-    } else if (!isDisp && !isCenter && slide.answer) {
+    } else if (showAnswer && !isDisp && !isCenter && slide.answer) {
       reservedBelow = 0.95;
     }
 
     var qH = Math.max(0.7, SH - y - reservedBelow - 0.18);
-    if (isCenter) qH = SH - y - 0.3;
+    if (isCenter) {
+      // Reserve bottom space for round-start CTA pill
+      qH = SH - y - (isRoundStart ? 1.15 : 0.30);
+    }
 
     s.addText(qText, {
       x: ML, y: y, w: CW, h: qH,
@@ -459,6 +529,30 @@
     });
     y += qH + (isCenter ? 0 : 0.16);
 
+    // — Round-start: "GET READY!" CTA pill —
+    if (isRoundStart) {
+      var ctaRaw = stripHtml(slide.answer || "").toUpperCase() || "GET READY!";
+      // Clean up the text to make it CTA-style
+      if (ctaRaw.toLowerCase() === "get ready!") ctaRaw = "GET READY!";
+      var ctaW = Math.min(4.5, Math.max(2.4, ctaRaw.length * 0.16 + 1.0));
+      var ctaX = (SW - ctaW) / 2;
+      s.addText(ctaRaw, {
+        x: ctaX, y: SH - 1.10, w: ctaW, h: 0.60,
+        shape: "roundRect", rectRadius: 0.5,
+        fill: { color: C.bg },
+        line: { color: C.accent, width: 1.5 },
+        fontSize: 14, bold: true, color: C.accent,
+        align: "center", valign: "middle",
+        charSpacing: 2,
+      });
+      return;
+    }
+
+    // — Category-slide: already rendered question as centered list; done —
+    if (isDisp && isCenter) {
+      return;
+    }
+
     // — Multiple-choice options —
     if (isMC && !isCenter) {
       y = paintOptions(s, slide, y, showAnswer);
@@ -467,26 +561,6 @@
     // — Feud grid (always fully revealed in host backup) —
     if (isFeud) {
       paintFeudGrid(s, slide, y);
-      return;
-    }
-
-    // — Display content (rules / info slides) —
-    if (isDisp) {
-      var dispText = stripHtml(slide.answer || "");
-      if (dispText && y < SH - 0.55) {
-        var boxH = Math.max(0.7, SH - y - 0.22);
-        s.addShape("roundRect", {
-          x: ML, y: y, w: CW, h: boxH,
-          rectRadius: 0.08,
-          fill: { color: C.disp_bg },
-          line: { color: C.disp_line, width: 1 },
-        });
-        s.addText(dispText, {
-          x: ML + 0.20, y: y + 0.15, w: CW - 0.40, h: boxH - 0.25,
-          fontSize: 14, color: C.disp_text,
-          valign: "top",
-        });
-      }
       return;
     }
 
@@ -546,9 +620,9 @@
       });
     }
 
-    // — Answer panel (for non-MC, non-display slides) —
+    // — Answer panel (non-MC, non-display, non-summary slides only) —
     var ans = stripHtml(slide.answer || "");
-    if (showAnswer && ans && !isMC && y < SH - 0.45) {
+    if (showAnswer && ans && !isMC && !isSummary && y < SH - 0.45) {
       paintAnswerPanel(s, ans, Math.min(y, SH - 0.95));
     }
   }
