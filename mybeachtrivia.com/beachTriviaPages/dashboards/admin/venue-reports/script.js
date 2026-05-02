@@ -10,7 +10,7 @@
     venues: [],
     avgTeams: 0,
     projectionEvents: 1,
-    projectionTeams: 9,
+    projectionTeams: 10,
     totalTeams: 0,
     totalEvents: 0,
     lastEventDate: '',
