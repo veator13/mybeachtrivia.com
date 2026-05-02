@@ -59,6 +59,10 @@
     <section class="card search-card" aria-labelledby="search-title">
       <div class="card-head">
         <h2 id="search-title" class="card-title">Search Scoresheets</h2>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button id="run-search-btn" type="submit" form="scores-search-form" class="btn btn-primary">Search</button>
+          <button id="clear-search-btn" type="button" class="btn btn-ghost">Clear</button>
+        </div>
       </div>
 
       <div class="card-body">
@@ -123,10 +127,6 @@
             <input id="date-end" name="dateEnd" type="date" class="input" />
           </div>
 
-          <div class="field actions">
-            <button id="run-search-btn" type="submit" class="btn btn-primary">Search</button>
-            <button id="clear-search-btn" type="button" class="btn btn-ghost">Clear</button>
-          </div>
         </form>
 
         <div id="search-status" class="muted" aria-live="polite"></div>
