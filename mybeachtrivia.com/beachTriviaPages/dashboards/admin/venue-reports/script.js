@@ -10,7 +10,7 @@
     venues: [],
     avgTeams: 0,
     projectionEvents: 1,
-    projectionTeams: 8,
+    projectionTeams: 10,
     totalTeams: 0,
     totalEvents: 0,
     lastEventDate: '',
@@ -329,10 +329,11 @@
     const teamsSlider = $('#teams-slider');
     const teamsInput = $('#teams-input');
 
-    function applyTeams(t) {
+    function applyTeams(t, skipInput) {
       t = Math.max(3, Math.min(100, t));
       if (isNaN(t)) return;
-      updateTeamsSlider(t);
+      if (teamsSlider) teamsSlider.value = t;
+      if (!skipInput && teamsInput) teamsInput.value = t;
       state.projectionTeams = t;
       if (state.reportLoaded) {
         const maxSpend = parseFloat($('#max-spend')?.value) || 60;
@@ -340,9 +341,11 @@
       }
     }
 
-    teamsSlider?.addEventListener('input', () => applyTeams(parseInt(teamsSlider.value, 10)));
-    teamsInput?.addEventListener('input', () => applyTeams(parseInt(teamsInput.value, 10)));
-    teamsInput?.addEventListener('change', () => applyTeams(parseInt(teamsInput.value, 10)));
+    teamsSlider?.addEventListener('input', () => applyTeams(parseInt(teamsSlider.value, 10), false));
+    // While typing, only move the slider — don't write back into the field
+    teamsInput?.addEventListener('input', () => applyTeams(parseInt(teamsInput.value, 10), true));
+    // On blur/enter, clamp and write back if needed
+    teamsInput?.addEventListener('change', () => applyTeams(parseInt(teamsInput.value, 10), false));
 
     // Period toggles
     document.querySelectorAll('.period-btn').forEach((btn) => {
