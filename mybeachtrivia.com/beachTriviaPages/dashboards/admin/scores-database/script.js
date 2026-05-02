@@ -90,6 +90,7 @@
     loadedDocData: null,
     originalDocData: null,
     isEditMode: false,
+    highlightOtherActive: false,
     user: null,
     employee: null,
   };
@@ -109,6 +110,7 @@
     resultsEmpty: $('#results-empty'),
     resultsTableBody: $('#results-table-body'),
     loadedStatus: $('#loaded-record-status'),
+    highlightOtherBtn: $('#highlight-other-btn'),
     loadedVenue: $('#loaded-venue'),
     loadedVenueOther: $('#loaded-venue-other'),
     loadedEventDate: $('#loaded-event-date'),
@@ -558,8 +560,12 @@
         meta.submitterEmail ||
         '—';
 
+      const isOther = meta.venueId === 'other' || meta.venueSource === 'manual_other' ||
+        (meta.venueName || meta.venue || '').toLowerCase() === 'other';
+      const highlightClass = (state.highlightOtherActive && isOther) ? ' other-venue-highlight' : '';
+
       return `
-        <tr data-doc-id="${escapeHtml(item.__id)}">
+        <tr data-doc-id="${escapeHtml(item.__id)}" data-venue-other="${isOther}" class="${highlightClass.trim()}">
           <td>${escapeHtml(formatDate(meta.eventDate || ''))}</td>
           <td>${escapeHtml(meta.venueName || meta.venue || '—')}</td>
           <td>${escapeHtml(hostName)}</td>
@@ -1090,6 +1096,18 @@
       if (typeof window.addTeam === 'function') {
         window.addTeam();
       }
+    });
+
+    // Highlight "Other" venues toggle
+    els.highlightOtherBtn?.addEventListener('click', () => {
+      state.highlightOtherActive = !state.highlightOtherActive;
+      els.highlightOtherBtn.classList.toggle('active', state.highlightOtherActive);
+      // Apply/remove highlight class on existing rows without full re-render
+      els.resultsTableBody?.querySelectorAll('tr[data-venue-other]').forEach((row) => {
+        if (row.dataset.venueOther === 'true') {
+          row.classList.toggle('other-venue-highlight', state.highlightOtherActive);
+        }
+      });
     });
 
     // Venue select — show/hide "Other" companion input

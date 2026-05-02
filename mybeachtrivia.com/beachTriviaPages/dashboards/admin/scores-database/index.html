@@ -139,6 +139,9 @@
           <h2 id="results-title" class="card-title">Results</h2>
           <div id="results-count" class="muted" aria-live="polite"></div>
         </div>
+        <button id="highlight-other-btn" type="button" class="btn btn-secondary" style="font-size:0.83rem;padding:6px 14px;">
+          Highlight "Other" Venues
+        </button>
       </div>
 
       <div class="card-body">
@@ -371,6 +374,19 @@
     select.input option {
       background: #1a2030;
       color: #f4f7fb;
+    }
+
+    tr.other-venue-highlight td {
+      background: rgba(245, 158, 11, 0.12) !important;
+    }
+    tr.other-venue-highlight td:nth-child(2) {
+      color: #f59e0b;
+      font-weight: 600;
+    }
+    #highlight-other-btn.active {
+      background: rgba(245, 158, 11, 0.2);
+      border: 1px solid rgba(245, 158, 11, 0.5);
+      color: #f59e0b;
     }
 
     select.input:disabled {
