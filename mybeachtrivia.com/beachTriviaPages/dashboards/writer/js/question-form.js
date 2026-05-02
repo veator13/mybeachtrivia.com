@@ -13,6 +13,8 @@
     validateForPublish,
     syncQuestionTypeUI,
     syncOptionCountToRows,
+    applyPreviewInlineUpdates,
+    applyTitleSlidePreviewUpdates,
   };
 
   window.WriterQuestionForm = QUESTION_FORM;
@@ -1025,6 +1027,132 @@
       data: getFormData(),
     };
     document.dispatchEvent(new CustomEvent("writer:question-form-change", { detail: detail }));
+  }
+
+  /**
+   * Apply edits made on the main Slide Preview (contenteditable) into sidebar fields.
+   * Dispatches reason "preview-inline-edit" so preview.js can skip re-rendering (caret-safe).
+   */
+  function applyPreviewInlineUpdates(updates) {
+    if (!updates || !dom) return;
+    var changed = false;
+
+    function bumpInput(el, val) {
+      if (!el || typeof el.value !== "string") return;
+      var v = val != null ? String(val) : "";
+      if (el.value !== v) {
+        el.value = v;
+        changed = true;
+      }
+    }
+
+    if (updates.roundName != null) bumpInput(dom.roundName, updates.roundName);
+    if (updates.categoryName != null) bumpInput(dom.categoryName, updates.categoryName);
+
+    if (updates.questionHtml != null && dom.questionText) {
+      var sanitized =
+        window.WriterPreview && typeof WriterPreview.sanitizeQuestionHtml === "function"
+          ? WriterPreview.sanitizeQuestionHtml(updates.questionHtml)
+          : updates.questionHtml;
+      var cur = getValue(dom.questionText, "");
+      if (cur !== sanitized) {
+        setValue(dom.questionText, sanitized);
+        changed = true;
+      }
+    }
+
+    if (updates.answerText != null) bumpInput(dom.answerText, updates.answerText);
+
+    if (updates.mcOptions && Array.isArray(updates.mcOptions)) {
+      var inputs = getOptionInputs();
+      var needed = updates.mcOptions.length;
+      if (dom.optionCount && dom.optionList && needed > inputs.length) {
+        var target = Math.max(2, Math.min(10, needed));
+        dom.optionCount.value = String(target);
+        syncOptionCountToRows();
+        updateOptionLetters();
+        inputs = getOptionInputs();
+      }
+      updates.mcOptions.forEach(function (text, i) {
+        if (!inputs[i]) return;
+        var t = text != null ? String(text) : "";
+        if (inputs[i].value !== t) {
+          inputs[i].value = t;
+          changed = true;
+        }
+      });
+
+      var tbCard = document.querySelector(
+        "#template-builder-list .template-builder-card--current"
+      );
+      if (tbCard) {
+        var tbInputs = tbCard.querySelectorAll(".template-option-input");
+        updates.mcOptions.forEach(function (text, i) {
+          if (!tbInputs[i]) return;
+          var t = text != null ? String(text) : "";
+          if (tbInputs[i].value !== t) {
+            tbInputs[i].value = t;
+            changed = true;
+          }
+        });
+      }
+    }
+
+    if (updates.matchingPairs && Array.isArray(updates.matchingPairs) && dom.matchingPairsList) {
+      var rows = dom.matchingPairsList.querySelectorAll(".matching-pair-row");
+      updates.matchingPairs.forEach(function (pair, i) {
+        var row = rows[i];
+        if (!row) return;
+        var ins = row.querySelectorAll("input");
+        var L = pair != null ? String(pair.left != null ? pair.left : "").trim() : "";
+        var R = pair != null ? String(pair.right != null ? pair.right : "").trim() : "";
+        if (ins[0] && ins[0].value !== L) {
+          ins[0].value = L;
+          changed = true;
+        }
+        if (ins[1] && ins[1].value !== R) {
+          ins[1].value = R;
+          changed = true;
+        }
+      });
+    }
+
+    if (!changed) return;
+
+    var fd = getFormData();
+    if (window.WriterPreview && typeof WriterPreview.cacheLastFormData === "function") {
+      WriterPreview.cacheLastFormData(fd);
+    }
+    emitChange("preview-inline-edit");
+  }
+
+  function applyTitleSlidePreviewUpdates(updates) {
+    if (!updates || !dom) return;
+    var changed = false;
+
+    if (updates.showTitle != null && dom.showTitle) {
+      var v = String(updates.showTitle);
+      if (dom.showTitle.value !== v) {
+        dom.showTitle.value = v;
+        changed = true;
+      }
+    }
+
+    if (updates.titleEyebrow != null) {
+      document.dispatchEvent(
+        new CustomEvent("writer:title-slide-eyebrow", {
+          detail: { text: String(updates.titleEyebrow) },
+        })
+      );
+    }
+
+    if (!changed && updates.titleEyebrow == null) return;
+
+    var fd = getFormData();
+    if (window.WriterPreview && typeof WriterPreview.cacheLastFormData === "function") {
+      WriterPreview.cacheLastFormData(fd);
+    }
+    emitChange("preview-inline-edit");
   }
 
   function emitValidation(message, severity) {

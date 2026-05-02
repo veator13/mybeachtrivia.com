@@ -355,6 +355,9 @@
       entry.block.slides[0].notes = blockData.questionNotes || entry.block.slides[0].notes || "";
       entry.block.slides[0].themeStyle = blockData.themeStyle || entry.block.slides[0].themeStyle || "Standard Trivia";
       entry.block.slides[0].fontSizeMode = blockData.fontSizeMode || entry.block.slides[0].fontSizeMode || "Auto Fit";
+      if (Array.isArray(blockData.categories)) {
+        entry.block.slides[0].categories = blockData.categories;
+      }
     }
   }
 
@@ -386,6 +389,13 @@
     fd.block.type = preservedType || fd.block.type;
     if (typeof prevB.suppressFeudIntro === "boolean") {
       fd.block.suppressFeudIntro = prevB.suppressFeudIntro;
+    }
+    // Preserve categories array (managed by category-slide form inputs, not standard fields)
+    if (Array.isArray(prevB.categories) && !Array.isArray(incBlock.categories)) {
+      fd.block.categories = prevB.categories;
+    }
+    if (typeof prevB.autoFilledCategories === "boolean" && incBlock.autoFilledCategories === undefined) {
+      fd.block.autoFilledCategories = prevB.autoFilledCategories;
     }
 
     entry.formData = fd;
@@ -851,6 +861,7 @@
   function rebuildFlatSlides() {
     showState.flatSlides = [];
     syncClassicAnswersSummaryBlocks();
+    syncCategorySlideBlocks();
     showState.blocks.forEach(function (entry, blockIdx) {
       entry.block.slides.forEach(function (slide, slideIdx) {
         showState.flatSlides.push({
@@ -936,6 +947,72 @@
     }
   }
 
+  /**
+   * Category slides: scan ALL question blocks that share the same roundName and
+   * collect their categoryName values (deduped, up to 5).  Store as
+   * block.slides[0].categories and formData.block.categories so the preview
+   * can render chips and the form inputs can reflect auto-filled values.
+   * Manual overrides written by the user are preserved when no auto-fill exists.
+   */
+  function syncCategorySlideBlocks() {
+    var blocks = showState.blocks;
+    if (!Array.isArray(blocks) || !blocks.length) return;
+
+    for (var i = 0; i < blocks.length; i++) {
+      var entry = blocks[i];
+      var blk   = entry && entry.block;
+      if (!blk) continue;
+      var blkType = String(blk.type || "").toLowerCase();
+      if (blkType !== "category-slide") continue;
+
+      var roundName = String(
+        (entry.formData && entry.formData.block && entry.formData.block.roundName) ||
+        blk.roundName || ""
+      ).trim();
+
+      // Collect unique, non-empty category names from all single-question blocks
+      // in the show that share this round name.
+      var seen = {};
+      var cats = [];
+      for (var j = 0; j < blocks.length && cats.length < 5; j++) {
+        var qe = blocks[j];
+        var qb = qe && qe.block;
+        if (!qb || String(qb.type || "").toLowerCase() !== "single-question") continue;
+        var qRound = String(
+          (qe.formData && qe.formData.block && qe.formData.block.roundName) ||
+          qb.roundName || ""
+        ).trim();
+        if (qRound !== roundName) continue;
+        var catName = String(
+          (qe.formData && qe.formData.block && qe.formData.block.categoryName) ||
+          qb.categoryName || ""
+        ).trim();
+        if (!catName || seen[catName.toLowerCase()]) continue;
+        seen[catName.toLowerCase()] = true;
+        cats.push(catName);
+      }
+
+      // Write auto-filled categories onto the slide and formData.
+      // If no questions found yet, leave manual entries untouched.
+      if (cats.length > 0) {
+        blk.slides[0].categories = cats;
+        if (entry.formData && entry.formData.block) {
+          entry.formData.block.categories = cats;
+          entry.formData.block.autoFilledCategories = true;
+        }
+      } else {
+        // Preserve existing manual/auto categories; just ensure field exists.
+        if (!blk.slides[0].categories) blk.slides[0].categories = [];
+        if (entry.formData && entry.formData.block && !entry.formData.block.categories) {
+          entry.formData.block.categories = [];
+        }
+        if (entry.formData && entry.formData.block) {
+          entry.formData.block.autoFilledCategories = false;
+        }
+      }
+    }
+  }
+
   function navigateToSlide(idx) {
     if (showState.flatSlides.length === 0) return;
     idx = Math.max(0, Math.min(idx, showState.flatSlides.length - 1));
@@ -997,10 +1074,105 @@
       }
     }
 
+    // Stamp the active block type on the question-details panel so CSS can
+    // show/hide the right form sections (e.g. category-slide panel vs question panel).
+    var qdPanel = document.getElementById("tab-question-details");
+    if (qdPanel) {
+      var activeBlockType = String(
+        (item.blockEntry && item.blockEntry.block && item.blockEntry.block.type) || ""
+      ).toLowerCase();
+      qdPanel.setAttribute("data-block-type", activeBlockType);
+    }
+
+    // For category slides, populate the dedicated category form inputs.
+    if (item.blockEntry && String((item.blockEntry.block && item.blockEntry.block.type) || "").toLowerCase() === "category-slide") {
+      populateCategorySlideForm(item.blockEntry);
+    }
+
     updateShowNav();
     highlightFilmstripThumb(idx);
     syncTemplateBuilderListToCurrentSlide(idx);
     syncQuestionBuilderTabVisibility();
+  }
+
+  /** Populate the category-slide form inputs from the current block entry. */
+  function populateCategorySlideForm(entry) {
+    if (!entry) return;
+    var fd = (entry.formData && entry.formData.block) || {};
+    var roundInput = document.getElementById("cat-slide-round-name");
+    if (roundInput) roundInput.value = fd.roundName || "";
+
+    var cats = Array.isArray(fd.categories) ? fd.categories : [];
+    var autoFilled = !!fd.autoFilledCategories;
+    var badge = document.getElementById("cat-slide-autofill-badge");
+    if (badge) badge.style.display = autoFilled && cats.length ? "" : "none";
+
+    var inputs = document.querySelectorAll(".cat-slide-cat-input");
+    inputs.forEach(function (inp, i) {
+      var val = cats[i] ? String(cats[i]) : "";
+      inp.value = val;
+      inp.setAttribute("data-autofilled", autoFilled && val ? "true" : "false");
+    });
+  }
+
+  /** Read category-slide form inputs and push changes into the block + preview. */
+  function flushCategorySlideForm() {
+    var item = getCurrentFlatItem();
+    if (!item || !item.blockEntry) return;
+    var entry = item.blockEntry;
+    if (String((entry.block && entry.block.type) || "").toLowerCase() !== "category-slide") return;
+
+    var roundInput = document.getElementById("cat-slide-round-name");
+    var newRound = roundInput ? roundInput.value.trim() : "";
+
+    var inputs = document.querySelectorAll(".cat-slide-cat-input");
+    var newCats = [];
+    inputs.forEach(function (inp) {
+      var v = inp.value.trim();
+      if (v) newCats.push(v);
+    });
+
+    // Merge into formData
+    if (!entry.formData) entry.formData = {};
+    if (!entry.formData.block) entry.formData.block = {};
+    if (newRound) entry.formData.block.roundName = newRound;
+    entry.formData.block.categories = newCats;
+    entry.formData.block.autoFilledCategories = false; // user is manually editing
+
+    // Sync onto the block itself
+    if (entry.block) {
+      if (newRound) entry.block.roundName = newRound;
+      if (entry.block.slides && entry.block.slides[0]) {
+        entry.block.slides[0].categories = newCats;
+        if (newRound) entry.block.slides[0].title = newRound;
+      }
+    }
+
+    // Live re-render the preview
+    if (window.WriterPreview) {
+      WriterPreview.renderFromFormData(entry.formData);
+    }
+
+    markDirty();
+  }
+
+  /** Bind the category-slide form inputs (called once during init). */
+  function bindCategorySlideForm() {
+    var roundInput = document.getElementById("cat-slide-round-name");
+    if (roundInput) {
+      roundInput.addEventListener("input", function () {
+        flushCategorySlideForm();
+        // Re-sync blocks so other category slides for this round also update
+        rebuildFlatSlides();
+        renderFilmstrip();
+      });
+    }
+    var inputs = document.querySelectorAll(".cat-slide-cat-input");
+    inputs.forEach(function (inp) {
+      inp.addEventListener("input", function () {
+        flushCategorySlideForm();
+      });
+    });
   }
 
   function updateShowNav() {
@@ -2000,6 +2172,12 @@
     if (sLive.fontSizeMode && isBlank(mb.fontSizeMode)) mb.fontSizeMode = sLive.fontSizeMode;
 
     if (mb.questionAlign == null && sLive.questionAlign) mb.questionAlign = sLive.questionAlign;
+
+    // Carry category array for category-slide filmstrip thumbnails
+    if (!Array.isArray(mb.categories)) {
+      mb.categories = Array.isArray(sLive.categories) ? sLive.categories
+        : Array.isArray(b.categories) ? b.categories : [];
+    }
     if (typeof mb.questionFontScale !== "number" && typeof sLive.questionFontScale === "number") {
       mb.questionFontScale = sLive.questionFontScale;
     }
@@ -4843,6 +5021,7 @@
     bindMediaUploads();
     bindTemplateButtons();
     bindQuestionsTab();
+    bindCategorySlideForm();
     updateCustomizeBackButtonLabel();
     bindDatePicker();
     bindOpenShowModal();

@@ -25,6 +25,8 @@
     feudRevealNext,
     feudHidePrev,
     resetFeudReveal,
+    cacheLastFormData,
+    sanitizeQuestionHtml: sanitizeHtml,
   };
 
   window.WriterPreview = PREVIEW;
@@ -36,6 +38,9 @@
   let _lastFormData = null;  // cached so mode changes can trigger a full re-render
   let _lastRenderedQuestionType = "";
   let _feudRevealCount = 0;  // # of filled answers revealed, lowest points first
+
+  let _previewInlineSyncTid = null;
+  let _previewInlineDelegationBound = false;
 
   function $(selector, root) {
     return (root || document).querySelector(selector);
@@ -138,9 +143,235 @@
         // renderFromFormData explicitly afterwards with the correct data,
         // so we must not let the form's DOM-read data override it.
         if (reason === "set-form-data" || reason === "init") return;
+        // Sidebar already reflects edits; re-rendering would reset contenteditable + caret.
+        if (reason === "preview-inline-edit") return;
         renderFromFormData(e.detail.data);
       }
     });
+
+    bindPreviewInlineEditDelegation();
+  }
+
+  function cacheLastFormData(formData) {
+    _lastFormData = normalizeFormData(formData || _lastFormData);
+  }
+
+  function bindPreviewInlineEditDelegation() {
+    if (_previewInlineDelegationBound) return;
+    var stage = document.querySelector(".preview-area .preview-stage:not(.thumb-preview-stage)");
+    if (!stage) return;
+    _previewInlineDelegationBound = true;
+
+    stage.addEventListener("input", function () {
+      schedulePreviewSyncFromDom(false);
+    });
+    stage.addEventListener(
+      "blur",
+      function () {
+        schedulePreviewSyncFromDom(true);
+      },
+      true
+    );
+
+    stage.addEventListener(
+      "paste",
+      function (e) {
+        var t = e.target;
+        if (!t || typeof t.closest !== "function") return;
+        var host = t.closest(".preview-inline-editable");
+        if (!host || !stage.contains(host)) return;
+        if (host.classList.contains("slide-question")) return;
+        e.preventDefault();
+        var plain = (e.clipboardData || window.clipboardData).getData("text/plain") || "";
+        try {
+          document.execCommand("insertText", false, plain);
+        } catch (err) {
+          host.textContent = (host.textContent || "") + plain;
+        }
+      },
+      true
+    );
+  }
+
+  function schedulePreviewSyncFromDom(immediate) {
+    if (_previewInlineSyncTid) {
+      clearTimeout(_previewInlineSyncTid);
+      _previewInlineSyncTid = null;
+    }
+    if (immediate) {
+      flushPreviewSyncFromDom();
+      return;
+    }
+    _previewInlineSyncTid = setTimeout(function () {
+      _previewInlineSyncTid = null;
+      flushPreviewSyncFromDom();
+    }, 140);
+  }
+
+  function flushPreviewSyncFromDom() {
+    var QF = window.WriterQuestionForm;
+    if (!QF) return;
+    if (!dom || !dom.previewStage || dom.previewStage.classList.contains("thumb-preview-stage")) {
+      return;
+    }
+
+    var stage = dom.previewStage;
+    if (stage.dataset.writerPreviewView === "title") {
+      if (typeof QF.applyTitleSlidePreviewUpdates !== "function") return;
+      var ov = stage.querySelector(".slide-title-overlay");
+      if (!ov || String(ov.style.display || "").toLowerCase() === "none") return;
+      var eyebrowEl = ov.querySelector('[data-title-part="eyebrow"]');
+      var headingEl = ov.querySelector('[data-title-part="heading"]');
+      var tu = {};
+      if (eyebrowEl && eyebrowEl.isContentEditable) {
+        tu.titleEyebrow = String(eyebrowEl.textContent || "").replace(/\s+/g, " ").trim();
+      }
+      if (headingEl && headingEl.isContentEditable) {
+        tu.showTitle = String(headingEl.textContent || "").replace(/\s+/g, " ").trim();
+      }
+      if (Object.keys(tu).length) {
+        QF.applyTitleSlidePreviewUpdates(tu);
+      }
+      return;
+    }
+
+    if (typeof QF.applyPreviewInlineUpdates !== "function") return;
+
+    var eff = String(_lastRenderedQuestionType || "").trim().toLowerCase();
+    try {
+      if (window.WriterQuestionForm && typeof WriterQuestionForm.getFormData === "function") {
+        var qt = String(
+          (WriterQuestionForm.getFormData().block || {}).questionType || ""
+        ).trim().toLowerCase();
+        if (qt) eff = qt;
+      }
+    } catch (err) { /* ignore */ }
+    var updates = {};
+
+    var badge = stage.querySelector(".slide-badge");
+    if (badge && badge.isContentEditable) {
+      updates.roundName = String(badge.textContent || "").replace(/\s+/g, " ").trim();
+    }
+
+    var cat = stage.querySelector(".slide-category");
+    if (cat && cat.isContentEditable && cat.offsetParent !== null) {
+      updates.categoryName = String(cat.textContent || "").replace(/\s+/g, " ").trim();
+    }
+
+    var qEl = stage.querySelector(".slide-question");
+    if (qEl && qEl.isContentEditable) {
+      updates.questionHtml = qEl.innerHTML;
+    }
+
+    if (eff === "multiple-choice") {
+      var optHost = stage.querySelector(".slide-options");
+      var bodies = optHost
+        ? Array.from(optHost.querySelectorAll(".slide-option .slide-option-body")).filter(function (el) {
+          return el.isContentEditable;
+        })
+        : [];
+      if (bodies.length) {
+        updates.mcOptions = bodies.map(function (el) {
+          return String(el.textContent || "").trim();
+        });
+      }
+    }
+
+    if (eff === "matching") {
+      var pairs = [];
+      stage.querySelectorAll(".slide-option-pair").forEach(function (row) {
+        var L = row.querySelector(".slide-option-pair-left");
+        var R = row.querySelector(".slide-option-pair-right");
+        if (!L || !R || !L.isContentEditable || !R.isContentEditable) return;
+        pairs.push({
+          left: String(L.textContent || "").trim(),
+          right: String(R.textContent || "").trim(),
+        });
+      });
+      if (pairs.length) updates.matchingPairs = pairs;
+    }
+
+    if (eff === "display") {
+      var dc = stage.querySelector(".slide-display-content");
+      if (dc && dc.isContentEditable && !dc.querySelector(".slide-rules-grid")) {
+        updates.answerText = String(dc.textContent || "").trim();
+      }
+    }
+
+    var ansExcluded = ["multiple-choice", "display", "ordering", "matching", "feud-question"];
+    if (ansExcluded.indexOf(eff) === -1) {
+      var parts = getAnswerPreviewParts();
+      if (parts.value && parts.value.isContentEditable) {
+        updates.answerText = String(parts.value.textContent || "").trim();
+      }
+    }
+
+    QF.applyPreviewInlineUpdates(updates);
+  }
+
+  function applyPreviewInlineChrome(enabled, data, effectiveType, mode, isDisplayBlock) {
+    if (!dom || !dom.previewStage || dom.previewStage.classList.contains("thumb-preview-stage")) {
+      return;
+    }
+
+    var stage = dom.previewStage;
+    var allow = !!enabled;
+
+    var eff = String(effectiveType || "").trim().toLowerCase();
+    var m = String(mode || "live").toLowerCase();
+
+    function setElEditable(el, on) {
+      if (!el) return;
+      if (on) {
+        el.contentEditable = "true";
+        el.spellcheck = false;
+        el.classList.add("preview-inline-editable");
+        if (!el.getAttribute("aria-label")) {
+          el.setAttribute("aria-label", "Edit on slide");
+        }
+      } else {
+        el.contentEditable = "false";
+        el.spellcheck = true;
+        el.classList.remove("preview-inline-editable");
+        el.removeAttribute("aria-label");
+      }
+    }
+
+    var badge = stage.querySelector(".slide-badge");
+    setElEditable(badge, allow);
+
+    var cat = stage.querySelector(".slide-category");
+    var catOn = !!(allow && !isDisplayBlock && cat && cat.style.display !== "none");
+    setElEditable(cat, catOn);
+
+    var q = stage.querySelector(".slide-question");
+    setElEditable(q, allow);
+
+    stage.querySelectorAll(".slide-option-body").forEach(function (el) {
+      setElEditable(el, !!(allow && eff === "multiple-choice"));
+    });
+
+    stage.querySelectorAll(".slide-option-pair-left").forEach(function (el) {
+      setElEditable(el, !!(allow && eff === "matching"));
+    });
+    stage.querySelectorAll(".slide-option-pair-right").forEach(function (el) {
+      setElEditable(el, !!(allow && eff === "matching"));
+    });
+
+    var disp = stage.querySelector(".slide-display-content");
+    if (disp) {
+      var complex = disp.querySelector(".slide-rules-grid");
+      setElEditable(disp, !!(allow && eff === "display" && !complex));
+    }
+
+    var ansExcluded = ["multiple-choice", "display", "ordering", "matching", "feud-question"];
+    var ansParts = getAnswerPreviewParts();
+    var ansEl = ansParts.value;
+    var ansOk =
+      !!(allow && ansExcluded.indexOf(eff) === -1 && ansEl && ansParts.wrap);
+    var revealOk = m === "reveal";
+    var wrapShown = ansParts.wrap && ansParts.wrap.style.display !== "none";
+    setElEditable(ansEl, !!(ansOk && revealOk && wrapShown));
   }
 
   function bindEvents() {
@@ -237,10 +468,13 @@
 
   // ─── Title Slide ───────────────────────────────────────────────
 
-  function renderTitleSlide() {
+  /**
+   * @param {{ eyebrow?: string, heading?: string }} [payload]  from app (show title + saved eyebrow); omit for filmstrip thumb
+   */
+  function renderTitleSlide(payload) {
     if (!dom || !dom.previewStage) return;
 
-    // Clear any block-type styling left from a previous slide
+    dom.previewStage.dataset.writerPreviewView = "title";
     dom.previewStage.removeAttribute("data-block-type");
 
     var overlay = dom.previewStage.querySelector(".slide-title-overlay");
@@ -249,6 +483,28 @@
       dom.previewStage.appendChild(overlay);
     }
     overlay.style.display = "flex";
+
+    var eyebrow = "Beach Trivia Presents";
+    var heading = "Trivia Night";
+    if (payload) {
+      if (payload.eyebrow != null && String(payload.eyebrow).trim()) {
+        eyebrow = String(payload.eyebrow);
+      }
+      if (payload.heading != null && String(payload.heading).trim()) {
+        heading = String(payload.heading);
+      }
+    } else if (window.WriterQuestionForm && typeof WriterQuestionForm.getFormData === "function") {
+      var st = String((WriterQuestionForm.getFormData().show || {}).title || "").trim();
+      if (st) heading = st;
+    }
+
+    var eyebrowEl = overlay.querySelector('[data-title-part="eyebrow"]');
+    var headingEl = overlay.querySelector('[data-title-part="heading"]');
+    if (eyebrowEl) eyebrowEl.textContent = eyebrow;
+    if (headingEl) headingEl.textContent = heading;
+
+    var isThumb = dom.previewStage.classList.contains("thumb-preview-stage");
+    applyTitleSlideInlineChrome(!isThumb);
   }
 
   function _buildTitleOverlay() {
@@ -265,6 +521,7 @@
     lineL.className = "title-slide-eyebrow-line";
     var eyebrow = document.createElement("div");
     eyebrow.className = "title-slide-eyebrow";
+    eyebrow.setAttribute("data-title-part", "eyebrow");
     eyebrow.textContent = "Beach Trivia Presents";
     var lineR = document.createElement("div");
     lineR.className = "title-slide-eyebrow-line";
@@ -275,6 +532,7 @@
     // Heading
     var heading = document.createElement("div");
     heading.className = "title-slide-heading";
+    heading.setAttribute("data-title-part", "heading");
     heading.textContent = "Trivia Night";
 
     // Center row: QR — Logo — QR
@@ -324,8 +582,33 @@
 
   function _hideTitleOverlay() {
     if (!dom || !dom.previewStage) return;
+    applyTitleSlideInlineChrome(false);
     var overlay = dom.previewStage.querySelector(".slide-title-overlay");
     if (overlay) overlay.style.display = "none";
+    dom.previewStage.dataset.writerPreviewView = "";
+  }
+
+  function applyTitleSlideInlineChrome(on) {
+    if (!dom || !dom.previewStage) return;
+    var overlay = dom.previewStage.querySelector(".slide-title-overlay");
+    if (!overlay) return;
+    ["eyebrow", "heading"].forEach(function (part) {
+      var el = overlay.querySelector('[data-title-part="' + part + '"]');
+      if (!el) return;
+      if (on) {
+        el.contentEditable = "true";
+        el.spellcheck = false;
+        el.classList.add("preview-inline-editable");
+        if (!el.getAttribute("aria-label")) {
+          el.setAttribute("aria-label", "Edit on slide");
+        }
+      } else {
+        el.contentEditable = "false";
+        el.spellcheck = true;
+        el.classList.remove("preview-inline-editable");
+        el.removeAttribute("aria-label");
+      }
+    });
   }
 
   // ───────────────────────────────────────────────────────────────
@@ -370,7 +653,8 @@
       data.block.orderingItems || [],
       mode,
       data.block.answerText || "",
-      data.block.feudAnswers || []
+      data.block.feudAnswers || [],
+      { blockType: data.block.type || "", categories: data.block.categories || [] }
     );
     renderAnswer(data.block.answerText || "", effectiveType);
     renderNotes(data.block.questionNotes || "");
@@ -415,6 +699,14 @@
       var ansParts = getAnswerPreviewParts();
       if (ansParts.wrap) ansParts.wrap.style.display = "none";
     }
+
+    applyPreviewInlineChrome(
+      !renderOpts.skipToolbar,
+      data,
+      effectiveType,
+      mode,
+      isDisplayBlock
+    );
   }
 
   function renderMedia(questionType, imageUrl, audioUrl) {
@@ -788,8 +1080,12 @@
     if (prevBtn) prevBtn.disabled = _feudRevealCount <= 0;
   }
 
-  function renderOptions(questionType, options, matchingPairs, orderingItems, mode, answerText, feudAnswers) {
+  function renderOptions(questionType, options, matchingPairs, orderingItems, mode, answerText, feudAnswers, extra) {
     if (!dom || !dom.previewOptions) return;
+
+    var extraOpts = extra || {};
+    var blockType = String(extraOpts.blockType || "").toLowerCase();
+    var categories = Array.isArray(extraOpts.categories) ? extraOpts.categories : [];
 
     const normalizedType = String(questionType || "").trim().toLowerCase();
     const isReveal = String(mode || "").toLowerCase() === "reveal";
@@ -798,6 +1094,27 @@
     dom.previewOptions.classList.remove("slide-options-display");
     dom.previewOptions.classList.remove("slide-options--dense");
     dom.previewOptions.classList.remove("slide-options-feud");
+
+    // Category slides: render category chips instead of generic display content
+    if (blockType === "category-slide" && normalizedType === "display") {
+      var filledCats = categories.filter(function (c) { return String(c || "").trim(); });
+      if (!filledCats.length) {
+        dom.previewOptions.style.display = "none";
+        return;
+      }
+      dom.previewOptions.style.display = "";
+      dom.previewOptions.classList.add("slide-options-display");
+      var grid = document.createElement("div");
+      grid.className = "cat-chips-grid";
+      filledCats.forEach(function (cat) {
+        var chip = document.createElement("span");
+        chip.className = "cat-chip";
+        chip.textContent = cat;
+        grid.appendChild(chip);
+      });
+      dom.previewOptions.appendChild(grid);
+      return;
+    }
 
     if (normalizedType === "multiple-choice") {
       const normalizedOptions = Array.isArray(options) ? options.filter(Boolean) : [];
@@ -817,6 +1134,7 @@
         key.textContent = String.fromCharCode(65 + index);
 
         const text = document.createElement("span");
+        text.className = "slide-option-body";
         text.textContent = option;
 
         if (isCorrect) {

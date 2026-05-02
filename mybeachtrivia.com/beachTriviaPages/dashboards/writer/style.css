@@ -903,6 +903,14 @@ textarea {
   margin-bottom: 6px;
 }
 
+.template-builder-head-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .template-builder-head strong {
   font-size: 12px;
   font-weight: 700;
@@ -1305,6 +1313,23 @@ textarea {
   max-width: 100%;
   min-width: 0;
   word-break: break-word;
+}
+
+/* Slide Preview: Google Slides–style inline editing (syncs to sidebar via preview.js) */
+.preview-stage .preview-inline-editable {
+  outline: none;
+  cursor: text;
+  border-radius: clamp(4px, 0.5cqw, 8px);
+  transition: box-shadow 0.12s ease, background-color 0.12s ease;
+}
+
+.preview-stage .preview-inline-editable:focus {
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.55);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.thumb-preview-stage .preview-inline-editable {
+  cursor: default;
 }
 
 /* Modes toggled from preview.js (replaces vw-based inline styles; matches slide canvas) */
@@ -2701,7 +2726,7 @@ textarea {
   gap: 8px;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 2px 2px 6px;
+  padding: 2px 10px 8px;
   scrollbar-width: thin;
   scrollbar-color: rgba(148, 163, 184, 0.25) transparent;
   min-height: 98px;
@@ -2740,6 +2765,7 @@ textarea {
   flex-direction: column;
   gap: 3px;
   cursor: pointer;
+  position: relative;
 }
 
 .filmstrip-thumb-stage {
@@ -2992,9 +3018,34 @@ textarea {
   cursor: grabbing;
 }
 
-.filmstrip-thumb.drag-over .filmstrip-thumb-stage {
-  border-color: #0ea5e9;
-  box-shadow: -3px 0 0 0 #0ea5e9;
+/* Insert position: vertical bar in the gap between thumbs (midpoint hit-test in app.js) */
+.filmstrip-thumb.filmstrip-drop-before::before,
+.filmstrip-thumb.filmstrip-drop-after::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: linear-gradient(
+    180deg,
+    #38bdf8 0%,
+    #0ea5e9 55%,
+    #0284c7 100%
+  );
+  border-radius: 2px;
+  box-shadow:
+    0 0 0 1px rgba(14, 165, 233, 0.5),
+    0 0 12px rgba(56, 189, 248, 0.75);
+  z-index: 6;
+  pointer-events: none;
+}
+
+.filmstrip-thumb.filmstrip-drop-before::before {
+  left: -6px;
+}
+
+.filmstrip-thumb.filmstrip-drop-after::after {
+  right: -6px;
 }
 
 /* ── Filmstrip: plus / add button ── */
@@ -3031,24 +3082,71 @@ textarea {
   border: 1px solid rgba(148, 163, 184, 0.2);
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
-  padding: 4px;
+  padding: 0;
   z-index: 9999;
-  min-width: 190px;
+  min-width: 208px;
+  max-width: min(320px, calc(100vw - 16px));
   display: flex;
   flex-direction: column;
-  gap: 1px;
-  max-height: 80vh;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
-.slide-type-group-header {
+.slide-type-popover-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 6px 8px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  flex-shrink: 0;
+}
+
+.slide-type-tab {
+  flex: 1 1 auto;
+  min-width: min(104px, 100%);
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: rgba(148, 163, 184, 0.5);
-  padding: 8px 12px 3px;
-  pointer-events: none;
+  letter-spacing: 0.04em;
+  color: rgba(148, 163, 184, 0.75);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 6px 8px;
+  cursor: pointer;
+  line-height: 1.25;
+  text-align: center;
+  transition: color 0.12s, background 0.12s, border-color 0.12s;
+}
+
+.slide-type-tab:hover {
+  color: #e2e8f0;
+  background: rgba(148, 163, 184, 0.08);
+}
+
+.slide-type-tab.active {
+  color: #e2e8f0;
+  background: rgba(14, 165, 233, 0.12);
+  border-color: rgba(14, 165, 233, 0.35);
+}
+
+.slide-type-popover-panels {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+}
+
+.slide-type-panel {
+  display: none;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.slide-type-panel.active {
+  display: flex;
 }
 
 .slide-type-option {
@@ -3866,9 +3964,48 @@ textarea {
   background: var(--panel-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  cursor: pointer;
+  cursor: grab;
   transition: border-color 0.15s, background 0.15s;
   min-width: 0;
+  position: relative;
+}
+
+.qlist-card:active {
+  cursor: grabbing;
+}
+
+/* Slides-tab list: reorder drop line (horizontal bar between stacked cards) */
+.qlist-card.qlist-drop-before::before,
+.qlist-card.qlist-drop-after::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(
+    90deg,
+    #0284c7 0%,
+    #0ea5e9 45%,
+    #38bdf8 100%
+  );
+  border-radius: 2px;
+  box-shadow:
+    0 0 0 1px rgba(14, 165, 233, 0.5),
+    0 0 12px rgba(56, 189, 248, 0.75);
+  z-index: 3;
+  pointer-events: none;
+}
+
+.qlist-card.qlist-drop-before::before {
+  top: -5px;
+}
+
+.qlist-card.qlist-drop-after::after {
+  bottom: -5px;
+}
+
+.qlist-card.qlist-dragging {
+  opacity: 0.38;
 }
 
 .qlist-card:hover {
@@ -3998,4 +4135,77 @@ textarea {
   text-overflow: ellipsis;
   flex: 1 1 auto;
   min-width: 0;
+}
+
+/* ── Category-slide form panel visibility ──────────────────────── */
+
+/* By default hide the category-slide panel; show it only when active */
+#category-slide-panel { display: none; }
+
+#tab-question-details[data-block-type="category-slide"] #category-slide-panel { display: block; }
+
+/* When a category slide is active, hide the unrelated question sections */
+#tab-question-details[data-block-type="category-slide"] #question-type-panel { display: none; }
+#tab-question-details[data-block-type="category-slide"] .question-text-field-row,
+#tab-question-details[data-block-type="category-slide"] #answer-section          { display: none; }
+
+/* Category inputs grid */
+.cat-slide-inputs-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+.cat-slide-cat-input {
+  width: 100%;
+  padding: 7px 10px;
+  background: #0b152a;
+  border: 1px solid rgba(148,163,184,0.22);
+  border-radius: 8px;
+  color: #f8fafc;
+  font-size: 13px;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+.cat-slide-cat-input:focus {
+  outline: none;
+  border-color: rgba(56,189,248,0.55);
+}
+.cat-slide-cat-input[data-autofilled="true"] {
+  border-color: rgba(56,189,248,0.3);
+  color: #bae6fd;
+}
+
+/* ── Category chips in slide preview ───────────────────────────── */
+.preview-stage[data-block-type="category-slide"] .slide-options-display {
+  padding: 0;
+  background: none;
+  border: none;
+}
+.cat-chips-grid {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(5px, 0.9cqw, 10px);
+  width: 100%;
+}
+.cat-chip {
+  display: block;
+  padding: clamp(6px, 1cqw, 10px) clamp(10px, 1.6cqw, 18px);
+  background: rgba(14,165,233,0.12);
+  border: 1px solid rgba(56,189,248,0.3);
+  border-radius: clamp(6px, 1cqw, 10px);
+  color: #e0f2fe;
+  font-size: clamp(11px, 1.8cqw, 18px);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cat-chip-placeholder {
+  color: rgba(148,163,184,0.45);
+  font-style: italic;
+  font-weight: 400;
+  background: none;
+  border: 1px dashed rgba(148,163,184,0.2);
 }

@@ -11,7 +11,7 @@
   <script src="/beachTriviaPages/js/bt-nav.js" defer></script>
 
   <!-- Writer styles -->
-  <link rel="stylesheet" href="style.css?v=writer-20260429-slide-type-tabs" />
+  <link rel="stylesheet" href="style.css?v=writer-20260502-category-slide-form" />
 
   <!-- PPTX export -->
   <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3/dist/pptxgen.bundle.js" defer></script>
@@ -254,7 +254,35 @@
             <button class="btn btn-danger btn-sm" type="button" id="btn-clear-form">Clear Form</button>
           </div>
 
-          <div class="section-block">
+          <!-- Category Slide panel — visible only when a category-slide block is active -->
+          <div class="section-block" id="category-slide-panel">
+            <div class="section-label">
+              <h3>Category Slide</h3>
+              <span class="subtle-chip">Auto-fills from round</span>
+            </div>
+            <div class="field">
+              <label for="cat-slide-round-name">Round Name</label>
+              <input id="cat-slide-round-name" type="text" placeholder="Round 1" autocomplete="off" />
+            </div>
+            <div class="field" style="margin-top:12px;">
+              <label>
+                Categories
+                <span class="subtle-chip" id="cat-slide-autofill-badge" style="display:none;">auto-filled</span>
+              </label>
+              <div id="cat-slide-inputs" class="cat-slide-inputs-grid">
+                <input class="cat-slide-cat-input" type="text" placeholder="Category 1" data-cat-idx="0" autocomplete="off" />
+                <input class="cat-slide-cat-input" type="text" placeholder="Category 2" data-cat-idx="1" autocomplete="off" />
+                <input class="cat-slide-cat-input" type="text" placeholder="Category 3" data-cat-idx="2" autocomplete="off" />
+                <input class="cat-slide-cat-input" type="text" placeholder="Category 4" data-cat-idx="3" autocomplete="off" />
+                <input class="cat-slide-cat-input" type="text" placeholder="Category 5" data-cat-idx="4" autocomplete="off" />
+              </div>
+              <p class="answer-type-hint" style="margin-top:6px;">
+                Slots auto-fill as you add question slides to this round. You can override any slot manually.
+              </p>
+            </div>
+          </div>
+
+          <div class="section-block" id="question-type-panel">
             <div class="section-label">
               <h3>Question Type</h3>
             </div>
@@ -288,7 +316,7 @@
               </div>
             </div>
 
-            <div class="field" style="margin-top: 12px;">
+            <div class="field question-text-field-row" style="margin-top: 12px;">
               <label for="question-text">Question</label>
               <div class="toolbar" role="toolbar" aria-label="Question formatting toolbar">
                 <div class="toolbar-group">
@@ -784,8 +812,8 @@
   <!-- JS modules — load order: form → builder → preview → app -->
   <script src="js/question-form.js?v=writer-20260502-title-inline-edit" defer></script>
   <script src="js/block-builder.js?v=writer-20260502-category-slide-kind-fix" defer></script>
-  <script src="js/preview.js?v=writer-20260502-title-inline-edit" defer></script>
-  <script src="app.js?v=writer-20260502-category-slide-defaults" defer></script>
+  <script src="js/preview.js?v=writer-20260502-category-chips" defer></script>
+  <script src="app.js?v=writer-20260502-category-slide-form" defer></script>
 
 </body>
 </html>
