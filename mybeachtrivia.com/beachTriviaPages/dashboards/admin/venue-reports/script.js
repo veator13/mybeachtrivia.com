@@ -249,8 +249,10 @@
   // ── Revenue projection heatmap ────────────────────────────────────────────
   function updateTeamsSlider(teams) {
     const slider = $('#teams-slider');
+    const input = $('#teams-input');
     const label = $('#teams-slider-value');
     if (slider) slider.value = teams;
+    if (input) input.value = teams;
     if (label) label.textContent = teams;
   }
 
@@ -323,20 +325,24 @@
 
     $('#generate-btn')?.addEventListener('click', generateReport);
 
-    // Teams slider
+    // Teams slider + manual input (keep in sync)
     const teamsSlider = $('#teams-slider');
-    const teamsLabel = $('#teams-slider-value');
-    if (teamsSlider) {
-      teamsSlider.addEventListener('input', () => {
-        const t = parseInt(teamsSlider.value, 10);
-        if (teamsLabel) teamsLabel.textContent = t;
-        state.projectionTeams = t;
-        if (state.reportLoaded) {
-          const maxSpend = parseFloat($('#max-spend')?.value) || 60;
-          renderHeatmap(state.avgTeams, maxSpend, state.projectionEvents, t);
-        }
-      });
+    const teamsInput = $('#teams-input');
+
+    function applyTeams(t) {
+      t = Math.max(3, Math.min(100, t));
+      if (isNaN(t)) return;
+      updateTeamsSlider(t);
+      state.projectionTeams = t;
+      if (state.reportLoaded) {
+        const maxSpend = parseFloat($('#max-spend')?.value) || 60;
+        renderHeatmap(state.avgTeams, maxSpend, state.projectionEvents, t);
+      }
     }
+
+    teamsSlider?.addEventListener('input', () => applyTeams(parseInt(teamsSlider.value, 10)));
+    teamsInput?.addEventListener('input', () => applyTeams(parseInt(teamsInput.value, 10)));
+    teamsInput?.addEventListener('change', () => applyTeams(parseInt(teamsInput.value, 10)));
 
     // Period toggles
     document.querySelectorAll('.period-btn').forEach((btn) => {
