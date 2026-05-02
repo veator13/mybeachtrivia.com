@@ -1459,6 +1459,8 @@
       label: "Structure",
       types: [
         { value: "title",           label: "Title Slide"          },
+        { value: "trivia-rules",    label: "Trivia Rules"         },
+        { value: "feud-rules",      label: "Feud Rules"           },
         { value: "intro-slide",     label: "Intro / Show Start"   },
         { value: "category-slide",  label: "Category Header"      },
         { value: "halftime",        label: "Halftime"             },
@@ -1511,6 +1513,59 @@
       showState.blocks.unshift(newTitleSlideBlockEntry());
       rebuildFlatSlides();
       navigateToSlide(0);
+      renderFilmstrip();
+      updateStatCounters();
+      markDirty();
+      switchToTab("questions");
+      return;
+    }
+
+    // ── Rules slides: create pre-populated intro-slide blocks ─────
+    if (slideTypeValue === "trivia-rules" || slideTypeValue === "feud-rules") {
+      var isFR = slideTypeValue === "feud-rules";
+      var rulesFormData = {
+        show: showMeta,
+        block: {
+          type: "intro-slide",
+          questionType: "display",
+          roundName: "Rules",
+          categoryName: "How to Play",
+          questionText: isFR ? "Beach Feud Rules" : "Rules of the Game",
+          answerText: isFR
+            ? "• Each team faces off on a survey question.\n" +
+              "• Top answer = 8 pts, descending by rank.\n" +
+              "• Answers are revealed one at a time.\n" +
+              "• 4 rounds, 5 questions per round.\n" +
+              "• Halftime question after Round 2.\n" +
+              "• Final question to close the show.\n" +
+              "• Good luck and have fun!"
+            : "• Grab a packet and pen before we begin.\n" +
+              "• 4 rounds total, 5 questions per round.\n" +
+              "• One halftime specialty question after Round Two.\n" +
+              "• One final question after Round Four.\n" +
+              "• Thank-you slide at the end of the night.\n" +
+              "• Categories are announced at the start of each round.\n" +
+              "• About 1 minute per question.\n" +
+              "• Hold your answer slip until the end of the round.\n" +
+              "• After all 5 questions, questions are repeated once.\n" +
+              "• You get 1.5 minutes to turn in your slip.\n" +
+              "• Put your team name on every slip.\n" +
+              "• No cell phones (bathroom use still counts as cheating).\n" +
+              "• No shouting out answers.\n" +
+              "• Scoring: Round 1 = 1 pt, Round 2 = 2 pts, Round 3 = 3 pts, Round 4 = 4 pts.\n" +
+              "• Ask the host anytime if you need help.\n" +
+              "• Good luck and have fun!",
+          questionNotes: isFR ? "Beach Feud house rules slide." : "Default how-to-play script for host rules slide.",
+          themeStyle: "Standard Trivia",
+          fontSizeMode: "Auto Fit",
+          feudAnswers: [],
+        },
+      };
+      var rulesBlock = WriterBlockBuilder.createBlockByType("intro-slide", rulesFormData);
+      showState.blocks.push({ block: rulesBlock, formData: rulesFormData });
+      rebuildFlatSlides();
+      var rulesIdx = showState.flatSlides.length - rulesBlock.slides.length;
+      navigateToSlide(rulesIdx);
       renderFilmstrip();
       updateStatCounters();
       markDirty();
