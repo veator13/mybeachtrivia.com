@@ -130,15 +130,10 @@
       state.lastEventDate = lastDate;
       state.reportLoaded = true;
 
-      // Default slider to rounded avg teams
-      const roundedAvg = Math.max(3, Math.min(100, Math.round(avgTeams)));
-      state.projectionTeams = roundedAvg;
-      updateTeamsSlider(roundedAvg);
-
       const venueLabel = venueFilter || 'All Venues';
       renderStats(docs.length, avgTeams, totalTeams, lastDate);
       renderTrendChart(docs, avgTeams, venueLabel, dateStart, dateEnd);
-      renderHeatmap(avgTeams, maxSpend, state.projectionEvents, roundedAvg);
+      renderHeatmap(avgTeams, maxSpend, state.projectionEvents, state.projectionTeams);
 
       if (statusEl) statusEl.textContent = '';
     } catch (err) {
