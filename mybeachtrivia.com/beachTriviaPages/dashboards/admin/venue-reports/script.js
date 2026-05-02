@@ -256,8 +256,8 @@
     for (let s = 20; s <= maxSpend; s += 5) spendSteps.push(s);
     if (!spendSteps.length) spendSteps.push(5);
 
-    // Compute max revenue for gradient scaling
-    const maxRevenue = avgTeams * 10 * (spendSteps[spendSteps.length - 1]) * events;
+    // Compute max revenue for gradient scaling (players × spend × events, no avg-teams multiplier)
+    const maxRevenue = 10 * (spendSteps[spendSteps.length - 1]) * events;
 
     function cellColor(revenue) {
       const ratio = Math.min(revenue / maxRevenue, 1);
@@ -276,7 +276,7 @@
     spendSteps.forEach((spend) => {
       html += `<tr><td class="heatmap-label">$${spend}/player</td>`;
       playersRange.forEach((players) => {
-        const revenue = avgTeams * players * spend * events;
+        const revenue = players * spend * events;
         const bg = cellColor(revenue);
         html += `<td style="background:${bg};">$${revenue.toFixed(0)}</td>`;
       });
