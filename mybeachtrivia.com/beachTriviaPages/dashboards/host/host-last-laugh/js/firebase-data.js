@@ -1,5 +1,5 @@
 // firebase-data.js — Last Laugh host data layer
-import { initializeApp, getApp, getApps } from 'https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js';
+import { initializeApp, getApp, getApps } from 'https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js';
 import {
   getFirestore,
   collection, doc,
@@ -7,10 +7,10 @@ import {
   onSnapshot,
   serverTimestamp,
   query, orderBy
-} from 'https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js';
+} from 'https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js';
 import {
-  getAuth, onAuthStateChanged, setPersistence, browserLocalPersistence
-} from 'https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js';
+  getAuth, onAuthStateChanged
+} from 'https://www.gstatic.com/firebasejs/11.4.0/firebase-auth.js';
 
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyDBKCotY1F943DKfVQqKOGPPkAkQe2Zgog",
@@ -27,7 +27,6 @@ let _db, _auth;
   const app = getApps().length ? getApp() : initializeApp(FIREBASE_CONFIG);
   _db = getFirestore(app);
   _auth = getAuth(app);
-  setPersistence(_auth, browserLocalPersistence).catch(() => {});
 })();
 
 let _authPromise = null;
