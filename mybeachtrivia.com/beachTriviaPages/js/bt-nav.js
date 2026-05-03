@@ -157,6 +157,33 @@
     return value.replace(/\/+$/, '') || '/';
   }
 
+  // Infer which role a given pathname belongs to by checking each role's nav links.
+  // Returns the role string or null if the path doesn't match any role's section.
+  function detectRoleFromPath(pathname) {
+    const p = normalizePath(pathname);
+    for (const role of ROLE_PRIORITY) {
+      if (role === 'host') continue; // check host last — its Dashboard prefix is broad
+      const links = NAV_LINKS[role] || [];
+      for (const link of links) {
+        if (!link.href) continue;
+        const t = normalizePath(link.href);
+        if (t !== '/' && (p === t || p.startsWith(t + '/'))) return role;
+      }
+    }
+    // Host section (nav links + extra section prefixes)
+    const hostLinks = NAV_LINKS.host || [];
+    for (const link of hostLinks) {
+      if (!link.href) continue;
+      const t = normalizePath(link.href);
+      if (t !== '/' && (p === t || p.startsWith(t + '/'))) return 'host';
+    }
+    for (const prefix of HOST_EVENT_SECTION_PATH_PREFIXES) {
+      const t = normalizePath(prefix);
+      if (p === t || p.startsWith(t + '/')) return 'host';
+    }
+    return null;
+  }
+
   function isPathMatch(currentPath, href) {
     const current = normalizePath(currentPath);
     const target = normalizePath(href);
@@ -549,7 +576,11 @@
 
           const emp = snap.data() || {};
           const roles = extractRoles(emp);
-          const preferredRole = getActiveRole(roles);
+          // Prefer the role that owns the current page section over the persisted choice.
+          const pathRole = detectRoleFromPath(window.location.pathname);
+          const preferredRole = (pathRole && roles.includes(pathRole))
+            ? pathRole
+            : getActiveRole(roles);
           const name = getDisplayName(emp);
 
           try {
@@ -1396,11 +1427,19 @@
     const cached = getCachedEmployee();
     const emp = cached ? (cached.emp || {}) : {};
     const roles = extractRoles(emp);
-    const activeRole = getActiveRole(roles);
+
+    // Prefer the current page's role section so the nav matches the page you're on.
+    // Only fall back to persisted/default when the path doesn't map to a known section.
+    const pathRole = detectRoleFromPath(window.location.pathname);
+    const activeRole = (pathRole && (roles.length === 0 || roles.includes(pathRole)))
+      ? pathRole
+      : getActiveRole(roles);
     const links = activeRole === 'host' ? getHostNavLinks() : (NAV_LINKS[activeRole] || getHostNavLinks());
     const displayName = getDisplayName(emp);
 
-    saveActiveRole(activeRole);
+    // Only persist the role when we have real role data from cache.
+    // On a cold cache (roles=[]), saving would overwrite a valid persisted role with 'host'.
+    if (roles.length > 0) saveActiveRole(activeRole);
 
     const built = buildNav(links, displayName, roles, activeRole);
     const nav = built.nav;
