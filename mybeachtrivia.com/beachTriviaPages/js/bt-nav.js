@@ -568,14 +568,58 @@
           const du = document.getElementById('bt-nav-drawer-username');
           if (du && name) du.textContent = name;
 
-          const desktopSel = document.getElementById('bt-nav-role-select');
-          if (desktopSel && roles.includes(preferredRole)) {
-            desktopSel.value = preferredRole;
+          const sortedFreshRoles = ROLE_PRIORITY.filter(function (r) {
+            return roles.includes(r);
+          });
+
+          let desktopSel = document.getElementById('bt-nav-role-select');
+          if (sortedFreshRoles.length > 1) {
+            if (!desktopSel) {
+              desktopSel = document.createElement('select');
+              desktopSel.className = 'bt-nav__role-select';
+              desktopSel.id = 'bt-nav-role-select';
+              desktopSel.setAttribute('aria-label', 'Switch role');
+              sortedFreshRoles.forEach(function (r) {
+                const opt = document.createElement('option');
+                opt.value = r;
+                opt.textContent = ROLE_LABELS[r] || r;
+                if (r === preferredRole) opt.selected = true;
+                desktopSel.appendChild(opt);
+              });
+              desktopSel.addEventListener('change', function () {
+                handleRoleSwitch(this.value);
+              });
+              const right = document.querySelector('#bt-nav .bt-nav__right');
+              const bellWrap = right && right.querySelector('.bt-nav__bell-wrap');
+              if (right) right.insertBefore(desktopSel, bellWrap || right.firstChild);
+            } else if (roles.includes(preferredRole)) {
+              desktopSel.value = preferredRole;
+            }
           }
 
-          const drawerSel = document.getElementById('bt-nav-drawer-role-select');
-          if (drawerSel && roles.includes(preferredRole)) {
-            drawerSel.value = preferredRole;
+          let drawerSel = document.getElementById('bt-nav-drawer-role-select');
+          const drawer = document.getElementById('bt-nav-drawer');
+          if (sortedFreshRoles.length > 1) {
+            if (!drawerSel && drawer) {
+              drawerSel = document.createElement('select');
+              drawerSel.className = 'bt-nav__drawer-role-select';
+              drawerSel.id = 'bt-nav-drawer-role-select';
+              drawerSel.setAttribute('aria-label', 'Switch role');
+              sortedFreshRoles.forEach(function (r) {
+                const opt = document.createElement('option');
+                opt.value = r;
+                opt.textContent = ROLE_LABELS[r] || r;
+                if (r === preferredRole) opt.selected = true;
+                drawerSel.appendChild(opt);
+              });
+              drawerSel.addEventListener('change', function () {
+                handleRoleSwitch(this.value);
+              });
+              const drawerUser = drawer.querySelector('.bt-nav__drawer-user');
+              drawer.insertBefore(drawerSel, drawerUser ? drawerUser.nextSibling : drawer.firstChild);
+            } else if (drawerSel && roles.includes(preferredRole)) {
+              drawerSel.value = preferredRole;
+            }
           }
 
           updateNavLinks(preferredRole === 'host' ? getHostNavLinks() : (NAV_LINKS[preferredRole] || getHostNavLinks()));
