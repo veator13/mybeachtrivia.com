@@ -358,9 +358,15 @@
 
       var _castLastFeudReveal = null;
       var _castLastStateKey = null;
+      var _castPendingHide = null;
+
+      function _cancelCastHide() {
+        if (_castPendingHide) { _castPendingHide.abort(); _castPendingHide = null; }
+      }
 
       function paintFromDoc(data) {
         if (!castStage || !window.BeachTriviaSlidePaint) return;
+        _cancelCastHide();
         lastSessionData = data;
         var slide = sessionDocToSlide(data || {});
         var reveal = !!(data && data.revealShown) || !!slide.alwaysReveal;
@@ -404,13 +410,22 @@
                 return;
               }
               var inner = row.querySelector(".slide-feud-row-flip-inner");
-              var done = false; var tid = null;
+              var aborted = false; var done = false; var tid = null;
               var s = slide; var r = reveal;
               function finish() {
                 if (done) return; done = true;
                 if (tid) { clearTimeout(tid); tid = null; }
-                window.BeachTriviaSlidePaint.paintSlide(castStage, s, r);
+                _castPendingHide = null;
+                if (!aborted) window.BeachTriviaSlidePaint.paintSlide(castStage, s, r);
               }
+              _castPendingHide = {
+                abort: function () {
+                  aborted = true;
+                  if (tid) { clearTimeout(tid); tid = null; }
+                  if (inner) inner.removeEventListener("transitionend", onEnd);
+                  _castPendingHide = null;
+                }
+              };
               if (inner) {
                 var onEnd = function (e) {
                   if (e && e.propertyName && e.propertyName.indexOf("transform") === -1) return;
