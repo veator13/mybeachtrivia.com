@@ -196,8 +196,9 @@ main {
 
 .venue-combo__item{
     display: block;
+    position: relative;
     width: 100%;
-    padding: 8px 12px;
+    padding: 8px 12px 8px 28px;
     border-radius: 8px;
     border: 1px solid transparent;
     background: transparent;
@@ -208,9 +209,16 @@ main {
     text-align: left;
 }
 
-.venue-combo__item:hover,
-.venue-combo__item[aria-selected="true"]{
-    /* macOS-ish blue highlight */
+/* Committed selection: checkmark, no background */
+.venue-combo__item[aria-selected="true"]::before{
+    content: '\2713';
+    position: absolute;
+    left: 10px;
+}
+
+/* Keyboard-active / hover: blue highlight */
+.venue-combo__item[data-active="true"],
+.venue-combo__item:hover{
     background: #0a66ff;
     border-color: rgba(255, 255, 255, 0.16);
 }

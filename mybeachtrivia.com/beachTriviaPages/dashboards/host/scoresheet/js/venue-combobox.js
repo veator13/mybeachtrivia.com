@@ -137,7 +137,7 @@
       activeIndex = idx;
       Array.from(list.querySelectorAll("[data-idx]")).forEach((el) => {
         const i = parseInt(el.getAttribute("data-idx") || "-1", 10);
-        el.setAttribute("aria-selected", i === activeIndex ? "true" : "false");
+        el.setAttribute("data-active", i === activeIndex ? "true" : "false");
       });
     }
 
