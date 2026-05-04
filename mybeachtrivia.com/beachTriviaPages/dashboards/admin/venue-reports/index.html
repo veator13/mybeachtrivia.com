@@ -257,6 +257,63 @@
       min-height: 20px;
       padding: 4px 0;
     }
+
+    /* ── Scheduling report ── */
+    .scheduling-scope {
+      margin: 0 0 16px;
+      font-size: 0.9rem;
+      line-height: 1.45;
+    }
+    .sched-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .sched-summary-card {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--panel-border);
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
+    .sched-summary-card .sched-kicker {
+      font-size: 0.72rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      margin-bottom: 6px;
+    }
+    .sched-summary-card .sched-value {
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -.02em;
+    }
+    .sched-summary-card .sched-detail {
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-top: 6px;
+      line-height: 1.35;
+    }
+    .sched-subheading {
+      margin: 24px 0 12px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .sched-subheading:first-of-type { margin-top: 0; }
+    .sched-note {
+      margin: 0 0 12px;
+      font-size: 0.82rem;
+    }
+    .scheduling-chart-wrap {
+      height: 280px;
+      margin-bottom: 8px;
+    }
+    .sched-table-wrap { overflow-x: auto; }
+    .sched-month-table td:first-child {
+      text-align: left;
+      font-weight: 500;
+    }
   </style>
 </head>
 
@@ -277,7 +334,7 @@
     <header class="page-header">
       <div>
         <h1 class="page-title">📈 Venue Reports</h1>
-        <p class="page-subtitle">Attendance trends and revenue projections by venue and date range.</p>
+        <p class="page-subtitle">Attendance trends, scheduling insights, and revenue projections by venue and date range.</p>
       </div>
     </header>
 
@@ -334,6 +391,28 @@
         <div class="stat-label">Last Event</div>
       </div>
     </div>
+
+    <!-- Scheduling insights -->
+    <section class="card" aria-labelledby="scheduling-title">
+      <div class="card-head">
+        <h2 id="scheduling-title" class="card-title">Scheduling insights</h2>
+      </div>
+      <div class="card-body">
+        <p id="scheduling-scope" class="scheduling-scope muted"></p>
+        <div id="scheduling-summary" class="sched-summary-grid"></div>
+        <h3 class="sched-subheading">By day of week</h3>
+        <div class="chart-wrap scheduling-chart-wrap">
+          <canvas id="scheduling-day-chart"></canvas>
+        </div>
+        <h3 class="sched-subheading">By month</h3>
+        <div id="scheduling-month-table" class="sched-table-wrap"></div>
+        <h3 class="sched-subheading">Scoresheet submit time (local)</h3>
+        <p class="muted sched-note">Uses host submission time as a rough proxy for when the show ran.</p>
+        <div class="chart-wrap scheduling-chart-wrap">
+          <canvas id="scheduling-submit-chart"></canvas>
+        </div>
+      </div>
+    </section>
 
     <!-- Attendance Trend -->
     <section class="card" aria-labelledby="trend-title">

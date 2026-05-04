@@ -50,7 +50,7 @@ const noResultsEl = document.getElementById("locations-no-results");
 
 const venueNameEl = document.getElementById("venueName");
 const addressEl = document.getElementById("address");
-const venueNameLockHint = document.getElementById("venueNameLockHint");
+const venueNameHint = document.getElementById("venueNameHint");
 
 /////////////////////////
 // Modal helpers
@@ -77,12 +77,15 @@ function closeModal() {
   const idEl = document.getElementById("locationId");
   if (idEl) idEl.value = "";
 
-  // reset name lock UI
+  // reset venue name field + hint
   if (venueNameEl) {
     venueNameEl.disabled = false;
     venueNameEl.removeAttribute("aria-disabled");
   }
-  if (venueNameLockHint) venueNameLockHint.style.display = "none";
+  if (venueNameHint) {
+    venueNameHint.style.display = "none";
+    venueNameHint.textContent = "";
+  }
 
   const title = document.getElementById("locationModalTitle");
   if (title) title.textContent = "New Venue";
@@ -263,12 +266,15 @@ async function editLocation(id) {
   setVal("notes", loc.notes || "");
   setVal("active", loc.active === true ? "true" : "false");
 
-  // Lock name on edit to avoid breaking older shifts that reference name strings
   if (venueNameEl) {
-    venueNameEl.disabled = true;
-    venueNameEl.setAttribute("aria-disabled", "true");
+    venueNameEl.disabled = false;
+    venueNameEl.removeAttribute("aria-disabled");
   }
-  if (venueNameLockHint) venueNameLockHint.style.display = "block";
+  if (venueNameHint) {
+    venueNameHint.textContent =
+      "Renaming updates venue dropdowns and lists. Shifts and scores use this venue by ID, so they stay linked.";
+    venueNameHint.style.display = "block";
+  }
 
   openModal();
 }
@@ -342,20 +348,27 @@ async function saveLocation(e) {
     active: document.getElementById("active")?.value === "true",
   };
 
-  if (!data.name && !id) {
+  if (!data.name) {
     alert("Venue Name is required.");
     return;
   }
 
   try {
     if (id) {
-      // On update: do NOT change name (we lock it in the UI)
-      const { name, ...rest } = data;
-      await db.collection("locations").doc(id).update(rest);
+      await db.collection("locations").doc(id).update({
+        name: data.name,
+        address: data.address,
+        contactName: data.contactName,
+        phone: data.phone,
+        email: data.email,
+        schedule: data.schedule,
+        notes: data.notes,
+        active: data.active,
+      });
 
       await db.collection("publicLocations").doc(id).set(
         buildPublicLocationPayload({
-          name: locationsCache.find((x) => x.id === id)?.name || "",
+          name: data.name,
           address: data.address,
           active: data.active,
         }),

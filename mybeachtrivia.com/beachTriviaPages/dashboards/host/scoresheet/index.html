@@ -11,7 +11,7 @@
     </script>
 
     <!-- Main stylesheet (versioned) -->
-    <link rel="stylesheet" href="style.css?v=20260223-07" />
+    <link rel="stylesheet" href="style.css?v=20260504-venue-combo2" />
   <!-- Unified nav bar -->
   <link rel="stylesheet" href="/beachTriviaPages/js/bt-nav.css">
   <script src="/beachTriviaPages/js/bt-nav.js?v=hostnav-20260424-3" defer></script>
@@ -39,6 +39,7 @@
     <script src="js/firebase.js?v=20260218-04" defer></script>
     <script src="js/venues.js?v=20260501-01" defer></script>
     <script src="js/meta-fields.js?v=20260218-04" defer></script>
+    <script src="js/venue-combobox.js?v=20260504-venue-combo2" defer></script>
 
     <!-- IMPORTANT: sticky/bonus utilities must load BEFORE table-build.js -->
     <script src="js/ui-sticky-bonus.js?v=20260218-04" defer></script>
@@ -142,10 +143,25 @@
             </div>
 
             <div class="meta-field">
-              <label for="venueSelect">Venue</label>
+              <label for="venueComboInput">Venue</label>
 
               <!-- ONLINE: dropdown + (conditional) other input -->
               <div class="venue-row">
+                <!-- Combo-box (type to filter + click to select) -->
+                <div id="venueCombo" class="venue-combo" role="combobox" aria-haspopup="listbox" aria-expanded="false">
+                  <input
+                    type="text"
+                    id="venueComboInput"
+                    name="venueComboInput"
+                    placeholder="Choose…"
+                    autocomplete="off"
+                    spellcheck="false"
+                    aria-autocomplete="list"
+                    aria-controls="venueComboList"
+                  />
+                  <div id="venueComboList" class="venue-combo__list" role="listbox" aria-label="Venues"></div>
+                </div>
+
                 <select id="venueSelect" name="venueSelect">
                   <option value="loading" disabled selected>Loading venues...</option>
                   <option value="other">Other</option>

@@ -229,8 +229,10 @@ var standingsAscending = false;
       setAriaHidden(inlineBadge, true);
     }
 
-    // Venue swap (uses #venueSelect + #venueInput from HTML)
+    // Venue swap (uses #venueSelect + combo UI + #venueInput from HTML)
     const venueSelect = qs("venueSelect");
+    const venueCombo = qs("venueCombo");
+    const venueComboInput = qs("venueComboInput");
     const venueInput = qs("venueInput");
 
     // Optional helper text element (ignore if absent)
@@ -243,6 +245,8 @@ var standingsAscending = false;
         setHidden(venueSelect, true);
         setRequired(venueSelect, false);
       }
+      if (venueCombo) setHidden(venueCombo, true);
+      if (venueComboInput) setDisabled(venueComboInput, true);
       if (venueInput) {
         setDisabled(venueInput, false);
         setHidden(venueInput, false);
@@ -251,9 +255,11 @@ var standingsAscending = false;
     } else {
       if (venueSelect) {
         setDisabled(venueSelect, false);
-        setHidden(venueSelect, false);
+        setHidden(venueSelect, false); // select is visually hidden by CSS but still present
         setRequired(venueSelect, true);
       }
+      if (venueCombo) setHidden(venueCombo, false);
+      if (venueComboInput) setDisabled(venueComboInput, false);
       if (venueInput) {
         setDisabled(venueInput, true);
         setHidden(venueInput, true);

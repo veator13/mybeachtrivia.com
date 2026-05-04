@@ -64,11 +64,11 @@
   const ACTIVE_ROLE_KEY = 'bt:activeRole';
   const SELECTED_ROLE_KEY = 'bt:selectedRole';
   const HOST_EVENT_HREF = '/beachTriviaPages/dashboards/host/host-event/';
+  // Live-event consoles grouped under "Host Event" nav highlight (Scoresheet has its own nav link — omit).
   const HOST_EVENT_SECTION_PATH_PREFIXES = [
     '/beachTriviaPages/dashboards/host/host-music-bingo/',
     '/beachTriviaPages/dashboards/host/host-last-laugh/',
     '/beachTriviaPages/dashboards/host/host-funny-answers/',
-    '/beachTriviaPages/dashboards/host/scoresheet/',
     '/beachTriviaPages/dashboards/host/host-feud/',
     '/beachTriviaPages/dashboards/host/feud/',
   ];
@@ -192,6 +192,23 @@
     return current === target || current.startsWith(target + '/');
   }
 
+  /** Same as isPathMatch but case-insensitive (handles /beachtriviaPages/ vs /beachTriviaPages/). */
+  function isPathMatchInsensitive(currentPath, href) {
+    const current = normalizePath(currentPath).toLowerCase();
+    const target = normalizePath(href).toLowerCase();
+
+    if (target === '/') return current === '/';
+    return current === target || current.startsWith(target + '/');
+  }
+
+  function hostScoresheetHref() {
+    const hostLinks = NAV_LINKS.host || [];
+    const row = hostLinks.find(function (item) {
+      return item && item.label === 'Scoresheet';
+    });
+    return (row && row.href) ? row.href : '/beachTriviaPages/dashboards/host/scoresheet/';
+  }
+
   function getHostNavLinks() {
     return (NAV_LINKS.host || []).filter(function (item) {
       return item && item.label !== 'Music Bingo' && item.label !== 'Last Laugh';
@@ -209,7 +226,22 @@
   function markActiveLink(el) {
     if (!el) return;
 
-    const path = mapHostEventSectionPath(window.location.pathname);
+    const pathname = window.location.pathname;
+    const sheetHref = hostScoresheetHref();
+    // Always highlight Scoresheet when URL is the scoresheet — never fold under Host Event.
+    if (isPathMatchInsensitive(pathname, sheetHref)) {
+      const sheetKey = normalizePath(sheetHref).toLowerCase();
+      el.querySelectorAll('a.bt-nav__link').forEach(function (a) {
+        a.classList.remove('active');
+        const href = a.getAttribute('href') || '';
+        if (normalizePath(href).toLowerCase() === sheetKey) {
+          a.classList.add('active');
+        }
+      });
+      return;
+    }
+
+    const path = mapHostEventSectionPath(pathname);
     const normalizedPath = normalizePath(path);
     const normalizedHostEventHref = normalizePath(HOST_EVENT_HREF);
     let bestLen = -1;

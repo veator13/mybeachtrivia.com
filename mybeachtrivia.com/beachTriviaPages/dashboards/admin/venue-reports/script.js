@@ -3,6 +3,8 @@
   'use strict';
 
   // ── State ────────────────────────────────────────────────────────────────
+  const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
   const state = {
     initialized: false,
     user: null,
@@ -15,6 +17,8 @@
     totalEvents: 0,
     lastEventDate: '',
     attendanceChart: null,
+    schedulingDayChart: null,
+    schedulingSubmitChart: null,
     reportLoaded: false,
   };
 
@@ -111,6 +115,9 @@
         if (statusEl) statusEl.textContent = 'No events found for the selected filters.';
         renderStats(0, 0, 0, '');
         destroyChart();
+        destroySchedulingCharts();
+        const venueLabelEmpty = venueFilter || 'All Venues';
+        renderSchedulingReport([], venueLabelEmpty, dateStart, dateEnd);
         renderHeatmap(0, maxSpend);
         return;
       }
@@ -132,6 +139,7 @@
 
       const venueLabel = venueFilter || 'All Venues';
       renderStats(docs.length, avgTeams, totalTeams, lastDate);
+      renderSchedulingReport(docs, venueLabel, dateStart, dateEnd);
       renderTrendChart(docs, avgTeams, venueLabel, dateStart, dateEnd);
       renderHeatmap(avgTeams, maxSpend, state.projectionEvents, state.projectionTeams);
 
@@ -158,6 +166,353 @@
     if (state.attendanceChart) {
       state.attendanceChart.destroy();
       state.attendanceChart = null;
+    }
+  }
+
+  function destroySchedulingCharts() {
+    if (state.schedulingDayChart) {
+      state.schedulingDayChart.destroy();
+      state.schedulingDayChart = null;
+    }
+    if (state.schedulingSubmitChart) {
+      state.schedulingSubmitChart.destroy();
+      state.schedulingSubmitChart = null;
+    }
+  }
+
+  /** Parse YYYY-MM-DD at local noon to avoid UTC boundary shifts. */
+  function parseEventLocalDate(dateStr) {
+    const s = String(dateStr || '').trim();
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+    if (!m) return null;
+    const y = Number(m[1]);
+    const mo = Number(m[2]) - 1;
+    const d = Number(m[3]);
+    const dt = new Date(y, mo, d, 12, 0, 0);
+    return Number.isFinite(dt.getTime()) ? dt : null;
+  }
+
+  function teamsForDoc(d) {
+    return Array.isArray(d.data?.teams) ? d.data.teams.length : 0;
+  }
+
+  function submitHourFromDoc(d) {
+    const raw = d.data?.timestamp || d.data?.submittedAt || '';
+    if (!raw) return null;
+    const dt = new Date(raw);
+    return Number.isFinite(dt.getTime()) ? dt.getHours() : null;
+  }
+
+  function submitTimeBucket(hour) {
+    if (hour === null || hour === undefined) return null;
+    if (hour >= 12 && hour < 17) return '12pm–5pm';
+    if (hour >= 17 && hour < 21) return '5pm–9pm';
+    if (hour >= 21 || hour < 2) return '9pm–2am';
+    if (hour >= 2 && hour < 12) return '2am–12pm';
+    return 'Other';
+  }
+
+  /** Fri–Sun vs Mon–Thu using calendar date only. */
+  function isWeekendNight(dayIdx) {
+    return dayIdx === 0 || dayIdx === 5 || dayIdx === 6;
+  }
+
+  function fmtAvg(n) {
+    return Number.isFinite(n) ? n.toFixed(1) : '—';
+  }
+
+  function aggregateScheduling(docs) {
+    const byDay = DAY_LABELS.map((label, dayIdx) => ({
+      label,
+      dayIdx,
+      events: 0,
+      teams: 0,
+    }));
+    const monthMap = new Map();
+    const bucketOrder = ['5pm–9pm', '9pm–2am', '12pm–5pm', '2am–12pm', 'Other'];
+    const buckets = new Map(bucketOrder.map((k) => [k, { events: 0, teams: 0 }]));
+
+    let wkEvents = 0;
+    let wkTeams = 0;
+    let weEvents = 0;
+    let weTeams = 0;
+
+    docs.forEach((d) => {
+      const dt = parseEventLocalDate(d.date);
+      const tc = teamsForDoc(d);
+      if (!dt) return;
+      const dayIdx = dt.getDay();
+      byDay[dayIdx].events += 1;
+      byDay[dayIdx].teams += tc;
+
+      const ym = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`;
+      if (!monthMap.has(ym)) monthMap.set(ym, { key: ym, events: 0, teams: 0 });
+      const mo = monthMap.get(ym);
+      mo.events += 1;
+      mo.teams += tc;
+
+      if (isWeekendNight(dayIdx)) {
+        weEvents += 1;
+        weTeams += tc;
+      } else {
+        wkEvents += 1;
+        wkTeams += tc;
+      }
+
+      const h = submitHourFromDoc(d);
+      const b = submitTimeBucket(h);
+      if (b && buckets.has(b)) {
+        const row = buckets.get(b);
+        row.events += 1;
+        row.teams += tc;
+      }
+    });
+
+    const months = Array.from(monthMap.values()).sort((a, b) => a.key.localeCompare(b.key));
+
+    let bestDay = null;
+    let maxAvg = -1;
+    byDay.forEach((row) => {
+      if (row.events < 2) return;
+      const avg = row.teams / row.events;
+      if (avg > maxAvg) {
+        maxAvg = avg;
+        bestDay = row;
+      }
+    });
+
+    const busiestByEvents = [...byDay].sort((a, b) => b.events - a.events)[0] || null;
+
+    return {
+      byDay,
+      months,
+      buckets,
+      bucketOrder,
+      wkEvents,
+      wkTeams,
+      weEvents,
+      weTeams,
+      bestDay,
+      busiestByEvents,
+    };
+  }
+
+  function renderSchedulingReport(docs, venueLabel, dateStart, dateEnd) {
+    destroySchedulingCharts();
+
+    const scopeEl = $('#scheduling-scope');
+    const summaryEl = $('#scheduling-summary');
+    const monthEl = $('#scheduling-month-table');
+
+    const venueText = venueLabel && venueLabel !== 'All Venues'
+      ? `Venue: ${venueLabel}`
+      : 'All venues combined';
+
+    if (scopeEl) {
+      const rangeParts = [];
+      if (dateStart) rangeParts.push(`from ${dateStart}`);
+      if (dateEnd) rangeParts.push(`to ${dateEnd}`);
+      scopeEl.textContent = `${venueText}. Uses each scoresheet’s event date for day/month; ${rangeParts.length ? rangeParts.join(' ') : 'full sampled range'}.`;
+    }
+
+    if (!docs.length) {
+      if (summaryEl) summaryEl.innerHTML = '';
+      if (monthEl) monthEl.innerHTML = '<p class="muted">Generate a report to see scheduling breakdowns.</p>';
+      const dayCanvas = $('#scheduling-day-chart');
+      const subCanvas = $('#scheduling-submit-chart');
+      if (dayCanvas) {
+        const p = dayCanvas.parentElement;
+        if (p) p.style.display = 'none';
+      }
+      if (subCanvas) {
+        const p = subCanvas.parentElement;
+        if (p) p.style.display = 'none';
+      }
+      return;
+    }
+
+    if ($('#scheduling-day-chart')?.parentElement) $('#scheduling-day-chart').parentElement.style.display = '';
+    if ($('#scheduling-submit-chart')?.parentElement) $('#scheduling-submit-chart').parentElement.style.display = '';
+
+    const agg = aggregateScheduling(docs);
+
+    const wkAvg = agg.wkEvents > 0 ? agg.wkTeams / agg.wkEvents : null;
+    const weAvg = agg.weEvents > 0 ? agg.weTeams / agg.weEvents : null;
+
+    if (summaryEl) {
+      const cards = [];
+
+      cards.push(`
+        <div class="sched-summary-card">
+          <div class="sched-kicker">Weekend vs weekday</div>
+          <div class="sched-value">Fri–Sun vs Mon–Thu</div>
+          <div class="sched-detail">
+            Weekend avg: ${fmtAvg(weAvg)} teams/event (${agg.weEvents} shows)<br/>
+            Weekday avg: ${fmtAvg(wkAvg)} teams/event (${agg.wkEvents} shows)
+          </div>
+        </div>`);
+
+      if (agg.bestDay) {
+        const avg = agg.bestDay.teams / agg.bestDay.events;
+        cards.push(`
+          <div class="sched-summary-card">
+            <div class="sched-kicker">Highest avg teams (2+ shows)</div>
+            <div class="sched-value">${escapeHtml(agg.bestDay.label)}</div>
+            <div class="sched-detail">${fmtAvg(avg)} avg · ${agg.bestDay.events} events · ${agg.bestDay.teams} teams total</div>
+          </div>`);
+      } else {
+        cards.push(`
+          <div class="sched-summary-card">
+            <div class="sched-kicker">Highest avg teams</div>
+            <div class="sched-value">—</div>
+            <div class="sched-detail">Need at least two shows on one weekday to rank.</div>
+          </div>`);
+      }
+
+      if (agg.busiestByEvents && agg.busiestByEvents.events > 0) {
+        const avg = agg.busiestByEvents.teams / agg.busiestByEvents.events;
+        cards.push(`
+          <div class="sched-summary-card">
+            <div class="sched-kicker">Most shows</div>
+            <div class="sched-value">${escapeHtml(agg.busiestByEvents.label)}</div>
+            <div class="sched-detail">${agg.busiestByEvents.events} events · ${fmtAvg(avg)} avg teams</div>
+          </div>`);
+      }
+
+      summaryEl.innerHTML = cards.join('');
+    }
+
+    if (monthEl) {
+      if (!agg.months.length) {
+        monthEl.innerHTML = '<p class="muted">No valid dates in range.</p>';
+      } else {
+        let html = '<table class="heatmap-table sched-month-table"><thead><tr><th>Month</th><th>Events</th><th>Avg teams</th><th>Total teams</th></tr></thead><tbody>';
+        agg.months.forEach((m) => {
+          const avg = m.events ? (m.teams / m.events).toFixed(1) : '—';
+          const label = `${m.key.slice(0, 4)}-${m.key.slice(5, 7)}`;
+          html += `<tr><td>${escapeHtml(label)}</td><td>${m.events}</td><td>${avg}</td><td>${m.teams}</td></tr>`;
+        });
+        html += '</tbody></table>';
+        monthEl.innerHTML = html;
+      }
+    }
+
+    const dayCanvas = $('#scheduling-day-chart');
+    if (dayCanvas && typeof Chart !== 'undefined') {
+      const labels = agg.byDay.map((r) => r.label);
+      const avgTeams = agg.byDay.map((r) => (r.events ? r.teams / r.events : 0));
+      const counts = agg.byDay.map((r) => r.events);
+
+      state.schedulingDayChart = new Chart(dayCanvas, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Avg teams / event',
+              data: avgTeams,
+              backgroundColor: 'rgba(54, 153, 255, 0.55)',
+              borderColor: 'rgba(54, 153, 255, 0.95)',
+              borderWidth: 1,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { labels: { color: '#cbd5e1' } },
+            tooltip: {
+              callbacks: {
+                afterLabel: (ctx) => {
+                  const i = ctx.dataIndex;
+                  const ev = counts[i];
+                  const teams = agg.byDay[i].teams;
+                  return `${ev} event${ev === 1 ? '' : 's'} · ${teams} teams total`;
+                },
+              },
+            },
+          },
+          scales: {
+            x: {
+              ticks: { color: '#94a3b8' },
+              grid: { color: 'rgba(255,255,255,0.06)' },
+            },
+            y: {
+              beginAtZero: true,
+              ticks: { color: '#94a3b8', stepSize: 1 },
+              grid: { color: 'rgba(255,255,255,0.06)' },
+              title: { display: true, text: 'Avg teams', color: '#94a3b8' },
+            },
+          },
+        },
+      });
+    }
+
+    const submitCanvas = $('#scheduling-submit-chart');
+    if (submitCanvas && typeof Chart !== 'undefined') {
+      const labels = [];
+      const avgs = [];
+      const counts = [];
+      agg.bucketOrder.forEach((key) => {
+        const row = agg.buckets.get(key);
+        if (!row || row.events === 0) return;
+        labels.push(key);
+        avgs.push(row.teams / row.events);
+        counts.push(row.events);
+      });
+
+      if (!labels.length) {
+        state.schedulingSubmitChart = new Chart(submitCanvas, {
+          type: 'bar',
+          data: { labels: ['No submit timestamps'], datasets: [{ data: [0], backgroundColor: 'rgba(255,255,255,0.1)' }] },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } },
+        });
+      } else {
+        state.schedulingSubmitChart = new Chart(submitCanvas, {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [
+              {
+                label: 'Avg teams / event',
+                data: avgs,
+                backgroundColor: 'rgba(245, 158, 11, 0.45)',
+                borderColor: 'rgba(245, 158, 11, 0.9)',
+                borderWidth: 1,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { labels: { color: '#cbd5e1' } },
+              tooltip: {
+                callbacks: {
+                  afterLabel: (ctx) => {
+                    const i = ctx.dataIndex;
+                    const ev = counts[i];
+                    return `${ev} submission${ev === 1 ? '' : 's'}`;
+                  },
+                },
+              },
+            },
+            scales: {
+              x: {
+                ticks: { color: '#94a3b8' },
+                grid: { color: 'rgba(255,255,255,0.06)' },
+              },
+              y: {
+                beginAtZero: true,
+                ticks: { color: '#94a3b8' },
+                grid: { color: 'rgba(255,255,255,0.06)' },
+                title: { display: true, text: 'Avg teams', color: '#94a3b8' },
+              },
+            },
+          },
+        });
+      }
     }
   }
 
@@ -317,6 +672,8 @@
     const dateStart = $('#date-start');
     if (dateEnd && !dateEnd.value) dateEnd.value = today.toISOString().slice(0, 10);
     if (dateStart && !dateStart.value) dateStart.value = prior.toISOString().slice(0, 10);
+
+    renderSchedulingReport([], 'All Venues', dateStart?.value || '', dateEnd?.value || '');
 
     $('#generate-btn')?.addEventListener('click', generateReport);
 

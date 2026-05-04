@@ -391,6 +391,13 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    /* Public-facing venue strip (name, address, active) synced from locations-management.
+       Must allow admin writes or create-venue fails after /locations add(). */
+    match /publicLocations/{docId} {
+      allow read: if isHostOrAdmin();
+      allow write: if isAdmin();
+    }
+
     match /shifts/{docId} {
       allow read: if isHostOrAdmin();
       allow write: if isAdmin();
