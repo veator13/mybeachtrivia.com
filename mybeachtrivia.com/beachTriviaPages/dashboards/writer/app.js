@@ -1111,8 +1111,14 @@
     } else {
       var mode = (item.slide.audienceMode || "live").toLowerCase();
       if (window.WriterQuestionForm && item.blockEntry && item.blockEntry.formData) {
+        var navFd = safeClone(item.blockEntry.formData);
+        var currentShow = WriterQuestionForm.getFormData().show || {};
+        navFd.show = navFd.show || {};
+        if (!navFd.show.dateLabel && currentShow.dateLabel) {
+          navFd.show.dateLabel = currentShow.dateLabel;
+        }
         suppressFormBridge = true;
-        WriterQuestionForm.setFormData(item.blockEntry.formData);
+        WriterQuestionForm.setFormData(navFd);
         suppressFormBridge = false;
       }
       if (window.WriterPreview) {
