@@ -101,6 +101,7 @@
 
     let activeIndex = -1;
     let filtered = [];
+    let openedByKeyboard = false;
 
     function syncInputFromSelect() {
       const v = String(select.value || "");
@@ -127,8 +128,9 @@
       render();
     }
 
-    function openList() {
+    function openList(fromKeyboard = false) {
       if (isOfflineNow()) return;
+      openedByKeyboard = fromKeyboard;
       setExpanded(true);
       render();
     }
@@ -193,7 +195,7 @@
 
       if (activeIndex >= filtered.length) activeIndex = filtered.length - 1;
       if (activeIndex < 0) activeIndex = filtered.findIndex((o) => String(o.value) === currentValue);
-      if (activeIndex < 0) activeIndex = 0;
+      if (activeIndex < 0 && openedByKeyboard) activeIndex = 0;
       setActive(activeIndex);
     }
 
@@ -225,7 +227,7 @@
 
     input.addEventListener("input", () => {
       if (isOfflineNow()) return;
-      if (!isExpanded()) openList();
+      if (!isExpanded()) openList(true);
       render();
     });
 
@@ -246,7 +248,7 @@
 
     input.addEventListener("keydown", (e) => {
       if (!isExpanded() && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
-        openList();
+        openList(true);
         e.preventDefault();
         return;
       }
