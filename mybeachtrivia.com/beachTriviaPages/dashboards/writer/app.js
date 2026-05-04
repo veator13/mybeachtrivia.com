@@ -570,6 +570,79 @@
     }
   }
 
+  // ─── Show-wide validation ──────────────────────────────────────
+
+  var QUESTION_BLOCK_TYPES = ["single-question", "feud-single-question"];
+
+  function validateAllBlocks() {
+    var errors = [];
+    var slideNum = 0;
+
+    var showMeta = window.WriterQuestionForm ? WriterQuestionForm.getFormData().show : {};
+    if (!String((showMeta && showMeta.title) || "").trim()) {
+      errors.push("Show title is required.");
+    }
+    if (!String((showMeta && showMeta.dateLabel) || "").trim()) {
+      errors.push("Show date / label is required.");
+    }
+
+    showState.blocks.forEach(function (entry) {
+      var blk = entry && entry.block;
+      if (!blk) return;
+      var bt = String(blk.type || "").toLowerCase();
+      if (QUESTION_BLOCK_TYPES.indexOf(bt) === -1) return;
+
+      slideNum++;
+      var fb = (entry.formData && entry.formData.block) || {};
+      var isFeud = bt === "feud-single-question";
+
+      var roundName = String(fb.roundName || blk.roundName || "").trim();
+      var categoryName = String(fb.categoryName || blk.categoryName || "").trim();
+      var label = roundName && categoryName
+        ? "Slide " + slideNum + " (" + roundName + " • " + categoryName + ")"
+        : roundName
+          ? "Slide " + slideNum + " (" + roundName + ")"
+          : "Slide " + slideNum;
+
+      var questionText = stripHtml(String(fb.questionText || "")).trim();
+      if (!questionText) {
+        errors.push(label + ": Question text is required.");
+      }
+
+      if (isFeud) {
+        var feud = Array.isArray(fb.feudAnswers) ? fb.feudAnswers : [];
+        var filled = feud.filter(function (a) { return a && String(a.text || "").trim(); });
+        if (filled.length < 3) {
+          errors.push(label + ": Feud survey needs at least 3 answers.");
+        }
+      } else {
+        var qType = String(fb.questionType || "short-response").trim();
+        if (qType === "multiple-choice") {
+          var opts = Array.isArray(fb.options) ? fb.options : [];
+          var filledOpts = opts.filter(function (o) { return String(o || "").trim(); });
+          if (filledOpts.length < 2) {
+            errors.push(label + ": Multiple choice needs at least 2 options.");
+          }
+          if (fb.correctOptionIndex === null || fb.correctOptionIndex === undefined) {
+            errors.push(label + ": No correct answer marked.");
+          }
+        } else if (qType === "matching") {
+          var pairs = Array.isArray(fb.matchingPairs) ? fb.matchingPairs : [];
+          if (pairs.length < 2) errors.push(label + ": Matching needs at least 2 pairs.");
+        } else if (qType === "ordering") {
+          var items = Array.isArray(fb.orderingItems) ? fb.orderingItems : [];
+          if (items.length < 2) errors.push(label + ": Ordering needs at least 2 items.");
+        } else {
+          if (!String(fb.answerText || "").trim()) {
+            errors.push(label + ": Answer text is required.");
+          }
+        }
+      }
+    });
+
+    return { valid: errors.length === 0, messages: errors };
+  }
+
   // ─── Topbar buttons ────────────────────────────────────────────
 
   function bindTopbarButtons() {
@@ -632,8 +705,7 @@
 
     if (btnValidate) {
       btnValidate.addEventListener("click", function () {
-        if (!window.WriterQuestionForm) return;
-        var result = WriterQuestionForm.validateForPublish();
+        var result = validateAllBlocks();
         console.log("[writer] validate result", result);
         if (!result.valid) {
           alert("Not ready to publish:\n\n" + result.messages.join("\n"));
@@ -645,9 +717,7 @@
 
     if (btnPublish) {
       btnPublish.addEventListener("click", function () {
-        if (!window.WriterQuestionForm) return;
-
-        var result = WriterQuestionForm.validateForPublish();
+        var result = validateAllBlocks();
         if (!result.valid) {
           alert("Cannot publish:\n\n" + result.messages.join("\n"));
           return;
