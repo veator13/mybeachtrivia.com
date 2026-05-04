@@ -77,7 +77,7 @@
   }
 
   function bindui() {
-    on('back-to-login', 'click', function () { window.location.assign('/login.html'); });
+    on('back-to-login', 'click', function () { showLeaveModal(function () { window.location.assign('/login.html'); }); });
 
     on('show-select', 'change', function () {
       if (dom['show-select']) {
@@ -86,7 +86,7 @@
     });
 
     on('btn-load-show', 'click', loadSelectedShow);
-    on('btn-change-show', 'click', backToPicker);
+    on('btn-change-show', 'click', function () { showLeaveModal(backToPicker); });
 
     on('btn-copy-url', 'click', function () {
       copyText(state.sessionCode
@@ -543,5 +543,26 @@
     const ec = document.getElementById('error-container');
     if (ec) ec.style.display = 'flex';
   }
+
+  var _leaveCallback = null;
+  function showLeaveModal(onConfirm) {
+    if (!state.deck.id) { onConfirm(); return; }
+    var modal = document.getElementById('leave-modal');
+    if (!modal) { onConfirm(); return; }
+    _leaveCallback = onConfirm;
+    modal.style.display = 'flex';
+  }
+  document.addEventListener('DOMContentLoaded', function () {
+    var stay  = document.getElementById('leave-modal-stay');
+    var leave = document.getElementById('leave-modal-leave');
+    var modal = document.getElementById('leave-modal');
+    if (stay)  stay.addEventListener('click',  function () { if (modal) modal.style.display = 'none'; _leaveCallback = null; });
+    if (leave) leave.addEventListener('click', function () { if (modal) modal.style.display = 'none'; if (_leaveCallback) { var cb = _leaveCallback; _leaveCallback = null; cb(); } });
+  });
+  window.addEventListener('beforeunload', function (e) {
+    if (!state.deck.id) return;
+    e.preventDefault();
+    e.returnValue = '';
+  });
 
 })();

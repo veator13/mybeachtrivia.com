@@ -17,7 +17,7 @@
   <script src="/beachTriviaPages/js/firebase-init-compat.js?v=1" defer></script>
   <script src="/beachTriviaPages/dashboards/host/guard-host.js?v=2" defer></script>
   <script src="/beachTriviaPages/dashboards/shared/slide-paint.js?v=20260504-reveal-order" defer></script>
-  <script src="app.js?v=37" defer></script>
+  <script src="app.js?v=20260504-leave-modal" defer></script>
 
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -452,5 +452,18 @@
   </div>
 
   <script>/* app logic in app.js */</script>
+
+  <!-- Leave-session warning modal -->
+  <div id="leave-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.7);align-items:center;justify-content:center;">
+    <div style="background:var(--surface);border:1px solid rgba(239,68,68,0.35);border-radius:12px;padding:28px 32px;max-width:380px;width:90%;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,0.6);">
+      <div style="font-size:2rem;margin-bottom:10px;">⚠️</div>
+      <div style="font-size:1.1rem;font-weight:700;color:var(--text);margin-bottom:8px;">Leave Session?</div>
+      <div style="font-size:0.9rem;color:var(--muted);margin-bottom:24px;line-height:1.5;">Your live session will be lost. Cast viewers will lose their connection.</div>
+      <div style="display:flex;gap:12px;justify-content:center;">
+        <button id="leave-modal-stay" style="flex:1;padding:10px 0;border-radius:7px;border:1px solid var(--line);background:var(--surface2);color:var(--text);font-size:0.95rem;cursor:pointer;">Stay</button>
+        <button id="leave-modal-leave" style="flex:1;padding:10px 0;border-radius:7px;border:0;background:var(--red);color:#fff;font-size:0.95rem;font-weight:600;cursor:pointer;">Leave</button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
