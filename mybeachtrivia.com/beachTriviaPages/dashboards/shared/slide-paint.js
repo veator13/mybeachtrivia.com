@@ -411,13 +411,18 @@
         ? slide.feudRevealCount
         : (revealed ? 999 : 0);
 
+      // Pre-count filled slots so we can reveal lowest-points first (building suspense).
+      var totalFilled = slots.filter(function (s) { return String(s.text || '').trim().length > 0; }).length;
+
       var filledSeen = 0;
       slots.forEach(function (slot, i) {
         var hasText = String(slot.text || '').trim().length > 0;
         var isRevealed = false;
         if (hasText) {
           filledSeen++;
-          isRevealed = filledSeen <= revealCount;
+          // Reveal from lowest points up: filledSeen=totalFilled is the lowest-pts slot,
+          // so it's revealed first when revealCount=1.
+          isRevealed = (totalFilled - filledSeen) < revealCount;
         }
 
         var row = document.createElement('div');
@@ -436,8 +441,11 @@
           row.appendChild(vSil);
           row.appendChild(vPts);
         } else {
-          // Filled slot: flip-card (front = concealed, back = revealed)
-          row.className = 'slide-feud-row slide-feud-row--card' + (isRevealed ? ' revealed' : '');
+          // Filled slot: flip-card (front = concealed, back = revealed).
+          // feudRevealDeferIndex marks a card for deferred animation — caller adds .revealed via rAF.
+          var isDeferredFlip = typeof slide.feudRevealDeferIndex === 'number' && i === slide.feudRevealDeferIndex;
+          row.className = 'slide-feud-row slide-feud-row--card' + ((isRevealed && !isDeferredFlip) ? ' revealed' : '');
+          if (isDeferredFlip) row.setAttribute('data-feud-defer-flip', '1');
           row.setAttribute('data-feud-idx', String(i));
 
           var flipper = document.createElement('div');

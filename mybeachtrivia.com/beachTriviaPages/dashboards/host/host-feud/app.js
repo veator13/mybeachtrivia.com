@@ -362,21 +362,99 @@
     setRevealed(!state.revealed);
   }
 
+  function _feudRevealAnimate(stage, newCount, max, slide, showAnswer, afterPaint) {
+    var deferIdx = max - newCount;
+    var paintData = Object.assign({}, slide, {
+      feudRevealCount: newCount,
+      feudRevealDeferIndex: deferIdx,
+    });
+    window.BeachTriviaSlidePaint.paintSlide(stage, paintData, showAnswer);
+    if (afterPaint) afterPaint();
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        var row = stage && stage.querySelector('[data-feud-defer-flip]');
+        if (row) {
+          row.removeAttribute('data-feud-defer-flip');
+          row.classList.add('revealed');
+        }
+      });
+    });
+  }
+
+  function _feudHideAnimate(stage, hideIdx, onDone) {
+    var row = stage && stage.querySelector('.slide-feud-row--card[data-feud-idx="' + hideIdx + '"]');
+    if (!row || !row.classList.contains('revealed')) { onDone(); return; }
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      row.classList.remove('revealed');
+      onDone();
+      return;
+    }
+    var inner = row.querySelector('.slide-feud-row-flip-inner');
+    var finished = false;
+    var tid = null;
+    function sync() {
+      if (finished) return;
+      finished = true;
+      if (tid != null) { clearTimeout(tid); tid = null; }
+      onDone();
+    }
+    if (inner) {
+      var onEnd = function (e) {
+        if (e && e.propertyName && e.propertyName.indexOf('transform') === -1) return;
+        inner.removeEventListener('transitionend', onEnd);
+        if (tid != null) { clearTimeout(tid); tid = null; }
+        sync();
+      };
+      inner.addEventListener('transitionend', onEnd);
+      tid = setTimeout(sync, 800);
+    }
+    row.classList.remove('revealed');
+    if (!inner) sync();
+  }
+
   function stepHostFeudReveal(delta) {
     var slide = state.deck.slides[state.hostSlide] || null;
     if (!isFeudSlide(slide)) return;
     var max = feudFilledCount(slide);
+    var oldCount = state.hostFeudReveal;
     state.hostFeudReveal = Math.max(0, Math.min(max, state.hostFeudReveal + delta));
-    renderHost();
+    var newCount = state.hostFeudReveal;
+    var showAnswer = state.hostRevealed || slide.alwaysReveal;
+
+    if (delta > 0 && newCount > oldCount) {
+      _feudRevealAnimate(dom['host-stage'], newCount, max, slide, showAnswer, function () {
+        setText('host-notes', slide.notes || '');
+        updateRevealChrome();
+      });
+    } else if (delta < 0 && newCount < oldCount) {
+      var hideIdx = max - oldCount;
+      _feudHideAnimate(dom['host-stage'], hideIdx, function () { renderHost(); });
+    } else {
+      renderHost();
+    }
   }
 
   function stepCastFeudReveal(delta) {
     var slide = state.deck.slides[state.castSlide] || null;
     if (!isFeudSlide(slide)) return;
     var max = feudFilledCount(slide);
+    var oldCount = state.castFeudReveal;
     state.castFeudReveal = Math.max(0, Math.min(max, state.castFeudReveal + delta));
-    renderCast();
-    pushState();
+    var newCount = state.castFeudReveal;
+    var showAnswer = state.revealed || slide.alwaysReveal;
+
+    if (delta > 0 && newCount > oldCount) {
+      _feudRevealAnimate(dom['cast-stage'], newCount, max, slide, showAnswer, function () {
+        updateRevealChrome();
+        pushState();
+      });
+    } else if (delta < 0 && newCount < oldCount) {
+      var hideIdx = max - oldCount;
+      _feudHideAnimate(dom['cast-stage'], hideIdx, function () { renderCast(); pushState(); });
+    } else {
+      renderCast();
+      pushState();
+    }
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
