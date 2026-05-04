@@ -356,11 +356,77 @@
           '<div style="display:flex;align-items:center;justify-content:center;min-height:120px;padding:clamp(16px,4cqw,32px);text-align:center;color:#94a3b8;font-size:clamp(13px,2.5cqw,18px);line-height:1.4;">Waiting for the host to press <strong style="color:#e2e8f0;">Go Live</strong> in the host console. This display matches <strong style="color:#e2e8f0;">Cast Preview / Cast Live</strong>.</div>';
       }
 
+      var _castLastFeudReveal = null;
+      var _castLastStateKey = null;
+
       function paintFromDoc(data) {
         if (!castStage || !window.BeachTriviaSlidePaint) return;
         lastSessionData = data;
         var slide = sessionDocToSlide(data || {});
         var reveal = !!(data && data.revealShown) || !!slide.alwaysReveal;
+
+        var newCount = typeof slide.feudRevealCount === "number" ? slide.feudRevealCount : null;
+        var oldCount = _castLastFeudReveal;
+        var sameSlide = slide.stateKey && slide.stateKey === _castLastStateKey;
+        var isFeud = slide.feudAnswers && slide.feudAnswers.length > 0;
+
+        _castLastStateKey = slide.stateKey || null;
+        _castLastFeudReveal = newCount;
+
+        if (isFeud && sameSlide && typeof newCount === "number" && typeof oldCount === "number") {
+          var totalFilled = slide.feudAnswers.filter(function (a) {
+            return String((a && a.text) || "").trim().length > 0;
+          }).length;
+
+          if (newCount === oldCount + 1) {
+            // Reveal next — deferred flip animation
+            var deferIdx = totalFilled - newCount;
+            var paintData = Object.assign({}, slide, { feudRevealDeferIndex: deferIdx });
+            window.BeachTriviaSlidePaint.paintSlide(castStage, paintData, reveal);
+            requestAnimationFrame(function () {
+              requestAnimationFrame(function () {
+                var row = castStage.querySelector("[data-feud-defer-flip]");
+                if (row) { row.removeAttribute("data-feud-defer-flip"); row.classList.add("revealed"); }
+              });
+            });
+            return;
+          }
+
+          if (newCount === oldCount - 1) {
+            // Hide prev — flip-back animation, then repaint
+            var hideIdx = totalFilled - oldCount;
+            var row = castStage.querySelector('.slide-feud-row--card[data-feud-idx="' + hideIdx + '"]');
+            if (row && row.classList.contains("revealed")) {
+              var reducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+              if (reducedMotion) {
+                row.classList.remove("revealed");
+                window.BeachTriviaSlidePaint.paintSlide(castStage, slide, reveal);
+                return;
+              }
+              var inner = row.querySelector(".slide-feud-row-flip-inner");
+              var done = false; var tid = null;
+              var s = slide; var r = reveal;
+              function finish() {
+                if (done) return; done = true;
+                if (tid) { clearTimeout(tid); tid = null; }
+                window.BeachTriviaSlidePaint.paintSlide(castStage, s, r);
+              }
+              if (inner) {
+                var onEnd = function (e) {
+                  if (e && e.propertyName && e.propertyName.indexOf("transform") === -1) return;
+                  inner.removeEventListener("transitionend", onEnd);
+                  finish();
+                };
+                inner.addEventListener("transitionend", onEnd);
+                tid = setTimeout(finish, 800);
+              }
+              row.classList.remove("revealed");
+              if (!inner) finish();
+              return;
+            }
+          }
+        }
+
         window.BeachTriviaSlidePaint.paintSlide(castStage, slide, reveal);
       }
 
