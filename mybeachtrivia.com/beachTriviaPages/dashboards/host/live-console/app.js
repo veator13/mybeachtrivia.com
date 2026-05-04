@@ -544,9 +544,13 @@
     if (ec) ec.style.display = 'flex';
   }
 
+  function _consoleActive() {
+    return !!(dom['console'] && dom['console'].style.display === 'flex');
+  }
+
   var _leaveCallback = null;
   function showLeaveModal(onConfirm) {
-    if (!state.deck.id) { onConfirm(); return; }
+    if (!_consoleActive()) { onConfirm(); return; }
     var modal = document.getElementById('leave-modal');
     if (!modal) { onConfirm(); return; }
     _leaveCallback = onConfirm;
@@ -560,7 +564,7 @@
     if (leave) leave.addEventListener('click', function () { if (modal) modal.style.display = 'none'; if (_leaveCallback) { var cb = _leaveCallback; _leaveCallback = null; cb(); } });
   });
   window.addEventListener('beforeunload', function (e) {
-    if (!state.deck.id) return;
+    if (!_consoleActive()) return;
     e.preventDefault();
     e.returnValue = '';
   });
