@@ -343,6 +343,8 @@
           questionFontScale: typeof cs.questionFontScale === "number" ? cs.questionFontScale : 1,
           matchingPairs: Array.isArray(cs.matchingPairs) ? cs.matchingPairs : [],
           orderingItems: Array.isArray(cs.orderingItems) ? cs.orderingItems : [],
+          feudAnswers: Array.isArray(cs.feudAnswers) ? cs.feudAnswers : [],
+          feudRevealCount: typeof cs.feudRevealCount === "number" ? cs.feudRevealCount : (typeof docData.feudRevealCount === "number" ? docData.feudRevealCount : null),
           theme: theme,
           alwaysReveal: !!cs.answerVisibleByDefault,
         };
