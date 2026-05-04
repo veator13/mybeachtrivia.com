@@ -181,11 +181,11 @@ main {
     max-height: 260px;
     overflow: auto;
     /* Match the screenshot: native-ish dark menu */
-    background: #323232;
-    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: #3c3c3e;
+    border: 1px solid rgba(255, 255, 255, 0.28);
     border-radius: 10px;
-    box-shadow: 0 14px 38px rgba(0, 0, 0, 0.55);
-    padding: 6px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+    padding: 5px;
     display: none;
     text-align: left;
 }
@@ -200,10 +200,10 @@ main {
     width: 100%;
     padding: 5px 12px 5px 22px;
     border-radius: 6px;
-    border: 1px solid transparent;
+    border: none;
     background: transparent;
     color: #fff;
-    font-size: 15px;
+    font-size: 13px;
     font-weight: 400;
     cursor: pointer;
     text-align: left;
@@ -220,8 +220,8 @@ main {
 /* Keyboard-active / hover: blue highlight */
 .venue-combo__item[data-active="true"],
 .venue-combo__item:hover{
-    background: #0a66ff;
-    border-color: rgba(255, 255, 255, 0.16);
+    background: #1a6eff;
+    border-radius: 6px;
 }
 
 .venue-combo__empty{
