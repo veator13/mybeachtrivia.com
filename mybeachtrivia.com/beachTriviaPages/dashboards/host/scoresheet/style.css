@@ -942,7 +942,8 @@ input:focus {
 }
 
 /* ===== Sort Team Names button (in thead sticky-col) ===== */
-#teamTable th.sticky-col {
+/* NOTE: display:flex must NOT be on the <th> itself — breaks rowspan in Chrome */
+.sticky-col-inner {
     display: flex;
     flex-direction: column;
     align-items: center;
