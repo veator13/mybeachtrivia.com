@@ -255,10 +255,10 @@ var standingsAscending = false;
     } else {
       if (venueSelect) {
         setDisabled(venueSelect, false);
-        setHidden(venueSelect, false); // select is visually hidden by CSS but still present
+        setHidden(venueSelect, false);
         setRequired(venueSelect, true);
       }
-      if (venueCombo) setHidden(venueCombo, false);
+      // venueCombo visibility is managed by venue-combobox.js (swap on click)
       if (venueComboInput) setDisabled(venueComboInput, false);
       if (venueInput) {
         setDisabled(venueInput, true);
