@@ -11,7 +11,7 @@
     </script>
 
     <!-- Main stylesheet (versioned) -->
-    <link rel="stylesheet" href="style.css?v=20260504-venue-search2" />
+    <link rel="stylesheet" href="style.css?v=20260504-event-combo1" />
   <!-- Unified nav bar -->
   <link rel="stylesheet" href="/beachTriviaPages/js/bt-nav.css">
   <script src="/beachTriviaPages/js/bt-nav.js?v=hostnav-20260424-3" defer></script>
@@ -39,7 +39,7 @@
     <script src="js/firebase.js?v=20260218-04" defer></script>
     <script src="js/venues.js?v=20260501-01" defer></script>
     <script src="js/meta-fields.js?v=20260218-04" defer></script>
-    <script src="js/venue-combobox.js?v=20260504-venue-search1" defer></script>
+    <script src="js/venue-combobox.js?v=20260504-event-combo1" defer></script>
 
     <!-- IMPORTANT: sticky/bonus utilities must load BEFORE table-build.js -->
     <script src="js/ui-sticky-bonus.js?v=20260218-04" defer></script>
@@ -120,8 +120,21 @@
             </div>
 
             <div class="meta-field">
-              <label for="eventType">Event Type</label>
-              <select id="eventType" name="eventType">
+              <label for="eventTypeComboInput">Event Type</label>
+              <div id="eventTypeCombo" class="venue-combo" role="combobox" aria-haspopup="listbox" aria-expanded="false">
+                <input
+                  type="text"
+                  id="eventTypeComboInput"
+                  name="eventTypeComboInput"
+                  placeholder="Choose..."
+                  autocomplete="off"
+                  spellcheck="false"
+                  aria-autocomplete="list"
+                  aria-controls="eventTypeComboList"
+                />
+                <div id="eventTypeComboList" class="venue-combo__list" role="listbox" aria-label="Event types"></div>
+              </div>
+              <select id="eventType" name="eventType" hidden>
                 <option value="" selected disabled>Choose...</option>
                 <option value="classic_trivia">Classic Trivia</option>
                 <option value="themed_trivia">Themed Trivia</option>

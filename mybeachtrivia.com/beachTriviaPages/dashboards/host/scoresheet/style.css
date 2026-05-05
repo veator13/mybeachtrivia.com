@@ -122,8 +122,7 @@ main {
 .meta-grid input[type="date"]{ min-width: 170px; }
 .meta-grid #submitterFirstName,
 .meta-grid #submitterLastName{ min-width: 170px; }
-.meta-grid #eventType,
-.meta-grid #venueSelect,
+.meta-grid #eventTypeComboInput,
 .meta-grid #venueComboInput{
     min-width: 190px;
     cursor: pointer;

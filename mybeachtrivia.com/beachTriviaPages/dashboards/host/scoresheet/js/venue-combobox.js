@@ -1,12 +1,9 @@
 /* venue-combobox.js
-   Venue picker for host scoresheet using ONE visible input + in-page dropdown list.
+   Generic combobox for host scoresheet (Venue + Event Type).
+   Uses ONE visible input + in-page dropdown list per instance.
 
-   Why in-page list:
-   - Datalist suggestions render in weird places when the page uses CSS zoom.
-   - We can position the list reliably under the field.
-
-   Compatibility:
-   - Keeps hidden-ish #venueSelect as source of truth for existing validation/submit logic.
+   Keeps the hidden native <select> as source of truth for
+   validation/submit logic and fires change events on it.
 */
 (function () {
   "use strict";
@@ -45,7 +42,7 @@
     for (let i = 0; i < opts.length; i++) {
       const value = String(opts[i].value || "");
       const label = norm(opts[i].textContent || "");
-      if (!value) continue; // Choose...
+      if (!value) continue;
       if (value === "loading") continue;
       rows.push({ value, label });
     }
@@ -58,14 +55,12 @@
       const key = normLower(rows[i].label);
       counts.set(key, (counts.get(key) || 0) + 1);
     }
-
     const used = new Map();
     const out = [];
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i];
       const base = r.label || r.value;
       const key = normLower(base);
-
       let display = base;
       const c = counts.get(key) || 1;
       if (c > 1 && r.value !== "other") {
@@ -74,7 +69,6 @@
         used.set(key, n);
         display = `${base} (${shortId})`;
       }
-
       out.push({ value: r.value, label: base, display });
     }
     return out;
@@ -89,15 +83,18 @@
     return false;
   }
 
-  function init() {
-    const combo = qs("venueCombo");
-    const input = qs("venueComboInput");
-    const list = qs("venueComboList");
-    const select = qs("venueSelect");
+  function initCombo(comboId, inputId, listId, selectId, opts) {
+    opts = opts || {};
+    const combo = qs(comboId);
+    const input = qs(inputId);
+    const list = qs(listId);
+    const select = qs(selectId);
 
     if (!combo || !input || !list || !select) return;
     if (combo.dataset.bound === "1") return;
     combo.dataset.bound = "1";
+
+    const checkOffline = !opts.skipOfflineCheck;
 
     let activeIndex = -1;
     let filtered = [];
@@ -126,14 +123,14 @@
       setExpanded(false);
       activeIndex = -1;
       render();
-      syncInputFromSelect(); // restore selected venue name (clears any partial search text)
+      syncInputFromSelect();
     }
 
-    function openList(fromKeyboard = false) {
-      if (isOfflineNow()) return;
-      openedByKeyboard = fromKeyboard;
+    function openList(fromKeyboard) {
+      if (checkOffline && isOfflineNow()) return;
+      openedByKeyboard = !!fromKeyboard;
       if (!isExpanded()) {
-        input.value = ""; // clear so full list shows on open
+        input.value = "";
       }
       setExpanded(true);
       render();
@@ -150,22 +147,17 @@
     function chooseValue(value) {
       select.value = String(value || "");
       fireUserLikeChange(select);
-
       syncInputFromSelect();
       closeList();
 
-      if (select.value === "other") {
-        try {
-          qs("venueOtherInput")?.focus();
-        } catch {}
-      }
+      if (opts.onChoose) opts.onChoose(value);
     }
 
     function computeFiltered() {
-      const opts = disambiguateLabels(readSelectChoices(select));
+      const choices = disambiguateLabels(readSelectChoices(select));
       const q = normLower(input.value);
-      if (!q) return opts;
-      return opts.filter((o) => normLower(o.display).includes(q));
+      if (!q) return choices;
+      return choices.filter((o) => normLower(o.display).includes(q));
     }
 
     function render() {
@@ -192,7 +184,7 @@
         btn.setAttribute("data-value", o.value);
         btn.setAttribute("data-idx", String(idx));
         btn.setAttribute("aria-selected", String(o.value) === currentValue ? "true" : "false");
-        btn.addEventListener("mousedown", (e) => e.preventDefault()); // keep focus
+        btn.addEventListener("mousedown", (e) => e.preventDefault());
         btn.addEventListener("click", () => chooseValue(o.value));
         list.appendChild(btn);
       });
@@ -204,51 +196,42 @@
     }
 
     function commitFromInputValue() {
-      if (isOfflineNow()) return;
-
+      if (checkOffline && isOfflineNow()) return;
       const typed = norm(input.value);
       if (!typed) {
         select.value = "";
         fireUserLikeChange(select);
         return;
       }
-
-      // Try exact match by display/label
       const choices = disambiguateLabels(readSelectChoices(select));
       const match = choices.find((c) => normLower(c.display) === normLower(typed) || normLower(c.label) === normLower(typed));
       if (match) {
         chooseValue(match.value);
-        return;
       }
-
-      // If no exact match, keep the typed filter but don't force a selection.
-      // Selection should come from clicking/entering an item.
     }
 
-    // Initial bind
     syncInputFromSelect();
     setExpanded(false);
 
     input.addEventListener("input", () => {
-      if (isOfflineNow()) return;
+      if (checkOffline && isOfflineNow()) return;
       if (!isExpanded()) openList(true);
       render();
     });
 
     input.addEventListener("change", () => {
-      if (isOfflineNow()) return;
+      if (checkOffline && isOfflineNow()) return;
       commitFromInputValue();
     });
 
     input.addEventListener("blur", () => {
-      if (isOfflineNow()) return;
+      if (checkOffline && isOfflineNow()) return;
       commitFromInputValue();
-      // Delay close so clicks on list items still work (mousedown prevents blur anyway).
       setTimeout(() => closeList(), 120);
     });
 
-    input.addEventListener("focus", () => openList());
-    input.addEventListener("click", () => openList());
+    input.addEventListener("focus", () => openList(false));
+    input.addEventListener("click", () => openList(false));
 
     input.addEventListener("keydown", (e) => {
       if (!isExpanded() && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
@@ -284,8 +267,7 @@
 
     document.addEventListener("click", (e) => {
       if (!isExpanded()) return;
-      const t = e.target;
-      if (t && combo.contains(t)) return;
+      if (e.target && combo.contains(e.target)) return;
       closeList();
     });
 
@@ -294,9 +276,21 @@
       if (isExpanded()) render();
     });
 
-    window.addEventListener("scoresheet:venues-refreshed", () => {
-      syncInputFromSelect();
-      if (isExpanded()) render();
+    if (opts.refreshEvent) {
+      window.addEventListener(opts.refreshEvent, () => {
+        syncInputFromSelect();
+        if (isExpanded()) render();
+      });
+    }
+  }
+
+  function init() {
+    initCombo("venueCombo", "venueComboInput", "venueComboList", "venueSelect", {
+      refreshEvent: "scoresheet:venues-refreshed",
+    });
+
+    initCombo("eventTypeCombo", "eventTypeComboInput", "eventTypeComboList", "eventType", {
+      skipOfflineCheck: true,
     });
   }
 
