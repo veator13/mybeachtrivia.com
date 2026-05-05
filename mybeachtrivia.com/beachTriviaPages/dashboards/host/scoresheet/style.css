@@ -178,13 +178,13 @@ main {
     left: 0;
     width: 100%;
     z-index: 9999;
-    max-height: 260px;
+    max-height: 280px;
     overflow-y: auto;
-    background: #2c2c2e;
-    border: 1px solid rgba(255,255,255,0.14);
-    border-radius: 7px;
-    box-shadow: 0 8px 22px rgba(0,0,0,0.55);
-    padding: 4px 0;
+    background: #1c1c1e;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+    padding: 5px 0;
     display: none;
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
 }
@@ -198,16 +198,15 @@ main {
     position: relative;
     width: 100%;
     box-sizing: border-box;
-    min-height: 24px;
-    padding: 4px 10px 4px 26px;
+    padding: 6px 10px 6px 26px;
     border: 0;
     border-radius: 0;
     background: transparent;
     box-shadow: none;
     color: #ffffff;
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 400;
-    line-height: 16px;
+    line-height: 1.3;
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
     text-align: left;
     text-transform: none;
@@ -238,9 +237,9 @@ main {
 }
 
 .venue-combo__empty{
-    padding: 5px 10px 5px 26px;
+    padding: 6px 10px 6px 26px;
     color: rgba(255,255,255,0.55);
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 400;
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
     text-transform: none;
