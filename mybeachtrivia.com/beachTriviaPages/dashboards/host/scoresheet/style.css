@@ -197,14 +197,14 @@ main {
     position: relative;
     width: 100%;
     box-sizing: border-box;
-    padding: 3px 8px 3px 22px;
+    padding: 5px 8px 5px 22px;
     border: none;
     border-radius: 5px;
     background: transparent;
     color: #fff;
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 400;
-    font-family: inherit;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
     text-transform: none;
     letter-spacing: normal;
     text-align: left;
@@ -231,9 +231,10 @@ main {
 }
 
 .venue-combo__empty{
-    padding: 6px 8px 6px 22px;
+    padding: 5px 8px 5px 22px;
     color: rgba(255,255,255,0.5);
-    font-size: 13px;
+    font-size: 15px;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
     text-transform: none;
     letter-spacing: normal;
 }
