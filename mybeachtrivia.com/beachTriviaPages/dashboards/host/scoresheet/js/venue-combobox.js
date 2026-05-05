@@ -126,11 +126,15 @@
       setExpanded(false);
       activeIndex = -1;
       render();
+      syncInputFromSelect(); // restore selected venue name (clears any partial search text)
     }
 
     function openList(fromKeyboard = false) {
       if (isOfflineNow()) return;
       openedByKeyboard = fromKeyboard;
+      if (!isExpanded()) {
+        input.value = ""; // clear so full list shows on open
+      }
       setExpanded(true);
       render();
     }
