@@ -161,14 +161,22 @@ main {
     align-items: stretch;
 }
 
-/* Hide the native select (kept for validation + existing JS logic) */
+/* Use native #venueSelect so it matches #eventType visually */
+#venueCombo,
+#venueComboInput,
+#venueComboList{
+    display: none !important;
+}
+
 #venueSelect{
-    position: absolute;
-    left: -9999px;
-    width: 1px;
-    height: 1px;
-    opacity: 0;
-    pointer-events: none;
+    position: static !important;
+    left: auto !important;
+    top: auto !important;
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    width: auto;
 }
 
 /* Venue dropdown list */
