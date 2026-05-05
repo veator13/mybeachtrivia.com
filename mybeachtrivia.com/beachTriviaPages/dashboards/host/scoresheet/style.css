@@ -212,6 +212,10 @@ main {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    box-shadow: none;
+    transition: none;
+    transform: none;
+    outline: none;
 }
 
 .venue-combo__item[aria-selected="true"]::before{
