@@ -161,10 +161,14 @@ main {
     align-items: stretch;
 }
 
-/* Closed state: native select is visible (matches Event Type).
-   venue-combobox.js swaps to #venueCombo when search is active. */
-#venueCombo{
-    display: none;
+/* Hide native select — combobox is the visible control */
+#venueSelect{
+    position: absolute;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
 }
 
 /* Venue dropdown list */

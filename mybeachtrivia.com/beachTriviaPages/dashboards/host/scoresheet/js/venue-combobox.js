@@ -122,22 +122,11 @@
       return combo.getAttribute("aria-expanded") === "true";
     }
 
-    function showNativeSelect() {
-      combo.hidden = true;
-      select.hidden = false;
-    }
-
-    function showCombo() {
-      select.hidden = true;
-      combo.hidden = false;
-    }
-
     function closeList() {
       setExpanded(false);
       activeIndex = -1;
       render();
-      syncInputFromSelect();
-      showNativeSelect(); // swap back to native select on close
+      syncInputFromSelect(); // restore selected venue name (clears any partial search text)
     }
 
     function openList(fromKeyboard = false) {
@@ -145,8 +134,6 @@
       openedByKeyboard = fromKeyboard;
       if (!isExpanded()) {
         input.value = ""; // clear so full list shows on open
-        showCombo();      // swap native select out, combo in
-        setTimeout(() => input.focus(), 0);
       }
       setExpanded(true);
       render();
@@ -238,17 +225,9 @@
       // Selection should come from clicking/entering an item.
     }
 
-    // Initial bind: native select visible, combo hidden
+    // Initial bind
     syncInputFromSelect();
     setExpanded(false);
-    showNativeSelect();
-
-    // Clicking the native select opens search instead of native popup
-    select.addEventListener("mousedown", (e) => {
-      if (isOfflineNow()) return;
-      e.preventDefault();
-      openList(false);
-    });
 
     input.addEventListener("input", () => {
       if (isOfflineNow()) return;
