@@ -153,7 +153,17 @@
     blank.textContent = '— Select a show —';
     sel.appendChild(blank);
 
-    state.shows.forEach(function (s) {
+    const classicShows = state.shows.filter(function (s) {
+      var t = (s.show && s.show.showType) || 'classic-trivia';
+      return t === 'classic-trivia';
+    });
+
+    if (!classicShows.length) {
+      sel.innerHTML = '<option value="">No classic trivia shows found</option>';
+      return;
+    }
+
+    classicShows.forEach(function (s) {
       const opt = document.createElement('option');
       opt.value = s.__id;
       const title = (s.show && s.show.title) || 'Untitled';
@@ -162,7 +172,7 @@
       sel.appendChild(opt);
     });
 
-    const today = state.shows.find(matchesToday);
+    const today = classicShows.find(matchesToday);
     if (today) {
       sel.value = today.__id;
       dom['btn-load-show'].disabled = false;
@@ -567,6 +577,19 @@
     if (!_consoleActive()) return;
     e.preventDefault();
     e.returnValue = '';
+  });
+
+  // Allow the parent host-event page to request the current session code
+  // so it can write castMode to Firestore for the "Share Scores" feature.
+  window.addEventListener('message', function (e) {
+    if (!e.data || e.data.type !== 'BT_REQUEST_SESSION_CODE') return;
+    try {
+      window.parent.postMessage({
+        type: 'BT_SESSION_CODE',
+        code: state.sessionCode,
+        live: state.live,
+      }, '*');
+    } catch (_) {}
   });
 
 })();

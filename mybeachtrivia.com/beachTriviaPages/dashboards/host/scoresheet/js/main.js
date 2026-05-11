@@ -288,4 +288,25 @@
   } else {
     bind();
   }
+
+  // Allow parent host-event page to request current standings for "Share Scores".
+  window.addEventListener('message', function (e) {
+    if (!e.data || e.data.type !== 'BT_REQUEST_STANDINGS') return;
+    try {
+      const rows = Array.from(document.querySelectorAll('#teamTable tbody tr[data-team-id]'));
+      const standings = rows
+        .map(function (row) {
+          const teamId = row.dataset.teamId;
+          const nameEl = row.querySelector('input.teamName');
+          const name = (nameEl && nameEl.value || '').trim();
+          const scoreEl = document.getElementById('finalScore' + teamId);
+          const score = parseInt((scoreEl && scoreEl.textContent || '').trim(), 10) || 0;
+          return { name, score };
+        })
+        .filter(function (t) { return t.name.length > 0; })
+        .sort(function (a, b) { return b.score - a.score; });
+
+      window.parent.postMessage({ type: 'BT_STANDINGS_DATA', standings: standings }, '*');
+    } catch (_) {}
+  });
 })();

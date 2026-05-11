@@ -148,6 +148,9 @@
         errorText: $("#error-text"),
         joinOverlay: $("#join-overlay"),
         viewerShell: $("#viewer-shell"),
+        scoreboardOverlay: $("#scoreboard-overlay"),
+        scoreboardList: $("#sb-list"),
+        scoreboardTitle: $("#sb-title"),
   
         sessionCodeInput: $("#session-code-input"),
         joinSessionBtn: $("#join-session-btn"),
@@ -368,6 +371,15 @@
     }
 
     function renderFromSessionDoc(docData) {
+      const castMode = String((docData && docData.castMode) || "slide");
+
+      if (castMode === "scoresheet") {
+        renderScoreboard(docData.scoreboard || [], docData.showTitle || "");
+        return;
+      }
+
+      hideScoreboard();
+
       const currentStateKey = String((docData && docData.currentStateKey) || "");
       const revealShown = !!(docData && docData.revealShown);
       const currentSlide = docData && docData.currentSlide ? docData.currentSlide : null;
@@ -387,6 +399,56 @@
       }
 
       renderSlide(slideData, showTitle);
+    }
+
+    function renderScoreboard(standings, showTitle) {
+      const overlay = state.dom.scoreboardOverlay;
+      const list = state.dom.scoreboardList;
+      const titleEl = state.dom.scoreboardTitle;
+      if (!overlay || !list) return;
+
+      if (titleEl) titleEl.textContent = showTitle ? showTitle + " — Scores" : "Scores";
+
+      list.innerHTML = "";
+      const medals = ["🥇", "🥈", "🥉"];
+
+      standings.forEach(function (team, i) {
+        const li = document.createElement("li");
+        const medal = medals[i] || "";
+        const rank = i + 1;
+        li.style.cssText = [
+          "display:flex",
+          "align-items:center",
+          "gap:1.6vw",
+          "background:" + (i === 0 ? "rgba(255,210,60,0.10)" : i === 1 ? "rgba(180,180,200,0.07)" : i === 2 ? "rgba(180,120,60,0.09)" : "rgba(255,255,255,0.04)"),
+          "border:1px solid " + (i === 0 ? "rgba(255,210,60,0.22)" : "rgba(255,255,255,0.07)"),
+          "border-radius:14px",
+          "padding:1.4vh 2.2vw",
+          "font-size:clamp(1rem,2.4vw,1.9rem)",
+          "font-weight:800",
+        ].join(";");
+
+        li.innerHTML =
+          '<span style="min-width:2.4em;text-align:center;font-size:0.88em;opacity:0.55;">' + (medal || "#" + rank) + "</span>" +
+          '<span style="flex:1;letter-spacing:0.01em;">' + escapeHtml(team.name) + "</span>" +
+          '<span style="font-size:1.1em;color:' + (i === 0 ? "#ffd23c" : "#55c6ec") + ';letter-spacing:0.03em;">' + team.score + " pts</span>";
+
+        list.appendChild(li);
+      });
+
+      if (!standings.length) {
+        list.innerHTML = '<li style="text-align:center;opacity:0.5;padding:2vh 0;">No scores recorded yet.</li>';
+      }
+
+      overlay.style.display = "block";
+    }
+
+    function hideScoreboard() {
+      if (state.dom.scoreboardOverlay) state.dom.scoreboardOverlay.style.display = "none";
+    }
+
+    function escapeHtml(str) {
+      return String(str || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
     }
   
     function normalizeIncomingSlide(slide, stateKey, revealShown, theme) {

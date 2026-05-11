@@ -225,6 +225,14 @@
     <div id="cast-stage" class="preview-stage"></div>
   </main>
 
+  <div id="scoreboard-overlay" style="display:none; position:fixed; inset:0; z-index:200; background:linear-gradient(160deg,#081420 0%,#0b1e30 60%,#061018 100%); color:#fff; font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; overflow:hidden;">
+    <div style="display:flex; flex-direction:column; align-items:center; justify-content:flex-start; height:100%; padding:4vh 4vw;">
+      <div style="font-size:clamp(0.7rem,1.4vw,1rem); font-weight:800; letter-spacing:0.14em; text-transform:uppercase; color:#55c6ec; margin-bottom:1.5vh;">Beach Trivia</div>
+      <h1 id="sb-title" style="margin:0 0 3vh; font-size:clamp(1.6rem,4vw,3.2rem); font-weight:900; letter-spacing:0.02em; text-align:center;">Scores</h1>
+      <ol id="sb-list" style="list-style:none; margin:0; padding:0; width:100%; max-width:860px; display:flex; flex-direction:column; gap:1.2vh;"></ol>
+    </div>
+  </div>
+
   <div class="status-floating" id="status-floating" style="display:none;">
     <span class="status-dot"></span>
     <span id="status-floating-text">Connected</span>
@@ -247,6 +255,10 @@
       var activeSessionCode = "";
       var unsubscribeSession = null;
       var lastSessionData = null;
+
+      var scoreboardOverlay = document.getElementById("scoreboard-overlay");
+      var scoreboardList = document.getElementById("sb-list");
+      var scoreboardTitle = document.getElementById("sb-title");
 
       function showError(message) {
         if (loadingScreen) loadingScreen.style.display = "none";
@@ -364,7 +376,45 @@
         if (_castPendingHide) { _castPendingHide.abort(); _castPendingHide = null; }
       }
 
+      function renderScoreboard(standings, showTitle) {
+        if (!scoreboardOverlay || !scoreboardList) return;
+        if (scoreboardTitle) scoreboardTitle.textContent = showTitle ? showTitle + " — Scores" : "Scores";
+        scoreboardList.innerHTML = "";
+        var medals = ["🥇", "🥈", "🥉"];
+        if (!standings || !standings.length) {
+          scoreboardList.innerHTML = '<li style="text-align:center;opacity:0.5;padding:2vh 0;font-size:clamp(1rem,2vw,1.6rem);">No scores recorded yet.</li>';
+        } else {
+          standings.forEach(function (team, i) {
+            var li = document.createElement("li");
+            var medal = medals[i] || "";
+            li.style.cssText = [
+              "display:flex", "align-items:center", "gap:1.6vw",
+              "background:" + (i === 0 ? "rgba(255,210,60,0.10)" : i === 1 ? "rgba(180,180,200,0.07)" : i === 2 ? "rgba(180,120,60,0.09)" : "rgba(255,255,255,0.04)"),
+              "border:1px solid " + (i === 0 ? "rgba(255,210,60,0.22)" : "rgba(255,255,255,0.07)"),
+              "border-radius:14px", "padding:1.4vh 2.2vw",
+              "font-size:clamp(1rem,2.4vw,1.9rem)", "font-weight:800",
+            ].join(";");
+            var name = String(team.name || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+            li.innerHTML =
+              '<span style="min-width:2.4em;text-align:center;font-size:0.88em;opacity:0.55;">' + (medal || "#" + (i + 1)) + "</span>" +
+              '<span style="flex:1;letter-spacing:0.01em;">' + name + "</span>" +
+              '<span style="font-size:1.1em;color:' + (i === 0 ? "#ffd23c" : "#55c6ec") + ';letter-spacing:0.03em;">' + team.score + " pts</span>";
+            scoreboardList.appendChild(li);
+          });
+        }
+        scoreboardOverlay.style.display = "block";
+      }
+
+      function hideScoreboard() {
+        if (scoreboardOverlay) scoreboardOverlay.style.display = "none";
+      }
+
       function paintFromDoc(data) {
+        if (data && data.castMode === "scoresheet") {
+          renderScoreboard(data.scoreboard || [], data.showTitle || "");
+          return;
+        }
+        hideScoreboard();
         if (!castStage || !window.BeachTriviaSlidePaint) return;
         _cancelCastHide();
         lastSessionData = data;

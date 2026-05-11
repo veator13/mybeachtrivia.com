@@ -15,7 +15,7 @@
 
   <script src="/beachTriviaPages/js/firebase-init-compat.js?v=1" defer></script>
   <script src="/beachTriviaPages/dashboards/host/guard-host.js?v=2" defer></script>
-  <script src="host-event.js?v=5" defer></script>
+  <script src="host-event.js?v=6" defer></script>
 
   <style>
     :root {
@@ -404,11 +404,11 @@
       position: relative;
       display: flex;
       flex-direction: column;
-      width: min(1200px, calc(100vw - 32px));
-      height: calc(100vh - 48px);
+      width: calc(100vw - 16px);
+      height: calc(100vh - 16px);
       margin: auto;
       background: #0a1624;
-      border-radius: 18px;
+      border-radius: 12px;
       border: 1px solid rgba(255, 255, 255, 0.08);
       box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
       overflow: hidden;
@@ -430,6 +430,33 @@
       letter-spacing: 0.06em;
       text-transform: uppercase;
       color: rgba(255, 255, 255, 0.6);
+    }
+
+    .share-scores-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      border-radius: 8px;
+      border: none;
+      background: #1a5c38;
+      color: #fff;
+      font-size: 0.84rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+
+    .share-scores-btn:hover {
+      background: #1e7044;
+    }
+
+    .share-scores-btn.sharing {
+      background: #b94040;
+    }
+
+    .share-scores-btn.sharing:hover {
+      background: #d44e4e;
     }
 
     .scoresheet-modal-close {
@@ -491,6 +518,7 @@
         height: 100vh;
         border-radius: 0;
         margin: 0;
+        border: none;
       }
     }
   </style>
@@ -532,6 +560,7 @@
         <div class="scoresheet-modal-content">
           <div class="scoresheet-modal-bar">
             <span class="scoresheet-modal-title">Scoresheet</span>
+            <button class="share-scores-btn" id="share-scores-btn" type="button">📺 Share Scores</button>
             <button class="scoresheet-modal-close" id="scoresheet-modal-close" type="button">✕ Close</button>
           </div>
           <iframe class="scoresheet-modal-iframe" id="scoresheet-modal-iframe" src="" title="Scoresheet"></iframe>

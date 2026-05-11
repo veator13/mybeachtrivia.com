@@ -61,6 +61,7 @@
   const scoresheetModalIframe = document.getElementById('scoresheet-modal-iframe');
   const scoresheetModalClose = document.getElementById('scoresheet-modal-close');
   const scoresheetModalBackdrop = document.getElementById('scoresheet-modal-backdrop');
+  const shareScoresBtn = document.getElementById('share-scores-btn');
 
   const SCORESHEET_URL = '/beachTriviaPages/dashboards/host/scoresheet/';
 
@@ -72,6 +73,11 @@
   ]);
 
   let scoresheetLoaded = false;
+  let _sessionCode = null;
+  let _sharing = false;
+  let _pendingShare = false;
+
+  // ── Scoresheet modal ───────────────────────────────────────────────────────
 
   function openScoresheet() {
     if (!scoresheetLoaded) {
@@ -94,9 +100,13 @@
     if (gameFrameView) gameFrameView.style.display = 'block';
     if (pageStage) pageStage.classList.add('game-open');
     if (scoresheetBtn) scoresheetBtn.hidden = !SCORESHEET_GAMES.has(label);
+    _sessionCode = null;
+    _sharing = false;
+    updateShareBtn();
   }
 
   function closeGame() {
+    if (_sharing) stopSharingScores();
     closeScoresheet();
     if (gameFrameView) gameFrameView.style.display = 'none';
     if (contentGrid) contentGrid.style.display = 'grid';
@@ -105,7 +115,95 @@
     gameIframe.src = '';
     scoresheetLoaded = false;
     if (scoresheetModalIframe) scoresheetModalIframe.src = '';
+    _sessionCode = null;
+    _sharing = false;
+    updateShareBtn();
   }
+
+  // ── Share Scores ───────────────────────────────────────────────────────────
+
+  function updateShareBtn() {
+    if (!shareScoresBtn) return;
+    if (_sharing) {
+      shareScoresBtn.textContent = '⏹ Stop Sharing';
+      shareScoresBtn.classList.add('sharing');
+    } else {
+      shareScoresBtn.textContent = '📺 Share Scores';
+      shareScoresBtn.classList.remove('sharing');
+    }
+  }
+
+  function requestSessionCode() {
+    if (gameIframe && gameIframe.contentWindow) {
+      gameIframe.contentWindow.postMessage({ type: 'BT_REQUEST_SESSION_CODE' }, '*');
+    }
+  }
+
+  function requestStandings() {
+    if (scoresheetModalIframe && scoresheetModalIframe.contentWindow) {
+      scoresheetModalIframe.contentWindow.postMessage({ type: 'BT_REQUEST_STANDINGS' }, '*');
+    }
+  }
+
+  function writeToFirestore(castMode, scoreboard) {
+    if (!_sessionCode) return;
+    try {
+      const update = {
+        castMode: castMode,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      };
+      if (scoreboard) update.scoreboard = scoreboard;
+      firebase.firestore()
+        .collection('liveSessions')
+        .doc(_sessionCode)
+        .set(update, { merge: true })
+        .catch(function (err) {
+          console.error('[host-event] share scores write failed:', err);
+        });
+    } catch (err) {
+      console.error('[host-event] share scores:', err);
+    }
+  }
+
+  function handleShareScores() {
+    if (_sharing) {
+      stopSharingScores();
+      return;
+    }
+    _pendingShare = true;
+    requestSessionCode();
+    // If we already have the code, also request standings right away
+    if (_sessionCode) {
+      requestStandings();
+    }
+  }
+
+  function stopSharingScores() {
+    _sharing = false;
+    updateShareBtn();
+    writeToFirestore('slide', null);
+  }
+
+  // Listen for postMessage replies from the game iframe and scoresheet iframe
+  window.addEventListener('message', function (e) {
+    if (!e.data) return;
+
+    if (e.data.type === 'BT_SESSION_CODE') {
+      _sessionCode = e.data.code || null;
+      if (_pendingShare && _sessionCode) {
+        requestStandings();
+      }
+    }
+
+    if (e.data.type === 'BT_STANDINGS_DATA') {
+      _pendingShare = false;
+      _sharing = true;
+      updateShareBtn();
+      writeToFirestore('scoresheet', e.data.standings || []);
+    }
+  });
+
+  // ── Wire events ────────────────────────────────────────────────────────────
 
   function wireEvents() {
     if (backBtn) {
@@ -128,6 +226,10 @@
 
     if (scoresheetModalBackdrop) {
       scoresheetModalBackdrop.addEventListener('click', closeScoresheet);
+    }
+
+    if (shareScoresBtn) {
+      shareScoresBtn.addEventListener('click', handleShareScores);
     }
 
     document.addEventListener('keydown', function (e) {
