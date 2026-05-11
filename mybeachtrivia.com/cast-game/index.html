@@ -226,10 +226,10 @@
   </main>
 
   <div id="scoreboard-overlay" style="display:none; position:fixed; inset:0; z-index:200; background:linear-gradient(160deg,#081420 0%,#0b1e30 60%,#061018 100%); color:#fff; font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; overflow:hidden;">
-    <div style="display:flex; flex-direction:column; align-items:center; justify-content:flex-start; height:100%; padding:4vh 4vw;">
-      <div style="font-size:clamp(0.7rem,1.4vw,1rem); font-weight:800; letter-spacing:0.14em; text-transform:uppercase; color:#55c6ec; margin-bottom:1.5vh;">Beach Trivia</div>
-      <h1 id="sb-title" style="margin:0 0 3vh; font-size:clamp(1.6rem,4vw,3.2rem); font-weight:900; letter-spacing:0.02em; text-align:center;">Scores</h1>
-      <ol id="sb-list" style="list-style:none; margin:0; padding:0; width:100%; max-width:860px; display:flex; flex-direction:column; gap:1.2vh;"></ol>
+    <div style="display:flex; flex-direction:column; align-items:center; height:100%; padding:4vh 4vw; box-sizing:border-box;">
+      <div style="font-size:clamp(0.7rem,1.4vw,1rem); font-weight:800; letter-spacing:0.14em; text-transform:uppercase; color:#55c6ec; margin-bottom:1.5vh; flex-shrink:0;">Beach Trivia</div>
+      <h1 id="sb-title" style="margin:0 0 3vh; font-size:clamp(1.6rem,4vw,3.2rem); font-weight:900; letter-spacing:0.02em; text-align:center; flex-shrink:0;">Standings</h1>
+      <ol id="sb-list" style="list-style:none; margin:0; padding:0 0 2vh; width:100%; max-width:860px; display:flex; flex-direction:column; gap:1.2vh; flex:1; min-height:0; overflow-y:auto;"></ol>
     </div>
   </div>
 

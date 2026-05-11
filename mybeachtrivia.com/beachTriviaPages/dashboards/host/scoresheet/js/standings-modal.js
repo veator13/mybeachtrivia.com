@@ -195,6 +195,11 @@
     modal.classList.remove("hidden");
     modal.style.display = "flex";
     document.body.classList.add("modal-open");
+    try {
+      const list = buildRankings();
+      const standings = list.map(item => ({ name: item.name, score: item.total }));
+      window.parent.postMessage({ type: 'BT_STANDINGS_OPEN', standings }, '*');
+    } catch (_) {}
   }
 
   function closeModal() {
@@ -211,6 +216,9 @@
       fsBtn.setAttribute("aria-pressed", "false");
       fsBtn.textContent = "⛶";
     }
+    try {
+      window.parent.postMessage({ type: 'BT_STANDINGS_CLOSE' }, '*');
+    } catch (_) {}
   }
 
   function toggleFullscreen() {

@@ -201,6 +201,14 @@
       updateShareBtn();
       writeToFirestore('scoresheet', e.data.standings || []);
     }
+
+    if (e.data.type === 'BT_STANDINGS_OPEN' && _sessionCode) {
+      writeToFirestore('scoresheet', e.data.standings || []);
+    }
+
+    if (e.data.type === 'BT_STANDINGS_CLOSE' && _sessionCode) {
+      writeToFirestore('slide', null);
+    }
   });
 
   // ── Wire events ────────────────────────────────────────────────────────────
