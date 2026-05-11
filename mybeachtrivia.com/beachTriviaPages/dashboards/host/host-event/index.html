@@ -15,7 +15,7 @@
 
   <script src="/beachTriviaPages/js/firebase-init-compat.js?v=1" defer></script>
   <script src="/beachTriviaPages/dashboards/host/guard-host.js?v=2" defer></script>
-  <script src="host-event.js?v=4" defer></script>
+  <script src="host-event.js?v=5" defer></script>
 
   <style>
     :root {
@@ -360,6 +360,105 @@
       background: var(--host-bg);
     }
 
+    .scoresheet-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 16px;
+      border-radius: 10px;
+      border: none;
+      background: #1a4a6b;
+      color: #fff;
+      font-size: 0.88rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s ease;
+      margin-left: auto;
+    }
+
+    .scoresheet-btn:hover {
+      background: #1d5a84;
+    }
+
+    /* Scoresheet modal */
+    .scoresheet-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 500;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .scoresheet-modal[hidden] {
+      display: none;
+    }
+
+    .scoresheet-modal-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(4, 8, 14, 0.78);
+      backdrop-filter: blur(4px);
+    }
+
+    .scoresheet-modal-content {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      width: min(1200px, calc(100vw - 32px));
+      height: calc(100vh - 48px);
+      margin: auto;
+      background: #0a1624;
+      border-radius: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+      overflow: hidden;
+    }
+
+    .scoresheet-modal-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      background: rgba(255, 255, 255, 0.04);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+      flex-shrink: 0;
+    }
+
+    .scoresheet-modal-title {
+      font-size: 0.88rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.6);
+    }
+
+    .scoresheet-modal-close {
+      margin-left: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      border-radius: 8px;
+      border: none;
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+      font-size: 0.84rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+
+    .scoresheet-modal-close:hover {
+      background: rgba(255, 255, 255, 0.14);
+    }
+
+    .scoresheet-modal-iframe {
+      flex: 1;
+      width: 100%;
+      border: none;
+      background: #fff;
+    }
+
     @media (max-width: 640px) {
       .page-shell {
         padding: 58px 12px 18px;
@@ -385,6 +484,13 @@
 
       .game-iframe {
         height: calc(100vh - 142px);
+      }
+
+      .scoresheet-modal-content {
+        width: 100vw;
+        height: 100vh;
+        border-radius: 0;
+        margin: 0;
       }
     }
   </style>
@@ -416,8 +522,20 @@
         <div class="back-bar">
           <button class="back-btn" id="back-to-menu" type="button">← Back</button>
           <span class="game-label" id="game-label"></span>
+          <button class="scoresheet-btn" id="scoresheet-btn" type="button" hidden>📋 Scoresheet</button>
         </div>
         <iframe class="game-iframe" id="game-iframe" src="" title="Game"></iframe>
+      </div>
+
+      <div class="scoresheet-modal" id="scoresheet-modal" hidden>
+        <div class="scoresheet-modal-backdrop" id="scoresheet-modal-backdrop"></div>
+        <div class="scoresheet-modal-content">
+          <div class="scoresheet-modal-bar">
+            <span class="scoresheet-modal-title">Scoresheet</span>
+            <button class="scoresheet-modal-close" id="scoresheet-modal-close" type="button">✕ Close</button>
+          </div>
+          <iframe class="scoresheet-modal-iframe" id="scoresheet-modal-iframe" src="" title="Scoresheet"></iframe>
+        </div>
       </div>
 
       <section class="content-grid" aria-label="Host event content">

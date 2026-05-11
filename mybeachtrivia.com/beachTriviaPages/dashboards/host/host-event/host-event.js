@@ -56,6 +56,36 @@
   const gameLabel = document.getElementById('game-label');
   const backToMenu = document.getElementById('back-to-menu');
   const pageStage = document.querySelector('.page-stage');
+  const scoresheetBtn = document.getElementById('scoresheet-btn');
+  const scoresheetModal = document.getElementById('scoresheet-modal');
+  const scoresheetModalIframe = document.getElementById('scoresheet-modal-iframe');
+  const scoresheetModalClose = document.getElementById('scoresheet-modal-close');
+  const scoresheetModalBackdrop = document.getElementById('scoresheet-modal-backdrop');
+
+  const SCORESHEET_URL = '/beachTriviaPages/dashboards/host/scoresheet/';
+
+  const SCORESHEET_GAMES = new Set([
+    'Classic Trivia',
+    'Beach Feud',
+    'Themed Trivia',
+    'Mixed Events',
+  ]);
+
+  let scoresheetLoaded = false;
+
+  function openScoresheet() {
+    if (!scoresheetLoaded) {
+      scoresheetModalIframe.src = SCORESHEET_URL;
+      scoresheetLoaded = true;
+    }
+    scoresheetModal.hidden = false;
+    document.body.classList.add('modal-open');
+  }
+
+  function closeScoresheet() {
+    scoresheetModal.hidden = true;
+    document.body.classList.remove('modal-open');
+  }
 
   function openGame(url, label) {
     gameIframe.src = url + '?t=' + Date.now();
@@ -63,13 +93,18 @@
     if (contentGrid) contentGrid.style.display = 'none';
     if (gameFrameView) gameFrameView.style.display = 'block';
     if (pageStage) pageStage.classList.add('game-open');
+    if (scoresheetBtn) scoresheetBtn.hidden = !SCORESHEET_GAMES.has(label);
   }
 
   function closeGame() {
+    closeScoresheet();
     if (gameFrameView) gameFrameView.style.display = 'none';
     if (contentGrid) contentGrid.style.display = 'grid';
     if (pageStage) pageStage.classList.remove('game-open');
+    if (scoresheetBtn) scoresheetBtn.hidden = true;
     gameIframe.src = '';
+    scoresheetLoaded = false;
+    if (scoresheetModalIframe) scoresheetModalIframe.src = '';
   }
 
   function wireEvents() {
@@ -82,6 +117,24 @@
     if (backToMenu) {
       backToMenu.addEventListener('click', closeGame);
     }
+
+    if (scoresheetBtn) {
+      scoresheetBtn.addEventListener('click', openScoresheet);
+    }
+
+    if (scoresheetModalClose) {
+      scoresheetModalClose.addEventListener('click', closeScoresheet);
+    }
+
+    if (scoresheetModalBackdrop) {
+      scoresheetModalBackdrop.addEventListener('click', closeScoresheet);
+    }
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && scoresheetModal && !scoresheetModal.hidden) {
+        closeScoresheet();
+      }
+    });
 
     document.addEventListener('click', function (e) {
       var tile = e.target.closest('[data-game-url]');
