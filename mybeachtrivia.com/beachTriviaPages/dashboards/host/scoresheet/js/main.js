@@ -289,7 +289,7 @@
     bind();
   }
 
-  // Collect full row data for share-scores cast.
+  // Collect standings data for cast.
   function collectTeamData() {
     const rows = Array.from(document.querySelectorAll('#teamTable tbody tr[data-team-id]'));
     return rows
@@ -298,28 +298,9 @@
         const nameEl = row.querySelector('input.teamName');
         const name = (nameEl && nameEl.value || '').trim();
         if (!name) return null;
-        const txt = id => parseInt((document.getElementById(id)?.textContent || '').trim(), 10) || 0;
-        const val = id => parseInt((document.getElementById(id)?.value || '').trim(), 10) || 0;
-        const bonusEl = row.querySelector('input.bonus-input');
-        const qs = [];
-        for (let q = 1; q <= 20; q++) {
-          const el = document.getElementById('num' + tid + q);
-          qs.push(el ? (parseInt(el.value || '', 10) || 0) : 0);
-        }
-        return {
-          name,
-          qs,
-          r1: txt('r1Total' + tid),
-          r2: txt('r2Total' + tid),
-          halfTime: val('halfTime' + tid),
-          firstHalf: txt('firstHalfTotal' + tid),
-          r3: txt('r3Total' + tid),
-          r4: txt('r4Total' + tid),
-          finalQ: val('finalQuestion' + tid),
-          secondHalf: txt('secondHalfTotal' + tid),
-          bonus: bonusEl ? (parseInt(bonusEl.value || '0', 10) || 0) : 0,
-          score: txt('finalScore' + tid),
-        };
+        const scoreEl = document.getElementById('finalScore' + tid);
+        const score = parseInt((scoreEl?.textContent || '').trim(), 10) || 0;
+        return { name, score };
       })
       .filter(Boolean)
       .sort((a, b) => b.score - a.score);
