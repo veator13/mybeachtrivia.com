@@ -375,49 +375,83 @@
       function renderScoreboard(teams) {
         if (!scoreboardOverlay) return;
 
-        var cols = ["#", "Team", "R1", "R2", "HT", "1st Half", "R3", "R4", "FQ", "2nd Half", "Bonus", "Score"];
-        var thStyle = function(c) {
-          var color = (c === "Score") ? "#ffd23c" : (c === "1st Half" || c === "2nd Half") ? "#80d4ff" : "#55c6ec";
-          var align = (c === "Team") ? "left" : "center";
-          return 'style="padding:0.5em 0.7em;text-align:' + align + ';color:' + color + ';font-weight:800;white-space:nowrap;border-bottom:2px solid rgba(255,255,255,0.12);font-size:0.9em;letter-spacing:0.06em;text-transform:uppercase;"';
+        var S = {
+          th: 'padding:0.35em 0.5em;text-align:center;border:1px solid rgba(255,255,255,0.12);white-space:nowrap;font-size:0.8em;letter-spacing:0.04em;',
+          thTeam: 'padding:0.35em 0.6em;text-align:center;border:1px solid rgba(255,255,255,0.12);white-space:nowrap;font-size:0.8em;letter-spacing:0.04em;',
+          thRound: 'color:#80d4ff;font-weight:800;text-transform:uppercase;',
+          thQ: 'color:#aaa;font-weight:600;',
+          thTotal: 'color:#80d4ff;font-weight:800;',
+          thHalf: 'color:#55c6ec;font-weight:800;',
+          thScore: 'color:#4ade80;font-weight:800;font-size:0.85em;',
+          td: 'padding:0.3em 0.4em;text-align:center;border:1px solid rgba(255,255,255,0.07);',
+          tdName: 'padding:0.3em 0.6em;text-align:left;border:1px solid rgba(255,255,255,0.07);font-weight:700;white-space:nowrap;',
+          tdTotal: 'padding:0.3em 0.5em;text-align:center;border:1px solid rgba(255,255,255,0.1);color:#80d4ff;font-weight:700;',
+          tdHalf: 'padding:0.3em 0.5em;text-align:center;border:1px solid rgba(255,255,255,0.1);color:#55c6ec;font-weight:700;',
+          tdScore: 'padding:0.3em 0.6em;text-align:center;border:1px solid rgba(255,255,255,0.15);font-weight:900;font-size:1.1em;',
         };
 
-        var thead = "<thead><tr>" + cols.map(function(c) { return "<th " + thStyle(c) + ">" + c + "</th>"; }).join("") + "</tr></thead>";
+        var thead =
+          '<thead>' +
+          '<tr>' +
+            '<th rowspan="2" style="' + S.thTeam + S.thRound + '">TEAM NAME</th>' +
+            '<th colspan="5" style="' + S.th + S.thRound + '">ROUND 1</th>' +
+            '<th rowspan="2" style="' + S.th + S.thTotal + '">R1</th>' +
+            '<th colspan="5" style="' + S.th + S.thRound + '">ROUND 2</th>' +
+            '<th rowspan="2" style="' + S.th + S.thTotal + '">R2</th>' +
+            '<th rowspan="2" style="' + S.th + S.thHalf + '">HT</th>' +
+            '<th rowspan="2" style="' + S.th + S.thHalf + '">1ST HALF</th>' +
+            '<th colspan="5" style="' + S.th + S.thRound + '">ROUND 3</th>' +
+            '<th rowspan="2" style="' + S.th + S.thTotal + '">R3</th>' +
+            '<th colspan="5" style="' + S.th + S.thRound + '">ROUND 4</th>' +
+            '<th rowspan="2" style="' + S.th + S.thTotal + '">R4</th>' +
+            '<th rowspan="2" style="' + S.th + S.thHalf + '">FQ</th>' +
+            '<th rowspan="2" style="' + S.th + S.thHalf + '">2ND HALF</th>' +
+            '<th rowspan="2" style="' + S.th + S.thTotal + '">BONUS</th>' +
+            '<th rowspan="2" style="' + S.th + S.thScore + '">SCORE</th>' +
+          '</tr>' +
+          '<tr>' +
+            '<th style="' + S.th + S.thQ + '">Q1</th><th style="' + S.th + S.thQ + '">Q2</th><th style="' + S.th + S.thQ + '">Q3</th><th style="' + S.th + S.thQ + '">Q4</th><th style="' + S.th + S.thQ + '">Q5</th>' +
+            '<th style="' + S.th + S.thQ + '">Q6</th><th style="' + S.th + S.thQ + '">Q7</th><th style="' + S.th + S.thQ + '">Q8</th><th style="' + S.th + S.thQ + '">Q9</th><th style="' + S.th + S.thQ + '">Q10</th>' +
+            '<th style="' + S.th + S.thQ + '">Q11</th><th style="' + S.th + S.thQ + '">Q12</th><th style="' + S.th + S.thQ + '">Q13</th><th style="' + S.th + S.thQ + '">Q14</th><th style="' + S.th + S.thQ + '">Q15</th>' +
+            '<th style="' + S.th + S.thQ + '">Q16</th><th style="' + S.th + S.thQ + '">Q17</th><th style="' + S.th + S.thQ + '">Q18</th><th style="' + S.th + S.thQ + '">Q19</th><th style="' + S.th + S.thQ + '">Q20</th>' +
+          '</tr>' +
+          '</thead>';
 
-        var tbody = "<tbody>";
+        var tbody = '<tbody>';
         if (!teams || !teams.length) {
-          tbody += '<tr><td colspan="' + cols.length + '" style="text-align:center;padding:3em;opacity:0.45;font-size:clamp(0.9rem,2vw,1.4rem);">No scores recorded yet.</td></tr>';
+          tbody += '<tr><td colspan="29" style="' + S.td + 'text-align:center;padding:3em;opacity:0.45;font-size:1.2em;">No scores recorded yet.</td></tr>';
         } else {
           teams.forEach(function(team, i) {
-            var bg = i === 0 ? "rgba(255,210,60,0.07)" : i % 2 === 0 ? "rgba(255,255,255,0.04)" : "transparent";
-            var scoreColor = i === 0 ? "#ffd23c" : "#fff";
-            var td = function(val, extra) {
-              return '<td style="padding:0.4em 0.7em;text-align:center;' + (extra || "") + '">' + (val === undefined || val === null ? "—" : val) + '</td>';
-            };
-            tbody += '<tr style="background:' + bg + ';border-bottom:1px solid rgba(255,255,255,0.05);">';
-            tbody += '<td style="padding:0.4em 0.7em;text-align:center;opacity:0.55;font-size:0.85em;">#' + (i + 1) + '</td>';
-            tbody += '<td style="padding:0.4em 1em;text-align:left;font-weight:700;max-width:28vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(team.name) + '</td>';
-            tbody += td(team.r1 || 0);
-            tbody += td(team.r2 || 0);
-            tbody += td(team.halfTime || 0);
-            tbody += td(team.firstHalf || 0, "color:#80d4ff;font-weight:700;");
-            tbody += td(team.r3 || 0);
-            tbody += td(team.r4 || 0);
-            tbody += td(team.finalQ || 0);
-            tbody += td(team.secondHalf || 0, "color:#80d4ff;font-weight:700;");
-            tbody += td(team.bonus || 0);
-            tbody += td(team.score || 0, "color:" + scoreColor + ";font-weight:900;font-size:1.1em;");
-            tbody += "</tr>";
+            var bg = i % 2 === 0 ? 'rgba(255,255,255,0.04)' : 'transparent';
+            var scoreColor = i === 0 ? '#4ade80' : '#fff';
+            var qs = team.qs || [];
+            tbody += '<tr style="background:' + bg + ';">';
+            tbody += '<td style="' + S.tdName + '">' + esc(team.name) + '</td>';
+            for (var q = 0; q < 5; q++)  tbody += '<td style="' + S.td + '">' + (qs[q] || 0) + '</td>';
+            tbody += '<td style="' + S.tdTotal + '">' + (team.r1 || 0) + '</td>';
+            for (var q = 5; q < 10; q++) tbody += '<td style="' + S.td + '">' + (qs[q] || 0) + '</td>';
+            tbody += '<td style="' + S.tdTotal + '">' + (team.r2 || 0) + '</td>';
+            tbody += '<td style="' + S.tdHalf + '">' + (team.halfTime || 0) + '</td>';
+            tbody += '<td style="' + S.tdHalf + '">' + (team.firstHalf || 0) + '</td>';
+            for (var q = 10; q < 15; q++) tbody += '<td style="' + S.td + '">' + (qs[q] || 0) + '</td>';
+            tbody += '<td style="' + S.tdTotal + '">' + (team.r3 || 0) + '</td>';
+            for (var q = 15; q < 20; q++) tbody += '<td style="' + S.td + '">' + (qs[q] || 0) + '</td>';
+            tbody += '<td style="' + S.tdTotal + '">' + (team.r4 || 0) + '</td>';
+            tbody += '<td style="' + S.tdHalf + '">' + (team.finalQ || 0) + '</td>';
+            tbody += '<td style="' + S.tdHalf + '">' + (team.secondHalf || 0) + '</td>';
+            tbody += '<td style="' + S.tdTotal + '">' + (team.bonus || 0) + '</td>';
+            tbody += '<td style="' + S.tdScore + 'color:' + scoreColor + ';">' + (team.score || 0) + '</td>';
+            tbody += '</tr>';
           });
         }
-        tbody += "</tbody>";
+        tbody += '</tbody>';
 
         scoreboardOverlay.innerHTML =
-          '<div style="display:flex;flex-direction:column;height:100%;padding:3vh 3vw;box-sizing:border-box;">' +
-            '<div style="font-size:clamp(0.55rem,1.1vw,0.85rem);font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:#55c6ec;margin-bottom:0.6vh;flex-shrink:0;">Beach Trivia</div>' +
-            '<div style="font-size:clamp(1.2rem,2.8vw,2.2rem);font-weight:900;margin:0 0 1.5vh;flex-shrink:0;">Scoresheet</div>' +
+          '<div style="display:flex;flex-direction:column;height:100%;padding:2vh 2vw;box-sizing:border-box;">' +
+            '<div style="font-size:clamp(0.5rem,1vw,0.8rem);font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:#55c6ec;margin-bottom:0.4vh;flex-shrink:0;">Beach Trivia</div>' +
+            '<div style="font-size:clamp(1rem,2.2vw,1.8rem);font-weight:900;margin:0 0 1.2vh;flex-shrink:0;">SCORESHEET</div>' +
             '<div style="flex:1;min-height:0;overflow:auto;">' +
-              '<table style="border-collapse:collapse;width:100%;font-size:clamp(0.65rem,1.5vw,1.05rem);color:#fff;">' +
+              '<table style="border-collapse:collapse;font-size:clamp(0.6rem,1.3vw,1rem);color:#fff;background:#1a2535;">' +
                 thead + tbody +
               '</table>' +
             '</div>' +

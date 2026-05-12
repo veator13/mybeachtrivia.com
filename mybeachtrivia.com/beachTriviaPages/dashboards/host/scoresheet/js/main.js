@@ -301,8 +301,14 @@
         const txt = id => parseInt((document.getElementById(id)?.textContent || '').trim(), 10) || 0;
         const val = id => parseInt((document.getElementById(id)?.value || '').trim(), 10) || 0;
         const bonusEl = row.querySelector('input.bonus-input');
+        const qs = [];
+        for (let q = 1; q <= 20; q++) {
+          const el = document.getElementById('num' + tid + q);
+          qs.push(el ? (parseInt(el.value || '', 10) || 0) : 0);
+        }
         return {
           name,
+          qs,
           r1: txt('r1Total' + tid),
           r2: txt('r2Total' + tid),
           halfTime: val('halfTime' + tid),
