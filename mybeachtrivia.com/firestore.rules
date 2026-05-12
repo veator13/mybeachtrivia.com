@@ -221,9 +221,9 @@ service cloud.firestore {
         && request.resource.data.teams is list
         && request.resource.data.teams.size() <= 200;
       allow read: if signedIn();
-      // Admins/superadmins can update saved scoresheets; delete remains blocked
+      // Admins/superadmins can update or delete saved scoresheets
       allow update: if isAdmin();
-      allow delete: if false;
+      allow delete: if isAdmin();
     }
 
     /* ========= Games =========
