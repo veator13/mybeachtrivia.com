@@ -372,6 +372,41 @@
         return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
       }
 
+      var _scrollRAF = null;
+
+      function stopAutoScroll() {
+        if (_scrollRAF) { cancelAnimationFrame(_scrollRAF); _scrollRAF = null; }
+      }
+
+      function startAutoScroll(el) {
+        stopAutoScroll();
+        if (!el) return;
+        var direction = 1;
+        var pauseFrames = 0;
+        var SPEED = 0.6;       // px per frame
+        var PAUSE = 150;       // frames (~2.5s at 60fps) at top/bottom
+
+        function tick() {
+          if (!el || !el.isConnected) return;
+          if (el.scrollHeight <= el.clientHeight + 2) return; // no overflow
+
+          if (pauseFrames > 0) { pauseFrames--; _scrollRAF = requestAnimationFrame(tick); return; }
+
+          el.scrollTop += direction * SPEED;
+
+          if (direction === 1 && el.scrollTop + el.clientHeight >= el.scrollHeight - 2) {
+            direction = -1; pauseFrames = PAUSE;
+          } else if (direction === -1 && el.scrollTop <= 0) {
+            direction = 1; pauseFrames = PAUSE;
+          }
+
+          _scrollRAF = requestAnimationFrame(tick);
+        }
+
+        // Wait 2s before starting so the host can read the top of the list first
+        setTimeout(function() { _scrollRAF = requestAnimationFrame(tick); }, 2000);
+      }
+
       function renderScoreboard(teams) {
         if (!scoreboardOverlay) return;
 
@@ -407,9 +442,11 @@
             '</ol>' +
           '</div>';
         scoreboardOverlay.style.display = "block";
+        startAutoScroll(scoreboardOverlay.querySelector('ol'));
       }
 
       function hideScoreboard() {
+        stopAutoScroll();
         if (scoreboardOverlay) scoreboardOverlay.style.display = "none";
       }
 
