@@ -196,8 +196,9 @@
     modal.style.display = "flex";
     document.body.classList.add("modal-open");
     try {
-      const list = buildRankings();
-      const standings = list.map(item => ({ name: item.name, score: item.total }));
+      const standings = typeof window.__collectTeamData === 'function'
+        ? window.__collectTeamData()
+        : buildRankings().map(item => ({ name: item.name, score: item.total }));
       window.parent.postMessage({ type: 'BT_STANDINGS_OPEN', standings }, '*');
     } catch (_) {}
   }
