@@ -64,19 +64,25 @@
 
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* Full-screen shell: same 16:9 preview-stage as host “Cast Live” */
+    /* Full-screen shell: fills the entire viewport edge-to-edge */
     .viewer-shell {
-      min-height: 100vh;
+      position: fixed;
+      inset: 0;
       display: none;
-      padding: clamp(8px, 2vmin, 20px);
-      align-items: center;
-      justify-content: center;
     }
 
     .viewer-shell .preview-stage {
-      width: min(96vw, calc(92vh * 16 / 9));
-      max-width: 100%;
-      max-height: 92vh;
+      width: 100%;
+      height: 100%;
+      max-width: none;
+      max-height: none;
+      aspect-ratio: unset;
+      border-radius: 0;
+      border: none;
+    }
+
+    .viewer-shell .preview-stage::after {
+      display: none;
     }
 
     .join-overlay {
