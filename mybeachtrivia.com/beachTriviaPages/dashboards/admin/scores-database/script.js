@@ -95,6 +95,13 @@
     employee: null,
   };
 
+  // Delete / undo state
+  let _pendingDeleteDocId = '';
+  let _pendingDeleteDocData = null;
+  let _deleteAnimFrame = null;
+  let _deleteStartTime = null;
+  const DELETE_DELAY_MS = 5000;
+
   const els = {
     form: $('#scores-search-form'),
     venueFilter: $('#venue-filter'),
@@ -119,6 +126,13 @@
     loadedDocId: $('#loaded-doc-id'),
     readonlyBanner: $('#scoresheet-readonly-banner'),
     editBanner: $('#scoresheet-edit-banner'),
+    deleteBtn: $('#delete-scoresheet-btn'),
+    deleteConfirmModal: $('#delete-confirm-modal'),
+    deleteConfirmCancel: $('#delete-confirm-cancel'),
+    deleteConfirmOk: $('#delete-confirm-ok'),
+    deleteUndoToast: $('#delete-undo-toast'),
+    deleteUndoBtn: $('#delete-undo-btn'),
+    deleteUndoBar: $('#delete-undo-bar'),
     editBtn: $('#edit-scoresheet-btn'),
     updateBtn: $('#update-scoresheet-btn'),
     cancelEditBtn: $('#cancel-edit-btn'),
@@ -384,6 +398,10 @@
     const loaded = !!state.loadedDocId;
     const editing = state.isEditMode;
 
+    // Delete — visible when loaded, hidden while editing
+    if (els.deleteBtn) {
+      els.deleteBtn.style.display = loaded && !editing ? '' : 'none';
+    }
     // Edit Scoresheet — visible when loaded, grayed out while editing
     if (els.editBtn) {
       els.editBtn.style.display = loaded ? '' : 'none';
@@ -1078,9 +1096,111 @@
     setSearchStatus('Search filters cleared.');
   }
 
+  function showDeleteConfirm() {
+    if (!state.loadedDocId) return;
+    const modal = els.deleteConfirmModal;
+    if (!modal) return;
+    const body = document.getElementById('del-confirm-body');
+    if (body) {
+      const venue = els.loadedVenue?.options[els.loadedVenue.selectedIndex]?.text || '';
+      const date = els.loadedEventDate?.value || '';
+      const label = [venue, date].filter(Boolean).join(' · ');
+      body.textContent = label
+        ? `Delete "${label}"? This can be undone for 5 seconds after confirming.`
+        : 'This action can be undone for 5 seconds after confirming.';
+    }
+    modal.style.display = 'flex';
+  }
+
+  function hideDeleteConfirm() {
+    if (els.deleteConfirmModal) els.deleteConfirmModal.style.display = 'none';
+  }
+
+  function cancelDeleteCountdown() {
+    if (_deleteAnimFrame) {
+      cancelAnimationFrame(_deleteAnimFrame);
+      _deleteAnimFrame = null;
+    }
+    _pendingDeleteDocId = '';
+    _pendingDeleteDocData = null;
+    _deleteStartTime = null;
+    if (els.deleteUndoToast) els.deleteUndoToast.style.display = 'none';
+    if (els.deleteUndoBar) els.deleteUndoBar.style.width = '100%';
+  }
+
+  async function commitDelete() {
+    const docId = _pendingDeleteDocId || state.loadedDocId;
+    cancelDeleteCountdown();
+    if (!docId) return;
+    try {
+      await getDb().collection('scores').doc(docId).delete();
+    } catch (err) {
+      console.error('[scores-database] delete error:', err);
+      alert('Delete failed: ' + (err.message || err));
+    }
+    // Refresh results after delete
+    runSearch();
+  }
+
+  function undoDelete() {
+    const savedId = _pendingDeleteDocId;
+    const savedData = _pendingDeleteDocData;
+    cancelDeleteCountdown();
+    if (savedId && savedData) {
+      // Restore the loaded scoresheet back into view
+      state.loadedDocId = savedId;
+      state.loadedDocData = deepClone(savedData);
+      state.originalDocData = deepClone(savedData);
+      state.isEditMode = false;
+      populateLoadedMetaFields();
+      setLoadedStatus(`Loaded scoresheet ${savedId}.`);
+      setButtonsForMode();
+      renderLoadedScoresheet();
+    }
+  }
+
+  function startDeleteCountdown() {
+    // Stash what we're about to delete before clearing state
+    _pendingDeleteDocId = state.loadedDocId;
+    _pendingDeleteDocData = deepClone(state.loadedDocData);
+    _deleteStartTime = performance.now();
+
+    // Clear the UI immediately so it looks deleted
+    resetLoadedState();
+
+    // Show undo toast
+    if (els.deleteUndoToast) els.deleteUndoToast.style.display = '';
+    if (els.deleteUndoBar) els.deleteUndoBar.style.width = '100%';
+
+    function tick(now) {
+      const elapsed = now - _deleteStartTime;
+      const remaining = Math.max(0, 1 - elapsed / DELETE_DELAY_MS);
+      if (els.deleteUndoBar) els.deleteUndoBar.style.width = (remaining * 100).toFixed(2) + '%';
+      if (elapsed >= DELETE_DELAY_MS) {
+        commitDelete();
+        return;
+      }
+      _deleteAnimFrame = requestAnimationFrame(tick);
+    }
+    _deleteAnimFrame = requestAnimationFrame(tick);
+  }
+
   function attachEvents() {
     els.form?.addEventListener('submit', runSearch);
     els.clearBtn?.addEventListener('click', clearSearch);
+
+    // Delete flow
+    els.deleteBtn?.addEventListener('click', showDeleteConfirm);
+    els.deleteConfirmCancel?.addEventListener('click', hideDeleteConfirm);
+    els.deleteConfirmOk?.addEventListener('click', () => {
+      hideDeleteConfirm();
+      startDeleteCountdown();
+    });
+    els.deleteUndoBtn?.addEventListener('click', undoDelete);
+    // Close confirm modal on overlay click
+    els.deleteConfirmModal?.addEventListener('click', (e) => {
+      if (e.target === els.deleteConfirmModal) hideDeleteConfirm();
+    });
 
     els.editBtn?.addEventListener('click', enterEditMode);
     els.updateBtn?.addEventListener('click', updateExistingScoresheet);

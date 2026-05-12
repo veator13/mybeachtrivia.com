@@ -178,6 +178,9 @@
         </div>
 
         <div class="viewer-actions">
+          <button id="delete-scoresheet-btn" type="button" class="btn btn-danger" style="display:none;">
+            🗑 Delete
+          </button>
           <button id="cancel-edit-btn" type="button" class="btn btn-danger" style="display:none;">
             Cancel
           </button>
@@ -241,6 +244,29 @@
         </div>
       </div>
     </section>
+  </div>
+
+  <!-- Delete Confirm Modal -->
+  <div id="delete-confirm-modal" class="del-confirm-overlay" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="del-confirm-title">
+    <div class="del-confirm-box">
+      <h3 id="del-confirm-title" class="del-confirm-title">Delete Scoresheet?</h3>
+      <p id="del-confirm-body" class="del-confirm-body">This action can be undone for 5 seconds after confirming.</p>
+      <div class="del-confirm-actions">
+        <button id="delete-confirm-cancel" type="button" class="btn btn-ghost">Cancel</button>
+        <button id="delete-confirm-ok" type="button" class="btn btn-danger">Yes, Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Undo Toast -->
+  <div id="delete-undo-toast" class="del-undo-toast" style="display:none;" role="status" aria-live="polite">
+    <div class="del-undo-content">
+      <span class="del-undo-msg">Scoresheet deleted.</span>
+      <button id="delete-undo-btn" type="button" class="del-undo-btn">Undo</button>
+    </div>
+    <div class="del-undo-track">
+      <div id="delete-undo-bar" class="del-undo-bar"></div>
+    </div>
   </div>
 
   <!-- Standings Modal -->
@@ -563,6 +589,102 @@
     @keyframes spin {
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
+    }
+
+    /* Delete confirm modal */
+    .del-confirm-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.72);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 3000;
+      padding: 20px;
+    }
+
+    .del-confirm-box {
+      background: #1a1f29;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 16px;
+      padding: 28px 24px 20px;
+      max-width: 420px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+    }
+
+    .del-confirm-title {
+      margin: 0 0 10px;
+      font-size: 1.15rem;
+      color: var(--text);
+    }
+
+    .del-confirm-body {
+      margin: 0 0 22px;
+      color: var(--muted);
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
+
+    .del-confirm-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    /* Undo toast */
+    .del-undo-toast {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #1a1f29;
+      border-top: 1px solid rgba(255,255,255,0.1);
+      z-index: 3000;
+      box-shadow: 0 -4px 24px rgba(0,0,0,0.5);
+    }
+
+    .del-undo-content {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      padding: 14px 20px;
+    }
+
+    .del-undo-msg {
+      color: var(--text);
+      font-size: 0.95rem;
+    }
+
+    .del-undo-btn {
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 18px;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+
+    .del-undo-btn:hover {
+      opacity: 0.88;
+    }
+
+    .del-undo-track {
+      height: 4px;
+      background: rgba(255,255,255,0.08);
+      width: 100%;
+    }
+
+    .del-undo-bar {
+      height: 100%;
+      background: #c0392b;
+      width: 100%;
+      transform-origin: left;
+      transition: none;
     }
 
     @media (max-width: 1100px) {
