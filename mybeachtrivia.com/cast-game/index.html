@@ -64,21 +64,33 @@
 
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* Full-screen shell: fills the entire viewport edge-to-edge */
+    /* Full-screen shell: centers the scaled preview stage */
     .viewer-shell {
       position: fixed;
       inset: 0;
       display: none;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background: #081120;
     }
 
+    /*
+      Reference size matches the host live-console cast column (~700px wide).
+      A JS snippet below sets --cast-scale so the stage fills the viewport
+      at the same proportions the host sees in their console preview.
+    */
     .viewer-shell .preview-stage {
-      width: 100%;
-      height: 100%;
+      width: 700px;
+      height: 393.75px;
+      flex-shrink: 0;
       max-width: none;
       max-height: none;
       aspect-ratio: unset;
       border-radius: 0;
       border: none;
+      transform: scale(var(--cast-scale, 1));
+      transform-origin: center center;
     }
 
     .viewer-shell .preview-stage::after {
@@ -275,12 +287,21 @@
         if (statusFloating) statusFloating.style.display = "none";
       }
 
+      var REF_W = 700, REF_H = 393.75;
+      function updateCastScale() {
+        var scale = Math.min(window.innerWidth / REF_W, window.innerHeight / REF_H);
+        document.documentElement.style.setProperty("--cast-scale", scale);
+      }
+      updateCastScale();
+      window.addEventListener("resize", updateCastScale);
+
       function showViewer() {
         if (loadingScreen) loadingScreen.style.display = "none";
         if (errorScreen) errorScreen.style.display = "none";
         if (joinOverlay) joinOverlay.style.display = "none";
         if (viewerShell) viewerShell.style.display = "flex";
         if (statusFloating) statusFloating.style.display = "inline-flex";
+        updateCastScale();
       }
 
       function showLoading() {
