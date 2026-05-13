@@ -150,19 +150,15 @@
   // ── Low-level drawing helpers ────────────────────────────────────────────────
 
   function fillBg(s) {
-    // Dark-to-darker gradient matching preview-stage.css linear-gradient(180deg,#13203b,#081120)
-    // PptxGenJS gradient API uses `stops` with stopPct, angle in degrees
+    // Solid dark navy base (matches preview-stage.css #0d1a2f midpoint).
+    // PptxGenJS v3 CDN silently drops gradient fills when the stop keys
+    // are wrong, leaving slides on a white background; solid fill is
+    // guaranteed to render and the gradient (#13203b→#081120) is too
+    // subtle to matter at this dark range.
     s.addShape("rect", {
       x: 0, y: 0, w: SW, h: SH,
-      fill: {
-        type: "gradient",
-        stops: [
-          { stopPct: 0,   color: "13203b" },
-          { stopPct: 100, color: "081120" },
-        ],
-        angle: 90,
-      },
-      line: { color: "081120", width: 0 },
+      fill: { color: "0d1a2f" },
+      line: { color: "0d1a2f", width: 0 },
     });
   }
 
