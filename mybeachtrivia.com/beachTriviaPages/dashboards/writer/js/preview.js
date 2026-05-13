@@ -641,10 +641,20 @@
 
     renderRoundBadge(data.block.roundName || "Round");
     renderCategory(data.block.categoryName || "Category");
+
+    var isCatSlide = data.block.type === "category-slide";
+    var catSlideCategories = data.block.categories || [];
+    var rawQText = data.block.questionText || "";
+    // Fall back to parsing •-separated question text when categories array is absent
+    if (isCatSlide && !catSlideCategories.length && rawQText.indexOf("•") !== -1) {
+      catSlideCategories = rawQText.split("•").map(function (s) { return s.trim(); }).filter(Boolean);
+    }
+
     renderQuestion(
-      data.block.questionText || "Your question will appear here.",
+      isCatSlide ? "" : (rawQText || "Your question will appear here."),
       data.block.questionAlign,
-      data.block.questionFontScale
+      data.block.questionFontScale,
+      isCatSlide ? catSlideCategories : null
     );
     renderOptions(
       effectiveType,
@@ -654,7 +664,7 @@
       mode,
       data.block.answerText || "",
       data.block.feudAnswers || [],
-      { blockType: data.block.type || "", categories: data.block.categories || [] }
+      { blockType: data.block.type || "", categories: isCatSlide ? [] : (data.block.categories || []) }
     );
     renderAnswer(data.block.answerText || "", effectiveType);
     renderNotes(data.block.questionNotes || "");
@@ -821,12 +831,28 @@
     }
   }
 
-  function renderQuestion(text, align, fontScale) {
+  function renderQuestion(text, align, fontScale, catList) {
     if (!dom || !dom.previewQuestion) return;
 
     var el = dom.previewQuestion;
 
-    el.innerHTML = sanitizeHtml(text || "Your question will appear here.");
+    if (Array.isArray(catList) && catList.length) {
+      el.innerHTML = "";
+      catList.forEach(function (cat) {
+        var row = document.createElement("div");
+        row.className = "cat-list-item";
+        var dot = document.createElement("span");
+        dot.className = "cat-list-bullet";
+        dot.textContent = "•";
+        var label = document.createElement("span");
+        label.textContent = String(cat).trim();
+        row.appendChild(dot);
+        row.appendChild(label);
+        el.appendChild(row);
+      });
+    } else {
+      el.innerHTML = sanitizeHtml(text || "Your question will appear here.");
+    }
     el.style.textAlign = align === "center" ? "center" : align === "right" ? "right" : "";
 
     // Always clear the inline style so the CSS clamp can resolve first.
