@@ -1337,6 +1337,8 @@ textarea {
   white-space: pre-wrap;
   font-size: clamp(18px, 5cqw, 58px);
   line-height: 1.3;
+  text-align: left;
+  padding-left: clamp(16px, 3cqw, 40px);
 }
 
 /* On answer-review slides, pin content to top so the category label sits high */
