@@ -351,16 +351,16 @@
       text-align: left !important;
       padding-left: clamp(20px, 5cqw, 60px);
     }
-    .preview-stage[data-block-type="category-slide"] .slide-question:has(.cat-list-item)::before {
+    .preview-stage[data-block-type="category-slide"] .slide-middle::before {
       content: "Categories";
       display: block;
       color: #38bdf8;
-      font-size: clamp(10px, 2cqw, 22px);
-      font-weight: 700;
-      letter-spacing: 0.1em;
+      font-size: clamp(16px, 4cqw, 44px);
+      font-weight: 800;
+      letter-spacing: 0.06em;
       text-transform: uppercase;
-      margin-bottom: clamp(8px, 1.5cqw, 16px);
-      opacity: 0.85;
+      padding-left: clamp(20px, 5cqw, 60px);
+      margin-bottom: clamp(4px, 1cqw, 10px);
     }
     .preview-stage[data-block-type="round-start"] .slide-question .cat-list-item,
     .preview-stage[data-block-type="category-slide"] .slide-question .cat-list-item {
