@@ -99,7 +99,7 @@
     var ansValue = el.querySelector('.slide-answer-preview .value');
     if (ansWrap && ansValue) {
       var isMC = effectiveType === 'multiple-choice';
-      var showAns = revealed && !isMC && !isDisplay && slide.answer;
+      var showAns = revealed && !isMC && !isDisplay && blockType !== 'answers-summary' && slide.answer;
       ansValue.textContent = slide.answer || '';
       ansWrap.style.display = showAns ? '' : 'none';
     }
