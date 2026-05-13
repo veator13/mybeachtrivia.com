@@ -1726,6 +1726,18 @@ textarea {
   text-align: left !important;
   padding-left: clamp(20px, 5cqw, 60px);
 }
+.preview-stage[data-block-type="round-start"] .slide-question .cat-list-item,
+.preview-stage[data-block-type="category-slide"] .slide-question .cat-list-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-start;
+  gap: clamp(6px, 1cqw, 12px);
+}
+.preview-stage[data-block-type="round-start"] .slide-question .cat-list-bullet,
+.preview-stage[data-block-type="category-slide"] .slide-question .cat-list-bullet {
+  color: #38bdf8;
+  flex-shrink: 0;
+}
 
 .preview-stage[data-block-type="round-start"] .slide-display-content {
   /* Pill wrapper — inner grid is single column */
