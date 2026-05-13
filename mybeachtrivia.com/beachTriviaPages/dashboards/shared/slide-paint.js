@@ -62,7 +62,28 @@
     // Question text
     var q = el.querySelector('.slide-question');
     if (q) {
-      q.textContent = slide.question || '';
+      var qText = slide.question || '';
+      var isCategoryList = (blockType === 'round-start' || blockType === 'category-slide')
+        && qText.indexOf('•') !== -1;
+      if (isCategoryList) {
+        // Split "• Cat1 • Cat2 • Cat3" into vertical items
+        var items = qText.split('•').map(function (s) { return s.trim(); }).filter(Boolean);
+        q.innerHTML = '';
+        items.forEach(function (item) {
+          var row = document.createElement('div');
+          row.className = 'cat-list-item';
+          var dot = document.createElement('span');
+          dot.className = 'cat-list-bullet';
+          dot.textContent = '•';
+          var txt = document.createElement('span');
+          txt.textContent = item;
+          row.appendChild(dot);
+          row.appendChild(txt);
+          q.appendChild(row);
+        });
+      } else {
+        q.textContent = qText;
+      }
       q.style.textAlign = slide.questionAlign === 'center'
         ? 'center'
         : (slide.questionAlign === 'right' ? 'right' : '');

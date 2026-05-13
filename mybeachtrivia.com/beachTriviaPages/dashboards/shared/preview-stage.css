@@ -343,6 +343,20 @@
       line-height: 1.05 !important;
     }
 
+    /* Vertical category list (round-start / category-slide with bullet items) */
+    .preview-stage[data-block-type="round-start"] .slide-question .cat-list-item,
+    .preview-stage[data-block-type="category-slide"] .slide-question .cat-list-item {
+      display: flex;
+      align-items: baseline;
+      justify-content: center;
+      gap: clamp(6px, 1cqw, 12px);
+    }
+
+    .preview-stage .cat-list-bullet {
+      color: #38bdf8;
+      flex-shrink: 0;
+    }
+
     .preview-stage[data-block-type="round-start"] .slide-display-content {
       text-align: center;
       padding: 10px 24px;
