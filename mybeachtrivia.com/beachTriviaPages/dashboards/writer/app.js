@@ -1002,7 +1002,7 @@
         var num = ix + 1;
         var cat = (a.categoryName || "").trim();
         var ans = (a.answer || "").trim();
-        var head = cat ? "Q" + num + " (" + cat + ")" : "Q" + num;
+        var head = "Q" + num;
         return head + ": " + (ans || "(no answer yet)");
       });
       var summaryBody = lines.length
