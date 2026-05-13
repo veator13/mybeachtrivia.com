@@ -1335,8 +1335,8 @@ textarea {
 /* Modes toggled from preview.js (replaces vw-based inline styles; matches slide canvas) */
 .preview-stage .slide-question[data-font-mode="summary"] {
   white-space: pre-wrap;
-  font-size: clamp(14px, 3.3cqw, 40px);
-  line-height: 1.35;
+  font-size: clamp(18px, 5cqw, 58px);
+  line-height: 1.3;
 }
 
 /* On answer-review slides, pin content to top so the category label sits high */
@@ -1718,6 +1718,11 @@ textarea {
   font-size: clamp(31px, 7.2cqw, 62px) !important;
   letter-spacing: -0.02em;
   line-height: 1.05 !important;
+}
+.preview-stage[data-block-type="round-start"] .slide-question:has(.cat-list-item),
+.preview-stage[data-block-type="category-slide"] .slide-question:has(.cat-list-item) {
+  text-align: left !important;
+  padding-left: clamp(20px, 5cqw, 60px);
 }
 
 .preview-stage[data-block-type="round-start"] .slide-display-content {
