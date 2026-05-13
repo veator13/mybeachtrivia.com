@@ -1095,7 +1095,7 @@
     dom.previewOptions.classList.remove("slide-options--dense");
     dom.previewOptions.classList.remove("slide-options-feud");
 
-    // Category slides: render category chips instead of generic display content
+    // Category slides: render vertical bullet list
     if (blockType === "category-slide" && normalizedType === "display") {
       var filledCats = categories.filter(function (c) { return String(c || "").trim(); });
       if (!filledCats.length) {
@@ -1107,10 +1107,16 @@
       var grid = document.createElement("div");
       grid.className = "cat-chips-grid";
       filledCats.forEach(function (cat) {
-        var chip = document.createElement("span");
-        chip.className = "cat-chip";
-        chip.textContent = cat;
-        grid.appendChild(chip);
+        var row = document.createElement("div");
+        row.className = "cat-list-item";
+        var dot = document.createElement("span");
+        dot.className = "cat-list-bullet";
+        dot.textContent = "•";
+        var label = document.createElement("span");
+        label.textContent = String(cat).trim();
+        row.appendChild(dot);
+        row.appendChild(label);
+        grid.appendChild(row);
       });
       dom.previewOptions.appendChild(grid);
       return;

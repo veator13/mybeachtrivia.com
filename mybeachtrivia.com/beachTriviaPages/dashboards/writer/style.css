@@ -4189,6 +4189,19 @@ textarea {
   gap: clamp(5px, 0.9cqw, 10px);
   width: 100%;
 }
+.cat-chips-grid .cat-list-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: clamp(6px, 1cqw, 12px);
+  color: #e0f2fe;
+  font-size: clamp(11px, 1.8cqw, 18px);
+  font-weight: 700;
+}
+.cat-chips-grid .cat-list-bullet {
+  color: #38bdf8;
+  flex-shrink: 0;
+}
 .cat-chip {
   display: block;
   padding: clamp(6px, 1cqw, 10px) clamp(10px, 1.6cqw, 18px);
