@@ -344,11 +344,16 @@
     }
 
     /* Vertical category list (round-start / category-slide with bullet items) */
+    .preview-stage[data-block-type="round-start"] .slide-question:has(.cat-list-item),
+    .preview-stage[data-block-type="category-slide"] .slide-question:has(.cat-list-item) {
+      text-align: left !important;
+      padding-left: clamp(20px, 5cqw, 60px);
+    }
     .preview-stage[data-block-type="round-start"] .slide-question .cat-list-item,
     .preview-stage[data-block-type="category-slide"] .slide-question .cat-list-item {
       display: flex;
       align-items: baseline;
-      justify-content: center;
+      justify-content: flex-start;
       gap: clamp(6px, 1cqw, 12px);
     }
 
