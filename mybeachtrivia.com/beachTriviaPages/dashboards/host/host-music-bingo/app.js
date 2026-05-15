@@ -598,14 +598,20 @@ function setSpotifyStatus(text) {
 async function handleAutoAdvance() {
   if (_aaPending) return;
   _aaPending = true;
-  setTimeout(() => { _aaPending = false; }, 4000);
   console.log('[app] auto-advance: natural track end detected');
-  if (activeGame) {
-    await handleNextSong();
-  } else {
-    // No active game — advance within the loaded playlist
-    const ok = await manualAdvanceFromPlaylist(1);
-    if (!ok) console.warn('[app] auto-advance: no playlist tracks to advance to');
+  try {
+    if (activeGame) {
+      await handleNextSong();
+    } else {
+      // No active game — advance within the loaded playlist
+      const ok = await manualAdvanceFromPlaylist(1);
+      if (!ok) console.warn('[app] auto-advance: no playlist tracks to advance to');
+    }
+  } finally {
+    // Keep _aaPending set until the advance fully completes, then hold a
+    // brief cooldown so stale state events arriving after the transition
+    // don't re-trigger a second advance for the same track end.
+    setTimeout(() => { _aaPending = false; }, 2000);
   }
 }
 
@@ -1411,6 +1417,11 @@ async function resolvePlayTransitionAfterPlay(playlistTrack) {
     addToPlayedLog(playTransition.title, playTransition.artist);
     playTransition.logged = true;
   }
+  // Device is still on a different track. Resync _lastLoggedUri to what's
+  // actually playing so the currently-playing track isn't double-logged
+  // when state polling resumes after playTransition is cleared.
+  const actualUri = st?.track_window?.current_track?.uri;
+  if (actualUri && actualUri !== playTransition.uri) _lastLoggedUri = actualUri;
   playTransition = null;
   if (st) updateSpotifyState(st);
 }
@@ -1528,6 +1539,12 @@ async function playTrackAtPosition(uri, positionMsOrMode) {
 
   if (!active) {
     console.warn('[app] playTrackAtPosition: track did not become active; skipping seek');
+    // Device stayed on the old track. Resync _lastLoggedUri to whatever is
+    // actually playing so the still-playing track isn't double-logged by
+    // the state poller that fires once playTransition is cleared.
+    const stCur = await spotifyCtrl.getCurrentState().catch(() => null);
+    const actualUri = stCur?.track_window?.current_track?.uri;
+    if (actualUri && actualUri !== uri) _lastLoggedUri = actualUri;
     await (isFadeEnabled() && !isSpotifyCompanionCtrl() ? fadeTo(target, 1800) : setVolumePct(target));
     return;
   }
