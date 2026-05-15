@@ -195,6 +195,28 @@ let _aaWasPlaying = false; // was not-paused in last state update
 let _aaLastPos    = 0;     // position (ms) seen in last state update
 let _aaPending    = false; // debounce — prevents double-fire within 4 s
 
+// ─── App-level shuffle queue ──────────────────────────────────────────────────
+// Spotify's native shuffle only affects its own queue context, not our playUri
+// calls. We maintain our own shuffled index queue here.
+let _shuffleQueue = []; // remaining indices to play in shuffled order
+
+function isShuffleEnabled() {
+  return !!document.querySelector('#sp-shuffle')?.checked;
+}
+
+function buildShuffleQueue(excludeIndex) {
+  const indices = [];
+  for (let i = 0; i < playlistTracks.length; i++) {
+    if (i !== excludeIndex) indices.push(i);
+  }
+  // Fisher-Yates shuffle
+  for (let i = indices.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [indices[i], indices[j]] = [indices[j], indices[i]];
+  }
+  return indices;
+}
+
 const LS_RANDOM_START = 'mb:randomStart';
 const LS_FADE = 'mb:fade';
 const LS_PLAYLIST_ID = 'mb:playlistId';
@@ -332,7 +354,14 @@ async function manualAdvanceFromPlaylist(delta = 1) {
   const curUri = stPoll?.track_window?.current_track?.uri || null;
   const curIdx = curUri ? playlistTracks.findIndex((t) => t?.uri === curUri) : -1;
   const base = curIdx >= 0 ? curIdx : -1;
-  const nextIdx = (base + delta + playlistTracks.length) % playlistTracks.length;
+  let nextIdx;
+  if (delta === 1 && isShuffleEnabled()) {
+    if (!_shuffleQueue.length) _shuffleQueue = buildShuffleQueue(base);
+    nextIdx = _shuffleQueue.shift() ?? (base + 1 + playlistTracks.length) % playlistTracks.length;
+  } else {
+    if (delta === 1) _shuffleQueue = [];
+    nextIdx = (base + delta + playlistTracks.length) % playlistTracks.length;
+  }
   const next = playlistTracks[nextIdx];
   console.log('[dbg][manualAdvance]', { curUri, curIdx, nextIdx, nextUri: next?.uri });
   if (!next?.uri) return false;
@@ -896,12 +925,13 @@ function wireSpotifyControls() {
   }
 
   shuffleEls.forEach((el) => {
-    el.addEventListener('change', async () => {
+    el.addEventListener('change', () => {
       const on = !!el.checked;
       const desk = document.querySelector('#sp-shuffle');
       if (desk && desk !== el) desk.checked = on;
       if (els.mobShuffleToggle && els.mobShuffleToggle !== el) els.mobShuffleToggle.checked = on;
-      await setSpotifyShuffle(on);
+      // Clear the shuffle queue so it's rebuilt fresh with the new setting
+      _shuffleQueue = [];
       syncCompanionStateToFirestore();
     });
   });
@@ -1321,6 +1351,7 @@ async function handleStartGame(e) {
 
     // Load playlist tracks for Spotify queuing
     playlistTracks = [];
+    _shuffleQueue = [];
     try {
       const data = await fetchPlaylistData(playlistId);
       playlistTracks = parsePlaylistTracks(data);
@@ -1643,11 +1674,19 @@ async function handleNextSong(e) {
   if (!playlistTracks.length) return;
 
   const cur = Number.isFinite(activeGame.currentSongIndex) ? activeGame.currentSongIndex : -1;
-  const nextIndex = (cur + 1) % playlistTracks.length;
+  let nextIndex;
+  if (isShuffleEnabled()) {
+    if (!_shuffleQueue.length) _shuffleQueue = buildShuffleQueue(cur);
+    nextIndex = _shuffleQueue.shift() ?? (cur + 1) % playlistTracks.length;
+  } else {
+    _shuffleQueue = [];
+    nextIndex = (cur + 1) % playlistTracks.length;
+  }
   console.log('[app] handleNextSong:', {
     gameId: activeGame?.id,
     cur,
     nextIndex,
+    shuffle: isShuffleEnabled(),
     randomStart: isRandomStartEnabled(),
     nextUri: playlistTracks?.[nextIndex]?.uri,
   });
