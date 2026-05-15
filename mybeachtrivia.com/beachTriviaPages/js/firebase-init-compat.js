@@ -7,7 +7,7 @@
 
   const firebaseConfig = {
     apiKey: "AIzaSyDBKCotY1F943DKfVQqKOGPPkAkQe2Zgog",
-    authDomain: "beach-trivia-website.firebaseapp.com",
+    authDomain: "mybeachtrivia.com",
     projectId: "beach-trivia-website",
     storageBucket: "beach-trivia-website.firebasestorage.app",
     messagingSenderId: "459479368322",

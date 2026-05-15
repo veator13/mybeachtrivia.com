@@ -67,7 +67,7 @@
         } else {
           redirectPending = false;
         }
-      }, 2000);
+      }, 5000);
       return;
     }
     redirectPending = false;
@@ -104,7 +104,6 @@
     }).catch(function (e) {
       console.error('[guard-host]', e);
       showError('Error verifying permissions. Please try again.');
-      auth.signOut().catch(function () {});
     });
   });
 })();
