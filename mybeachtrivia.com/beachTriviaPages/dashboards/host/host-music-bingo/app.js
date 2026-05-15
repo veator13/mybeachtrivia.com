@@ -537,7 +537,7 @@ function addToPlayedLog(title, artist) {
   // Historical tabs remain frozen until the user clicks them again.
   if (!isViewingHistoricalRound()) {
     renderActiveRoundTab();
-    renderPlayedLogList(els.mobLogList, playedSongs);
+    renderMobRoundTabs();
   }
 
   els.playedLogSection?.classList.remove('hidden');
@@ -1215,6 +1215,7 @@ function addRoundTab(roundNumber, name, makeActive) {
     activeRoundTab = roundNumber;
     renderActiveRoundTab();
   }
+  renderMobRoundTabs();
 }
 
 function renderActiveRoundTab() {
