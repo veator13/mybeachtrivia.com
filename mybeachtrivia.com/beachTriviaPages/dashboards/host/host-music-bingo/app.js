@@ -1412,14 +1412,12 @@ async function resolvePlayTransitionAfterPlay(playlistTrack) {
     finalizePlayTransitionFromSdkTrack(sdkTrack);
     return;
   }
-  if (!playTransition.logged) {
-    _lastLoggedUri = playTransition.uri;
-    addToPlayedLog(playTransition.title, playTransition.artist);
-    playTransition.logged = true;
-  }
-  // Device is still on a different track. Resync _lastLoggedUri to what's
-  // actually playing so the currently-playing track isn't double-logged
-  // when state polling resumes after playTransition is cleared.
+  // Track didn't become active. Don't log here — if Spotify truly never
+  // switched we shouldn't create a false entry. If Spotify switched late
+  // (after our polling timeout), logSdkTrackIfNew will catch it on the
+  // next player_state_changed event since _lastLoggedUri still points at
+  // the old track (set below) rather than the attempted new song.
+  // Resync _lastLoggedUri so the still-playing old track isn't re-logged.
   const actualUri = st?.track_window?.current_track?.uri;
   if (actualUri && actualUri !== playTransition.uri) _lastLoggedUri = actualUri;
   playTransition = null;
@@ -1514,13 +1512,11 @@ async function playTrackAtPosition(uri, positionMsOrMode) {
   // Swap Now Playing immediately once playUri is accepted (waitForTrackActive can lag).
   setNowPlayingFromPlayTransition();
 
-  // EARLY_PLAYTRANSITION_LOG
-  // Log to session history as soon as playback is triggered (don't wait for fade-in).
-  if (playTransition && playTransition.uri === uri && !playTransition.logged) {
-    _lastLoggedUri = uri;
-    addToPlayedLog(playTransition.title, playTransition.artist);
-    playTransition.logged = true;
-  }
+  // NOTE: Logging to session history is deferred until Spotify confirms the track
+  // is active (via waitForTrackActive or the player_state_changed event).
+  // Early logging caused duplicates: the early log set _lastLoggedUri=nextSong,
+  // then the !active fallback reset it to oldSong, so when Spotify finally switched
+  // (after the polling timeout) logSdkTrackIfNew logged the new song a second time.
 
   console.log('[app] playTrackAtPosition: waiting for track to become active…');
   let active = await waitForTrackActive(uri);
