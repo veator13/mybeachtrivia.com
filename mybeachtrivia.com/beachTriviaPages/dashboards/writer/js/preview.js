@@ -710,8 +710,11 @@
       if (ansParts.wrap) ansParts.wrap.style.display = "none";
     }
 
+    // Answers-summary: only allow inline editing when manual mode is explicitly on.
+    var inlineEnabled = !renderOpts.skipToolbar;
+    if (isAnsSummary && !data.block.manualAnswers) inlineEnabled = false;
     applyPreviewInlineChrome(
-      !renderOpts.skipToolbar,
+      inlineEnabled,
       data,
       effectiveType,
       mode,

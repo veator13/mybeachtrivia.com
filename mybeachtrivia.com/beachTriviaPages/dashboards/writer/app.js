@@ -1374,27 +1374,45 @@
       })(i);
     }
 
-    // Toggle: flush state, then re-populate to enable/disable inputs and prefill from auto data.
+    // Toggle: commit manual state and directly enable/disable Q inputs.
     var toggle = document.getElementById("ans-summary-manual-toggle");
     if (toggle) {
       toggle.addEventListener("change", function () {
-        // If turning manual ON, seed manualAnswerLines from current auto answers first.
-        if (toggle.checked) {
-          var item = getCurrentFlatItem();
-          var entry = item && item.blockEntry;
-          if (entry) {
+        var isNowManual = toggle.checked;
+        var item = getCurrentFlatItem();
+        var entry = item && item.blockEntry;
+
+        if (entry) {
+          if (!entry.formData)       entry.formData = {};
+          if (!entry.formData.block) entry.formData.block = {};
+
+          // Seed manualAnswerLines from auto answers when turning ON.
+          if (isNowManual) {
             var autoAnswers = (entry.block && entry.block.slides && entry.block.slides[0] &&
               Array.isArray(entry.block.slides[0].answers)) ? entry.block.slides[0].answers : [];
-            if (!entry.formData)       entry.formData = {};
-            if (!entry.formData.block) entry.formData.block = {};
             entry.formData.block.manualAnswerLines = autoAnswers.map(function (a) {
               return a ? (a.answer || "") : "";
             });
           }
+
+          // Commit the toggle state directly before flush reads Q input values.
+          entry.formData.block.manualAnswers = isNowManual;
         }
+
+        // Directly enable/disable Q inputs NOW — don't rely on populate ordering.
+        for (var qi = 1; qi <= 5; qi++) {
+          var qInp = document.getElementById("ans-summary-q" + qi);
+          if (!qInp) continue;
+          qInp.disabled = !isNowManual;
+          // Pre-fill with seeded values when enabling.
+          if (isNowManual && entry && entry.formData && entry.formData.block) {
+            var seeded = Array.isArray(entry.formData.block.manualAnswerLines)
+              ? entry.formData.block.manualAnswerLines : [];
+            qInp.value = seeded[qi - 1] || "";
+          }
+        }
+
         flushAnswersSummaryForm();
-        var cur = getCurrentFlatItem();
-        if (cur && cur.blockEntry) populateAnswersSummaryForm(cur.blockEntry);
       });
     }
   }
