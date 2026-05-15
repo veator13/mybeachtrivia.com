@@ -547,11 +547,59 @@
         tr.appendChild(tdTotal);
 
         const tdFQ = document.createElement("td");
+        tdFQ.className = "fq-cell-td";
+
+        const fqWrapper = document.createElement("div");
+        fqWrapper.className = "fq-cell";
+
         const fq = document.createElement("input");
         fq.type = "number";
         fq.id = `finalQuestion${teamId}`;
         fq.className = "finalquestion-input";
-        tdFQ.appendChild(fq);
+
+        const fqToggle = document.createElement("button");
+        fqToggle.type = "button";
+        fqToggle.className = "fq-sign-toggle fq-positive";
+        fqToggle.setAttribute("aria-label", "Toggle positive/negative final question score");
+        fqToggle.title = "Positive / Negative";
+
+        const fqCheckSpan = document.createElement("span");
+        fqCheckSpan.className = "fq-check";
+        fqCheckSpan.textContent = "✓";
+
+        const fqXSpan = document.createElement("span");
+        fqXSpan.className = "fq-x";
+        fqXSpan.textContent = "✕";
+
+        fqToggle.append(fqCheckSpan, fqXSpan);
+
+        fqToggle.addEventListener("click", () => {
+          const isPositive = fqToggle.classList.contains("fq-positive");
+          const v = parseFloat(fq.value) || 0;
+          if (isPositive) {
+            fqToggle.classList.replace("fq-positive", "fq-negative");
+            if (v > 0) fq.value = String(-v);
+          } else {
+            fqToggle.classList.replace("fq-negative", "fq-positive");
+            if (v < 0) fq.value = String(-v);
+          }
+          markModified();
+          fq.dispatchEvent(new Event("input", { bubbles: true }));
+        });
+
+        // Keep toggle visual in sync when value is set programmatically (e.g. Firebase load)
+        fq.addEventListener("change", () => {
+          const v = parseFloat(fq.value);
+          if (!Number.isFinite(v)) return;
+          if (v < 0 && fqToggle.classList.contains("fq-positive")) {
+            fqToggle.classList.replace("fq-positive", "fq-negative");
+          } else if (v >= 0 && fqToggle.classList.contains("fq-negative")) {
+            fqToggle.classList.replace("fq-negative", "fq-positive");
+          }
+        });
+
+        fqWrapper.append(fq, fqToggle);
+        tdFQ.appendChild(fqWrapper);
         tr.appendChild(tdFQ);
 
         const tdSHT = document.createElement("td");

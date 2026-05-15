@@ -866,10 +866,75 @@ td:nth-child(7), td:nth-child(13), td:nth-child(21), td:nth-child(27) {
     box-sizing: border-box;
 }
 
-td:has(.halftime-input),
-td:has(.finalquestion-input) {
+td:has(.halftime-input) {
     min-width: 65px;
     width: 65px;
+}
+
+td.fq-cell-td {
+    min-width: 115px;
+    width: 115px;
+    padding: 4px 6px;
+}
+
+.fq-cell {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+/* ── Final Question sign toggle ── */
+.fq-sign-toggle {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 20px;
+    border: 2px solid #555;
+    background: #1a1a1a;
+    padding: 0;
+    cursor: pointer;
+    overflow: hidden;
+    flex-shrink: 0;
+    height: 28px;
+    width: 52px;
+}
+
+.fq-sign-toggle .fq-check,
+.fq-sign-toggle .fq-x {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 50%;
+    height: 100%;
+    font-size: 13px;
+    font-weight: bold;
+    transition: background 0.15s, color 0.15s;
+    color: #555;
+}
+
+/* Positive state: checkmark lit, X dim */
+.fq-sign-toggle.fq-positive {
+    border-color: #2ecc71;
+}
+.fq-sign-toggle.fq-positive .fq-check {
+    background: #2ecc71;
+    color: #111;
+}
+.fq-sign-toggle.fq-positive .fq-x {
+    background: transparent;
+    color: #555;
+}
+
+/* Negative state: X lit, checkmark dim */
+.fq-sign-toggle.fq-negative {
+    border-color: #e74c3c;
+}
+.fq-sign-toggle.fq-negative .fq-check {
+    background: transparent;
+    color: #555;
+}
+.fq-sign-toggle.fq-negative .fq-x {
+    background: #e74c3c;
+    color: #fff;
 }
 
 /* First Half and Second Half Total styling */
@@ -1672,6 +1737,9 @@ body.modal-open #teamTable th {
     td, th { padding: 8px 6px; font-size: 16px; }
     .teamName { width: 130px; height: 36px; font-size: 15px; padding: 7px 9px; }
     .halftime-input, .finalquestion-input { width: 45px; }
+    td.fq-cell-td { min-width: 100px; width: 100px; }
+    .fq-sign-toggle { width: 46px; height: 26px; }
+    .fq-sign-toggle .fq-check, .fq-sign-toggle .fq-x { font-size: 12px; }
     .modal-content { width: 70%; }
     .button-container { gap: 15px; }
     button { padding: 10px 20px; font-size: 16px; }
@@ -1707,6 +1775,9 @@ body.modal-open #teamTable th {
 
     .sticky-col { min-width: 210px; }
     .halftime-input, .finalquestion-input { width: 40px; }
+    td.fq-cell-td { min-width: 92px; width: 92px; }
+    .fq-sign-toggle { width: 42px; height: 24px; }
+    .fq-sign-toggle .fq-check, .fq-sign-toggle .fq-x { font-size: 11px; }
     td.sticky-col-right span { font-size: 18px; }
     .first-half-total, .second-half-total { font-size: 16px; }
     .modal-content { width: 90%; }
