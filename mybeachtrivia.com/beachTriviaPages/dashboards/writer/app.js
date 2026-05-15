@@ -1165,6 +1165,11 @@
       populateCategorySlideForm(item.blockEntry);
     }
 
+    // For answers-summary slides, populate the dedicated form inputs.
+    if (item.blockEntry && String((item.blockEntry.block && item.blockEntry.block.type) || "").toLowerCase() === "answers-summary") {
+      populateAnswersSummaryForm(item.blockEntry);
+    }
+
     updateShowNav();
     highlightFilmstripThumb(idx);
     syncTemplateBuilderListToCurrentSlide(idx);
@@ -1265,6 +1270,53 @@
       WriterPreview.renderFromFormData(entry.formData);
     }
     markDirty();
+  }
+
+  /** Populate the answers-summary form inputs from the current block entry. */
+  function populateAnswersSummaryForm(entry) {
+    if (!entry) return;
+    var fd = (entry.formData && entry.formData.block) || {};
+    var roundInput = document.getElementById("ans-summary-round-name");
+    if (roundInput) roundInput.value = fd.roundName || "";
+    var headerInput = document.getElementById("ans-summary-header");
+    if (headerInput) headerInput.value = fd.categoryName || "";
+    var notesInput = document.getElementById("ans-summary-notes");
+    if (notesInput) notesInput.value = fd.questionNotes || "";
+  }
+
+  /** Read answers-summary form inputs and push changes into the block + preview. */
+  function flushAnswersSummaryForm() {
+    var item = getCurrentFlatItem();
+    if (!item || !item.blockEntry) return;
+    var entry = item.blockEntry;
+    if (String((entry.block && entry.block.type) || "").toLowerCase() !== "answers-summary") return;
+
+    var roundInput  = document.getElementById("ans-summary-round-name");
+    var headerInput = document.getElementById("ans-summary-header");
+    var notesInput  = document.getElementById("ans-summary-notes");
+
+    if (!entry.formData)       entry.formData = {};
+    if (!entry.formData.block) entry.formData.block = {};
+    if (roundInput)  entry.formData.block.roundName    = roundInput.value.trim();
+    if (headerInput) entry.formData.block.categoryName = headerInput.value.trim();
+    if (notesInput)  entry.formData.block.questionNotes = notesInput.value;
+
+    if (entry.block) {
+      if (roundInput)  entry.block.roundName    = entry.formData.block.roundName;
+      if (headerInput) entry.block.categoryName = entry.formData.block.categoryName;
+    }
+
+    rebuildFlatSlides();
+    WriterPreview.renderFromFormData(entry.formData);
+    markDirty();
+  }
+
+  /** Bind the answers-summary form controls (called once during init). */
+  function bindAnswersSummaryForm() {
+    ["ans-summary-round-name", "ans-summary-header", "ans-summary-notes"].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.addEventListener("input", flushAnswersSummaryForm);
+    });
   }
 
   /** Bind the category-slide form controls (called once during init). */
@@ -5191,6 +5243,7 @@
     bindMediaUploads();
     bindTemplateButtons();
     bindQuestionsTab();
+    bindAnswersSummaryForm();
     bindCategorySlideForm();
     updateCustomizeBackButtonLabel();
     bindDatePicker();

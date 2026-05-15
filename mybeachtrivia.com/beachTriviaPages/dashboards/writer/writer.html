@@ -263,6 +263,30 @@
           </div>
 
           <!-- Category Slide panel — visible only when a category-slide block is active -->
+          <!-- Answers Summary panel — visible only when an answers-summary block is active -->
+          <div class="section-block" id="answers-summary-panel">
+            <div class="section-label">
+              <h3>Answer Review Slide</h3>
+              <span class="subtle-chip">Auto-fills from round</span>
+            </div>
+            <div class="field">
+              <label for="ans-summary-round-name">Round Name</label>
+              <input id="ans-summary-round-name" type="text" placeholder="Round One" autocomplete="off" />
+            </div>
+            <div class="field" style="margin-top:12px;">
+              <label for="ans-summary-header">Section Header</label>
+              <input id="ans-summary-header" type="text" placeholder="Answer Review" autocomplete="off" />
+              <p class="answer-type-hint" style="margin-top:6px;">Shown as the large heading on the slide (e.g. "Answer Review").</p>
+            </div>
+            <div class="field" style="margin-top:12px;">
+              <label for="ans-summary-notes">Host Notes</label>
+              <textarea id="ans-summary-notes" placeholder="Private host notes for this answer review slide..."></textarea>
+            </div>
+            <p class="answer-type-hint" style="margin-top:10px;">
+              Q1–Q5 answers auto-fill from the preceding question slides in this round.
+            </p>
+          </div>
+
           <div class="section-block" id="category-slide-panel">
             <div class="section-label">
               <h3>Category Slide</h3>
@@ -449,7 +473,7 @@
             </div>
           </div>
 
-          <div class="section-block">
+          <div class="section-block" id="layout-media-panel">
             <div class="section-label">
               <h3>Layout &amp; Media</h3>
               <span class="subtle-chip">Styling</span>
