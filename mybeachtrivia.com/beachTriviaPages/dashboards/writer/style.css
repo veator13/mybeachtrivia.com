@@ -2593,9 +2593,8 @@ textarea {
   border-bottom: 2px solid transparent;
   color: var(--muted);
   cursor: pointer;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: -0.01em;
   font-family: inherit;
   padding: 12px 5px 10px;
   margin-bottom: -1px;
