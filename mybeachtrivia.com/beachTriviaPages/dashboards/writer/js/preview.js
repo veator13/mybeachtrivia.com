@@ -1528,6 +1528,7 @@
         fontSizeMode: stringOr(block.fontSizeMode, "Auto Fit"),
         questionAlign: stringOr(block.questionAlign, "left"),
         questionFontScale: typeof block.questionFontScale === "number" ? block.questionFontScale : 1.0,
+        manualAnswers: !!block.manualAnswers,
       },
     };
   }
