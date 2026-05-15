@@ -914,7 +914,7 @@
     var arrow = "\u2190 ";
     var labels = {
       "template-builder": arrow + "Questions",
-      "questions": arrow + "Slides",
+      "questions": arrow + "Storyboard",
       "show-details": arrow + "Show Setup",
       "templates": arrow + "Templates",
     };

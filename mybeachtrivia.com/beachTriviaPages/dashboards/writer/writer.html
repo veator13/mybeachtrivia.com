@@ -15,7 +15,7 @@
 
   <!-- PPTX export -->
   <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3/dist/pptxgen.bundle.js" defer></script>
-  <script src="/beachTriviaPages/dashboards/host/js/export-show-pptx.js?v=20260502e" defer></script>
+  <script src="/beachTriviaPages/dashboards/host/js/export-show-pptx.js?v=20260513f" defer></script>
 
   <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js" defer></script>
@@ -125,7 +125,7 @@
           role="tab"
           aria-selected="false"
           aria-controls="tab-questions"
-        >Slides</button>
+        >Storyboard</button>
         <button
           class="tab-btn"
           data-tab="templates"
@@ -142,6 +142,15 @@
           aria-selected="false"
           aria-controls="tab-template-builder"
         >Questions</button>
+        <button
+          type="button"
+          class="tab-btn"
+          id="tab-btn-slide-options"
+          data-tab="question-details"
+          role="tab"
+          aria-selected="false"
+          aria-controls="tab-question-details"
+        >Slide Options</button>
       </nav>
 
       <div class="tab-body panel-body">
@@ -238,10 +247,9 @@
         <!-- ── Tab: Question Details (Customize Slide) ────────── -->
         <div id="tab-question-details" class="tab-pane" role="tabpanel">
 
-          <!-- Customize Slide header bar -->
+          <!-- Slide Options header -->
           <div class="customize-slide-header">
-            <button class="btn btn-outline btn-sm" type="button" id="btn-back-to-questions">&#8592; Slides</button>
-            <span class="customize-slide-label" id="customize-slide-label">Customize Slide</span>
+            <span class="customize-slide-label" id="customize-slide-label">Slide Options</span>
           </div>
 
           <!-- Action bar ──────────────────────────────────────── -->
