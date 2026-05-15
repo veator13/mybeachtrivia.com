@@ -2601,7 +2601,8 @@ textarea {
   transition: color 0.15s ease, border-color 0.15s ease;
   white-space: nowrap;
   line-height: 1;
-  flex: 0 0 auto;
+  flex: 1 1 0;
+  text-align: center;
 }
 
 .tab-btn:hover {
