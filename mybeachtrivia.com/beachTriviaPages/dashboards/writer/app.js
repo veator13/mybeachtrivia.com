@@ -5260,6 +5260,13 @@
     // Mark app as ready — dirty tracking is now active
     appReady = true;
 
+    // Warn before leaving with unsaved changes (refresh, close, navigate away).
+    window.addEventListener("beforeunload", function (e) {
+      if (!isDirty) return;
+      e.preventDefault();
+      e.returnValue = "";
+    });
+
     console.log("[writer] app initialized");
   }
 
