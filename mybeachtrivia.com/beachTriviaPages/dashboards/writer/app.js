@@ -915,7 +915,7 @@
     var labels = {
       "template-builder": arrow + "Questions",
       "questions": arrow + "Storyboard",
-      "show-details": arrow + "Show Setup",
+      "show-details": arrow + "Setup",
       "templates": arrow + "Templates",
     };
     btnBack.textContent = labels[tab] || arrow + "Back";
