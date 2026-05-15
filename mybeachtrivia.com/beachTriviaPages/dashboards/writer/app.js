@@ -968,6 +968,18 @@
         kind === "answers-summary";
       if (!isSummary) continue;
 
+      // Manual override: build questionText from stored lines and skip auto-collect.
+      if (entry.formData && entry.formData.block && entry.formData.block.manualAnswers) {
+        var manualLines = Array.isArray(entry.formData.block.manualAnswerLines)
+          ? entry.formData.block.manualAnswerLines : [];
+        var manualBody = manualLines.map(function (line, ix) {
+          return "Q" + (ix + 1) + ": " + (line || "(no answer yet)");
+        }).join("\n") || "Answers will appear here as you fill in this round's questions.";
+        slide0.prompt = manualBody;
+        entry.formData.block.questionText = manualBody;
+        continue;
+      }
+
       var roundName = String(blk.roundName || "");
       var collected = [];
       for (var j = i - 1; j >= 0 && collected.length < 5; j--) {
@@ -1276,12 +1288,35 @@
   function populateAnswersSummaryForm(entry) {
     if (!entry) return;
     var fd = (entry.formData && entry.formData.block) || {};
+
     var roundInput = document.getElementById("ans-summary-round-name");
     if (roundInput) roundInput.value = fd.roundName || "";
     var headerInput = document.getElementById("ans-summary-header");
     if (headerInput) headerInput.value = fd.categoryName || "";
     var notesInput = document.getElementById("ans-summary-notes");
     if (notesInput) notesInput.value = fd.questionNotes || "";
+
+    var isManual = !!fd.manualAnswers;
+    var toggle = document.getElementById("ans-summary-manual-toggle");
+    if (toggle) toggle.checked = isManual;
+
+    // Source values: manual lines when in manual mode, auto answers otherwise.
+    var autoAnswers = (entry.block && entry.block.slides && entry.block.slides[0] &&
+      Array.isArray(entry.block.slides[0].answers)) ? entry.block.slides[0].answers : [];
+    var manualLines = Array.isArray(fd.manualAnswerLines) ? fd.manualAnswerLines : [];
+
+    for (var i = 1; i <= 5; i++) {
+      var inp = document.getElementById("ans-summary-q" + i);
+      if (!inp) continue;
+      inp.disabled = !isManual;
+      if (isManual) {
+        inp.value = manualLines[i - 1] || "";
+      } else {
+        var autoItem = autoAnswers[i - 1];
+        inp.value = autoItem ? (autoItem.answer || "") : "";
+        inp.placeholder = "(no answer yet)";
+      }
+    }
   }
 
   /** Read answers-summary form inputs and push changes into the block + preview. */
@@ -1294,12 +1329,25 @@
     var roundInput  = document.getElementById("ans-summary-round-name");
     var headerInput = document.getElementById("ans-summary-header");
     var notesInput  = document.getElementById("ans-summary-notes");
+    var toggle      = document.getElementById("ans-summary-manual-toggle");
 
     if (!entry.formData)       entry.formData = {};
     if (!entry.formData.block) entry.formData.block = {};
-    if (roundInput)  entry.formData.block.roundName    = roundInput.value.trim();
-    if (headerInput) entry.formData.block.categoryName = headerInput.value.trim();
+    if (roundInput)  entry.formData.block.roundName     = roundInput.value.trim();
+    if (headerInput) entry.formData.block.categoryName  = headerInput.value.trim();
     if (notesInput)  entry.formData.block.questionNotes = notesInput.value;
+
+    var isManual = !!(toggle && toggle.checked);
+    entry.formData.block.manualAnswers = isManual;
+
+    if (isManual) {
+      var lines = [];
+      for (var i = 1; i <= 5; i++) {
+        var inp = document.getElementById("ans-summary-q" + i);
+        lines.push(inp ? inp.value : "");
+      }
+      entry.formData.block.manualAnswerLines = lines;
+    }
 
     if (entry.block) {
       if (roundInput)  entry.block.roundName    = entry.formData.block.roundName;
@@ -1317,6 +1365,38 @@
       var el = document.getElementById(id);
       if (el) el.addEventListener("input", flushAnswersSummaryForm);
     });
+
+    // Q1–Q5 inputs
+    for (var i = 1; i <= 5; i++) {
+      (function (idx) {
+        var inp = document.getElementById("ans-summary-q" + idx);
+        if (inp) inp.addEventListener("input", flushAnswersSummaryForm);
+      })(i);
+    }
+
+    // Toggle: flush state, then re-populate to enable/disable inputs and prefill from auto data.
+    var toggle = document.getElementById("ans-summary-manual-toggle");
+    if (toggle) {
+      toggle.addEventListener("change", function () {
+        // If turning manual ON, seed manualAnswerLines from current auto answers first.
+        if (toggle.checked) {
+          var item = getCurrentFlatItem();
+          var entry = item && item.blockEntry;
+          if (entry) {
+            var autoAnswers = (entry.block && entry.block.slides && entry.block.slides[0] &&
+              Array.isArray(entry.block.slides[0].answers)) ? entry.block.slides[0].answers : [];
+            if (!entry.formData)       entry.formData = {};
+            if (!entry.formData.block) entry.formData.block = {};
+            entry.formData.block.manualAnswerLines = autoAnswers.map(function (a) {
+              return a ? (a.answer || "") : "";
+            });
+          }
+        }
+        flushAnswersSummaryForm();
+        var cur = getCurrentFlatItem();
+        if (cur && cur.blockEntry) populateAnswersSummaryForm(cur.blockEntry);
+      });
+    }
   }
 
   /** Bind the category-slide form controls (called once during init). */

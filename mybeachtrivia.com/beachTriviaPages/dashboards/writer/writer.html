@@ -279,12 +279,40 @@
               <p class="answer-type-hint" style="margin-top:6px;">Shown as the large heading on the slide (e.g. "Answer Review").</p>
             </div>
             <div class="field" style="margin-top:12px;">
+              <div class="ans-summary-manual-row">
+                <input type="checkbox" id="ans-summary-manual-toggle" />
+                <label for="ans-summary-manual-toggle">Enable Manual Editing</label>
+              </div>
+              <p class="answer-type-hint" style="margin-top:4px;margin-bottom:8px;">
+                Q1–Q5 auto-fill from preceding question slides. Check above to override.
+              </p>
+              <div class="ans-summary-q-list" id="ans-summary-q-list">
+                <div class="ans-summary-q-row">
+                  <span class="ans-summary-q-label">Q1</span>
+                  <input type="text" class="ans-summary-q-input" id="ans-summary-q1" disabled placeholder="(no answer yet)" autocomplete="off" />
+                </div>
+                <div class="ans-summary-q-row">
+                  <span class="ans-summary-q-label">Q2</span>
+                  <input type="text" class="ans-summary-q-input" id="ans-summary-q2" disabled placeholder="(no answer yet)" autocomplete="off" />
+                </div>
+                <div class="ans-summary-q-row">
+                  <span class="ans-summary-q-label">Q3</span>
+                  <input type="text" class="ans-summary-q-input" id="ans-summary-q3" disabled placeholder="(no answer yet)" autocomplete="off" />
+                </div>
+                <div class="ans-summary-q-row">
+                  <span class="ans-summary-q-label">Q4</span>
+                  <input type="text" class="ans-summary-q-input" id="ans-summary-q4" disabled placeholder="(no answer yet)" autocomplete="off" />
+                </div>
+                <div class="ans-summary-q-row">
+                  <span class="ans-summary-q-label">Q5</span>
+                  <input type="text" class="ans-summary-q-input" id="ans-summary-q5" disabled placeholder="(no answer yet)" autocomplete="off" />
+                </div>
+              </div>
+            </div>
+            <div class="field" style="margin-top:12px;">
               <label for="ans-summary-notes">Host Notes</label>
               <textarea id="ans-summary-notes" placeholder="Private host notes for this answer review slide..."></textarea>
             </div>
-            <p class="answer-type-hint" style="margin-top:10px;">
-              Q1–Q5 answers auto-fill from the preceding question slides in this round.
-            </p>
           </div>
 
           <div class="section-block" id="category-slide-panel">
