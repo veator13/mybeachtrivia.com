@@ -15,10 +15,14 @@ const SCOPES = [
 ].join(' ');
 
 // ─── Token Storage ────────────────────────────────────────────────────────────
+// Use the top-level window's sessionStorage so tokens are shared between the
+// main window and any same-origin iframe that embeds this page (host-event).
+
+const _ss = () => window.top.sessionStorage;
 
 export function saveTokens({ accessToken, refreshToken, expiresIn }) {
   const expiresAt = Date.now() + expiresIn * 1000 - 60_000; // 1-min buffer
-  sessionStorage.setItem(
+  _ss().setItem(
     'sp:tokens',
     JSON.stringify({ accessToken, refreshToken, expiresAt })
   );
@@ -26,7 +30,7 @@ export function saveTokens({ accessToken, refreshToken, expiresIn }) {
 
 export function getStoredTokens() {
   try {
-    const raw = sessionStorage.getItem('sp:tokens');
+    const raw = _ss().getItem('sp:tokens');
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
@@ -34,7 +38,7 @@ export function getStoredTokens() {
 }
 
 export function clearSpotifySession() {
-  sessionStorage.removeItem('sp:tokens');
+  _ss().removeItem('sp:tokens');
   localStorage.removeItem('sp:state');
 }
 
@@ -89,8 +93,10 @@ export async function getValidToken() {
 export function initiateSpotifyAuth() {
   const state = crypto.randomUUID();
   localStorage.setItem('sp:state', state);
-  // Save current page URL so spAuth.html can return here (preserves ?companion=1 etc.)
-  localStorage.setItem('sp:returnUrl', location.href);
+  // Use this page's own URL as the return destination so that after OAuth the
+  // browser lands on music-bingo directly (standalone), not on host-event.
+  // window.location.href equals window.top.location.href when not in an iframe.
+  localStorage.setItem('sp:returnUrl', window.location.href);
 
   const params = new URLSearchParams({
     client_id:     CLIENT_ID,
@@ -101,7 +107,10 @@ export function initiateSpotifyAuth() {
     show_dialog:   'false',
   });
 
-  window.location.assign(
+  // Navigate the top-level window — prevents Spotify's page from being
+  // framed (Spotify blocks embedding via frame-ancestors) and ensures
+  // the OAuth callback lands on the correct page.
+  window.top.location.assign(
     'https://accounts.spotify.com/authorize?' + params.toString()
   );
 }

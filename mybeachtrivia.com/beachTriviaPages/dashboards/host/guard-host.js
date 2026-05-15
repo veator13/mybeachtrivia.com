@@ -56,6 +56,12 @@
   }
 
   var redirectPending = false;
+  // One-shot flag: only run the Firestore employee check once per page load.
+  // Without this, cross-tab storage events from same-origin iframes (e.g. the
+  // music-bingo iframe writing auth tokens) re-fire onAuthStateChanged, which
+  // triggers redundant Firestore queries that can fail on a disrupted connection
+  // and previously caused an erroneous auth.signOut() + redirect-to-login loop.
+  var accessChecked = false;
 
   auth.onAuthStateChanged(function (user) {
     if (!user) {
@@ -71,6 +77,8 @@
       return;
     }
     redirectPending = false;
+    if (accessChecked) return;
+    accessChecked = true;
 
     db.doc('employees/' + user.uid).get().then(function (snap) {
       if (!snap.exists) {

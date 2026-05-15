@@ -28,7 +28,7 @@ import {
   clearSpotifySession,
   getSpotifyUser,
   spotifyApi,
-} from './spotify.js?v=9';
+} from './spotify.js?v=11';
 
 // ------- Spotify loading overlay -------
 let _overlayPlaylistsDone = false;
