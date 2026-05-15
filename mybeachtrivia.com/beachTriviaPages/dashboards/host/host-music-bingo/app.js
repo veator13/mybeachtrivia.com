@@ -1523,7 +1523,25 @@ async function playTrackAtPosition(uri, positionMsOrMode) {
   }
 
   console.log('[app] playTrackAtPosition: waiting for track to become active…');
-  const active = await waitForTrackActive(uri);
+  let active = await waitForTrackActive(uri);
+
+  if (!active) {
+    // Spotify accepted the play command (204) but the device didn't switch.
+    // This happens when the server-side device registration lags behind the
+    // SDK's ready event. Retry once before giving up.
+    console.warn('[app] playTrackAtPosition: track did not become active; retrying playUri…');
+    try { await spotifyCtrl.playUri(uri, 0); } catch (_) {}
+    active = await waitForTrackActive(uri, 5000);
+    if (!active) {
+      console.warn('[app] playTrackAtPosition: retry also failed; giving up');
+      const stCur = await spotifyCtrl.getCurrentState().catch(() => null);
+      const actualUri = stCur?.track_window?.current_track?.uri;
+      if (actualUri && actualUri !== uri) _lastLoggedUri = actualUri;
+      await (isFadeEnabled() && !isSpotifyCompanionCtrl() ? fadeTo(target, 1800) : setVolumePct(target));
+      return;
+    }
+    console.log('[app] playTrackAtPosition: track became active on retry');
+  }
 
   // ACTIVE_TRACK_NOW_PLAYING_SYNC
   // Update Now Playing as soon as the new track is active (at fade-floor), not after fade-in completes.
@@ -1535,18 +1553,6 @@ async function playTrackAtPosition(uri, positionMsOrMode) {
   // Keep volume at floor while we seek — hides the brief playback from position 0.
   if (!isSpotifyCompanionCtrl() && isFadeEnabled()) {
     await setAudioVolume(FADE_FLOOR_PCT); // re-confirm floor after track init
-  }
-
-  if (!active) {
-    console.warn('[app] playTrackAtPosition: track did not become active; skipping seek');
-    // Device stayed on the old track. Resync _lastLoggedUri to whatever is
-    // actually playing so the still-playing track isn't double-logged by
-    // the state poller that fires once playTransition is cleared.
-    const stCur = await spotifyCtrl.getCurrentState().catch(() => null);
-    const actualUri = stCur?.track_window?.current_track?.uri;
-    if (actualUri && actualUri !== uri) _lastLoggedUri = actualUri;
-    await (isFadeEnabled() && !isSpotifyCompanionCtrl() ? fadeTo(target, 1800) : setVolumePct(target));
-    return;
   }
 
   // Re-check current track before seeking.
