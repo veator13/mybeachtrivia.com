@@ -66,6 +66,10 @@
   auth.onAuthStateChanged(function (user) {
     if (!user) {
       if (redirectPending) return;
+      // If the employee check already passed this page load, the null signal is
+      // a transient storage event from the music-bingo iframe (different Firebase
+      // SDK version writing to shared localStorage). Don't redirect.
+      if (accessChecked) return;
       redirectPending = true;
       setTimeout(function () {
         if (!auth.currentUser) {
