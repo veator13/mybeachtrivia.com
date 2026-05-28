@@ -163,6 +163,12 @@ const els = {
   fadeToggle:        document.querySelector('#sp-fade'),
 
   forms: Array.from(document.querySelectorAll('form')),
+
+  // Offline mode
+  offlineModeBtn:     document.querySelector('#offline-mode-btn'),
+  offlinePlayerSection: document.querySelector('#offline-player-section'),
+  offlineSearch:      document.querySelector('#offline-search'),
+  offlineTrackList:   document.querySelector('#offline-track-list'),
 };
 
 // ─── State ────────────────────────────────────────────────────────────────────
@@ -223,6 +229,14 @@ const LS_PLAYLIST_ID = 'mb:playlistId';
 const LS_PLAYED_SONGS   = 'mb:playedSongs';
 const LS_ROUND_HISTORY  = 'mb:roundHistory';
 const LS_CURRENT_ROUND  = 'mb:currentRound'; // { roundNumber, name } for in-progress round
+const LS_OFFLINE_MODE   = 'mb:offlineMode';
+
+// ─── Offline mode state ───────────────────────────────────────────────────────
+let offlineMode = false;
+
+try {
+  offlineMode = localStorage.getItem(LS_OFFLINE_MODE) === '1';
+} catch { /* ignore */ }
 
 let _syncDebounceTimer = null;
 /** Fire-and-forget: push current played/round state to Firestore for cross-device companion sync.
@@ -541,6 +555,158 @@ function addToPlayedLog(title, artist) {
   }
 
   els.playedLogSection?.classList.remove('hidden');
+
+  // Refresh offline track list to reflect the newly-played song
+  if (offlineMode) {
+    renderOfflineTrackList(els.offlineSearch?.value || '');
+  }
+}
+
+// ─── Offline mode helpers ─────────────────────────────────────────────────────
+
+/** Render the offline track picker from the current playlistTracks + filter text. */
+function renderOfflineTrackList(filterText) {
+  const list = els.offlineTrackList;
+  if (!list) return;
+  list.innerHTML = '';
+
+  if (!playlistTracks.length) {
+    const empty = document.createElement('p');
+    empty.className = 'hc-muted hc-offline-empty';
+    empty.textContent = 'Select a playlist above to see tracks';
+    list.appendChild(empty);
+    return;
+  }
+
+  const query = (filterText || '').toLowerCase().trim();
+  const playedTitles = new Set(playedSongs.map((s) => `${s.title}||${s.artist}`));
+
+  const filtered = query
+    ? playlistTracks.filter(
+        (t) =>
+          (t.title || '').toLowerCase().includes(query) ||
+          (t.artist || '').toLowerCase().includes(query)
+      )
+    : playlistTracks;
+
+  if (!filtered.length) {
+    const empty = document.createElement('p');
+    empty.className = 'hc-muted hc-offline-empty';
+    empty.textContent = 'No tracks match your search';
+    list.appendChild(empty);
+    return;
+  }
+
+  filtered.forEach((track) => {
+    const isPlayed = playedTitles.has(`${track.title}||${track.artist}`);
+
+    const item = document.createElement('div');
+    item.className = 'hc-offline-track-item' + (isPlayed ? ' played' : '');
+    item.setAttribute('role', 'button');
+    item.setAttribute('tabindex', isPlayed ? '-1' : '0');
+    item.setAttribute('aria-label', `${track.title} by ${track.artist}${isPlayed ? ' (played)' : ''}`);
+
+    const info = document.createElement('div');
+    info.className = 'hc-offline-track-info';
+
+    const title = document.createElement('div');
+    title.className = 'hc-offline-track-title';
+    title.textContent = track.title || 'Unknown track';
+
+    const artist = document.createElement('div');
+    artist.className = 'hc-offline-track-artist';
+    artist.textContent = track.artist || 'Unknown artist';
+
+    info.appendChild(title);
+    info.appendChild(artist);
+
+    // Check icon (shown when played)
+    const check = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    check.setAttribute('viewBox', '0 0 24 24');
+    check.setAttribute('fill', 'none');
+    check.setAttribute('stroke', 'currentColor');
+    check.setAttribute('stroke-width', '2.5');
+    check.setAttribute('stroke-linecap', 'round');
+    check.setAttribute('stroke-linejoin', 'round');
+    check.setAttribute('width', '16');
+    check.setAttribute('height', '16');
+    check.setAttribute('aria-hidden', 'true');
+    check.classList.add('hc-offline-track-check');
+    const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+    polyline.setAttribute('points', '20 6 9 17 4 12');
+    check.appendChild(polyline);
+
+    item.appendChild(info);
+    item.appendChild(check);
+
+    if (!isPlayed) {
+      const handleClick = () => {
+        addToPlayedLog(track.title || 'Unknown track', track.artist || 'Unknown artist');
+        // Re-render to mark as played — addToPlayedLog calls renderOfflineTrackList via patch below
+      };
+      item.addEventListener('click', handleClick);
+      item.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClick(); }
+      });
+    }
+
+    list.appendChild(item);
+  });
+}
+
+/** Toggle offline mode on/off. */
+function setOfflineMode(on) {
+  offlineMode = on;
+  try { localStorage.setItem(LS_OFFLINE_MODE, on ? '1' : '0'); } catch { /* ignore */ }
+
+  // Toggle button label + active class
+  if (els.offlineModeBtn) {
+    els.offlineModeBtn.textContent = on ? '✓ Offline Mode' : 'Offline Mode';
+    els.offlineModeBtn.classList.toggle('active', on);
+  }
+
+  // In offline mode: hide Spotify UI, show offline track list
+  // In online mode: restore Spotify UI, hide offline track list
+  const spotifyArea = document.querySelector('.hc-player-placeholder');
+  if (on) {
+    // Hide Spotify connect/disconnect, player section, and placeholder
+    els.connectBtn?.classList.add('hidden');
+    els.connectedRow?.classList.add('hidden');
+    els.playerSection?.classList.add('hidden');
+    if (spotifyArea) spotifyArea.classList.add('hidden');
+    // Show offline section
+    els.offlinePlayerSection?.classList.remove('hidden');
+    // Show played log (it normally waits for a song)
+    els.playedLogSection?.classList.remove('hidden');
+    renderOfflineTrackList(els.offlineSearch?.value || '');
+  } else {
+    // Restore Spotify state
+    if (!spotifyCtrl) {
+      els.connectBtn?.classList.remove('hidden');
+      if (spotifyArea) spotifyArea.classList.remove('hidden');
+    } else {
+      els.connectedRow?.classList.remove('hidden');
+      els.playerSection?.classList.remove('hidden');
+    }
+    // Hide offline section
+    els.offlinePlayerSection?.classList.add('hidden');
+    // Hide played log if no songs have been logged
+    if (!playedSongs.length) {
+      els.playedLogSection?.classList.add('hidden');
+    }
+  }
+}
+
+/** Wire offline mode toggle and search box. */
+function wireOfflineMode() {
+  if (els.offlineModeBtn) {
+    els.offlineModeBtn.addEventListener('click', () => setOfflineMode(!offlineMode));
+  }
+  if (els.offlineSearch) {
+    els.offlineSearch.addEventListener('input', () =>
+      renderOfflineTrackList(els.offlineSearch.value)
+    );
+  }
 }
 
 function setNowPlayingFromPlayTransition() {
@@ -1358,6 +1524,7 @@ async function handleStartGame(e) {
       playlistTracks = parsePlaylistTracks(data);
       console.log('[app] Loaded', playlistTracks.length, 'tracks for Spotify');
       try { localStorage.setItem(LS_PLAYLIST_ID, playlistId); } catch { /* ignore */ }
+      if (offlineMode) renderOfflineTrackList(els.offlineSearch?.value || '');
     } catch (e) {
       console.warn('[app] Could not load playlist tracks:', e?.message || e);
     }
@@ -1946,6 +2113,7 @@ async function init() {
           playlistTracks = parsePlaylistTracks(data);
           console.log('[app] Loaded', playlistTracks.length, 'tracks for', id);
           try { localStorage.setItem(LS_PLAYLIST_ID, id); } catch { /* ignore */ }
+          if (offlineMode) renderOfflineTrackList(els.offlineSearch?.value || '');
         } catch (e) {
           console.warn('[app] Could not load playlist tracks:', e?.message || e);
         }
@@ -1995,6 +2163,10 @@ async function init() {
 
   wireCopyJoin();
   wireSpotifyControls();
+  wireOfflineMode();
+
+  // Apply persisted offline mode state on load
+  if (offlineMode) setOfflineMode(true);
 
   // Auto-init Spotify if tokens already exist (returning from OAuth redirect)
   if (getStoredTokens()) {
