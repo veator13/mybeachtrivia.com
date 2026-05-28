@@ -99,7 +99,7 @@
     if (contentGrid) contentGrid.style.display = 'none';
     if (gameFrameView) gameFrameView.style.display = 'block';
     if (pageStage) pageStage.classList.add('game-open');
-    if (scoresheetBtn) scoresheetBtn.hidden = !SCORESHEET_GAMES.has(label);
+    if (scoresheetBtn) scoresheetBtn.style.display = SCORESHEET_GAMES.has(label) ? '' : 'none';
     _sessionCode = null;
     _sharing = false;
     updateShareBtn();
@@ -111,7 +111,7 @@
     if (gameFrameView) gameFrameView.style.display = 'none';
     if (contentGrid) contentGrid.style.display = 'grid';
     if (pageStage) pageStage.classList.remove('game-open');
-    if (scoresheetBtn) scoresheetBtn.hidden = true;
+    if (scoresheetBtn) scoresheetBtn.style.display = 'none';
     gameIframe.src = '';
     scoresheetLoaded = false;
     if (scoresheetModalIframe) scoresheetModalIframe.src = '';
