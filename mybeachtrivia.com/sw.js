@@ -14,38 +14,42 @@
 (() => {
   "use strict";
 
-  // ✅ MUST MATCH the cache-busting version used in index.html assets
-  // (ex: style.css?v=20260218-02, js/*?v=20260218-02)
-  const ASSET_V = "20260218-04";
+  // ✅ MUST MATCH the cache-busting version used in index.html assets.
+  // Bumping this forces a brand-new cache name below, which wipes out any
+  // stale "canonical" (no-?v=) entries left over from a previous deploy.
+  const ASSET_V = "20260821-01";
 
   // ✅ Bump this whenever you deploy changes to scoresheet assets (CSS/JS/HTML)
-  const VERSION = `scoresheet-offline-v3-${ASSET_V}`;
+  const VERSION = `scoresheet-offline-v4-${ASSET_V}`;
   const CACHE = `bt-${VERSION}`;
 
   const SCORESHEET_PREFIX = "/beachTriviaPages/dashboards/host/scoresheet/";
   const SHARED_PREFIX = "/beachTriviaPages/js/";
 
-  // NOTE: include querystring versions exactly as requested in index.html
+  // NOTE: these must match the exact hrefs/srcs (incl. querystrings) in
+  // index.html — each file has its own independent ?v=, not a shared one.
   const PRECACHE_URLS = [
     // Scoresheet route + local assets
     "/beachTriviaPages/dashboards/host/scoresheet/index.html",
-    `/beachTriviaPages/dashboards/host/scoresheet/style.css?v=${ASSET_V}`,
+    "/beachTriviaPages/dashboards/host/scoresheet/style.css?v=20260821-icon-fix",
     "/beachTriviaPages/dashboards/host/scoresheet/final-neg-guard.js?v=20251025163459",
 
-    `/beachTriviaPages/dashboards/host/scoresheet/js/dom-utils.js?v=${ASSET_V}`,
-    `/beachTriviaPages/dashboards/host/scoresheet/js/state.js?v=${ASSET_V}`,
-    `/beachTriviaPages/dashboards/host/scoresheet/js/firebase.js?v=${ASSET_V}`,
-    `/beachTriviaPages/dashboards/host/scoresheet/js/venues.js?v=${ASSET_V}`,
-    `/beachTriviaPages/dashboards/host/scoresheet/js/meta-fields.js?v=${ASSET_V}`,
-    `/beachTriviaPages/dashboards/host/scoresheet/js/meta-fields.js?v=${ASSET_V}`,
-    `/beachTriviaPages/dashboards/host/scoresheet/js/ui-sticky-bonus.js?v=${ASSET_V}`,
-    `/beachTriviaPages/dashboards/host/scoresheet/js/table-build.js?v=${ASSET_V}`,
-    `/beachTriviaPages/dashboards/host/scoresheet/js/scoring.js?v=${ASSET_V}`,
-    `/beachTriviaPages/dashboards/host/scoresheet/js/search.js?v=${ASSET_V}`,
-    `/beachTriviaPages/dashboards/host/scoresheet/js/standings-modal.js?v=${ASSET_V}`,
-    `/beachTriviaPages/dashboards/host/scoresheet/js/submit-scores.js?v=${ASSET_V}`,
-    `/beachTriviaPages/dashboards/host/scoresheet/js/grid-enforcer.js?v=${ASSET_V}`,
-    `/beachTriviaPages/dashboards/host/scoresheet/js/main.js?v=${ASSET_V}`,
+    "/beachTriviaPages/dashboards/host/scoresheet/js/dom-utils.js?v=20260218-04",
+    "/beachTriviaPages/dashboards/host/scoresheet/js/state.js?v=20260218-04",
+    "/beachTriviaPages/dashboards/host/scoresheet/js/firebase.js?v=20260218-04",
+    "/beachTriviaPages/dashboards/host/scoresheet/js/venues.js?v=20260501-01",
+    "/beachTriviaPages/dashboards/host/scoresheet/js/meta-fields.js?v=20260218-04",
+    "/beachTriviaPages/dashboards/host/scoresheet/js/venue-combobox.js?v=20260504-event-combo1",
+    "/beachTriviaPages/dashboards/host/scoresheet/js/ui-sticky-bonus.js?v=20260218-04",
+    "/beachTriviaPages/dashboards/host/scoresheet/js/table-build.js?v=20260403-01",
+    "/beachTriviaPages/dashboards/host/scoresheet/js/sort-teams.js?v=20260403-01",
+    "/beachTriviaPages/dashboards/host/scoresheet/js/scoring.js?v=20260218-04",
+    "/beachTriviaPages/dashboards/host/scoresheet/js/search.js?v=20260218-04",
+    "/beachTriviaPages/dashboards/host/scoresheet/js/standings-modal.js?v=20260511-cast-standings",
+    "/beachTriviaPages/dashboards/host/scoresheet/js/team-number-modal.js?v=20260302-01",
+    "/beachTriviaPages/dashboards/host/scoresheet/js/submit-scores.js?v=20260218-04",
+    "/beachTriviaPages/dashboards/host/scoresheet/js/grid-enforcer.js?v=20260218-04",
+    "/beachTriviaPages/dashboards/host/scoresheet/js/main.js?v=20260512-full-table",
 
     // Shared auth/firebase bootstrap used by scoresheet
     "/beachTriviaPages/js/firebase-init-compat.js",
