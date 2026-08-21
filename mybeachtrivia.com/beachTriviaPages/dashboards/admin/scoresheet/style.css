@@ -356,11 +356,11 @@ th[colspan="5"] {
    nth-child recalculates automatically for added/removed rows.
    ========================= */
 :where(#teamTable tbody tr:nth-child(even)) td {
-    background-color: #2a2a2a;
+    background-color: #363636;
 }
 :where(#teamTable tbody tr:nth-child(even)) td.sticky-col,
 :where(#teamTable tbody tr:nth-child(even)) td.sticky-col-right {
-    background-color: #333333;
+    background-color: #404040;
 }
 
 /* Round Total columns */
