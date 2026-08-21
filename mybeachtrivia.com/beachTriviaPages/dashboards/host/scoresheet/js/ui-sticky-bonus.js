@@ -97,7 +97,11 @@
   
     function applyWidthsAndOffsets(table, bonusW, finalW) {
       const bg = findOpaqueBg(table);
-  
+      // Even team rows get the same lighter tint as the rest of the zebra
+      // striping (see style.css ZEBRA STRIPING block) so these sticky
+      // right columns don't look flat against the rest of the row.
+      const bgEven = "#404040";
+
       const style = ensureStyleTag("sticky-right-columns-style");
       style.textContent = `
         /* FINAL */
@@ -114,7 +118,7 @@
           isolation: isolate;
           transform: translateZ(0);
         }
-  
+
         /* BONUS */
         ${BONUS_CELL_SELECTOR} {
           position: sticky;
@@ -129,7 +133,13 @@
           isolation: isolate;
           transform: translateZ(0);
         }
-  
+
+        /* Zebra striping: even team rows get the lighter tint */
+        #teamTable tbody tr:nth-child(even) td.sticky-col-right,
+        #teamTable tbody tr:nth-child(even) td.bonus-col-right {
+          background-color: ${bgEven};
+        }
+
         /* Keep the input from forcing column growth */
         ${BONUS_INPUT_SELECTOR} {
           width: 100%;

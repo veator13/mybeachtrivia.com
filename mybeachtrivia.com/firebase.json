@@ -103,6 +103,24 @@
         ]
       },
       {
+        "source": "/beachTriviaPages/dashboards/host/scoresheet/index.html",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-store"
+          }
+        ]
+      },
+      {
+        "source": "/beachTriviaPages/dashboards/admin/scoresheet/index.html",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-store"
+          }
+        ]
+      },
+      {
         "source": "**/*.html",
         "headers": [
           {
