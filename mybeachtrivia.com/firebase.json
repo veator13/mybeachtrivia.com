@@ -130,7 +130,25 @@
         ]
       },
       {
+        "source": "/beachTriviaPages/dashboards/host/scoresheet/",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-store"
+          }
+        ]
+      },
+      {
         "source": "/beachTriviaPages/dashboards/admin/scoresheet/index.html",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-store"
+          }
+        ]
+      },
+      {
+        "source": "/beachTriviaPages/dashboards/admin/scoresheet/",
         "headers": [
           {
             "key": "Cache-Control",
