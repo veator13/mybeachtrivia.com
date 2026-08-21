@@ -16,7 +16,8 @@
 
    FEUD MODE:
    - When #eventType === "feud", turn OFF the per-round discrete constraints:
-     Q1–Q20 become free-entry (min=0, step=1, no max).
+     Q1–Q20 become free-entry within 0-8 (min=0, step=1, max=8).
+   - halfTime/finalQuestion inputs are untouched by this and stay unrestricted.
    - Switches LIVE without reload, updating existing rows too.
 */
 (function () {
@@ -89,7 +90,7 @@
       if (!inp) continue;
 
       if (feud) {
-        setAttrs(inp, { min: "0", step: "1", max: null });
+        setAttrs(inp, { min: "0", step: "1", max: "8" });
       } else {
         if (q >= 1 && q <= 5) setAttrs(inp, { min: "0", max: "1", step: "1" });
         else if (q <= 10) setAttrs(inp, { min: "0", max: "2", step: "2" });

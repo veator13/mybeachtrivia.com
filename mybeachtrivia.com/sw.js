@@ -17,7 +17,7 @@
   // ✅ MUST MATCH the cache-busting version used in index.html assets.
   // Bumping this forces a brand-new cache name below, which wipes out any
   // stale "canonical" (no-?v=) entries left over from a previous deploy.
-  const ASSET_V = "20260821-01";
+  const ASSET_V = "20260821-02";
 
   // ✅ Bump this whenever you deploy changes to scoresheet assets (CSS/JS/HTML)
   const VERSION = `scoresheet-offline-v4-${ASSET_V}`;
@@ -41,9 +41,9 @@
     "/beachTriviaPages/dashboards/host/scoresheet/js/meta-fields.js?v=20260218-04",
     "/beachTriviaPages/dashboards/host/scoresheet/js/venue-combobox.js?v=20260504-event-combo1",
     "/beachTriviaPages/dashboards/host/scoresheet/js/ui-sticky-bonus.js?v=20260218-04",
-    "/beachTriviaPages/dashboards/host/scoresheet/js/table-build.js?v=20260403-01",
+    "/beachTriviaPages/dashboards/host/scoresheet/js/table-build.js?v=20260821-feud-cap",
     "/beachTriviaPages/dashboards/host/scoresheet/js/sort-teams.js?v=20260403-01",
-    "/beachTriviaPages/dashboards/host/scoresheet/js/scoring.js?v=20260218-04",
+    "/beachTriviaPages/dashboards/host/scoresheet/js/scoring.js?v=20260821-feud-cap",
     "/beachTriviaPages/dashboards/host/scoresheet/js/search.js?v=20260218-04",
     "/beachTriviaPages/dashboards/host/scoresheet/js/standings-modal.js?v=20260511-cast-standings",
     "/beachTriviaPages/dashboards/host/scoresheet/js/team-number-modal.js?v=20260302-01",

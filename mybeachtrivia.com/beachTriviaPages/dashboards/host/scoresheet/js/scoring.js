@@ -15,7 +15,8 @@
            Q11-15=> 3
            Q16-20=> 4
    - In FEUD mode (#eventType === "feud"):
-       * allow any non-negative integer in Q1..Q20 (no snapping)
+       * allow any integer 0-8 in Q1..Q20 (no snapping, capped at 8)
+       * halfTime and finalQuestion are unaffected (still free-entry)
 */
 (function () {
   "use strict";
@@ -163,7 +164,7 @@
 
       if (isFeudMode()) {
         const v = int(inputEl.value);
-        inputEl.value = String(v < 0 ? 0 : v);
+        inputEl.value = String(Math.min(8, Math.max(0, v)));
         inputEl.classList.remove("invalid");
         return { ok: true };
       }
