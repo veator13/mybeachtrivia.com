@@ -828,6 +828,21 @@ thead::after {
 tbody td.bonus-col-right { z-index: 50; }
 tbody td.sticky-col-right { z-index: 55; }
 
+/* =========================
+   ZEBRA STRIPING (team rows)
+   Wrapped in :where() so it always loses to more specific rules
+   (round-total highlights, search highlighting, etc.) without !important.
+   nth-child recalculates automatically for sorted/added/removed rows.
+   ========================= */
+:where(#teamTable tbody tr:nth-child(even)) td {
+    background-color: #2a2a2a;
+}
+:where(#teamTable tbody tr:nth-child(even)) td.sticky-col,
+:where(#teamTable tbody tr:nth-child(even)) td.sticky-col-right,
+:where(#teamTable tbody tr:nth-child(even)) td.bonus-col-right {
+    background-color: #333333;
+}
+
 /* Header styling for BONUS & FINAL SCORE (no truncation) */
 .top_row th.bonus-col-right,
 .top_row th.sticky-col-right{

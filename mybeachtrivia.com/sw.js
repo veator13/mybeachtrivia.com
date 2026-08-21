@@ -17,7 +17,7 @@
   // ✅ MUST MATCH the cache-busting version used in index.html assets.
   // Bumping this forces a brand-new cache name below, which wipes out any
   // stale "canonical" (no-?v=) entries left over from a previous deploy.
-  const ASSET_V = "20260821-02";
+  const ASSET_V = "20260821-03";
 
   // ✅ Bump this whenever you deploy changes to scoresheet assets (CSS/JS/HTML)
   const VERSION = `scoresheet-offline-v4-${ASSET_V}`;
@@ -31,7 +31,7 @@
   const PRECACHE_URLS = [
     // Scoresheet route + local assets
     "/beachTriviaPages/dashboards/host/scoresheet/index.html",
-    "/beachTriviaPages/dashboards/host/scoresheet/style.css?v=20260821-icon-fix",
+    "/beachTriviaPages/dashboards/host/scoresheet/style.css?v=20260821-zebra-rows",
     "/beachTriviaPages/dashboards/host/scoresheet/final-neg-guard.js?v=20251025163459",
 
     "/beachTriviaPages/dashboards/host/scoresheet/js/dom-utils.js?v=20260218-04",
