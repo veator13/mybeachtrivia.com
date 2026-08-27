@@ -804,6 +804,14 @@ body[data-page="leads-admin"] .card-table .card-head { align-items: flex-start; 
 .lead-row { cursor: pointer; }
 .lead-row:hover td { background: var(--row-hover); }
 
+/* Leads table column sizing — no sticky columns, wrapper scrolls if needed */
+body[data-page="leads-admin"] .table .col-venue { min-width: 240px; }
+body[data-page="leads-admin"] .table .col-num { text-align: center; width: 64px; }
+body[data-page="leads-admin"] .table th,
+body[data-page="leads-admin"] .table td { white-space: nowrap; }
+body[data-page="leads-admin"] .table .col-venue,
+body[data-page="leads-admin"] .table .col-venue * { white-space: normal; }
+
 /* Detail modal */
 .lead-modal-content { max-width: 820px; width: min(820px, 94vw); max-height: 90vh; overflow-y: auto; }
 .lead-detail { margin-top: 8px; }

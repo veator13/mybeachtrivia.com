@@ -231,19 +231,19 @@ function renderTable() {
 
       return `
       <tr data-id="${esc(lead.id)}" class="lead-row">
-        <td class="sticky-col col-venue">
+        <td class="col-venue">
           <strong>${esc(v.name || "(unknown venue)")}</strong>
           <div class="muted">${esc([v.city || v.neighborhood, v.venueClassification].filter(Boolean).join(" · ") || "—")}</div>
         </td>
         <td>${pill(lead.statusBucket, BUCKET_PILL[lead.statusBucket])}</td>
-        <td>${lead.leadScore ?? "—"}</td>
+        <td class="col-num">${lead.leadScore ?? "—"}</td>
         <td>${pill(lead.researchPriority, PRIORITY_PILL[lead.researchPriority])}</td>
         <td>${esc(lead.pipelineStage || "—")}</td>
         <td>${opening || "—"}</td>
         <td class="${nextClass}">${esc(fmtDate(lead.nextResearchDate))}${
         nextDays !== null && nextDays <= 0 ? " <span class=\"muted\">(due)</span>" : ""
       }</td>
-        <td class="sticky-col col-active">
+        <td>
           <span class="pill ${reviewed ? "pill-green" : "pill-amber"}">${reviewed ? "Yes" : "No"}</span>
         </td>
       </tr>`;
