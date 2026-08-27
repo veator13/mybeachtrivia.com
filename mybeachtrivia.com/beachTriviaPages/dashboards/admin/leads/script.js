@@ -421,9 +421,21 @@ async function openLead(leadId) {
     console.error("Failed to load observations:", err);
   }
 
+  const phoneHtml = v.phone
+    ? `<a href="tel:${esc(v.phone)}">${esc(v.phone)}</a>${
+        v.phoneNote ? `<div class="muted">${esc(v.phoneNote)}</div>` : ""
+      }`
+    : "—";
+  const emailHtml = v.email
+    ? `<a href="mailto:${esc(v.email)}">${esc(v.email)}</a>${
+        v.emailNote ? `<div class="muted">${esc(v.emailNote)}</div>` : ""
+      }`
+    : `<span class="muted">not found</span>`;
+
   const basic = [
     kv("Address", esc(v.address)),
-    kv("Phone", v.phone ? `<a href="tel:${esc(v.phone)}">${esc(v.phone)}</a>` : "—"),
+    kv("Phone", phoneHtml),
+    kv("Email", emailHtml),
     kv("Links", renderSocials(v)),
     kv("Classification", esc(v.venueClassification)),
     kv("Ownership", esc(v.ownershipType)),

@@ -41,10 +41,18 @@ All leads work is on branch `leads-feature` (not merged to main yet).
 ## Firestore schema (locked)
 
 ### `venues/{venueId}` — durable identity, rarely changes
-name, normalizedName, address, city/neighborhood, phone, website, socialLinks,
-normalizedWebsiteDomain, placeId, venueClassification, ownershipType, hours, kitchenHours,
-barAlcoholModel, sizeLayoutSignals, openingStatus, openingDate, openingDateConfidence,
-decisionMaker, plainEnglishProfile, basicInfoLastVerified, currentEntertainment.
+name, normalizedName, address, city/neighborhood, phone, phoneNote, email, emailNote,
+website, socialLinks, normalizedWebsiteDomain, placeId, venueClassification, ownershipType,
+hours, kitchenHours, barAlcoholModel, sizeLayoutSignals, openingStatus, openingDate,
+openingDateConfidence, decisionMaker, plainEnglishProfile, basicInfoLastVerified,
+currentEntertainment.
+
+`phoneNote`: what the listed phone actually reaches — e.g. "taproom / front-of-house bar
+line", "owner Christine Holley's cell", "general voicemail, no staff during day",
+"reservations line (Toast)". Always try to characterise it, don't just store a number.
+`email`: best booking/GM email; hunt for it every run if missing (venue site contact page,
+Facebook About tab, "contact us", domain-pattern guesses verified against the site, ABC
+license filings). `emailNote`: whose inbox it is ("general info@", "GM direct", "owner").
 
 `currentEntertainment`: array of `{ format, host, schedule, note, isCompetitor }` — every
 recurring trivia / music bingo / game night the venue runs. Set `host` to the running
@@ -117,6 +125,11 @@ So, for every venue, the task must:
 4. Only call a venue "no entertainment / Pitch Now" after steps 1–3 come back empty.
    If a competitor is found, it's `Current Competitor` — record the host company, night,
    and where it was confirmed (with the post URL + date accessed) in a `leadObservation`.
+5. **Contact hunt, every run:** find a booking/GM `email` if one isn't already stored
+   (venue contact page, Facebook About tab, ABC filings). For the `phone`, work out what
+   it actually reaches and put it in `phoneNote` (taproom bar line vs. owner cell vs.
+   dead general voicemail vs. Toast reservations) — a number with no context wastes the
+   salesperson's first call.
 
 Example miss: The Garage Brewery (Chesapeake) was first logged as "Worth Investigating —
 no weekly trivia" off its own calendar. It actually runs Bar Trivia LIVE trivia every
