@@ -343,6 +343,12 @@ exports.snapshotPlaylistOnCreate = btSnapshot.snapshotPlaylistOnCreate;
 exports.snapshotPlaylistOnUpdate = btSnapshot.snapshotPlaylistOnUpdate;
 
 /** ------------------------------------------
+ * Beach Trivia: Leads automation ingestion endpoint
+ * ----------------------------------------- */
+const leads = require("./leads");
+exports.ingestLeadResearch = leads.ingestLeadResearch;
+
+/** ------------------------------------------
  * BeachTrivia: cleanup old anonymous users (scheduled)
  * ----------------------------------------- */
 exports.cleanupStaleAnonymousUsers = functions.pubsub

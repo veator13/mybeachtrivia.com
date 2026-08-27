@@ -1,0 +1,94 @@
+# Beach Trivia — Leads Automation (context for Claude Code)
+
+This repo is the live source for mybeachtrivia.com (Firebase project `beach-trivia-website`,
+Blaze plan, account joshuaveator@gmail.com). This file carries context from planning work
+done in Claude Cowork so Claude Code doesn't start from zero.
+
+## Goal
+Add a permanent, automated "Leads" feature to the admin area: an AI research task finds
+Hampton Roads venue sales prospects (trivia/music bingo/Beach Feud), writes them into
+Firestore, and they show up as an accruing "unreviewed queue" on a new admin Leads tab.
+
+## Architecture (decided, do not re-litigate without reason)
+- A scheduled Claude task (runs on the owner's Claude Pro subscription, NOT a metered API
+  call — cost constraint is hard: keep this free) does the research: venue sites, social
+  media, reviews, local news, plus structured sources (VA ABC license search, city
+  open-data feeds).
+- It calls a Cloud Function HTTP endpoint to write results into Firestore — no manual
+  copy/paste, no direct Anthropic API billing.
+- Cadence: 3 venues/day, chosen as a light starting load (owner also codes with Claude
+  frequently on the same Pro plan — easy to drop to 2/day if usage becomes a concern).
+- Admin UI: plain HTML/vanilla JS, matching the existing site (no framework) — new
+  `leads/` folder + nav link, same pattern as `calendar/`, `scoresheet/`,
+  `employees-management/`.
+
+## Status as of 2026-08-27
+- [x] Schema designed (see below)
+- [x] Cloud Function endpoint written: `functions_gcfv1/leads.js`, exported as
+      `ingestLeadResearch` in `functions_gcfv1/index.js`
+- [x] `LEADS_API_KEY` secret set via `firebase functions:secrets:set`
+- [ ] **Endpoint not yet deployed** — run `firebase deploy --only functions:ingestLeadResearch`
+      from `functions_gcfv1/` (or repo root)
+- [ ] Admin Leads tab UI — not started
+- [ ] Scheduled Claude task itself — not started
+
+## Firestore schema (locked)
+
+### `venues/{venueId}` — durable identity, rarely changes
+name, normalizedName, address, city/neighborhood, phone, website, socialLinks,
+normalizedWebsiteDomain, placeId, venueClassification, ownershipType, hours, kitchenHours,
+barAlcoholModel, sizeLayoutSignals, openingStatus, openingDate, openingDateConfidence,
+decisionMaker, plainEnglishProfile, basicInfoLastVerified.
+
+Dedup: normalizedName+address first; placeId, normalizedWebsiteDomain+phone as secondary
+signals. **Never auto-merge on name similarity alone** — chains (AJ Gator's, Voodoo
+Brewing) have multiple real Hampton Roads locations. Cross-reference the existing
+`locations` collection to exclude current Beach Trivia clients (`publicLocations` does
+NOT exist in this codebase — an earlier assumption was wrong, don't recreate it).
+
+### `leads/{leadId}` — current sales opportunity, 1:1 with a venue
+venueId, statusBucket (Pitch Now / Worth Investigating / New-Coming Soon / Former-Lapsed
+Service / Current Competitor / Poor Fit), leadScore, researchPriority (independent of
+leadScore — auto-set HIGH when openingDate is within ±30 days of today), nextResearchDate,
+pipelineStage (Unreviewed → Approved → Packet Dropped Off → Contacted → Follow-Up →
+Interested → Trial Scheduled → Won/Lost), lostReason, reviewed (bool, drives the
+unreviewed-queue UI), recommendedOpportunity, pitchAngle.
+
+Recheck cadence starting point: Coming Soon/New ~2 weeks · Current Competitor ~60-90 days
+· Poor Fit ~yearly · other active opportunities shorter. Don't over-optimize before real
+data.
+
+### `leadObservations/{observationId}` — dated research history, many per lead
+leadId, venueId, date, observationType (enum: trivia_detected, trivia_started,
+trivia_stopped, music_bingo_detected, entertainment_schedule_change, competitor_detected,
+grand_opening, coming_soon_update, ownership_change, management_change, contact_found,
+hours_change, kitchen_hours_change, other), finding, sources ([{url, dateAccessed}]).
+
+## Daily research allocation (3/day)
+Pull leads whose nextResearchDate is due, ranked by researchPriority. Reserve at least 1
+of the 3 slots for non-new-venue due leads so a wave of grand openings can't starve
+rechecks on existing strong prospects.
+
+## Existing site patterns to match
+- Admin nav: plain link list in `beachTriviaPages/dashboards/admin/index.html`
+  (`<a href="leads/index.html">Leads</a>` — matches existing links, `#locations` is an
+  unbuilt placeholder already there).
+- Admin gating: checks `userData.roles.includes('admin')` on the Firestore user doc.
+- `locations` collection real fields (confirmed from code): name, address, contact,
+  phone, email, isActive, createdAt, updatedAt.
+- Cloud Functions source: `functions_gcfv1/` (NOT the top-level `functions/` folder,
+  which only has 2 playlist-snapshot functions — `firebase.json` points
+  `functions.source` at `functions_gcfv1`). Existing endpoints use
+  `functions.https.onCall` with an admin-role check helper (`assertAdminFromCaller`);
+  the new `ingestLeadResearch` uses `onRequest` + a shared-secret header instead, since
+  it's called by the scheduled task, not a logged-in browser user.
+
+## Suggested admin venue-detail layout
+Basic Venue Info → Current Entertainment → Historical Entertainment → Recommended
+Opportunity → Evidence/Research History → Sales Pipeline.
+
+## Next steps
+1. Deploy `ingestLeadResearch` (see Status above).
+2. Build the admin Leads tab (`beachTriviaPages/dashboards/admin/leads/`).
+3. Set up the scheduled Claude task (3/day) that calls the endpoint.
+4. Run the first real Virginia Beach research batch through the live system.
