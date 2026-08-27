@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl:*)",
+      "Bash(jq:*)",
+      "Bash(python3:*)",
+      "Bash(cat:*)",
+      "Bash(echo:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(date:*)",
+      "Bash(ls:*)",
+      "Bash(mkdir:*)",
+      "Bash(grep:*)",
+      "Bash(sed:*)",
+      "WebSearch",
+      "WebFetch",
+      "Read",
+      "Grep",
+      "Glob",
+      "Write(/Users/joshuaveator/beachtrivia-leads-agent/**)"
+    ],
+    "deny": []
+  }
+}

@@ -32,9 +32,21 @@ Firestore, and they show up as an accruing "unreviewed queue" on a new admin Lea
 - [x] Firestore rules for `venues` / `leads` / `leadObservations` (admin-only) +
       venue dedup composite indexes — deployed
 - [x] Admin Leads tab UI — `beachTriviaPages/dashboards/admin/leads/` (queue table +
-      detail modal with pipeline editor); nav link in `bt-nav.js` + admin dashboard
-- [ ] Scheduled Claude task itself — not started
-- [ ] First real research batch — not run
+      detail modal with pipeline editor, competitor banner, Copy details, Recommended Pitch);
+      nav link in `bt-nav.js` + admin dashboard
+- [x] `leadsResearchQueue` GET endpoint (deployed) — feeds the task currentClients /
+      knownVenues / dueForRecheck
+- [x] First real research batch — 4 leads (Wasserhund Norfolk, Lucky Penny, Garage
+      Brewery, Elation) done manually on 2026-08-27
+- [~] Scheduled task — **cloud routines don't work on Pro** (sandbox egress allowlist
+      blocks the Cloud Function; can't add custom domains without Team/Enterprise). Two
+      cloud routines were created then disabled (`trig_016XKEZyCdKFLwF9F6SrfDpM`,
+      `trig_01DMjDfgGrnK8d8DkPbksoRF`). Replacement: **local `launchd` job on Josh's Mac**
+      — `~/beachtrivia-leads-agent/` (task.md + run.sh + .claude/settings.json) and
+      `~/Library/LaunchAgents/com.beachtrivia.leads-research.plist`. Fires 7/10/13/16/19,
+      once-per-day guard, runs on wake if asleep. `leads-research-task.md` in repo root is
+      the instructions. Pending: Josh tests headless `claude -p` auth + first run, then
+      `launchctl load`.
 
 All leads work is on branch `leads-feature` (not merged to main yet).
 
