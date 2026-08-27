@@ -222,3 +222,84 @@ exports.ingestLeadResearch = functions
       res.status(500).json({ error: "internal", message: err.message });
     }
   });
+
+/** -----------------------------
+ * GET /leadsResearchQueue
+ * Headers: x-leads-api-key: <LEADS_API_KEY secret>
+ * Tells the scheduled research task what to work on:
+ *   - currentClients: active Beach Trivia venues to EXCLUDE from prospecting
+ *   - knownVenues:    everything already in the leads system (don't re-prospect these)
+ *   - dueForRecheck:  leads whose nextResearchDate has passed, priority-ordered
+ * ----------------------------*/
+exports.leadsResearchQueue = functions
+  .region("us-central1")
+  .runWith({ secrets: ["LEADS_API_KEY"] })
+  .https.onRequest(async (req, res) => {
+    const apiKey = req.get("x-leads-api-key");
+    if (!apiKey || apiKey !== process.env.LEADS_API_KEY) {
+      res.status(401).json({ error: "unauthorized" });
+      return;
+    }
+
+    const firestore = db();
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const PR_RANK = { high: 0, medium: 1, low: 2 };
+
+    try {
+      const [clientsSnap, venuesSnap, leadsSnap] = await Promise.all([
+        firestore.collection("locations").get(),
+        firestore.collection("venues").get(),
+        firestore.collection("leads").get(),
+      ]);
+
+      const currentClients = clientsSnap.docs
+        .map((d) => d.data() || {})
+        .filter((d) => d.isActive !== false && d.active !== false && d.name)
+        .map((d) => ({ name: d.name, address: d.address || null }));
+
+      const venueById = {};
+      venuesSnap.docs.forEach((d) => (venueById[d.id] = d.data() || {}));
+
+      const knownVenues = venuesSnap.docs.map((d) => {
+        const v = d.data() || {};
+        return { name: v.name || null, city: v.city || v.neighborhood || null };
+      });
+
+      const dueForRecheck = leadsSnap.docs
+        .map((d) => ({ id: d.id, ...(d.data() || {}) }))
+        .filter((l) => l.nextResearchDate && String(l.nextResearchDate).slice(0, 10) <= todayStr)
+        .map((l) => {
+          const v = venueById[l.venueId] || {};
+          return {
+            venueName: v.name || null,
+            address: v.address || null,
+            city: v.city || v.neighborhood || null,
+            website: v.website || null,
+            statusBucket: l.statusBucket || null,
+            researchPriority: l.researchPriority || "medium",
+            nextResearchDate: String(l.nextResearchDate).slice(0, 10),
+            recommendedOpportunity: l.recommendedOpportunity || null,
+            currentEntertainment: v.currentEntertainment || null,
+          };
+        })
+        .sort((a, b) => {
+          const p = (PR_RANK[a.researchPriority] ?? 1) - (PR_RANK[b.researchPriority] ?? 1);
+          return p !== 0 ? p : a.nextResearchDate.localeCompare(b.nextResearchDate);
+        });
+
+      res.status(200).json({
+        today: todayStr,
+        counts: {
+          currentClients: currentClients.length,
+          knownVenues: knownVenues.length,
+          dueForRecheck: dueForRecheck.length,
+        },
+        currentClients,
+        knownVenues,
+        dueForRecheck,
+      });
+    } catch (err) {
+      console.error("[leadsResearchQueue] failed:", err);
+      res.status(500).json({ error: "internal", message: err.message });
+    }
+  });

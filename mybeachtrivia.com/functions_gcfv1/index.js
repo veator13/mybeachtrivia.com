@@ -347,6 +347,7 @@ exports.snapshotPlaylistOnUpdate = btSnapshot.snapshotPlaylistOnUpdate;
  * ----------------------------------------- */
 const leads = require("./leads");
 exports.ingestLeadResearch = leads.ingestLeadResearch;
+exports.leadsResearchQueue = leads.leadsResearchQueue;
 
 /** ------------------------------------------
  * BeachTrivia: cleanup old anonymous users (scheduled)
