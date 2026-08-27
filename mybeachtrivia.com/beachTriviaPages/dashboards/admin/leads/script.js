@@ -124,6 +124,7 @@ const competitorBanner = document.getElementById("leadCompetitorBanner");
 const reviewBar = document.getElementById("leadReviewBar");
 const detailBody = document.getElementById("leadDetailBody");
 const closeModalBtn = document.querySelector(".close-modal");
+const copyLeadBtn = document.getElementById("copyLeadBtn");
 
 /////////////////////////
 // State
@@ -133,6 +134,7 @@ let venuesById = new Map(); // venueId -> {id, ...venueData}
 let currentView = "unreviewed"; // unreviewed | active | all
 let openLeadId = null;
 let openLeadReviewed = false; // reviewed state of the lead currently in the modal
+let openLeadObservations = []; // observations for the lead currently in the modal
 
 /////////////////////////
 // Modal helpers
@@ -316,6 +318,100 @@ function entertainmentEntries(v) {
   });
 }
 
+// Plain-text export of the open lead — for pasting into email or an AI tool.
+function buildLeadText(lead, v, observations) {
+  const L = [];
+  const line = (k, val) => { if (val || val === 0) L.push(`${k}: ${val}`); };
+
+  L.push(`LEAD — ${v.name || "(unknown venue)"}`);
+  line("Location", [v.city || v.neighborhood, v.address].filter(Boolean).join(" · "));
+  line("Status bucket", lead.statusBucket);
+  line("Lead score", lead.leadScore ?? "—");
+  line("Research priority", lead.researchPriority);
+  line("Pipeline stage", lead.pipelineStage);
+  line("Reviewed", lead.reviewed === true ? "yes" : "no");
+  line("Next research date", fmtDate(lead.nextResearchDate));
+
+  L.push("", "— VENUE —");
+  line("Address", v.address);
+  line("Phone", [v.phone || "none published", v.phoneNote && `(${v.phoneNote})`].filter(Boolean).join(" "));
+  line("Email", [v.email || "none found", v.emailNote && `(${v.emailNote})`].filter(Boolean).join(" "));
+  line("Website", v.website);
+  const socials = Object.entries(v.socialLinks || {}).map(([k, u]) => `${k}: ${u}`);
+  if (socials.length) line("Social", socials.join("  "));
+  line("Classification", v.venueClassification);
+  line("Ownership", v.ownershipType);
+  line("Decision maker", v.decisionMaker && (v.decisionMaker.name
+    ? `${v.decisionMaker.name}${v.decisionMaker.role ? " — " + v.decisionMaker.role : ""}`
+    : (typeof v.decisionMaker === "string" ? v.decisionMaker : "")));
+  line("Hours", v.hours);
+  line("Kitchen hours", v.kitchenHours);
+  line("Bar / alcohol model", v.barAlcoholModel);
+  line("Opening status", v.openingStatus);
+  line("Opening date", v.openingDate ? `${fmtDate(v.openingDate)}${v.openingDateConfidence ? " (" + v.openingDateConfidence + ")" : ""}` : "");
+
+  const ents = entertainmentEntries(v);
+  if (ents.length) {
+    L.push("", "— CURRENT ENTERTAINMENT —");
+    ents.forEach((e) => {
+      L.push(`• ${[e.format, e.host, e.schedule].filter(Boolean).join(" — ")} ${e.isCompetitor ? "[COMPETITOR]" : "[in-house]"}`);
+      if (e.note) L.push(`  ${e.note}`);
+    });
+  }
+
+  if (v.plainEnglishProfile) {
+    L.push("", "— PROFILE —", v.plainEnglishProfile);
+  }
+
+  L.push("", "— RECOMMENDED PITCH —");
+  line("Opportunity", lead.recommendedOpportunity);
+  line("How to pitch", lead.pitchAngle);
+
+  if (observations && observations.length) {
+    L.push("", "— RESEARCH HISTORY —");
+    observations.forEach((o) => {
+      L.push(`[${fmtDate(o.date)}] ${o.observationType || "other"}`);
+      if (o.finding) L.push(o.finding);
+      const src = (o.sources || []).map((s) => s.url).filter(Boolean);
+      if (src.length) L.push(`Sources: ${src.join(" | ")}`);
+      L.push("");
+    });
+  }
+
+  L.push(`Exported from Beach Trivia Leads · ${fmtDate(new Date())}`);
+  return L.join("\n");
+}
+
+async function copyOpenLeadDetails() {
+  const lead = leadsCache.find((l) => l.id === openLeadId);
+  if (!lead || !copyLeadBtn) return;
+  const text = buildLeadText(lead, venueFor(lead), openLeadObservations);
+  const done = (ok) => {
+    copyLeadBtn.textContent = ok ? "✓ Copied" : "Copy failed";
+    setTimeout(() => { copyLeadBtn.textContent = "📋 Copy details"; }, 1800);
+  };
+  try {
+    await navigator.clipboard.writeText(text);
+    done(true);
+  } catch {
+    // Fallback for older/insecure contexts
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      done(true);
+    } catch {
+      done(false);
+    }
+  }
+}
+if (copyLeadBtn) copyLeadBtn.addEventListener("click", copyOpenLeadDetails);
+
 function renderCompetitorBanner(v, lead) {
   if (!competitorBanner) return;
   const entries = entertainmentEntries(v);
@@ -420,6 +516,7 @@ async function openLead(leadId) {
   } catch (err) {
     console.error("Failed to load observations:", err);
   }
+  openLeadObservations = observations;
 
   const phoneNoteHtml = v.phoneNote ? `<div class="muted">${esc(v.phoneNote)}</div>` : "";
   const phoneHtml = v.phone
@@ -468,11 +565,21 @@ async function openLead(leadId) {
         .join("")}</div>`
     : `<p class="muted">Nothing on record. If this venue has trivia or music bingo, add it via a research run.</p>`;
 
-  const opportunity = [
-    kv("Recommended opportunity", esc(lead.recommendedOpportunity)),
-    kv("Pitch angle", esc(lead.pitchAngle)),
-    kv("Lead score", lead.leadScore ?? "—"),
-  ].join("");
+  const pitchHtml =
+    lead.recommendedOpportunity || lead.pitchAngle
+      ? `<div class="pitch-callout">
+          ${
+            lead.recommendedOpportunity
+              ? `<div class="pitch-row"><span class="pitch-label">The opportunity</span><p>${esc(lead.recommendedOpportunity)}</p></div>`
+              : ""
+          }
+          ${
+            lead.pitchAngle
+              ? `<div class="pitch-row"><span class="pitch-label">How to pitch it</span><p>${esc(lead.pitchAngle)}</p></div>`
+              : ""
+          }
+        </div>`
+      : `<p class="muted">No pitch written yet — needs a research run.</p>`;
 
   const obsHtml = observations.length
     ? observations
@@ -539,8 +646,8 @@ async function openLead(leadId) {
     section("Basic Venue Info", `<div class="kv-grid">${basic}</div>`),
     section("Current Entertainment", entertainmentHtml),
     section("Plain-English Profile", profile),
-    section("Recommended Opportunity", `<div class="kv-grid">${opportunity}</div>`),
     section("Evidence / Research History", obsHtml),
+    section("Recommended Pitch", pitchHtml),
     section(
       "Sales Pipeline",
       `<div class="muted" style="margin-bottom:8px;">Next research ${esc(fmtDate(lead.nextResearchDate))}${

@@ -868,6 +868,30 @@ body[data-page="leads-admin"] .table .col-venue * { white-space: normal; }
 .ent-item.is-competitor .ent-flag { color: var(--danger); }
 .ent-note { margin-top: 4px; font-size: 0.9rem; line-height: 1.45; }
 
+/* Modal tools row (Copy details) */
+.lead-modal-tools { display: flex; justify-content: flex-end; margin: 8px 0 0; }
+#copyLeadBtn { white-space: nowrap; }
+
+/* Recommended Pitch callout */
+.pitch-callout {
+  border: 1px solid color-mix(in srgb, var(--brand) 40%, transparent);
+  background: color-mix(in srgb, var(--brand) 8%, var(--surface));
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.pitch-row { display: flex; flex-direction: column; gap: 3px; }
+.pitch-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+  color: var(--brand);
+}
+.pitch-row p { margin: 0; line-height: 1.5; }
+
 /* Prominent review action bar (top of the lead modal) */
 .review-bar {
   display: flex;
