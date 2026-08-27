@@ -106,6 +106,7 @@ const segButtons = Array.from(document.querySelectorAll(".seg-btn"));
 const modal = document.getElementById("leadModal");
 const modalTitle = document.getElementById("leadModalTitle");
 const modalSub = document.getElementById("leadModalSub");
+const reviewBar = document.getElementById("leadReviewBar");
 const detailBody = document.getElementById("leadDetailBody");
 const closeModalBtn = document.querySelector(".close-modal");
 
@@ -116,6 +117,7 @@ let leadsCache = []; // [{id, ...leadData}]
 let venuesById = new Map(); // venueId -> {id, ...venueData}
 let currentView = "unreviewed"; // unreviewed | active | all
 let openLeadId = null;
+let openLeadReviewed = false; // reviewed state of the lead currently in the modal
 
 /////////////////////////
 // Modal helpers
@@ -158,16 +160,20 @@ function searchIndex(lead) {
   ].map(norm).join(" | ");
 }
 
+function isClosed(lead) {
+  return (
+    lead.pipelineStage === "Won" ||
+    lead.pipelineStage === "Lost" ||
+    lead.statusBucket === "Poor Fit"
+  );
+}
+
 function passesView(lead) {
   if (currentView === "all") return true;
   if (currentView === "unreviewed") return lead.reviewed !== true;
+  if (currentView === "closed") return lead.reviewed === true && isClosed(lead);
   // active: reviewed, still in play
-  return (
-    lead.reviewed === true &&
-    lead.pipelineStage !== "Won" &&
-    lead.pipelineStage !== "Lost" &&
-    lead.statusBucket !== "Poor Fit"
-  );
+  return lead.reviewed === true && !isClosed(lead);
 }
 
 function sortLeads(list) {
@@ -272,10 +278,50 @@ function renderSocials(v) {
   return links.length ? links.join(" &nbsp;·&nbsp; ") : "—";
 }
 
+function renderReviewBar() {
+  if (!reviewBar) return;
+  if (openLeadReviewed) {
+    reviewBar.className = "review-bar is-reviewed";
+    reviewBar.innerHTML = `
+      <div class="review-bar-status"><span class="review-check">✓</span> Reviewed — off the queue</div>
+      <button type="button" class="btn btn-ghost btn-sm" id="reviewToggleBtn">Move back to Unreviewed</button>`;
+  } else {
+    reviewBar.className = "review-bar is-pending";
+    reviewBar.innerHTML = `
+      <div class="review-bar-copy">
+        <strong>In the unreviewed queue</strong>
+        <span class="muted">Mark it reviewed once you've triaged it — approved into the pipeline or set aside.</span>
+      </div>
+      <button type="button" class="btn-review" id="reviewToggleBtn">✓ Mark Reviewed</button>`;
+  }
+  const btn = document.getElementById("reviewToggleBtn");
+  if (btn) btn.addEventListener("click", () => toggleReviewed(openLeadId));
+}
+
+async function toggleReviewed(leadId) {
+  if (!leadId) return;
+  const next = !openLeadReviewed;
+  const btn = document.getElementById("reviewToggleBtn");
+  if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
+  try {
+    await db.collection("leads").doc(leadId).update({
+      reviewed: next,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    openLeadReviewed = next;
+    renderReviewBar();
+  } catch (err) {
+    console.error("Toggle reviewed failed:", err);
+    if (btn) { btn.disabled = false; btn.textContent = "✓ Mark Reviewed"; }
+    alert("Could not update reviewed status — see console.");
+  }
+}
+
 async function openLead(leadId) {
   const lead = leadsCache.find((l) => l.id === leadId);
   if (!lead) return;
   openLeadId = leadId;
+  openLeadReviewed = lead.reviewed === true;
   const v = venueFor(lead);
 
   modalTitle.textContent = v.name || "(unknown venue)";
@@ -283,6 +329,7 @@ async function openLead(leadId) {
     esc([v.city || v.neighborhood, v.address].filter(Boolean).join(" · ")),
     pill(lead.statusBucket, BUCKET_PILL[lead.statusBucket]),
   ].filter(Boolean).join(" &nbsp; ");
+  renderReviewBar();
 
   detailBody.innerHTML = `<div class="muted">Loading research history…</div>`;
   openModal();
@@ -377,13 +424,8 @@ async function openLead(leadId) {
         </label>
       </div>
 
-      <label class="ld-check">
-        <input type="checkbox" name="reviewed" ${lead.reviewed === true ? "checked" : ""}>
-        Reviewed (removes from the unreviewed queue)
-      </label>
-
       <div class="form-actions">
-        <button type="submit" class="btn btn-primary">Save pipeline</button>
+        <button type="submit" class="btn btn-primary">Save pipeline changes</button>
         <button type="button" class="btn btn-ghost" data-close>Cancel</button>
       </div>
       <div class="muted" id="pipelineMsg" aria-live="polite"></div>
@@ -421,7 +463,6 @@ async function savePipeline(e, leadId) {
     leadScore: scoreRaw === "" ? null : Math.max(0, Math.min(100, Number(scoreRaw))),
     nextResearchDate: fd.get("nextResearchDate") || null,
     lostReason: String(fd.get("lostReason") || "").trim() || null,
-    reviewed: fd.get("reviewed") === "on",
     updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
   };
 

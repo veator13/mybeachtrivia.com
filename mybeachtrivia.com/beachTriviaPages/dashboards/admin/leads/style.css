@@ -834,4 +834,49 @@ body[data-page="leads-admin"] .table .col-venue * { white-space: normal; }
 
 .ld-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 18px; }
 @media (max-width: 640px) { .ld-form-grid { grid-template-columns: 1fr; } }
-.ld-check { display: flex; gap: 8px; align-items: center; margin: 14px 0 4px; font-size: 0.92rem; }
+
+/* Prominent review action bar (top of the lead modal) */
+.review-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: 14px 0 4px;
+  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+.review-bar.is-pending {
+  background: color-mix(in srgb, #f59e0b 12%, var(--surface));
+  border-color: color-mix(in srgb, #f59e0b 42%, transparent);
+}
+.review-bar.is-reviewed {
+  background: color-mix(in srgb, var(--success) 12%, var(--surface));
+  border-color: color-mix(in srgb, var(--success) 42%, transparent);
+}
+.review-bar-copy { display: flex; flex-direction: column; gap: 2px; }
+.review-bar-copy strong { font-size: 0.95rem; }
+.review-bar-status { display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--success); }
+.review-check {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 999px;
+  background: var(--success); color: #fff; font-size: 0.8rem;
+}
+.btn-review {
+  appearance: none;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  font-size: 1rem;
+  padding: 12px 22px;
+  border-radius: var(--radius-sm);
+  background: var(--success);
+  color: #fff;
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--success) 35%, transparent);
+  white-space: nowrap;
+}
+.btn-review:hover { filter: brightness(1.05); }
+.btn-review:active { transform: translateY(1px); }
+.btn-review:disabled { opacity: 0.6; cursor: default; }

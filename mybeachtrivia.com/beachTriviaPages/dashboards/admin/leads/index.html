@@ -51,6 +51,7 @@
           <div class="seg" role="tablist" aria-label="Review filter">
             <button class="seg-btn is-active" data-view="unreviewed" type="button">Unreviewed <span class="seg-badge" id="badge-unreviewed">0</span></button>
             <button class="seg-btn" data-view="active" type="button">Active</button>
+            <button class="seg-btn" data-view="closed" type="button">Closed</button>
             <button class="seg-btn" data-view="all" type="button">All</button>
           </div>
 
@@ -105,6 +106,8 @@
 
       <h3 id="leadModalTitle" class="modal-title">Lead</h3>
       <div class="muted" id="leadModalSub" style="margin-top:-6px;"></div>
+
+      <div id="leadReviewBar" class="review-bar"></div>
 
       <div id="leadDetailBody" class="lead-detail"></div>
     </div>
