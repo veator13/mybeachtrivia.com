@@ -480,6 +480,21 @@ service cloud.firestore {
       allow write: if request.auth.uid == uid || isAdmin();
     }
 
+    /* ========= Leads automation (venues / leads / leadObservations) =========
+       Populated server-side by the ingestLeadResearch Cloud Function (Admin SDK,
+       bypasses these rules). The admin Leads tab reads everything and updates
+       the sales-pipeline fields on leads. Admin-only, fully isolated.
+    */
+    match /venues/{venueId} {
+      allow read, write: if isAdmin();
+    }
+    match /leads/{leadId} {
+      allow read, write: if isAdmin();
+    }
+    match /leadObservations/{observationId} {
+      allow read, write: if isAdmin();
+    }
+
     /* ========= Companion Sessions (Music Bingo cross-device sync) =========
        Publicly readable — only contains song titles/artist names, nothing sensitive.
        Only hosts/admins can write (main player is always employee-authed).

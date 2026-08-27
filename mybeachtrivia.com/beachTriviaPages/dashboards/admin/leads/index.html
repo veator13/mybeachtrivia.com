@@ -1,0 +1,122 @@
+<!-- mybeachtrivia.com/beachTriviaPages/dashboards/admin/leads/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="color-scheme" content="light dark" />
+  <title>Leads Admin</title>
+
+  <!-- Base admin styles (shared look with locations-management) -->
+  <link rel="stylesheet" href="style.css"/>
+  <!-- Unified nav bar -->
+  <link rel="stylesheet" href="/beachTriviaPages/js/bt-nav.css">
+  <script src="/beachTriviaPages/js/bt-nav.js" defer></script>
+
+  <!-- Firebase SDKs (compat) -->
+  <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-firestore-compat.js"></script>
+
+  <!-- Firebase config + initialize -->
+  <script src="/firebase-init.js"></script>
+
+  <!-- Auth guard (keeps page hidden until authorized) -->
+  <script src="./auth-guard.js" defer></script>
+</head>
+
+<body data-page="leads-admin">
+  <!-- Authentication Loading Overlay -->
+  <div id="auth-loading" class="auth-overlay" aria-live="polite">
+    <div class="spinner" role="status" aria-label="Loading"></div>
+    <p>Verifying access...</p>
+  </div>
+
+  <div class="container" style="display:none;">
+    <header class="page-header">
+      <div>
+        <h1 class="page-title">Leads</h1>
+        <p class="page-subtitle">Sales prospects found by the automated venue research task. Review the queue, then work the pipeline.</p>
+      </div>
+    </header>
+
+    <section class="card card-table">
+      <div class="card-head" style="display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+        <div>
+          <h2 class="card-title" style="margin-bottom:2px;">Lead Queue</h2>
+          <div class="muted" id="leads-count" aria-live="polite"></div>
+        </div>
+
+        <div class="lead-filter-bar">
+          <div class="seg" role="tablist" aria-label="Review filter">
+            <button class="seg-btn is-active" data-view="unreviewed" type="button">Unreviewed <span class="seg-badge" id="badge-unreviewed">0</span></button>
+            <button class="seg-btn" data-view="active" type="button">Active</button>
+            <button class="seg-btn" data-view="all" type="button">All</button>
+          </div>
+
+          <div class="field" style="min-width:180px;">
+            <label for="bucketFilter" class="label">Status bucket</label>
+            <select id="bucketFilter" class="input">
+              <option value="">All buckets</option>
+              <option>Pitch Now</option>
+              <option>Worth Investigating</option>
+              <option>New-Coming Soon</option>
+              <option>Former-Lapsed Service</option>
+              <option>Current Competitor</option>
+              <option>Poor Fit</option>
+            </select>
+          </div>
+
+          <div class="field table-search" style="min-width:min(320px, 100%); max-width:420px;">
+            <label for="leadSearch" class="label">Search</label>
+            <input id="leadSearch" type="text" class="input" placeholder="Venue, city, opportunity, pitch…" autocomplete="off" aria-label="Search leads" />
+          </div>
+        </div>
+      </div>
+
+      <div class="card-body">
+        <div id="leads-no-results" class="muted" style="display:none; margin: 0 0 10px 0;" aria-live="polite"></div>
+
+        <div class="table-wrapper">
+          <table id="leadsTable" class="table">
+            <thead>
+              <tr>
+                <th scope="col" class="sticky-col col-venue">Venue</th>
+                <th scope="col">Status Bucket</th>
+                <th scope="col">Score</th>
+                <th scope="col">Priority</th>
+                <th scope="col">Pipeline Stage</th>
+                <th scope="col">Opening</th>
+                <th scope="col">Next Research</th>
+                <th scope="col" class="sticky-col col-active">Reviewed</th>
+              </tr>
+            </thead>
+            <tbody id="leadsTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Lead Detail Modal -->
+  <div id="leadModal" class="modal" aria-hidden="true" aria-labelledby="leadModalTitle" role="dialog">
+    <div class="modal-content lead-modal-content">
+      <button type="button" class="close-modal" aria-label="Close">&times;</button>
+
+      <h3 id="leadModalTitle" class="modal-title">Lead</h3>
+      <div class="muted" id="leadModalSub" style="margin-top:-6px;"></div>
+
+      <div id="leadDetailBody" class="lead-detail"></div>
+    </div>
+  </div>
+
+  <!-- Boot (reveals container when auth OK) -->
+  <script src="boot.js"></script>
+
+  <!-- Page logic -->
+  <script src="./script.js" defer></script>
+
+  <!-- Route guard (prod) -->
+  <script src="/beachTriviaPages/js/auth-route-guard.v2.js?v=2025-10-14a"></script>
+</body>
+</html>

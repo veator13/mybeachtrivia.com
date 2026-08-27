@@ -1,0 +1,498 @@
+// mybeachtrivia.com/beachTriviaPages/dashboards/admin/leads/script.js
+// Leads admin (Firebase v9 COMPAT APIs, no imports).
+// Assumes firebase-app-compat.js, firebase-auth-compat.js, firebase-firestore-compat.js
+// and firebase-init.js are loaded in index.html BEFORE this file.
+//
+// Data model (see /CLAUDE.md for the locked schema):
+//   venues/{venueId}            durable venue identity
+//   leads/{leadId}              current opportunity, 1:1 with a venue (leads.venueId)
+//   leadObservations/{obsId}    dated research history (leadObservations.leadId)
+
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+/////////////////////////
+// Constants
+/////////////////////////
+const STATUS_BUCKETS = [
+  "Pitch Now",
+  "Worth Investigating",
+  "New-Coming Soon",
+  "Former-Lapsed Service",
+  "Current Competitor",
+  "Poor Fit",
+];
+
+const PIPELINE_STAGES = [
+  "Unreviewed",
+  "Approved",
+  "Packet Dropped Off",
+  "Contacted",
+  "Follow-Up",
+  "Interested",
+  "Trial Scheduled",
+  "Won",
+  "Lost",
+];
+
+const RESEARCH_PRIORITIES = ["high", "medium", "low"];
+
+const BUCKET_PILL = {
+  "Pitch Now": "pill-green",
+  "Worth Investigating": "pill-blue",
+  "New-Coming Soon": "pill-amber",
+  "Former-Lapsed Service": "pill-gray",
+  "Current Competitor": "pill-red",
+  "Poor Fit": "pill-gray",
+};
+
+const PRIORITY_PILL = { high: "pill-red", medium: "pill-amber", low: "pill-gray" };
+
+/////////////////////////
+// Helpers
+/////////////////////////
+const esc = (s) =>
+  String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const norm = (v) => String(v ?? "").toLowerCase().trim();
+
+function toDate(v) {
+  if (!v) return null;
+  if (typeof v.toDate === "function") return v.toDate();
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function fmtDate(v) {
+  const d = toDate(v);
+  if (!d) return "—";
+  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
+function daysFromNow(v) {
+  const d = toDate(v);
+  if (!d) return null;
+  return Math.round((d.getTime() - Date.now()) / 86400000);
+}
+
+function pill(text, cls) {
+  if (!text) return "—";
+  return `<span class="pill ${cls || "pill-gray"}">${esc(text)}</span>`;
+}
+
+function linkOut(url, label) {
+  if (!url) return "";
+  const href = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+  return `<a href="${esc(href)}" target="_blank" rel="noopener noreferrer">${esc(label || url)}</a>`;
+}
+
+/////////////////////////
+// DOM
+/////////////////////////
+const tableBody = document.getElementById("leadsTableBody");
+const countEl = document.getElementById("leads-count");
+const noResultsEl = document.getElementById("leads-no-results");
+const badgeUnreviewed = document.getElementById("badge-unreviewed");
+
+const searchInput = document.getElementById("leadSearch");
+const bucketFilter = document.getElementById("bucketFilter");
+const segButtons = Array.from(document.querySelectorAll(".seg-btn"));
+
+const modal = document.getElementById("leadModal");
+const modalTitle = document.getElementById("leadModalTitle");
+const modalSub = document.getElementById("leadModalSub");
+const detailBody = document.getElementById("leadDetailBody");
+const closeModalBtn = document.querySelector(".close-modal");
+
+/////////////////////////
+// State
+/////////////////////////
+let leadsCache = []; // [{id, ...leadData}]
+let venuesById = new Map(); // venueId -> {id, ...venueData}
+let currentView = "unreviewed"; // unreviewed | active | all
+let openLeadId = null;
+
+/////////////////////////
+// Modal helpers
+/////////////////////////
+function openModal() {
+  if (!modal) return;
+  modal.classList.add("is-open");
+  modal.setAttribute("aria-hidden", "false");
+  try { document.body.style.overflow = "hidden"; } catch {}
+}
+function closeModal() {
+  if (!modal) return;
+  modal.classList.remove("is-open");
+  modal.setAttribute("aria-hidden", "true");
+  openLeadId = null;
+  try { document.body.style.overflow = ""; } catch {}
+}
+if (closeModalBtn) closeModalBtn.addEventListener("click", closeModal);
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && modal && modal.classList.contains("is-open")) closeModal();
+});
+if (modal) {
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) closeModal();
+  });
+}
+
+/////////////////////////
+// Filtering + rendering
+/////////////////////////
+function venueFor(lead) {
+  return (lead.venueId && venuesById.get(lead.venueId)) || {};
+}
+
+function searchIndex(lead) {
+  const v = venueFor(lead);
+  return [
+    v.name, v.city, v.neighborhood, v.address, v.venueClassification,
+    lead.statusBucket, lead.pipelineStage, lead.recommendedOpportunity, lead.pitchAngle,
+  ].map(norm).join(" | ");
+}
+
+function passesView(lead) {
+  if (currentView === "all") return true;
+  if (currentView === "unreviewed") return lead.reviewed !== true;
+  // active: reviewed, still in play
+  return (
+    lead.reviewed === true &&
+    lead.pipelineStage !== "Won" &&
+    lead.pipelineStage !== "Lost" &&
+    lead.statusBucket !== "Poor Fit"
+  );
+}
+
+function sortLeads(list) {
+  const prRank = { high: 0, medium: 1, low: 2 };
+  return list.slice().sort((a, b) => {
+    const pa = prRank[a.researchPriority] ?? 1;
+    const pb = prRank[b.researchPriority] ?? 1;
+    if (pa !== pb) return pa - pb;
+    const sa = a.leadScore ?? -1;
+    const sb = b.leadScore ?? -1;
+    if (sa !== sb) return sb - sa;
+    return norm(venueFor(a).name).localeCompare(norm(venueFor(b).name));
+  });
+}
+
+function applyFilters() {
+  const q = norm(searchInput?.value || "");
+  const bucket = bucketFilter?.value || "";
+  return sortLeads(
+    leadsCache.filter((lead) => {
+      if (!passesView(lead)) return false;
+      if (bucket && lead.statusBucket !== bucket) return false;
+      if (q && !searchIndex(lead).includes(q)) return false;
+      return true;
+    })
+  );
+}
+
+function renderTable() {
+  if (!tableBody) return;
+
+  const unreviewedCount = leadsCache.filter((l) => l.reviewed !== true).length;
+  if (badgeUnreviewed) badgeUnreviewed.textContent = String(unreviewedCount);
+
+  const rows = applyFilters();
+  const total = leadsCache.length;
+
+  if (countEl) {
+    countEl.textContent =
+      total === rows.length
+        ? `${total} lead${total === 1 ? "" : "s"}`
+        : `${rows.length} of ${total} lead${total === 1 ? "" : "s"} shown`;
+  }
+
+  if (noResultsEl) {
+    const show = total > 0 && rows.length === 0;
+    noResultsEl.style.display = show ? "block" : "none";
+    noResultsEl.textContent = show ? "No leads match the current filters." : "";
+  }
+
+  tableBody.innerHTML = rows
+    .map((lead) => {
+      const v = venueFor(lead);
+      const reviewed = lead.reviewed === true;
+      const nextDays = daysFromNow(lead.nextResearchDate);
+      const nextClass = nextDays !== null && nextDays <= 0 ? "cell-due" : "";
+      const opening =
+        v.openingStatus === "coming_soon" || v.openingStatus === "recently_opened"
+          ? `${esc(v.openingStatus.replace(/_/g, " "))}${v.openingDate ? " · " + esc(fmtDate(v.openingDate)) : ""}`
+          : esc(v.openingStatus || "—");
+
+      return `
+      <tr data-id="${esc(lead.id)}" class="lead-row">
+        <td class="sticky-col col-venue">
+          <strong>${esc(v.name || "(unknown venue)")}</strong>
+          <div class="muted">${esc([v.city || v.neighborhood, v.venueClassification].filter(Boolean).join(" · ") || "—")}</div>
+        </td>
+        <td>${pill(lead.statusBucket, BUCKET_PILL[lead.statusBucket])}</td>
+        <td>${lead.leadScore ?? "—"}</td>
+        <td>${pill(lead.researchPriority, PRIORITY_PILL[lead.researchPriority])}</td>
+        <td>${esc(lead.pipelineStage || "—")}</td>
+        <td>${opening || "—"}</td>
+        <td class="${nextClass}">${esc(fmtDate(lead.nextResearchDate))}${
+        nextDays !== null && nextDays <= 0 ? " <span class=\"muted\">(due)</span>" : ""
+      }</td>
+        <td class="sticky-col col-active">
+          <span class="pill ${reviewed ? "pill-green" : "pill-amber"}">${reviewed ? "Yes" : "No"}</span>
+        </td>
+      </tr>`;
+    })
+    .join("");
+}
+
+/////////////////////////
+// Detail modal
+/////////////////////////
+function kv(label, valueHtml) {
+  return `<div class="kv"><div class="kv-k">${esc(label)}</div><div class="kv-v">${valueHtml || "—"}</div></div>`;
+}
+
+function section(title, inner) {
+  return `<section class="ld-section"><h4>${esc(title)}</h4>${inner}</section>`;
+}
+
+function renderSocials(v) {
+  const links = [];
+  if (v.website) links.push(linkOut(v.website, "Website"));
+  const s = v.socialLinks || {};
+  Object.keys(s).forEach((k) => {
+    if (s[k]) links.push(linkOut(s[k], k[0].toUpperCase() + k.slice(1)));
+  });
+  return links.length ? links.join(" &nbsp;·&nbsp; ") : "—";
+}
+
+async function openLead(leadId) {
+  const lead = leadsCache.find((l) => l.id === leadId);
+  if (!lead) return;
+  openLeadId = leadId;
+  const v = venueFor(lead);
+
+  modalTitle.textContent = v.name || "(unknown venue)";
+  modalSub.innerHTML = [
+    esc([v.city || v.neighborhood, v.address].filter(Boolean).join(" · ")),
+    pill(lead.statusBucket, BUCKET_PILL[lead.statusBucket]),
+  ].filter(Boolean).join(" &nbsp; ");
+
+  detailBody.innerHTML = `<div class="muted">Loading research history…</div>`;
+  openModal();
+
+  let observations = [];
+  try {
+    const snap = await db.collection("leadObservations").where("leadId", "==", leadId).get();
+    observations = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    observations.sort((a, b) => (toDate(b.date)?.getTime() || 0) - (toDate(a.date)?.getTime() || 0));
+  } catch (err) {
+    console.error("Failed to load observations:", err);
+  }
+
+  const basic = [
+    kv("Address", esc(v.address)),
+    kv("Phone", v.phone ? `<a href="tel:${esc(v.phone)}">${esc(v.phone)}</a>` : "—"),
+    kv("Links", renderSocials(v)),
+    kv("Classification", esc(v.venueClassification)),
+    kv("Ownership", esc(v.ownershipType)),
+    kv("Hours", esc(v.hours)),
+    kv("Kitchen hours", esc(v.kitchenHours)),
+    kv("Bar / alcohol model", esc(v.barAlcoholModel)),
+    kv("Opening status", esc(v.openingStatus)),
+    kv("Opening date", `${esc(fmtDate(v.openingDate))}${v.openingDateConfidence ? ` <span class="muted">(${esc(v.openingDateConfidence)})</span>` : ""}`),
+    kv("Decision maker", esc(v.decisionMaker && (v.decisionMaker.name || JSON.stringify(v.decisionMaker)))),
+    kv("Basic info verified", esc(fmtDate(v.basicInfoLastVerified))),
+  ].join("");
+
+  const profile = v.plainEnglishProfile
+    ? `<p class="ld-prose">${esc(v.plainEnglishProfile)}</p>`
+    : `<p class="muted">No profile written yet.</p>`;
+
+  const opportunity = [
+    kv("Recommended opportunity", esc(lead.recommendedOpportunity)),
+    kv("Pitch angle", esc(lead.pitchAngle)),
+    kv("Lead score", lead.leadScore ?? "—"),
+  ].join("");
+
+  const obsHtml = observations.length
+    ? observations
+        .map(
+          (o) => `
+        <div class="obs-item">
+          <div class="obs-head">
+            <span class="pill pill-gray">${esc(o.observationType || "other")}</span>
+            <span class="muted">${esc(fmtDate(o.date))}</span>
+          </div>
+          <div class="obs-finding">${esc(o.finding || "")}</div>
+          ${
+            Array.isArray(o.sources) && o.sources.length
+              ? `<div class="obs-sources">${o.sources
+                  .map((s) => linkOut(s.url, s.url))
+                  .filter(Boolean)
+                  .join(" · ")}</div>`
+              : ""
+          }
+        </div>`
+        )
+        .join("")
+    : `<p class="muted">No observations recorded yet.</p>`;
+
+  const nextDays = daysFromNow(lead.nextResearchDate);
+
+  const pipelineForm = `
+    <form id="pipelineForm" class="ld-form">
+      <div class="ld-form-grid">
+        <label class="field"><span class="label">Status bucket</span>
+          <select class="input" name="statusBucket">
+            ${STATUS_BUCKETS.map((b) => `<option ${b === lead.statusBucket ? "selected" : ""}>${b}</option>`).join("")}
+          </select>
+        </label>
+        <label class="field"><span class="label">Pipeline stage</span>
+          <select class="input" name="pipelineStage">
+            ${PIPELINE_STAGES.map((s) => `<option ${s === lead.pipelineStage ? "selected" : ""}>${s}</option>`).join("")}
+          </select>
+        </label>
+        <label class="field"><span class="label">Research priority</span>
+          <select class="input" name="researchPriority">
+            ${RESEARCH_PRIORITIES.map((p) => `<option ${p === lead.researchPriority ? "selected" : ""}>${p}</option>`).join("")}
+          </select>
+        </label>
+        <label class="field"><span class="label">Lead score (0–100)</span>
+          <input class="input" type="number" name="leadScore" min="0" max="100" value="${lead.leadScore ?? ""}">
+        </label>
+        <label class="field"><span class="label">Next research date</span>
+          <input class="input" type="date" name="nextResearchDate" value="${
+            toDate(lead.nextResearchDate) ? toDate(lead.nextResearchDate).toISOString().slice(0, 10) : ""
+          }">
+        </label>
+        <label class="field"><span class="label">Lost reason (if lost)</span>
+          <input class="input" type="text" name="lostReason" value="${esc(lead.lostReason || "")}">
+        </label>
+      </div>
+
+      <label class="ld-check">
+        <input type="checkbox" name="reviewed" ${lead.reviewed === true ? "checked" : ""}>
+        Reviewed (removes from the unreviewed queue)
+      </label>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Save pipeline</button>
+        <button type="button" class="btn btn-ghost" data-close>Cancel</button>
+      </div>
+      <div class="muted" id="pipelineMsg" aria-live="polite"></div>
+    </form>`;
+
+  detailBody.innerHTML = [
+    section("Basic Venue Info", `<div class="kv-grid">${basic}</div>`),
+    section("Plain-English Profile", profile),
+    section("Recommended Opportunity", `<div class="kv-grid">${opportunity}</div>`),
+    section("Evidence / Research History", obsHtml),
+    section(
+      "Sales Pipeline",
+      `<div class="muted" style="margin-bottom:8px;">Next research ${esc(fmtDate(lead.nextResearchDate))}${
+        nextDays !== null ? ` (${nextDays <= 0 ? "due" : "in " + nextDays + "d"})` : ""
+      }</div>${pipelineForm}`
+    ),
+  ].join("");
+
+  const form = document.getElementById("pipelineForm");
+  form.querySelector("[data-close]").addEventListener("click", closeModal);
+  form.addEventListener("submit", (e) => savePipeline(e, leadId));
+}
+
+async function savePipeline(e, leadId) {
+  e.preventDefault();
+  const form = e.target;
+  const msg = form.querySelector("#pipelineMsg");
+  const fd = new FormData(form);
+
+  const scoreRaw = String(fd.get("leadScore") || "").trim();
+  const patch = {
+    statusBucket: fd.get("statusBucket") || null,
+    pipelineStage: fd.get("pipelineStage") || null,
+    researchPriority: fd.get("researchPriority") || null,
+    leadScore: scoreRaw === "" ? null : Math.max(0, Math.min(100, Number(scoreRaw))),
+    nextResearchDate: fd.get("nextResearchDate") || null,
+    lostReason: String(fd.get("lostReason") || "").trim() || null,
+    reviewed: fd.get("reviewed") === "on",
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+  };
+
+  if (msg) msg.textContent = "Saving…";
+  try {
+    await db.collection("leads").doc(leadId).update(patch);
+    if (msg) msg.textContent = "Saved.";
+    setTimeout(() => {
+      if (openLeadId === leadId) closeModal();
+    }, 500);
+  } catch (err) {
+    console.error("Save pipeline failed:", err);
+    if (msg) msg.textContent = "Save failed — see console.";
+  }
+}
+
+/////////////////////////
+// Row + filter events
+/////////////////////////
+tableBody.addEventListener("click", (e) => {
+  const tr = e.target.closest("tr[data-id]");
+  if (tr) openLead(tr.dataset.id);
+});
+
+if (searchInput) searchInput.addEventListener("input", renderTable);
+if (bucketFilter) bucketFilter.addEventListener("change", renderTable);
+segButtons.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    segButtons.forEach((b) => b.classList.toggle("is-active", b === btn));
+    currentView = btn.dataset.view;
+    renderTable();
+  });
+});
+
+/////////////////////////
+// Firestore subscriptions
+/////////////////////////
+let unsubLeads = null;
+let unsubVenues = null;
+
+function startListeners() {
+  if (unsubVenues) unsubVenues();
+  unsubVenues = db.collection("venues").onSnapshot(
+    (snap) => {
+      const map = new Map();
+      snap.forEach((doc) => map.set(doc.id, { id: doc.id, ...doc.data() }));
+      venuesById = map;
+      renderTable();
+    },
+    (err) => {
+      console.error("venues listener error:", err);
+    }
+  );
+
+  if (unsubLeads) unsubLeads();
+  unsubLeads = db.collection("leads").onSnapshot(
+    (snap) => {
+      leadsCache = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      renderTable();
+    },
+    (err) => {
+      console.error("leads listener error:", err);
+      alert("Failed to load leads (see console).");
+    }
+  );
+}
+
+/////////////////////////
+// Start
+/////////////////////////
+auth.onAuthStateChanged((user) => {
+  if (!user) return; // auth-guard handles redirect
+  startListeners();
+});

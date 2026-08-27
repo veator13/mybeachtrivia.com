@@ -27,10 +27,16 @@ Firestore, and they show up as an accruing "unreviewed queue" on a new admin Lea
 - [x] Cloud Function endpoint written: `functions_gcfv1/leads.js`, exported as
       `ingestLeadResearch` in `functions_gcfv1/index.js`
 - [x] `LEADS_API_KEY` secret set via `firebase functions:secrets:set`
-- [ ] **Endpoint not yet deployed** — run `firebase deploy --only functions:ingestLeadResearch`
-      from `functions_gcfv1/` (or repo root)
-- [ ] Admin Leads tab UI — not started
+- [x] **Endpoint deployed** (us-central1, Node 20):
+      `https://us-central1-beach-trivia-website.cloudfunctions.net/ingestLeadResearch`
+- [x] Firestore rules for `venues` / `leads` / `leadObservations` (admin-only) +
+      venue dedup composite indexes — deployed
+- [x] Admin Leads tab UI — `beachTriviaPages/dashboards/admin/leads/` (queue table +
+      detail modal with pipeline editor); nav link in `bt-nav.js` + admin dashboard
 - [ ] Scheduled Claude task itself — not started
+- [ ] First real research batch — not run
+
+All leads work is on branch `leads-feature` (not merged to main yet).
 
 ## Firestore schema (locked)
 
