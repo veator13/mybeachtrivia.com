@@ -89,6 +89,33 @@ rechecks on existing strong prospects.
   the new `ingestLeadResearch` uses `onRequest` + a shared-secret header instead, since
   it's called by the scheduled task, not a logged-in browser user.
 
+## Research methodology (for the scheduled task — learned from the first real batch)
+
+Venue websites only list events the **venue itself runs**. Recurring trivia / music
+bingo hosted by an outside company is routinely absent from the venue's own calendar,
+and the host companies' own websites are often stale. The current truth lives in the
+**host companies' Facebook feeds** (last 1–14 days of posts).
+
+So, for every venue, the task must:
+1. **Rebuild the competitor list fresh each run.** Search that day for active Hampton
+   Roads trivia / music bingo / game-show operators — don't rely on a hardcoded list;
+   companies start, merge, and fold. Seed the search with the ones seen so far
+   (Bar Trivia LIVE, Challenge Entertainment / "Virginia Trivia" / DJ Bobby D,
+   River City Trivia, King Trivia) but always look for new names.
+2. **Search each competitor's pages for THIS venue** — their website location list AND
+   their recent Facebook/Instagram posts — by venue name and by street address.
+3. Also check aggregators (trivianearme.net, vabrewguide.com, visit<city>.com event
+   calendars, Eventbrite) and a plain `"<venue name>" trivia OR "music bingo"` web +
+   Facebook search.
+4. Only call a venue "no entertainment / Pitch Now" after steps 1–3 come back empty.
+   If a competitor is found, it's `Current Competitor` — record the host company, night,
+   and where it was confirmed (with the post URL + date accessed) in a `leadObservation`.
+
+Example miss: The Garage Brewery (Chesapeake) was first logged as "Worth Investigating —
+no weekly trivia" off its own calendar. It actually runs Bar Trivia LIVE trivia every
+Wednesday — only visible in Bar Trivia LIVE's Facebook posts. Corrected to
+`Current Competitor` on re-run.
+
 ## Suggested admin venue-detail layout
 Basic Venue Info → Current Entertainment → Historical Entertainment → Recommended
 Opportunity → Evidence/Research History → Sales Pipeline.
