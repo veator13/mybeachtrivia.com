@@ -868,9 +868,11 @@ body[data-page="leads-admin"] .table .col-venue * { white-space: normal; }
 .ent-item.is-competitor .ent-flag { color: var(--danger); }
 .ent-note { margin-top: 4px; font-size: 0.9rem; line-height: 1.45; }
 
-/* Modal tools row (Copy details) */
-.lead-modal-tools { display: flex; justify-content: flex-end; margin: 8px 0 0; }
-#copyLeadBtn { white-space: nowrap; }
+/* Modal tools row (Copy details / Delete) */
+.lead-modal-tools { display: flex; justify-content: flex-end; gap: 8px; margin: 8px 0 0; }
+.lead-modal-tools .btn { white-space: nowrap; }
+#deleteLeadBtn.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, transparent); }
+#deleteLeadBtn.danger:hover { background: color-mix(in srgb, var(--danger) 12%, transparent); }
 
 /* Recommended Pitch callout */
 .pitch-callout {

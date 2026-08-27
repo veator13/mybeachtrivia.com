@@ -125,6 +125,7 @@ const reviewBar = document.getElementById("leadReviewBar");
 const detailBody = document.getElementById("leadDetailBody");
 const closeModalBtn = document.querySelector(".close-modal");
 const copyLeadBtn = document.getElementById("copyLeadBtn");
+const deleteLeadBtn = document.getElementById("deleteLeadBtn");
 
 /////////////////////////
 // State
@@ -411,6 +412,34 @@ async function copyOpenLeadDetails() {
   }
 }
 if (copyLeadBtn) copyLeadBtn.addEventListener("click", copyOpenLeadDetails);
+
+async function deleteOpenLead() {
+  const lead = leadsCache.find((l) => l.id === openLeadId);
+  if (!lead || !deleteLeadBtn) return;
+  const v = venueFor(lead);
+  const name = v.name || "this lead";
+  if (!window.confirm(`Delete "${name}"?\n\nThis removes the lead, its venue record, and all research history. It cannot be undone.`)) {
+    return;
+  }
+  deleteLeadBtn.disabled = true;
+  deleteLeadBtn.textContent = "Deleting…";
+  try {
+    const obsSnap = await db.collection("leadObservations").where("leadId", "==", lead.id).get();
+    const batch = db.batch();
+    obsSnap.forEach((d) => batch.delete(d.ref));
+    batch.delete(db.collection("leads").doc(lead.id));
+    if (lead.venueId) batch.delete(db.collection("venues").doc(lead.venueId));
+    await batch.commit();
+    closeModal();
+  } catch (err) {
+    console.error("Delete lead failed:", err);
+    alert("Delete failed — see console.");
+  } finally {
+    deleteLeadBtn.disabled = false;
+    deleteLeadBtn.textContent = "🗑 Delete lead";
+  }
+}
+if (deleteLeadBtn) deleteLeadBtn.addEventListener("click", deleteOpenLead);
 
 function renderCompetitorBanner(v, lead) {
   if (!competitorBanner) return;
