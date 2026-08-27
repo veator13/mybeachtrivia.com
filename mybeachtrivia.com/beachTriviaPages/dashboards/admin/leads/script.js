@@ -120,6 +120,7 @@ const segButtons = Array.from(document.querySelectorAll(".seg-btn"));
 const modal = document.getElementById("leadModal");
 const modalTitle = document.getElementById("leadModalTitle");
 const modalSub = document.getElementById("leadModalSub");
+const quickSummaryEl = document.getElementById("leadQuickSummary");
 const competitorBanner = document.getElementById("leadCompetitorBanner");
 const reviewBar = document.getElementById("leadReviewBar");
 const detailBody = document.getElementById("leadDetailBody");
@@ -151,6 +152,7 @@ function closeModal() {
   modal.classList.remove("is-open");
   modal.setAttribute("aria-hidden", "true");
   openLeadId = null;
+  if (quickSummaryEl) { quickSummaryEl.className = ""; quickSummaryEl.innerHTML = ""; }
   if (competitorBanner) { competitorBanner.className = ""; competitorBanner.innerHTML = ""; }
   try { document.body.style.overflow = ""; } catch {}
 }
@@ -333,6 +335,13 @@ function buildLeadText(lead, v, observations) {
   line("Reviewed", lead.reviewed === true ? "yes" : "no");
   line("Next research date", fmtDate(lead.nextResearchDate));
 
+  const qs = v.quickSummary || {};
+  L.push("", "— QUICK SUMMARY —");
+  line("Open nights", qs.openNights || qs.open_nights || "—");
+  line("Competitors", qs.competitors ||
+    (entertainmentEntries(v).filter((e) => e.isCompetitor).map((e) => `${e.host} (${[e.format, e.schedule].filter(Boolean).join(", ")})`).join("; ") || "None found"));
+  line("Trivia / bingo history", qs.serviceHistory || qs.history || "—");
+
   L.push("", "— VENUE —");
   line("Address", v.address);
   line("Phone", [v.phone || "none published", v.phoneNote && `(${v.phoneNote})`].filter(Boolean).join(" "));
@@ -441,6 +450,50 @@ async function deleteOpenLead() {
 }
 if (deleteLeadBtn) deleteLeadBtn.addEventListener("click", deleteOpenLead);
 
+function truncate(s, n) {
+  s = String(s || "");
+  return s.length > n ? s.slice(0, n - 1).trimEnd() + "…" : s;
+}
+
+// Quick Summary card at the top of the modal: open nights, competitors, service history.
+// Uses venue.quickSummary {openNights, competitors, serviceHistory} when the research
+// agent provided it; otherwise derives from currentEntertainment + observations.
+function renderQuickSummary(v, lead, observations) {
+  if (!quickSummaryEl) return;
+  const qs = v.quickSummary || {};
+  const ents = entertainmentEntries(v);
+  const comps = ents.filter((e) => e.isCompetitor);
+
+  const openNights = qs.openNights || qs.open_nights || "—";
+
+  const competitors =
+    qs.competitors ||
+    (comps.length
+      ? comps
+          .map((e) => `${e.host}${[e.format, e.schedule].filter(Boolean).length ? " (" + [e.format, e.schedule].filter(Boolean).join(", ") + ")" : ""}`)
+          .join("; ")
+      : lead.statusBucket === "Current Competitor"
+      ? "Yes — see Research History"
+      : "None found");
+
+  let history = qs.serviceHistory || qs.history;
+  if (!history) {
+    const hist = (observations || []).filter((o) =>
+      /trivia|bingo|competitor|grand_opening|entertainment/.test(o.observationType || "")
+    );
+    history = hist.length
+      ? hist.map((o) => `${fmtDate(o.date)} — ${truncate(o.finding, 140)}`).join("  ·  ")
+      : "None on record";
+  }
+
+  quickSummaryEl.className = "quick-summary";
+  quickSummaryEl.innerHTML = `
+    <div class="qs-title">Quick Summary</div>
+    <div class="qs-row"><span class="qs-k">Open nights</span><span class="qs-v">${esc(openNights)}</span></div>
+    <div class="qs-row"><span class="qs-k">Competitors</span><span class="qs-v">${esc(competitors)}</span></div>
+    <div class="qs-row"><span class="qs-k">Trivia / bingo history</span><span class="qs-v">${esc(history)}</span></div>`;
+}
+
 function renderCompetitorBanner(v, lead) {
   if (!competitorBanner) return;
   const entries = entertainmentEntries(v);
@@ -546,6 +599,7 @@ async function openLead(leadId) {
     console.error("Failed to load observations:", err);
   }
   openLeadObservations = observations;
+  renderQuickSummary(v, lead, observations);
 
   const phoneNoteHtml = v.phoneNote ? `<div class="muted">${esc(v.phoneNote)}</div>` : "";
   const phoneHtml = v.phone

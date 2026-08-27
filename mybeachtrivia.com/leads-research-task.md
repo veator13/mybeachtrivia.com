@@ -92,6 +92,11 @@ verify something, leave the field out or mark it "unverified" in the note.
 - `currentEntertainment`: array of `{ format, host, schedule, note, isCompetitor }` for
   every recurring game night the venue runs (competitor or in-house). Populate it every
   run so the admin competitor banner is accurate.
+- `quickSummary`: `{ openNights, competitors, serviceHistory }` — three short strings for
+  the panel's top card. `openNights` = nights with no programming / the realistic pitch
+  targets. `competitors` = one line naming current host(s) + night, or "None found".
+  `serviceHistory` = dated history of ANY trivia/bingo/Feud the venue has run (who,
+  start/stop dates), or "None on record". Fill all three every run.
 
 ## Step 5 — Submit
 
@@ -109,6 +114,7 @@ One `POST` to the ingest endpoint per venue. Body:
     "openingDate": "YYYY-MM-DD or null", "openingDateConfidence": "high|medium|low",
     "decisionMaker": { "name": "", "role": "" },
     "plainEnglishProfile": "2–4 sentences: what it is, the crowd, the opportunity, the catch.",
+    "quickSummary": { "openNights": "", "competitors": "", "serviceHistory": "" },
     "currentEntertainment": [
       { "format": "Trivia", "host": "Bar Trivia LIVE", "schedule": "Wednesdays 7pm", "isCompetitor": true, "note": "confirmed via <url>, <date>" }
     ]

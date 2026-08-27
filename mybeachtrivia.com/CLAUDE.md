@@ -73,6 +73,15 @@ in-house label. The admin Leads tab shows a red **"⚔️ Competitor on site"** 
 the host(s) whenever any entry is a competitor. Populate this on every research run so the
 banner is accurate that day.
 
+`quickSummary`: `{ openNights, competitors, serviceHistory }` — three short strings shown
+in a "Quick Summary" card at the very top of the lead panel. `openNights` = which nights
+have no programming / are the realistic pitch targets ("Mon–Wed open; live bands Thu–Sat").
+`competitors` = one line naming current host(s) + night, or "None found". `serviceHistory`
+= dated history of any trivia/bingo/Feud the venue has run (who, when it started/stopped) —
+"Beach Feud via Challenge Ent. 2022–Oct 2023; nothing since", or "None on record". Fill all
+three every run; the panel falls back to deriving them from currentEntertainment +
+observations when a field is blank.
+
 Dedup: normalizedName+address first; placeId, normalizedWebsiteDomain+phone as secondary
 signals. **Never auto-merge on name similarity alone** — chains (AJ Gator's, Voodoo
 Brewing) have multiple real Hampton Roads locations. Cross-reference the existing

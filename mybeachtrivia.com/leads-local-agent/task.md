@@ -68,13 +68,20 @@ something, omit the field or mark it "unverified" in a note.
   Poor Fit ~1 year; other active prospects shorter.
 - currentEntertainment: array of {format, host, schedule, note, isCompetitor} for EVERY
   recurring game night the venue runs (competitor or in-house). Populate every run.
+- quickSummary: {openNights, competitors, serviceHistory} — three short strings for the
+  panel's top card. openNights = nights with no programming / the realistic pitch targets
+  ("Mon-Wed open; live bands Thu-Sat"). competitors = one line naming current host(s) +
+  night, or "None found". serviceHistory = dated history of ANY trivia/bingo/Feud the
+  venue has run (who, start/stop dates) — "Beach Feud via Challenge Ent. 2022-Oct 2023;
+  nothing since", or "None on record". Fill all three every run.
 
 ## Step 5 — Submit (one POST per venue)
 Body: {"venue": {name, address, city, neighborhood, phone, phoneNote, email, emailNote,
 website, socialLinks:{facebook,instagram}, venueClassification, ownershipType, hours,
 kitchenHours, barAlcoholModel, sizeLayoutSignals, openingStatus:"open|recently_opened|coming_soon",
 openingDate, openingDateConfidence:"high|medium|low", decisionMaker:{name,role},
-plainEnglishProfile, currentEntertainment:[...]}, "lead": {statusBucket, leadScore,
+plainEnglishProfile, currentEntertainment:[...], quickSummary:{openNights, competitors,
+serviceHistory}}, "lead": {statusBucket, leadScore,
 researchPriority, nextResearchDate, recommendedOpportunity, pitchAngle}, "observation":
 {observationType:"trivia_detected|competitor_detected|grand_opening|coming_soon_update|contact_found|other",
 finding, sources:[{url, dateAccessed}]}}
