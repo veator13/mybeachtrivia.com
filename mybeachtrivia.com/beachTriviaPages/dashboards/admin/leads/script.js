@@ -278,31 +278,40 @@ function renderSocials(v) {
   return links.length ? links.join(" &nbsp;·&nbsp; ") : "—";
 }
 
-function renderReviewBar() {
-  if (!reviewBar) return;
+function reviewBarInnerHtml() {
   if (openLeadReviewed) {
-    reviewBar.className = "review-bar is-reviewed";
-    reviewBar.innerHTML = `
+    return `
       <div class="review-bar-status"><span class="review-check">✓</span> Reviewed — off the queue</div>
-      <button type="button" class="btn btn-ghost btn-sm" id="reviewToggleBtn">Move back to Unreviewed</button>`;
-  } else {
-    reviewBar.className = "review-bar is-pending";
-    reviewBar.innerHTML = `
-      <div class="review-bar-copy">
-        <strong>In the unreviewed queue</strong>
-        <span class="muted">Mark it reviewed once you've triaged it — approved into the pipeline or set aside.</span>
-      </div>
-      <button type="button" class="btn-review" id="reviewToggleBtn">✓ Mark Reviewed</button>`;
+      <button type="button" class="btn btn-ghost btn-sm review-toggle-btn">Move back to Unreviewed</button>`;
   }
-  const btn = document.getElementById("reviewToggleBtn");
-  if (btn) btn.addEventListener("click", () => toggleReviewed(openLeadId));
+  return `
+    <div class="review-bar-copy">
+      <strong>In the unreviewed queue</strong>
+      <span class="muted">Mark it reviewed once you've triaged it — approved into the pipeline or set aside.</span>
+    </div>
+    <button type="button" class="btn-review review-toggle-btn">✓ Mark Reviewed</button>`;
+}
+
+// Renders every .js-review-bar on the page (top of modal + bottom of details)
+// so they stay in sync no matter which one the user clicks.
+function renderReviewBar() {
+  const stateClass = openLeadReviewed ? "is-reviewed" : "is-pending";
+  document.querySelectorAll(".js-review-bar").forEach((bar) => {
+    bar.className = `review-bar js-review-bar ${stateClass}`;
+    bar.innerHTML = reviewBarInnerHtml();
+  });
+  document.querySelectorAll(".review-toggle-btn").forEach((btn) => {
+    btn.addEventListener("click", () => toggleReviewed(openLeadId));
+  });
 }
 
 async function toggleReviewed(leadId) {
   if (!leadId) return;
   const next = !openLeadReviewed;
-  const btn = document.getElementById("reviewToggleBtn");
-  if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
+  document.querySelectorAll(".review-toggle-btn").forEach((b) => {
+    b.disabled = true;
+    b.textContent = "Saving…";
+  });
   try {
     await db.collection("leads").doc(leadId).update({
       reviewed: next,
@@ -312,7 +321,7 @@ async function toggleReviewed(leadId) {
     renderReviewBar();
   } catch (err) {
     console.error("Toggle reviewed failed:", err);
-    if (btn) { btn.disabled = false; btn.textContent = "✓ Mark Reviewed"; }
+    renderReviewBar(); // restore buttons
     alert("Could not update reviewed status — see console.");
   }
 }
@@ -442,7 +451,10 @@ async function openLead(leadId) {
         nextDays !== null ? ` (${nextDays <= 0 ? "due" : "in " + nextDays + "d"})` : ""
       }</div>${pipelineForm}`
     ),
+    `<div class="review-bar js-review-bar"></div>`,
   ].join("");
+
+  renderReviewBar(); // now paints both the top bar and this bottom one
 
   const form = document.getElementById("pipelineForm");
   form.querySelector("[data-close]").addEventListener("click", closeModal);
