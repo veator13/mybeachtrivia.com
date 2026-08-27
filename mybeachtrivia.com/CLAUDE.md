@@ -44,7 +44,14 @@ All leads work is on branch `leads-feature` (not merged to main yet).
 name, normalizedName, address, city/neighborhood, phone, website, socialLinks,
 normalizedWebsiteDomain, placeId, venueClassification, ownershipType, hours, kitchenHours,
 barAlcoholModel, sizeLayoutSignals, openingStatus, openingDate, openingDateConfidence,
-decisionMaker, plainEnglishProfile, basicInfoLastVerified.
+decisionMaker, plainEnglishProfile, basicInfoLastVerified, currentEntertainment.
+
+`currentEntertainment`: array of `{ format, host, schedule, note, isCompetitor }` — every
+recurring trivia / music bingo / game night the venue runs. Set `host` to the running
+company (or "In-house"); `isCompetitor` defaults true when `host` is set and isn't an
+in-house label. The admin Leads tab shows a red **"⚔️ Competitor on site"** banner naming
+the host(s) whenever any entry is a competitor. Populate this on every research run so the
+banner is accurate that day.
 
 Dedup: normalizedName+address first; placeId, normalizedWebsiteDomain+phone as secondary
 signals. **Never auto-merge on name similarity alone** — chains (AJ Gator's, Voodoo

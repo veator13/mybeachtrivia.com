@@ -120,6 +120,7 @@ const segButtons = Array.from(document.querySelectorAll(".seg-btn"));
 const modal = document.getElementById("leadModal");
 const modalTitle = document.getElementById("leadModalTitle");
 const modalSub = document.getElementById("leadModalSub");
+const competitorBanner = document.getElementById("leadCompetitorBanner");
 const reviewBar = document.getElementById("leadReviewBar");
 const detailBody = document.getElementById("leadDetailBody");
 const closeModalBtn = document.querySelector(".close-modal");
@@ -147,6 +148,7 @@ function closeModal() {
   modal.classList.remove("is-open");
   modal.setAttribute("aria-hidden", "true");
   openLeadId = null;
+  if (competitorBanner) { competitorBanner.className = ""; competitorBanner.innerHTML = ""; }
   try { document.body.style.overflow = ""; } catch {}
 }
 if (closeModalBtn) closeModalBtn.addEventListener("click", closeModal);
@@ -292,6 +294,58 @@ function renderSocials(v) {
   return links.length ? links.join(" &nbsp;·&nbsp; ") : "—";
 }
 
+// Normalize venue.currentEntertainment into an array of {format, host, schedule, note, isCompetitor}
+const IN_HOUSE_RE = /^\s*(in.?house|venue|staff|self|bartender)/i;
+function entertainmentEntries(v) {
+  let raw = v && v.currentEntertainment;
+  if (!raw) return [];
+  if (typeof raw === "string") raw = [{ note: raw }];
+  if (!Array.isArray(raw)) raw = [raw];
+  return raw.map((e) => {
+    const host = e.host || e.company || "";
+    const isCompetitor =
+      e.isCompetitor === true ||
+      (e.isCompetitor !== false && !!host && !IN_HOUSE_RE.test(host));
+    return {
+      format: e.format || e.type || "Entertainment",
+      host,
+      schedule: e.schedule || e.night || e.day || "",
+      note: e.note || e.finding || "",
+      isCompetitor,
+    };
+  });
+}
+
+function renderCompetitorBanner(v, lead) {
+  if (!competitorBanner) return;
+  const entries = entertainmentEntries(v);
+  const competitors = entries.filter((e) => e.isCompetitor);
+
+  if (competitors.length) {
+    competitorBanner.className = "competitor-banner";
+    competitorBanner.innerHTML = `
+      <div class="competitor-banner-tag">⚔️ Competitor on site</div>
+      <div class="competitor-banner-list">
+        ${competitors
+          .map(
+            (e) => `<div class="competitor-line">
+              <span class="competitor-host">${esc(e.host)}</span>
+              <span class="competitor-meta">${esc([e.format, e.schedule].filter(Boolean).join(" · "))}</span>
+            </div>`
+          )
+          .join("")}
+      </div>`;
+  } else if (lead.statusBucket === "Current Competitor") {
+    competitorBanner.className = "competitor-banner is-unnamed";
+    competitorBanner.innerHTML = `
+      <div class="competitor-banner-tag">⚔️ Current Competitor</div>
+      <div class="competitor-banner-list"><div class="competitor-meta">Host not recorded on the venue — see Research History below.</div></div>`;
+  } else {
+    competitorBanner.className = "";
+    competitorBanner.innerHTML = "";
+  }
+}
+
 function reviewBarInnerHtml() {
   if (openLeadReviewed) {
     return `
@@ -352,6 +406,7 @@ async function openLead(leadId) {
     esc([v.city || v.neighborhood, v.address].filter(Boolean).join(" · ")),
     pill(lead.statusBucket, BUCKET_PILL[lead.statusBucket]),
   ].filter(Boolean).join(" &nbsp; ");
+  renderCompetitorBanner(v, lead);
   renderReviewBar();
 
   detailBody.innerHTML = `<div class="muted">Loading research history…</div>`;
@@ -384,6 +439,23 @@ async function openLead(leadId) {
   const profile = v.plainEnglishProfile
     ? `<p class="ld-prose">${esc(v.plainEnglishProfile)}</p>`
     : `<p class="muted">No profile written yet.</p>`;
+
+  const entEntries = entertainmentEntries(v);
+  const entertainmentHtml = entEntries.length
+    ? `<div class="ent-list">${entEntries
+        .map(
+          (e) => `<div class="ent-item ${e.isCompetitor ? "is-competitor" : "is-inhouse"}">
+            <div class="ent-item-head">
+              <span class="ent-format">${esc(e.format)}</span>
+              ${e.host ? `<span class="ent-host">${esc(e.host)}</span>` : ""}
+              <span class="ent-flag">${e.isCompetitor ? "competitor" : "in-house / not a competitor"}</span>
+            </div>
+            ${e.schedule ? `<div class="muted">${esc(e.schedule)}</div>` : ""}
+            ${e.note ? `<div class="ent-note">${esc(e.note)}</div>` : ""}
+          </div>`
+        )
+        .join("")}</div>`
+    : `<p class="muted">Nothing on record. If this venue has trivia or music bingo, add it via a research run.</p>`;
 
   const opportunity = [
     kv("Recommended opportunity", esc(lead.recommendedOpportunity)),
@@ -454,6 +526,7 @@ async function openLead(leadId) {
 
   detailBody.innerHTML = [
     section("Basic Venue Info", `<div class="kv-grid">${basic}</div>`),
+    section("Current Entertainment", entertainmentHtml),
     section("Plain-English Profile", profile),
     section("Recommended Opportunity", `<div class="kv-grid">${opportunity}</div>`),
     section("Evidence / Research History", obsHtml),
