@@ -751,13 +751,21 @@ textarea:focus {
   .pill-amber { color: #fbbf24; }
 }
 
-/* Filter bar */
+/* Filter bar — its own full-width row under the card title */
+body[data-page="leads-admin"] .card-table .card-head { align-items: flex-start; }
 .lead-filter-bar {
+  flex: 1 1 100%;
   display: flex;
-  gap: 12px;
+  gap: 14px;
   align-items: flex-end;
   flex-wrap: wrap;
+  margin-top: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
 }
+.lead-filter-bar .field { gap: 6px; }
+.lead-search { flex: 1 1 260px; max-width: 380px; min-width: 200px; }
+.lead-search .input { width: 100%; }
 .seg {
   display: inline-flex;
   border: 1px solid var(--border);
