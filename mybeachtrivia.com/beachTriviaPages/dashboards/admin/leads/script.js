@@ -64,6 +64,11 @@ const norm = (v) => String(v ?? "").toLowerCase().trim();
 function toDate(v) {
   if (!v) return null;
   if (typeof v.toDate === "function") return v.toDate();
+  // Parse bare YYYY-MM-DD as local midnight, not UTC (avoids off-by-one in display).
+  if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)) {
+    const [y, m, d] = v.split("-").map(Number);
+    return new Date(y, m - 1, d);
+  }
   const d = new Date(v);
   return Number.isNaN(d.getTime()) ? null : d;
 }
@@ -72,6 +77,15 @@ function fmtDate(v) {
   const d = toDate(v);
   if (!d) return "—";
   return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
+// YYYY-MM-DD from a Date using local (not UTC) components — for <input type="date">.
+function toDateInputValue(v) {
+  const d = toDate(v);
+  if (!d) return "";
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${mm}-${dd}`;
 }
 
 function daysFromNow(v) {
@@ -424,9 +438,7 @@ async function openLead(leadId) {
           <input class="input" type="number" name="leadScore" min="0" max="100" value="${lead.leadScore ?? ""}">
         </label>
         <label class="field"><span class="label">Next research date</span>
-          <input class="input" type="date" name="nextResearchDate" value="${
-            toDate(lead.nextResearchDate) ? toDate(lead.nextResearchDate).toISOString().slice(0, 10) : ""
-          }">
+          <input class="input" type="date" name="nextResearchDate" value="${toDateInputValue(lead.nextResearchDate)}">
         </label>
         <label class="field"><span class="label">Lost reason (if lost)</span>
           <input class="input" type="text" name="lostReason" value="${esc(lead.lostReason || "")}">
