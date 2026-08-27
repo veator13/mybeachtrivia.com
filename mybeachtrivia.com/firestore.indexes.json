@@ -47,6 +47,22 @@
         { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "venues",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "normalizedName", "order": "ASCENDING" },
+        { "fieldPath": "address", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "venues",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "normalizedWebsiteDomain", "order": "ASCENDING" },
+        { "fieldPath": "normalizedPhone", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
