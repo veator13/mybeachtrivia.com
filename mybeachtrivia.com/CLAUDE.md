@@ -142,6 +142,11 @@ So, for every venue, the task must:
    it actually reaches and put it in `phoneNote` (taproom bar line vs. owner cell vs.
    dead general voicemail vs. Toast reservations) — a number with no context wastes the
    salesperson's first call.
+6. **Client double-check, every run:** the `locations` collection / `currentClients` list
+   is NOT reliably current. Before submitting a venue, also search Beach Trivia's own
+   Facebook (facebook.com/BeachTrivia) + Instagram (@beachtrivia) recent posts and
+   `site:mybeachtrivia.com` / `"Beach Trivia" "<venue>"` for the venue. If BT already
+   hosts there, drop it and log `skipped: appears to already be a Beach Trivia venue`.
 
 Example miss: The Garage Brewery (Chesapeake) was first logged as "Worth Investigating —
 no weekly trivia" off its own calendar. It actually runs Bar Trivia LIVE trivia every

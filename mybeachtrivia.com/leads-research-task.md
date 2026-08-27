@@ -42,6 +42,20 @@ Use `curl` (Bash). Web research: use WebSearch / WebFetch.
 5. Rotate coverage across Hampton Roads run to run: Virginia Beach, Norfolk, Chesapeake,
    Portsmouth, Suffolk, Hampton, Newport News.
 
+## Step 2b — Confirm it's NOT already a Beach Trivia venue
+
+`currentClients` is NOT fully current. Before committing to a venue, also check Beach
+Trivia's own public presence for it:
+- Facebook: https://www.facebook.com/BeachTrivia (recent posts, ~60 days)
+- Instagram: https://www.instagram.com/beachtrivia
+- Searches: `"Beach Trivia" "<venue>"`, `site:mybeachtrivia.com <venue>`, Facebook search
+  for the venue + "Beach Trivia".
+
+If Beach Trivia already appears to host there (a recent post naming/tagging the venue,
+"tonight at <venue>", a schedule listing it) → **do NOT submit it.** Drop it, pick another,
+and note `skipped: appears to already be a Beach Trivia venue (not in Locations list)` in
+the run summary.
+
 ## Step 3 — Research each venue (the important part)
 
 Follow `CLAUDE.md` → "Research methodology". In short, for every venue:

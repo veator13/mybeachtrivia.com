@@ -27,6 +27,18 @@ Header on every call: `x-leads-api-key: 56d18585be119e101025edae2b2fe66bb53f3f79
 5. Rotate coverage across Hampton Roads run to run: Virginia Beach, Norfolk, Chesapeake,
    Portsmouth, Suffolk, Hampton, Newport News.
 
+## Step 2b — Confirm it's NOT already a Beach Trivia venue
+The `currentClients` list from the queue is NOT fully up to date. Before committing to a
+venue, also check Beach Trivia's own public presence for it:
+- Beach Trivia Facebook: https://www.facebook.com/BeachTrivia  (recent posts, ~last 60 days)
+- Beach Trivia Instagram: https://www.instagram.com/beachtrivia
+- Searches: `"Beach Trivia" "<venue name>"`, `site:mybeachtrivia.com <venue name>`,
+  `beachtrivia.com "<venue name>"`, and a Facebook search for the venue + "Beach Trivia".
+If Beach Trivia already appears to host there (a recent post tagging/naming the venue,
+"tonight at <venue>", a schedule that lists it) → **do NOT submit it.** Drop it, pick
+another venue, and note it in the run summary as
+`skipped: appears to already be a Beach Trivia venue (not in Locations list)`.
+
 ## Step 3 — Research each venue (the important part)
 1. Rebuild the competitor list FRESH today — search for currently-active Hampton Roads
    trivia / music bingo / game-show operators (companies start, merge and fold). Seed:
