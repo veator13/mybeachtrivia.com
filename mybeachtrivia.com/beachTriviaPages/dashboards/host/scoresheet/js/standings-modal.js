@@ -280,8 +280,12 @@
       "header{flex:0 0 auto;text-align:center;padding:2.5vh 2vw 1.5vh;border-bottom:2px solid rgba(0,255,204,.25);}",
       "header h1{font-size:clamp(24px,5vw,72px);letter-spacing:.5px;text-transform:uppercase;color:#00ffcc;}",
       "header .mode{margin-top:.4vh;font-size:clamp(12px,1.6vw,22px);color:rgba(255,255,255,.55);}",
-      "#stage{flex:1 1 auto;display:flex;flex-direction:column;justify-content:center;padding:2vh 4vw;overflow:hidden;}",
-      "#rows{display:flex;flex-direction:column;gap:1.1vh;}",
+      "#stage{flex:1 1 auto;overflow-y:auto;overflow-x:hidden;padding:2vh 4vw;scrollbar-width:thin;",
+      "scrollbar-color:rgba(0,255,204,.4) transparent;}",
+      "#stage.center{display:flex;flex-direction:column;justify-content:center;}",
+      "#stage::-webkit-scrollbar{width:10px;}",
+      "#stage::-webkit-scrollbar-thumb{background:rgba(0,255,204,.35);border-radius:6px;}",
+      "#rows{display:flex;flex-direction:column;gap:calc(var(--rowfs) * .32);}",
       ".row{display:flex;align-items:center;gap:1.1em;background:rgba(255,255,255,.05);",
       "border:1px solid rgba(255,255,255,.08);border-radius:.35em;padding:.4em .7em;font-size:var(--rowfs);line-height:1.15;}",
       ".row .rank{flex:0 0 auto;min-width:1.9em;height:1.7em;display:inline-flex;align-items:center;justify-content:center;",
@@ -304,6 +308,77 @@
     ].join("");
   }
 
+  const POPOUT_FS_MAX = 4.4; // vw — biggest row text (few teams)
+  const POPOUT_FS_MIN = 1.5; // vw — smallest readable before we let it scroll
+  const POPOUT_MANUAL_PAUSE_MS = 5000; // hands-off window after a manual scroll
+  let popoutScrollTimer = null;
+  let popoutManualPauseUntil = 0; // timestamp; auto-scroll idles until then
+  let popoutLastAutoTop = -1; // last scrollTop we set ourselves (to spot user scrolls)
+
+  function stopPopoutAutoScroll() {
+    if (popoutScrollTimer) {
+      clearInterval(popoutScrollTimer);
+      popoutScrollTimer = null;
+    }
+  }
+
+  // Called from a scroll listener in the pop-out: if the position jumped away
+  // from what auto-scroll last set, a human grabbed the scrollbar / wheel /
+  // keys — back off for a few seconds, then resume from wherever they left it.
+  function notedPopoutScroll(stage) {
+    if (!stage) return;
+    if (popoutLastAutoTop >= 0 && Math.abs(stage.scrollTop - popoutLastAutoTop) > 4) {
+      popoutManualPauseUntil = Date.now() + POPOUT_MANUAL_PAUSE_MS;
+    }
+  }
+
+  // Gentle bounce-scroll for a projected list too long to fit even at min size.
+  function startPopoutAutoScroll() {
+    stopPopoutAutoScroll();
+    let dir = 1;
+    let hold = 40; // ~1.6s pause at each end
+    popoutLastAutoTop = -1;
+    popoutScrollTimer = setInterval(() => {
+      if (!isPopoutOpen()) {
+        stopPopoutAutoScroll();
+        return;
+      }
+      let doc;
+      try {
+        doc = popoutWin.document;
+      } catch (_) {
+        return;
+      }
+      const stage = doc.getElementById("stage");
+      if (!stage) return;
+      const max = stage.scrollHeight - stage.clientHeight;
+      if (max <= 2) {
+        stopPopoutAutoScroll();
+        return;
+      }
+      // Human is scrolling (or just did) — stay out of their way.
+      if (Date.now() < popoutManualPauseUntil) {
+        popoutLastAutoTop = stage.scrollTop;
+        return;
+      }
+      if (hold > 0) {
+        hold--;
+        return;
+      }
+      stage.scrollTop += dir * 2;
+      if (stage.scrollTop >= max) {
+        stage.scrollTop = max;
+        dir = -1;
+        hold = 40;
+      } else if (stage.scrollTop <= 0) {
+        stage.scrollTop = 0;
+        dir = 1;
+        hold = 40;
+      }
+      popoutLastAutoTop = stage.scrollTop;
+    }, 40);
+  }
+
   function fitPopout() {
     if (!isPopoutOpen()) return;
     let doc;
@@ -315,14 +390,22 @@
     const stage = doc.getElementById("stage");
     const rows = doc.getElementById("rows");
     if (!stage || !rows) return;
-    let fs = 4.4; // vw
+
+    // Shrink the row text until the list fits, down to a readable floor.
+    let fs = POPOUT_FS_MAX;
     doc.documentElement.style.setProperty("--rowfs", fs + "vw");
     let guard = 0;
-    while (rows.scrollHeight > stage.clientHeight && fs > 0.8 && guard < 40) {
-      fs -= 0.2;
+    while (rows.scrollHeight > stage.clientHeight && fs > POPOUT_FS_MIN && guard < 40) {
+      fs = Math.max(POPOUT_FS_MIN, fs - 0.2);
       doc.documentElement.style.setProperty("--rowfs", fs + "vw");
       guard++;
     }
+
+    const overflowing = rows.scrollHeight > stage.clientHeight + 2;
+    // Center a short list; top-align a long one so scrolling shows every row.
+    stage.classList.toggle("center", !overflowing);
+    if (overflowing) startPopoutAutoScroll();
+    else stopPopoutAutoScroll();
   }
 
   function renderPopout() {
@@ -406,6 +489,13 @@
       } catch (_) {}
     });
 
+    // If someone scrolls the list by hand, auto-scroll backs off for a few
+    // seconds (see notedPopoutScroll), then picks up from where they stopped.
+    const stage = doc.getElementById("stage");
+    if (stage) {
+      stage.addEventListener("scroll", () => notedPopoutScroll(stage), { passive: true });
+    }
+
     try {
       w.addEventListener("resize", () => fitPopout());
     } catch (_) {}
@@ -450,6 +540,7 @@
         clearInterval(popoutPoll);
         popoutPoll = null;
         popoutWin = null;
+        stopPopoutAutoScroll();
         setPopoutBtnState(false);
       }
     }, 1000);
