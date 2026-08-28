@@ -135,6 +135,7 @@
     const ul = getStandingsListEl();
     if (!ul) return;
 
+    const prevScroll = ul.scrollTop; // keep our place through the rebuild
     ul.innerHTML = "";
 
     const asc = getStandingsAscending();
@@ -168,6 +169,7 @@
 
     // Harmless; helps if some CSS accidentally forced height:0 earlier
     ul.style.height = "";
+    ul.scrollTop = Math.min(prevScroll, ul.scrollHeight);
   }
 
   function isModalOpen() {
@@ -187,6 +189,9 @@
 
     const list = buildRankings();
     renderStandings(list);
+
+    syncAutoScrollButtons();
+    modalAutoScroll.start(); // no-op if it fits or auto-scroll is off
   }
 
   function openModal() {
@@ -206,6 +211,7 @@
   function closeModal() {
     const modal = $("#standingsModal");
     if (!modal) return;
+    modalAutoScroll.stop();
     modal.classList.add("hidden");
     modal.style.display = "none";
     document.body.classList.remove("modal-open");
@@ -234,6 +240,8 @@
       fsBtn.textContent = isFullscreen ? "⛶" : "⛶";
       fsBtn.title = isFullscreen ? "Exit full screen" : "Full screen";
     }
+    // Fullscreen changes how much fits — re-evaluate auto-scroll.
+    modalAutoScroll.start();
   }
 
   function showStandings() {
@@ -297,9 +305,11 @@
       ".ctl{position:fixed;top:12px;width:44px;height:44px;border-radius:10px;z-index:5;",
       "border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);color:#00ffcc;font-size:20px;cursor:pointer;}",
       ".ctl:hover{background:rgba(255,255,255,.16);}",
-      "#flipBtn{right:66px;}#fsBtn{right:14px;}",
+      "#asBtn{right:118px;}#flipBtn{right:66px;}#fsBtn{right:14px;}",
+      ".ctl[aria-pressed=\"false\"]{color:rgba(255,255,255,.45);}",
       "body.is-fs .ctl{opacity:.2;}body.is-fs .ctl:hover{opacity:1;}",
       "</style></head><body>",
+      '<button id="asBtn" class="ctl" type="button" aria-pressed="true" title="Auto-scroll">&#9208;</button>',
       '<button id="flipBtn" class="ctl" type="button" title="Flip order (high &harr; low)">&#8645;</button>',
       '<button id="fsBtn" class="ctl" type="button" title="Full screen">&#9082;</button>',
       '<header><h1>Team Standings</h1><div class="mode" id="mode"></div></header>',
@@ -310,73 +320,131 @@
 
   const POPOUT_FS_MAX = 4.4; // vw — biggest row text (few teams)
   const POPOUT_FS_MIN = 1.5; // vw — smallest readable before we let it scroll
-  const POPOUT_MANUAL_PAUSE_MS = 5000; // hands-off window after a manual scroll
-  let popoutScrollTimer = null;
-  let popoutManualPauseUntil = 0; // timestamp; auto-scroll idles until then
-  let popoutLastAutoTop = -1; // last scrollTop we set ourselves (to spot user scrolls)
+  const AUTOSCROLL_MANUAL_PAUSE_MS = 5000; // hands-off window after a manual scroll
+  const AUTOSCROLL_LS_KEY = "bt_standings_autoscroll";
 
-  function stopPopoutAutoScroll() {
-    if (popoutScrollTimer) {
-      clearInterval(popoutScrollTimer);
-      popoutScrollTimer = null;
-    }
-  }
+  // Shared on/off for BOTH the in-page modal list and the pop-out window.
+  let autoScrollOn = true;
+  try {
+    autoScrollOn = window.localStorage.getItem(AUTOSCROLL_LS_KEY) !== "0";
+  } catch (_) {}
 
-  // Called from a scroll listener in the pop-out: if the position jumped away
-  // from what auto-scroll last set, a human grabbed the scrollbar / wheel /
-  // keys — back off for a few seconds, then resume from wherever they left it.
-  function notedPopoutScroll(stage) {
-    if (!stage) return;
-    if (popoutLastAutoTop >= 0 && Math.abs(stage.scrollTop - popoutLastAutoTop) > 4) {
-      popoutManualPauseUntil = Date.now() + POPOUT_MANUAL_PAUSE_MS;
-    }
-  }
-
-  // Gentle bounce-scroll for a projected list too long to fit even at min size.
-  function startPopoutAutoScroll() {
-    stopPopoutAutoScroll();
+  /* A gentle top<->bottom bounce-scroller for whichever element resolveEl()
+     returns (or null when there's nothing to scroll right now). Honors the
+     shared autoScrollOn flag and backs off for a few seconds whenever a human
+     scrolls the element by hand, then resumes from where they left it. */
+  function makeBounceAutoScroll(resolveEl) {
+    let timer = null;
     let dir = 1;
     let hold = 40; // ~1.6s pause at each end
-    popoutLastAutoTop = -1;
-    popoutScrollTimer = setInterval(() => {
-      if (!isPopoutOpen()) {
-        stopPopoutAutoScroll();
-        return;
+    let lastAutoTop = -1; // last scrollTop we set (to spot manual scrolls)
+    let pauseUntil = 0;
+
+    function stop() {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
       }
-      let doc;
+    }
+
+    function noteScroll() {
+      const el = resolveEl();
+      if (!el) return;
+      if (lastAutoTop >= 0 && Math.abs(el.scrollTop - lastAutoTop) > 4) {
+        pauseUntil = Date.now() + AUTOSCROLL_MANUAL_PAUSE_MS;
+      }
+    }
+
+    function start() {
+      stop();
+      if (!autoScrollOn) return;
+      dir = 1;
+      hold = 40;
+      lastAutoTop = -1;
+      timer = setInterval(() => {
+        if (!autoScrollOn) {
+          stop();
+          return;
+        }
+        const el = resolveEl();
+        if (!el) return;
+        const max = el.scrollHeight - el.clientHeight;
+        if (max <= 2) {
+          stop();
+          return;
+        }
+        if (Date.now() < pauseUntil) {
+          lastAutoTop = el.scrollTop;
+          return;
+        }
+        if (hold > 0) {
+          hold--;
+          return;
+        }
+        el.scrollTop += dir * 2;
+        if (el.scrollTop >= max) {
+          el.scrollTop = max;
+          dir = -1;
+          hold = 40;
+        } else if (el.scrollTop <= 0) {
+          el.scrollTop = 0;
+          dir = 1;
+          hold = 40;
+        }
+        lastAutoTop = el.scrollTop;
+      }, 40);
+    }
+
+    return { start, stop, noteScroll, isRunning: () => !!timer };
+  }
+
+  const popoutAutoScroll = makeBounceAutoScroll(() => {
+    if (!isPopoutOpen()) return null;
+    try {
+      return popoutWin.document.getElementById("stage");
+    } catch (_) {
+      return null;
+    }
+  });
+
+  const modalAutoScroll = makeBounceAutoScroll(() =>
+    isModalOpen() ? $("#modalRankingList") : null
+  );
+
+  function syncAutoScrollButtons() {
+    // Modal toggle
+    const mBtn = $("#btnAutoScrollStandings");
+    if (mBtn) {
+      mBtn.setAttribute("aria-pressed", autoScrollOn ? "true" : "false");
+      mBtn.textContent = autoScrollOn ? "⏸" : "▶";
+      mBtn.title = autoScrollOn ? "Auto-scroll on — click to stop" : "Auto-scroll off — click to start";
+    }
+    // Pop-out toggle (lives in the other window)
+    if (isPopoutOpen()) {
       try {
-        doc = popoutWin.document;
-      } catch (_) {
-        return;
-      }
-      const stage = doc.getElementById("stage");
-      if (!stage) return;
-      const max = stage.scrollHeight - stage.clientHeight;
-      if (max <= 2) {
-        stopPopoutAutoScroll();
-        return;
-      }
-      // Human is scrolling (or just did) — stay out of their way.
-      if (Date.now() < popoutManualPauseUntil) {
-        popoutLastAutoTop = stage.scrollTop;
-        return;
-      }
-      if (hold > 0) {
-        hold--;
-        return;
-      }
-      stage.scrollTop += dir * 2;
-      if (stage.scrollTop >= max) {
-        stage.scrollTop = max;
-        dir = -1;
-        hold = 40;
-      } else if (stage.scrollTop <= 0) {
-        stage.scrollTop = 0;
-        dir = 1;
-        hold = 40;
-      }
-      popoutLastAutoTop = stage.scrollTop;
-    }, 40);
+        const b = popoutWin.document.getElementById("asBtn");
+        if (b) {
+          b.setAttribute("aria-pressed", autoScrollOn ? "true" : "false");
+          b.textContent = autoScrollOn ? "⏸" : "▶";
+          b.title = autoScrollOn ? "Auto-scroll on — click to stop" : "Auto-scroll off — click to start";
+        }
+      } catch (_) {}
+    }
+  }
+
+  function setAutoScrollOn(on) {
+    autoScrollOn = !!on;
+    try {
+      window.localStorage.setItem(AUTOSCROLL_LS_KEY, autoScrollOn ? "1" : "0");
+    } catch (_) {}
+    syncAutoScrollButtons();
+    if (autoScrollOn) {
+      modalAutoScroll.start();
+      popoutAutoScroll.start();
+    } else {
+      modalAutoScroll.stop();
+      popoutAutoScroll.stop();
+    }
   }
 
   function fitPopout() {
@@ -404,8 +472,8 @@
     const overflowing = rows.scrollHeight > stage.clientHeight + 2;
     // Center a short list; top-align a long one so scrolling shows every row.
     stage.classList.toggle("center", !overflowing);
-    if (overflowing) startPopoutAutoScroll();
-    else stopPopoutAutoScroll();
+    if (overflowing) popoutAutoScroll.start();
+    else popoutAutoScroll.stop();
   }
 
   function renderPopout() {
@@ -455,8 +523,12 @@
       row.appendChild(sc);
       frag.appendChild(row);
     }
+
+    const stage = doc.getElementById("stage");
+    const prevScroll = stage ? stage.scrollTop : 0;
     rowsEl.innerHTML = "";
     rowsEl.appendChild(frag);
+    if (stage) stage.scrollTop = Math.min(prevScroll, stage.scrollHeight);
     fitPopout();
   }
 
@@ -483,6 +555,11 @@
       flipBtn.addEventListener("click", () => invertStandingsOrder());
     }
 
+    const asBtn = doc.getElementById("asBtn");
+    if (asBtn) {
+      asBtn.addEventListener("click", () => setAutoScrollOn(!autoScrollOn));
+    }
+
     doc.addEventListener("fullscreenchange", () => {
       try {
         doc.body.classList.toggle("is-fs", !!doc.fullscreenElement);
@@ -490,16 +567,17 @@
     });
 
     // If someone scrolls the list by hand, auto-scroll backs off for a few
-    // seconds (see notedPopoutScroll), then picks up from where they stopped.
+    // seconds, then picks up from where they stopped.
     const stage = doc.getElementById("stage");
     if (stage) {
-      stage.addEventListener("scroll", () => notedPopoutScroll(stage), { passive: true });
+      stage.addEventListener("scroll", () => popoutAutoScroll.noteScroll(), { passive: true });
     }
 
     try {
       w.addEventListener("resize", () => fitPopout());
     } catch (_) {}
 
+    syncAutoScrollButtons();
     renderPopout();
   }
 
@@ -540,7 +618,7 @@
         clearInterval(popoutPoll);
         popoutPoll = null;
         popoutWin = null;
-        stopPopoutAutoScroll();
+        popoutAutoScroll.stop();
         setPopoutBtnState(false);
       }
     }, 1000);
@@ -618,6 +696,31 @@
       );
       popBtn.dataset.boundPopout = "1";
     }
+
+    // Auto-scroll on/off toggle (shared by the modal list + the pop-out window)
+    const asBtn = $("#btnAutoScrollStandings");
+    if (asBtn && !asBtn.dataset.boundAutoScroll) {
+      asBtn.addEventListener(
+        "click",
+        (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
+          setAutoScrollOn(!autoScrollOn);
+        },
+        true
+      );
+      asBtn.dataset.boundAutoScroll = "1";
+    }
+
+    // Manual scroll of the list pauses auto-scroll for a few seconds
+    const rankList = $("#modalRankingList");
+    if (rankList && !rankList.dataset.boundAutoScrollNote) {
+      rankList.addEventListener("scroll", () => modalAutoScroll.noteScroll(), { passive: true });
+      rankList.dataset.boundAutoScrollNote = "1";
+    }
+
+    syncAutoScrollButtons();
 
     // Flip button (capture + stopImmediatePropagation)
     if (flipBtn && !flipBtn.dataset.boundFlip) {

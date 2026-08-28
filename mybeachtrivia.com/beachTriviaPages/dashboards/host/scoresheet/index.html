@@ -7,11 +7,11 @@
 
     <!-- ✅ ONE place to change cache-bust version (keep in sync with sw.js ASSET_V) -->
     <script>
-      window.__SCORESHEET_ASSET_V__ = "20260828-popout3";
+      window.__SCORESHEET_ASSET_V__ = "20260828-popout4";
     </script>
 
     <!-- Main stylesheet (versioned) -->
-    <link rel="stylesheet" href="style.css?v=20260828-popout" />
+    <link rel="stylesheet" href="style.css?v=20260828-popout4" />
   <!-- Unified nav bar -->
   <link rel="stylesheet" href="/beachTriviaPages/js/bt-nav.css">
   <script src="/beachTriviaPages/js/bt-nav.js?v=hostnav-20260424-3" defer></script>
@@ -48,7 +48,7 @@
 
     <script src="js/scoring.js?v=20260821-feud-cap" defer></script>
     <script src="js/search.js?v=20260218-04" defer></script>
-    <script src="js/standings-modal.js?v=20260828-popout3" defer></script>
+    <script src="js/standings-modal.js?v=20260828-popout4" defer></script>
 
     <!-- TEAM # modal -->
     <script src="js/team-number-modal.js?v=20260302-01" defer></script>
@@ -351,6 +351,9 @@
         </button>
         <button type="button" id="btnPopoutStandings" aria-label="Open standings in a separate window for a projector or TV" title="Open in a separate window (drag to projector / TV)">
           ⧉
+        </button>
+        <button type="button" id="btnAutoScrollStandings" aria-pressed="true" aria-label="Toggle auto-scroll" title="Auto-scroll on — click to stop">
+          ⏸
         </button>
 
         <h2 id="standingsTitle">Team Standings</h2>
