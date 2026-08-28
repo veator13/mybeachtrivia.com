@@ -243,7 +243,221 @@
 
   function invertStandingsOrder() {
     setStandingsAscending(!getStandingsAscending());
+    refreshOutputs();
+  }
+
+  /* ============================================================
+     Pop-out window — a separate browser window that mirrors the
+     standings live, so a host can drag it onto a projector / TV.
+     Stays open and keeps updating even after the modal is closed.
+     ============================================================ */
+  let popoutWin = null;
+  let popoutPoll = null;
+
+  function isPopoutOpen() {
+    try {
+      return !!(popoutWin && !popoutWin.closed);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function setPopoutBtnState(on) {
+    const btn = $("#btnPopoutStandings");
+    if (btn) btn.setAttribute("aria-pressed", on ? "true" : "false");
+  }
+
+  function popoutDocHTML() {
+    return [
+      '<!doctype html><html lang="en"><head><meta charset="utf-8">',
+      '<meta name="viewport" content="width=device-width, initial-scale=1">',
+      "<title>Team Standings</title><style>",
+      ":root{--rowfs:4vw;}",
+      "*{box-sizing:border-box;margin:0;padding:0;}",
+      "html,body{height:100%;}",
+      "body{background:#0b0f14;color:#fff;overflow:hidden;display:flex;flex-direction:column;",
+      'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}',
+      "header{flex:0 0 auto;text-align:center;padding:2.5vh 2vw 1.5vh;border-bottom:2px solid rgba(0,255,204,.25);}",
+      "header h1{font-size:clamp(24px,5vw,72px);letter-spacing:.5px;text-transform:uppercase;color:#00ffcc;}",
+      "header .mode{margin-top:.4vh;font-size:clamp(12px,1.6vw,22px);color:rgba(255,255,255,.55);}",
+      "#stage{flex:1 1 auto;display:flex;flex-direction:column;justify-content:center;padding:2vh 4vw;overflow:hidden;}",
+      "#rows{display:flex;flex-direction:column;gap:1.1vh;}",
+      ".row{display:flex;align-items:center;gap:1.1em;background:rgba(255,255,255,.05);",
+      "border:1px solid rgba(255,255,255,.08);border-radius:.35em;padding:.4em .7em;font-size:var(--rowfs);line-height:1.15;}",
+      ".row .rank{flex:0 0 auto;min-width:1.9em;height:1.7em;display:inline-flex;align-items:center;justify-content:center;",
+      "background:#00ffcc;color:#062a24;border-radius:.22em;font-weight:800;}",
+      ".row .name{flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;}",
+      ".row .score{flex:0 0 auto;color:#00ffcc;font-weight:800;font-variant-numeric:tabular-nums;}",
+      ".row.leader{background:rgba(0,255,204,.14);border-color:rgba(0,255,204,.4);}",
+      ".empty{text-align:center;color:rgba(255,255,255,.4);font-size:clamp(16px,2.4vw,32px);}",
+      ".ctl{position:fixed;top:12px;width:44px;height:44px;border-radius:10px;z-index:5;",
+      "border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);color:#00ffcc;font-size:20px;cursor:pointer;}",
+      ".ctl:hover{background:rgba(255,255,255,.16);}",
+      "#flipBtn{right:66px;}#fsBtn{right:14px;}",
+      "body.is-fs .ctl{opacity:.2;}body.is-fs .ctl:hover{opacity:1;}",
+      "</style></head><body>",
+      '<button id="flipBtn" class="ctl" type="button" title="Flip order (high &harr; low)">&#8645;</button>',
+      '<button id="fsBtn" class="ctl" type="button" title="Full screen">&#9082;</button>',
+      '<header><h1>Team Standings</h1><div class="mode" id="mode"></div></header>',
+      '<div id="stage"><div id="rows"></div></div>',
+      "</body></html>"
+    ].join("");
+  }
+
+  function fitPopout() {
+    if (!isPopoutOpen()) return;
+    let doc;
+    try {
+      doc = popoutWin.document;
+    } catch (_) {
+      return;
+    }
+    const stage = doc.getElementById("stage");
+    const rows = doc.getElementById("rows");
+    if (!stage || !rows) return;
+    let fs = 4.4; // vw
+    doc.documentElement.style.setProperty("--rowfs", fs + "vw");
+    let guard = 0;
+    while (rows.scrollHeight > stage.clientHeight && fs > 0.8 && guard < 40) {
+      fs -= 0.2;
+      doc.documentElement.style.setProperty("--rowfs", fs + "vw");
+      guard++;
+    }
+  }
+
+  function renderPopout() {
+    if (!isPopoutOpen()) return;
+    let doc;
+    try {
+      doc = popoutWin.document;
+    } catch (_) {
+      return;
+    }
+    const rowsEl = doc.getElementById("rows");
+    const modeEl = doc.getElementById("mode");
+    if (!rowsEl) return;
+
+    const list = buildRankings();
+    const asc = getStandingsAscending();
+    const n = list.length;
+
+    if (modeEl) modeEl.textContent = asc ? "Low → High" : "High → Low";
+
+    if (!n) {
+      rowsEl.innerHTML = '<div class="empty">Add teams and scores to see standings</div>';
+      return;
+    }
+
+    const frag = doc.createDocumentFragment();
+    for (let i = 0; i < n; i++) {
+      const item = list[i];
+      const rankNum = asc ? n - i : i + 1;
+      const row = doc.createElement("div");
+      row.className = "row" + (rankNum === 1 ? " leader" : "");
+
+      const r = doc.createElement("span");
+      r.className = "rank";
+      r.textContent = "#" + rankNum;
+
+      const nm = doc.createElement("span");
+      nm.className = "name";
+      nm.textContent = item.name;
+
+      const sc = doc.createElement("span");
+      sc.className = "score";
+      sc.textContent = item.total;
+
+      row.appendChild(r);
+      row.appendChild(nm);
+      row.appendChild(sc);
+      frag.appendChild(row);
+    }
+    rowsEl.innerHTML = "";
+    rowsEl.appendChild(frag);
+    fitPopout();
+  }
+
+  function wirePopout(w) {
+    let doc;
+    try {
+      doc = w.document;
+    } catch (_) {
+      return;
+    }
+
+    const fsBtn = doc.getElementById("fsBtn");
+    if (fsBtn) {
+      fsBtn.addEventListener("click", () => {
+        try {
+          if (doc.fullscreenElement) doc.exitFullscreen();
+          else doc.documentElement.requestFullscreen();
+        } catch (_) {}
+      });
+    }
+
+    const flipBtn = doc.getElementById("flipBtn");
+    if (flipBtn) {
+      flipBtn.addEventListener("click", () => invertStandingsOrder());
+    }
+
+    doc.addEventListener("fullscreenchange", () => {
+      try {
+        doc.body.classList.toggle("is-fs", !!doc.fullscreenElement);
+      } catch (_) {}
+    });
+
+    try {
+      w.addEventListener("resize", () => fitPopout());
+    } catch (_) {}
+
+    renderPopout();
+  }
+
+  function openPopout() {
+    if (isPopoutOpen()) {
+      try {
+        popoutWin.focus();
+      } catch (_) {}
+      renderPopout();
+      return;
+    }
+
+    const w = window.open("", "BT_Standings_Popout", "width=1280,height=720");
+    if (!w) {
+      window.alert(
+        "The standings window was blocked by your browser.\n\nAllow pop-ups for this site, then click the pop-out button again."
+      );
+      return;
+    }
+
+    popoutWin = w;
+    try {
+      w.document.open();
+      w.document.write(popoutDocHTML());
+      w.document.close();
+    } catch (_) {}
+
+    if (w.document && w.document.readyState === "complete") {
+      wirePopout(w);
+    } else {
+      w.addEventListener("load", () => wirePopout(w), { once: true });
+    }
+
+    setPopoutBtnState(true);
+    if (popoutPoll) clearInterval(popoutPoll);
+    popoutPoll = setInterval(() => {
+      if (!isPopoutOpen()) {
+        clearInterval(popoutPoll);
+        popoutPoll = null;
+        popoutWin = null;
+        setPopoutBtnState(false);
+      }
+    }, 1000);
+  }
+
+  function refreshOutputs() {
     updateStandings();
+    renderPopout();
   }
 
   // Debounce for live-updating while modal open
@@ -257,7 +471,7 @@
       };
     };
 
-  const updateStandingsDebounced = debounce(updateStandings, 120);
+  const updateStandingsDebounced = debounce(refreshOutputs, 120);
 
   function bind() {
     const modal = $("#standingsModal");
@@ -296,6 +510,22 @@
         true
       );
       fsBtn.dataset.boundFullscreen = "1";
+    }
+
+    // Pop-out button — opens standings in a separate window for a projector / TV
+    const popBtn = $("#btnPopoutStandings");
+    if (popBtn && !popBtn.dataset.boundPopout) {
+      popBtn.addEventListener(
+        "click",
+        (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
+          openPopout();
+        },
+        true
+      );
+      popBtn.dataset.boundPopout = "1";
     }
 
     // Flip button (capture + stopImmediatePropagation)
@@ -337,10 +567,18 @@
     modal.dataset.boundStandingsModal = "1";
   }
 
+  // The pop-out mirror can't update once this tab is gone — close it with the tab.
+  window.addEventListener("beforeunload", () => {
+    try {
+      if (isPopoutOpen()) popoutWin.close();
+    } catch (_) {}
+  });
+
   // Expose
   window.updateStandings = window.updateStandings || updateStandings;
   window.showStandings = window.showStandings || showStandings;
   window.invertStandingsOrder = window.invertStandingsOrder || invertStandingsOrder;
+  window.openStandingsPopout = window.openStandingsPopout || openPopout;
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", bind, { once: true });

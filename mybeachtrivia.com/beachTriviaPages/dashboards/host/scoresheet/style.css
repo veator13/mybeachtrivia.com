@@ -1505,6 +1505,50 @@ body.modal-open #teamTable th {
     outline-offset: 3px;
 }
 
+/* ===== Pop-out to separate window (projector / TV) ===== */
+#btnPopoutStandings {
+    position: absolute;
+    top: 18px;
+    left: 84px;
+
+    width: 56px;
+    height: 56px;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+
+    background: rgba(255, 255, 255, 0.07);
+    color: #00ffcc;
+    font-size: 24px;
+    line-height: 1;
+
+    cursor: pointer;
+    transition: background 0.18s ease, transform 0.12s ease;
+}
+#btnPopoutStandings:hover {
+    background: rgba(255, 255, 255, 0.14);
+    transform: translateY(-1px) scale(1.02);
+}
+#btnPopoutStandings:active {
+    transform: translateY(0) scale(0.99);
+}
+#btnPopoutStandings:focus-visible {
+    outline: 2px solid rgba(0, 255, 204, 0.75);
+    outline-offset: 3px;
+}
+#btnPopoutStandings[aria-pressed="true"] {
+    background: rgba(0, 255, 204, 0.18);
+    border-color: rgba(0, 255, 204, 0.5);
+}
+
+@media (max-width: 640px) {
+    #btnPopoutStandings { left: 78px; width: 52px; height: 52px; border-radius: 14px; }
+}
+
 /* ===== Fullscreen standings state ===== */
 #standingsModal .modal-content.standings-fullscreen {
     width: 96vw;
