@@ -355,11 +355,15 @@
       }
     }
 
-    function start() {
+    // opts.immediate — start moving right away: no end-of-list dwell and clear
+    // any lingering "human just scrolled" pause. Used when the play button is
+    // pressed; every other caller gets the gentle default.
+    function start(opts) {
       stop();
       if (!autoScrollOn) return;
       dir = 1;
-      hold = 40;
+      hold = opts && opts.immediate ? 0 : 40;
+      if (opts && opts.immediate) pauseUntil = 0;
       lastAutoTop = -1;
       timer = setInterval(() => {
         if (!autoScrollOn) {
@@ -439,8 +443,9 @@
     } catch (_) {}
     syncAutoScrollButtons();
     if (autoScrollOn) {
-      modalAutoScroll.start();
-      popoutAutoScroll.start();
+      // Pressing play resumes instantly — no 5s hands-off, no end dwell.
+      modalAutoScroll.start({ immediate: true });
+      popoutAutoScroll.start({ immediate: true });
     } else {
       modalAutoScroll.stop();
       popoutAutoScroll.stop();
