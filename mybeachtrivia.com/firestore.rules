@@ -81,11 +81,12 @@ service cloud.firestore {
       // Create by admin only
       allow create: if isAdmin();
 
-      // Update: admin any; employee only allow-listed keys on self
+      // Update: admin any; employee only allow-listed keys on self.
+      // affectedKeys() (not changedKeys()) so a self-edit can't add new keys.
       allow update: if isAdmin()
                  || (isSelf(uid) &&
                      request.resource.data.diff(resource.data)
-                       .changedKeys().hasOnly(selfAllowedKeys()));
+                       .affectedKeys().hasOnly(selfAllowedKeys()));
 
       // Delete by admin only
       allow delete: if isAdmin();
@@ -424,6 +425,9 @@ service cloud.firestore {
       allow create: if isHostOrAdmin()
         && request.resource.data.requestingHostId == request.auth.uid
         && request.resource.data.status == "open"
+        && request.resource.data.shiftId is string
+        && exists(/databases/$(database)/documents/shifts/$(request.resource.data.shiftId))
+        && get(/databases/$(database)/documents/shifts/$(request.resource.data.shiftId)).data.employeeId == request.auth.uid
         && (
           !("offerType" in request.resource.data)
           || (
@@ -437,16 +441,26 @@ service cloud.firestore {
       allow update: if isHostOrAdmin() && (
         // Accept: open → pending_admin, no shift move yet.
         // Open offers: any host but the requester. Direct offers: only the target.
+        // The accepter may touch ONLY the accept fields (affectedKeys catches
+        // added keys too, unlike changedKeys) and cannot re-point the request.
         (resource.data.status == "open"
           && request.resource.data.status == "pending_admin"
           && request.resource.data.acceptingHostId == request.auth.uid
           && resource.data.requestingHostId != request.auth.uid
           && (resource.data.get("offerType", "open") == "open"
-              || resource.data.targetHostId == request.auth.uid))
+              || resource.data.targetHostId == request.auth.uid)
+          && request.resource.data.requestingHostId == resource.data.requestingHostId
+          && request.resource.data.shiftId == resource.data.shiftId
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(["status", "acceptingHostId", "acceptingHostName", "acceptedAt", "updatedAt"]))
         // Requester withdraws their own offer
         || (resource.data.requestingHostId == request.auth.uid
           && request.resource.data.status == "cancelled"
-          && resource.data.status in ["open", "pending_admin"])
+          && resource.data.status in ["open", "pending_admin"]
+          && request.resource.data.requestingHostId == resource.data.requestingHostId
+          && request.resource.data.shiftId == resource.data.shiftId
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(["status", "cancelledAt", "updatedAt"]))
         // Admin: any change (approve / reject / expire / fix)
         || isAdmin()
       );
@@ -513,9 +527,12 @@ service cloud.firestore {
     match /notifications/{notifId} {
       allow read: if signedIn() && resource.data.recipientId == request.auth.uid;
 
+      // affectedKeys() (not changedKeys()) so a recipient can't sneak an extra
+      // field in alongside readAt.
       allow update: if signedIn()
         && resource.data.recipientId == request.auth.uid
-        && request.resource.data.diff(resource.data).changedKeys().hasOnly(['readAt']);
+        && request.resource.data.recipientId == resource.data.recipientId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readAt']);
 
       allow create, delete: if false;
     }
@@ -545,10 +562,13 @@ service cloud.firestore {
         || (
           isHostOrAdmin()
           && resource.data.hostId == request.auth.uid
+          && request.resource.data.hostId == resource.data.hostId
+          && request.resource.data.startDate == resource.data.startDate
+          && request.resource.data.endDate == resource.data.endDate
           && request.resource.data.status == "cancelled"
           && resource.data.status in ["pending", "approved"]
           && request.resource.data.diff(resource.data)
-               .changedKeys().hasOnly(["status", "updatedAt", "cancelledAt"])
+               .affectedKeys().hasOnly(["status", "updatedAt", "cancelledAt"])
         );
 
       allow delete: if isAdmin();
