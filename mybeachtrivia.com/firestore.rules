@@ -441,10 +441,11 @@ service cloud.firestore {
           && request.resource.data.status == "approved"
           && request.resource.data.acceptingHostId == request.auth.uid)
         // New accept: open → pending_admin, no shift move yet.
-        // Open offers: any host. Direct offers: only the named target.
+        // Open offers: any host but the requester. Direct offers: only the target.
         || (resource.data.status == "open"
           && request.resource.data.status == "pending_admin"
           && request.resource.data.acceptingHostId == request.auth.uid
+          && resource.data.requestingHostId != request.auth.uid
           && (resource.data.get("offerType", "open") == "open"
               || resource.data.targetHostId == request.auth.uid))
         // Requester withdraws their own offer
