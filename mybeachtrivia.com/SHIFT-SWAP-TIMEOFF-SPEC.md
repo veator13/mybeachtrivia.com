@@ -95,7 +95,7 @@ Known, non-blocking for Phase 3:
   the host dashboard, scoresheet, admin calendar; "Time Off" nav item present
   on every host page.
 
-Next: Phase 5 (time-off admin side — approve/deny + shift-conflict popup).
+Next: Phase 6 (calendar visuals — host yellow days, admin host-picker greying + assign warning) and Phase 7 (admin Requests history page).
 
 Phase 0 follow-ups (not blockers):
 - `notifications` has no TTL/cleanup yet — an open offer fans out ~1 doc per host.
@@ -559,6 +559,25 @@ Twilio at this volume is ~$1–2/month.
    - Cache-bust `?v=20260830-timeoff5`.
    Not in this phase (→ Phase 6): host yellow time-off days; admin host-picker
    greying + assign-time overlap warning.
+
+**Phase 5 staging test 2026-08-30 — GREEN:**
+- Admin "Time off — needs review" section renders pending requests (host, range,
+  N days, "⚠ Inside 2 weeks" badge, note, Approve / Deny).
+- Approve, no conflicts → straight through, `conflictResolution: "none"`.
+- Approve, 2 conflicting shifts → inline panel (host `<select>` per shift);
+  reassigned one to another host + left one flagged → shift moved,
+  `shifts.timeOffConflict=true` on the other, request approved
+  `conflictResolution: "partial"`, `deferredShiftIds: [that shift]`.
+- Flagged shift renders **red** + "TIME OFF" tag on the admin calendar; the
+  reassigned one shows normal.
+- Deny with reason → `denied` + `denialReason`.
+- Notifications: `timeoff_submitted` ×3 to the admin, `timeoff_approved` ×2 and
+  `timeoff_denied` (with the reason) to the host.
+- Host cancels the approved-partial request → `onTimeOffRequestWrite` clears
+  `timeOffConflict`/`timeOffRequestId` off the shift and notifies the admin
+  (`timeoff_conflict`, "1 shift flag(s) cleared"). Calendar red flag gone.
+- Note: the new `shifts (employeeId, date)` index takes ~2 min to build; approve
+  fails with `INTERNAL` until it's `READY`.
 6. **Calendar visuals** — host: own approved time off = yellow day-number
    background. Admin: `timeOffConflict` shifts = red; host-picker greys + sinks
    hosts with overlapping approved time off + warns on assign.
