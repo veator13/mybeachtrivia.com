@@ -578,6 +578,23 @@ Twilio at this volume is ~$1–2/month.
   (`timeoff_conflict`, "1 shift flag(s) cleared"). Calendar red flag gone.
 - Note: the new `shifts (employeeId, date)` index takes ~2 min to build; approve
   fails with `INTERNAL` until it's `READY`.
+
+**Phases 0–5 full regression 2026-08-30 — GREEN.**
+- 17/17 rules + Cloud-Function-auth checks pass as a pure host: can't read
+  others' notifications/time-off, can't create/edit-beyond-`readAt` a
+  notification, can't write `shifts` (incl. `timeOffConflict`), can't create an
+  offer for a shift it doesn't own, can't create time-off for another host or
+  self-approve, can't call `approveShiftSwap` / `rejectShiftSwap` /
+  `approveTimeOff` / `denyTimeOff`. Legit paths all pass.
+- Bell: 30 mixed notifications render with correct labels (Time Off — Needs
+  Review, Time Off Conflict, Shift Offer, Swap Approved, Swap — Needs Approval,
+  …), badge accurate, open/close, live updates.
+- Admin dashboard: "Open Shift Offers" + "Pending Swaps" stats load; bell works.
+- Admin + host calendars load with no console errors; shift CRUD works; the
+  admin "Shift Swaps & Offers" modal opens clean with the empty-state naming all
+  three categories.
+- `totalShifts` 351 = the real Aug+Sep schedule (per-month renders show ~117);
+  no runaway creation.
 6. **Calendar visuals** — host: own approved time off = yellow day-number
    background. Admin: `timeOffConflict` shifts = red; host-picker greys + sinks
    hosts with overlapping approved time off + warns on assign.
