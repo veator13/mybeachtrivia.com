@@ -491,8 +491,24 @@ Twilio at this volume is ~$1–2/month.
    reloads calendar on approve, no longer touches `shiftSwapNotifications` or the
    bell dropdown. `onCoverageRequestWrite` fires swap_approved/rejected to both
    hosts.
-4. **Time off — host side** — request form (date range), 2-week warning,
-   "Manage Time Off" modal + nav tab + page, self-cancel.
+4. **Time off — host side** — ✅ DONE 2026-08-30, deployed + staging-tested green.
+   - `beachTriviaPages/js/bt-time-off.js` + `.css` (new, shared): `BtTimeOff`
+     module — `submit` (date range, full days, past/reversed/overlap guards,
+     `insideTwoWeeks` computed at submit), `cancel` (own request, pending OR
+     approved, no admin approval), `subscribeMine` live listener, `renderList`
+     cards, `wireForm` (the 2-week lead-time warning text from §3).
+   - New page `dashboards/host/time-off/` ("Manage Time Off") — form + your-
+     requests list, guarded by `guard-host.js`.
+   - "Time Off" nav item added to the host nav (`bt-nav.js`, between Calendar
+     and Scoresheet). bt-nav cache-bust → `?v=hostnav-20260830-timeoff`.
+   - `employee-calendar`: "Manage Time Off" button + `#timeoff-modal` (same form
+     + list, links to the full page); `js/time-off-modal.js` wires it.
+   - Tested: 2-week warning toggles on date change; `insideTwoWeeks` stored +
+     shown as an "inside 2 weeks" flag on pending cards; submit → pending + live
+     list; cancel → `cancelled`; overlap / past-date / reversed-range all
+     blocked. Fixed a `formatRange` bug (Chrome renders `{day, year}` as
+     "YYYY (day: N)").
+   - No notifications yet — `timeoff_submitted` to admins comes with Phase 5/8.
 5. **Time off — admin side** — approval queue, inside-2-weeks flag, conflict popup
    (reassign / resolve later); `approveTimeOff` / `denyTimeOff` / `cancelTimeOff`.
 6. **Calendar visuals** — host: own approved time off = yellow day-number
