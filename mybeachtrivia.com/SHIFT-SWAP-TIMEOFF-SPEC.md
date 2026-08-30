@@ -16,8 +16,37 @@ time-off collections deployed (additive; nothing broke).
 
 **Phase 2 done 2026-08-30** — host swap UI (open/direct picker, Mon–Sat week
 lock, accept → pending_admin without moving the shift). Deployed + tested on
-staging. Next: Phase 3 (admin approve/reject UI + the shift-moving Cloud
-Function). Also drop the host `shifts.employeeId` self-update rule in Phase 3.
+staging.
+
+**Phase 0–2 regression sweep done 2026-08-30 — GREEN.** Verified on staging:
+- Rules boundary (as a pure host): cannot read others' notifications, cannot
+  create/delete notifications, cannot `pending_admin → approved`/`rejected`
+  (the Phase 3 gate holds), cannot self-accept an offer, cannot write arbitrary
+  `shifts` fields, cannot create time-off for another host / pre-approved /
+  bad-range / self-approve. Legit paths (own cancel, own time-off create+cancel,
+  accepting another host's open offer) all pass.
+- Week-lock math: correct for all 9 boundary dates (Sun today → everything
+  ≤ today locked, next Mon onward open).
+- Bell: badge live-updates without reload; opening pins the unread set (dots
+  stay) and clears the badge; outside-click / Escape close; state now driven by
+  an `_ntfOpen` boolean so a stray click can't desync the toggle. bt-nav.js
+  cache-bust normalised to `?v=hostnav-20260830-bell` on all 25 pages.
+- `onHostNotificationCreate` still mirrors admin assign/remove/reassign to the
+  bell. Admin calendar loads clean (117 shifts, no errors), `ShiftSwapAdmin`
+  present.
+- Rule tightened: `open → pending_admin` now also needs
+  `requestingHostId != auth.uid`.
+
+Known, non-blocking for Phase 3:
+- Orphan coverage-request cleanup (`filterOrphans` setting `shift_deleted`) only
+  works when an **admin** views — a host lacks the rule for that status write.
+  Phase 3's approve CF should handle a missing shift server-side.
+- `notifications` still has no TTL; test + real docs accumulate.
+- Bell listener still pauses on a foreground→background transition and catches
+  up on refocus.
+
+Next: Phase 3 (admin approve/reject UI + `approveShiftSwap` Cloud Function that
+moves the shift; drop the host `shifts.employeeId` self-update rule).
 
 Phase 0 follow-ups (not blockers):
 - `notifications` has no TTL/cleanup yet — an open offer fans out ~1 doc per host.
