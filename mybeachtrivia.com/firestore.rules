@@ -474,10 +474,28 @@ service cloud.firestore {
        Each user can read/write their own doc.
        Admin can also write any user's doc to increment unread counters
        when assigning/reassigning/removing shifts.
+       NOTE: superseded by the `notifications` collection below; kept until
+       shift-service.js is migrated off hostNotifications/userBellState.
     */
     match /userBellState/{uid} {
       allow read: if request.auth.uid == uid || isAdmin();
       allow write: if request.auth.uid == uid || isAdmin();
+    }
+
+    /* ========= Notifications =========
+       Single source of truth for the nav bell. One doc per recipient, written
+       server-side by functions_gcfv1/notifications.js (Admin SDK, bypasses
+       these rules). Recipients may read their own and mark them read; they may
+       never create, delete, or change anything but `readAt`.
+    */
+    match /notifications/{notifId} {
+      allow read: if signedIn() && resource.data.recipientId == request.auth.uid;
+
+      allow update: if signedIn()
+        && resource.data.recipientId == request.auth.uid
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(['readAt']);
+
+      allow create, delete: if false;
     }
 
     /* ========= Leads automation (venues / leads / leadObservations) =========

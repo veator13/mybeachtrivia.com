@@ -655,6 +655,46 @@ body.bt-nav-active {
   cursor: default;
 }
 
+/* ── Bell: notification item (server-driven model) ── */
+.bt-nav__bell-item-open {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.bt-nav__bell-item-body {
+  font-size: 12px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.bt-nav__bell-item-when {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  margin-top: 2px;
+}
+
+#bt-nav .bt-nav__bell-mark-read {
+  display: block;
+  width: 100%;
+  padding: 8px 14px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  color: #60a5fa;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: right;
+  transition: background 0.12s;
+}
+
+#bt-nav .bt-nav__bell-mark-read:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
 /* ── Auto-hide scrollbar ────────────────────────────────────────────────────
    At rest the scrollbar takes ZERO layout space (removed entirely), so it
    never clips the nav bar or shifts page content.

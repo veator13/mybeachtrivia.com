@@ -350,6 +350,15 @@ exports.ingestLeadResearch = leads.ingestLeadResearch;
 exports.leadsResearchQueue = leads.leadsResearchQueue;
 
 /** ------------------------------------------
+ * Beach Trivia: nav-bell notifications (Phase 0 of shift-swap feature)
+ * Materialises the `notifications` collection from shift events.
+ * ----------------------------------------- */
+const notifications = require("./notifications");
+exports.onCoverageRequestWrite = notifications.onCoverageRequestWrite;
+exports.onSwapNotificationWrite = notifications.onSwapNotificationWrite;
+exports.onHostNotificationCreate = notifications.onHostNotificationCreate;
+
+/** ------------------------------------------
  * BeachTrivia: cleanup old anonymous users (scheduled)
  * ----------------------------------------- */
 exports.cleanupStaleAnonymousUsers = functions.pubsub

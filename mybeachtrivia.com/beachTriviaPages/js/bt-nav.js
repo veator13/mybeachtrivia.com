@@ -444,35 +444,7 @@
     bellDropdown.id = 'bt-nav-bell-dropdown';
     bellDropdown.setAttribute('aria-hidden', 'true');
     bellDropdown.innerHTML = '<p class="bt-nav__bell-empty">No new notifications</p>';
-    _bellDropdownEl = bellDropdown;
-
-    bellBtn.addEventListener('click', function (e) {
-      e.stopPropagation();
-      var isOpen = bellDropdown.getAttribute('aria-hidden') === 'false';
-      bellDropdown.setAttribute('aria-hidden', isOpen ? 'true' : 'false');
-      if (!isOpen) {
-        bellDropdown.innerHTML = '<p class="bt-nav__bell-empty">Loading notifications…</p>';
-        _bellRenderDropdown();
-        _bellLoadLatestItems();
-        document.dispatchEvent(new CustomEvent('bt:bell-open'));
-        // Clear the red badge immediately when opening the dropdown.
-        // We suppress dropdown rerender so any existing "unseen" indicators
-        // remain stable for this open moment.
-        markBellSeen({ rerender: false });
-      } else {
-        markBellSeen();
-      }
-    });
-
-    document.addEventListener('click', function () {
-      var wasOpen = bellDropdown.getAttribute('aria-hidden') === 'false';
-      bellDropdown.setAttribute('aria-hidden', 'true');
-      if (wasOpen) markBellSeen();
-    });
-
-    bellDropdown.addEventListener('click', function (e) {
-      e.stopPropagation();
-    });
+    // Bell open/close + rendering is wired by the notifications module (initBellCount).
 
     bellWrap.appendChild(bellBtn);
     bellWrap.appendChild(bellDropdown);
@@ -698,702 +670,286 @@
     }
   }
 
-  // ─── Bell Count ──────────────────────────────────────────────────────────────
+  // ─── Notifications bell ──────────────────────────────────────────────────────
+  //
+  // Single source of truth: the `notifications` collection, one doc per
+  // recipient, written server-side by functions_gcfv1/notifications.js.
+  //   notifications/{id}: { recipientId, type, title, body, link, data,
+  //                         createdAt, readAt }
+  // Badge = count of own docs with readAt == null. Opening the bell marks the
+  // visible unread ones read. No client ever reads shiftCoverageRequests /
+  // shiftSwapNotifications / hostNotifications for the bell.
 
-  var _bellUnsubOffers = null;
-  var _bellUnsubDeletedOffers = null;
-  var _bellUnsubAdminOffers = null;
-  var _bellUnsubHostAssignments = null;
-  var _bellUnsubState = null;
-  var _bellLastSeenMs = 0;
-  var _bellStateLoaded = false;
-  var _bellOffersData = [];
-  var _bellDeletedOffersData = [];
-  var _bellAdminData = [];
-  var _bellHostAssignmentsData = [];
-  var _bellCurrentUid = null;
-  var _bellDropdownEl = null;
-  var _bellUserRoles = [];
-  var _bellOlderData = [];
-  var _bellOlderLoaded = false;
-  var _offersListenerClaimed = false;
-  var _bellSeenStorageKey = 'bt:bellSeenAtMs';
-  var _bellHostNotificationsCollection = 'hostNotifications';
-  var _bellLastKnownUid = null;
-  var _bellUnreadCount = 0;
-  var _bellOpenSeenMs = null; // pinned _bellLastSeenMs at the moment the dropdown opens
+  var _ntfUnsub = null;
+  var _ntfItems = [];
+  var _ntfUid = null;
+  var _ntfDropdownEl = null;
+  var _ntfBtnEl = null;
+  var _ntfWired = false;
+  var _ntfPinnedUnread = null; // ids unread at the moment the dropdown opened
 
-  function _bellFormatDate(dateStr) {
-    if (!dateStr) return '';
-    var d = new Date(dateStr + 'T12:00:00');
-    if (isNaN(d.getTime())) return dateStr;
-    return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  var NTF_COLLECTION = 'notifications';
+
+  var NTF_LABELS = {
+    shift_offer_open: 'Shift Offer',
+    shift_offer_direct: 'Direct Switch',
+    shift_offer_claimed: 'Offer Claimed',
+    shift_offer_cancelled: 'Offer Cancelled',
+    shift_offer_uncovered: 'Uncovered Shift',
+    swap_pending_admin: 'Swap — Needs Approval',
+    swap_approved: 'Swap Approved',
+    swap_rejected: 'Swap Rejected',
+    shift_assigned: 'Shift Assigned',
+    shift_removed: 'Shift Removed',
+    shift_reassigned: 'Shift Reassigned',
+    timeoff_submitted: 'Time Off — Needs Review',
+    timeoff_approved: 'Time Off Approved',
+    timeoff_denied: 'Time Off Denied',
+    timeoff_conflict: 'Time Off Conflict'
+  };
+
+  function _ntfDb() {
+    return (window.firebase && window.firebase.firestore) ? window.firebase.firestore() : null;
   }
 
-  function _bellToMillis(ts) {
+  function _ntfEsc(str) {
+    return String(str == null ? '' : str)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function _ntfToMillis(ts) {
     if (!ts) return 0;
     if (typeof ts.toMillis === 'function') return ts.toMillis();
     if (typeof ts.toDate === 'function') {
       var d = ts.toDate();
       return d && !isNaN(d.getTime()) ? d.getTime() : 0;
     }
-    var parsed = new Date(ts);
-    return isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+    var p = new Date(ts);
+    return isNaN(p.getTime()) ? 0 : p.getTime();
   }
 
-  function _bellGetLocalSeenMs() {
-    try {
-      return Number(localStorage.getItem(_bellSeenStorageKey) || 0) || 0;
-    } catch (_) {
-      return 0;
+  function _ntfWhen(ts) {
+    var ms = _ntfToMillis(ts);
+    if (!ms) return '';
+    var diff = Date.now() - ms;
+    var min = Math.round(diff / 60000);
+    if (min < 1) return 'just now';
+    if (min < 60) return min + 'm ago';
+    var hr = Math.round(min / 60);
+    if (hr < 24) return hr + 'h ago';
+    var day = Math.round(hr / 24);
+    if (day < 7) return day + 'd ago';
+    var d = new Date(ms);
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+
+  function _ntfLabel(type) {
+    return NTF_LABELS[type] || 'Notification';
+  }
+
+  function _ntfIsOpen() {
+    var el = _ntfDropdownEl || document.getElementById('bt-nav-bell-dropdown');
+    return !!el && el.getAttribute('aria-hidden') === 'false';
+  }
+
+  function _ntfUnreadCount() {
+    return _ntfItems.reduce(function (c, n) { return c + (n.readAt ? 0 : 1); }, 0);
+  }
+
+  function _ntfUpdateBadge() {
+    var countEl = document.getElementById('bt-nav-bell-count');
+    if (!countEl) return;
+    var n = _ntfUnreadCount();
+    if (n > 0) {
+      countEl.textContent = n > 99 ? '99+' : String(n);
+      countEl.hidden = false;
+      countEl.style.display = '';
+    } else {
+      countEl.textContent = '';
+      countEl.hidden = true;
+      countEl.style.display = 'none';
     }
   }
 
-  function _bellSetLocalSeenMs(ms) {
-    try {
-      localStorage.setItem(_bellSeenStorageKey, String(Number(ms) || 0));
-    } catch (_) {}
-  }
-
-  function _bellResolveSeenMsFromStateDoc(snap) {
-    if (!snap || !snap.exists) return _bellGetLocalSeenMs();
-
-    var data = snap.data() || {};
-    var fromNumber = Number(data.lastSeenAtMs || 0) || 0;
-    var fromTimestamp = data.lastSeenAt && typeof data.lastSeenAt.toMillis === 'function'
-      ? data.lastSeenAt.toMillis()
-      : 0;
-    var fromLocal = _bellGetLocalSeenMs();
-
-    return Math.max(fromNumber, fromTimestamp, fromLocal);
-  }
-
-  function _bellResolveUnreadCountFromStateDoc(snap) {
-    if (!snap || !snap.exists) return 0;
-    var data = snap.data() || {};
-    return Math.max(0, Number(data.unreadCount || 0) || 0);
-  }
-
-  function _bellNormalizeAssignmentType(data) {
-    var explicitType = String(data.type || data._notifType || '').toLowerCase();
-    if (explicitType === 'shift_removed') return 'shift_removed';
-    if (explicitType === 'shift_reassigned') return 'shift_reassigned';
-    if (explicitType === 'shift_assigned') return 'shift_assigned';
-
-    var status = String(data.assignmentStatus || data.status || '').toLowerCase();
-    if (status === 'shift_deleted' || status === 'deleted' || status === 'removed' || status === 'shift_removed') {
-      return 'shift_removed';
-    }
-    if (status === 'reassigned' || status === 'shift_reassigned') {
-      return 'shift_reassigned';
-    }
-    return 'shift_assigned';
-  }
-
-  function _bellBuildHtml(items) {
-    var filtered = items.filter(function (data) {
-      if (
-        data._notifType === 'coverage' ||
-        data._notifType === 'coverage_deleted' ||
-        data._notifType === 'coverage_cancelled' ||
-        data._notifType === 'coverage_filled'
-      ) {
-        return data.requestingHostId !== _bellCurrentUid;
-      }
-      if (
-        data._notifType === 'shift_assigned' ||
-        data._notifType === 'shift_removed' ||
-        data._notifType === 'shift_reassigned'
-      ) {
-        return data.targetHostId === _bellCurrentUid;
-      }
-      return true;
-    });
-
-    filtered = filtered.slice().sort(function (a, b) {
-      return _bellToMillis(b.createdAt) - _bellToMillis(a.createdAt);
-    });
-
-    if (!filtered.length) return '<p class="bt-nav__bell-empty">No notifications</p>';
-
-    var html = '<ul class="bt-nav__bell-list">';
-    filtered.forEach(function (data) {
-      var isDeleted = data._notifType === 'coverage_deleted';
-      var isCancelled = data._notifType === 'coverage_cancelled';
-      var isFilled = data._notifType === 'coverage_filled';
-
-      var isAssigned = data._notifType === 'shift_assigned';
-      var isRemoved = data._notifType === 'shift_removed';
-      var isReassigned = data._notifType === 'shift_reassigned';
-
-      var label = data._notifType === 'swap'
-        ? 'Swap Request'
-        : (isAssigned || isRemoved || isReassigned)
-          ? 'Shift Assigned'
-          : 'Coverage Request';
-
-      var calLink = data._notifType === 'swap'
-        ? '/beachTriviaPages/dashboards/admin/calendar/'
-        : '/beachTriviaPages/dashboards/host/employee-calendar/';
-
-      var venue = data.venueName || data.locationName || data.venue || data.location || 'Open Shift';
-      var date = _bellFormatDate(data.date || data.shiftDate || '');
-      var time = data.time || data.startTime || data.shiftTime || '';
-      var createdMs = _bellToMillis(data.createdAt);
-      var seenCutoff = _bellOpenSeenMs !== null ? _bellOpenSeenMs : _bellLastSeenMs;
-      var isNew = createdMs > seenCutoff;
-      var unseenDot = isNew ? '<span class="bt-nav__bell-item-unseen-dot" aria-hidden="true"></span>' : '';
-
-      if (isDeleted || isCancelled || isFilled) {
-        var resolvedBadge = isDeleted
-          ? '<span class="bt-nav__bell-item-deleted-badge">SHIFT DELETED</span>'
-          : isCancelled
-            ? '<span class="bt-nav__bell-item-cancelled-badge">REQUEST CANCELLED</span>'
-            : '<span class="bt-nav__bell-item-filled-badge">REQUEST FILLED</span>';
-
-        var resolvedClass = isFilled
-          ? ' bt-nav__bell-item--filled'
-          : ' bt-nav__bell-item--deleted';
-
-        html += '<li class="bt-nav__bell-item' + resolvedClass + '">' +
-          '<div class="bt-nav__bell-item-header">' +
-            unseenDot +
-            '<span class="bt-nav__bell-item-label">' + label + '</span>' +
-            resolvedBadge +
-          '</div>' +
-          '<span class="bt-nav__bell-item-venue">' + venue + '</span>' +
-          (date ? '<span class="bt-nav__bell-item-date">' + date + (time ? ' · ' + time : '') + '</span>' : '') +
-          '</li>';
-        return;
-      }
-
-      if (isRemoved || isReassigned) {
-        var assignmentResolvedBadge = isRemoved
-          ? '<span class="bt-nav__bell-item-deleted-badge">SHIFT REMOVED</span>'
-          : '<span class="bt-nav__bell-item-cancelled-badge">SHIFT REASSIGNED</span>';
-        var assignmentLabel = isRemoved ? 'Shift Removed' : 'Shift Reassigned';
-
-        html += '<li class="bt-nav__bell-item bt-nav__bell-item--deleted">' +
-          '<div class="bt-nav__bell-item-header">' +
-            unseenDot +
-            '<span class="bt-nav__bell-item-label">' + assignmentLabel + '</span>' +
-            assignmentResolvedBadge +
-          '</div>' +
-          '<span class="bt-nav__bell-item-venue">' + venue + '</span>' +
-          (date ? '<span class="bt-nav__bell-item-date">' + date + (time ? ' · ' + time : '') + '</span>' : '') +
-          '<a class="bt-nav__bell-item-link" href="' + calLink + '">View Calendar →</a>' +
-          '</li>';
-        return;
-      }
-
-      if (isAssigned) {
-        html += '<li class="bt-nav__bell-item' + (isNew ? ' bt-nav__bell-item--new' : '') + '">' +
-          '<div class="bt-nav__bell-item-header">' +
-            unseenDot +
-            '<span class="bt-nav__bell-item-label">Shift Assigned</span>' +
-            (isNew
-              ? '<span class="bt-nav__bell-item-new-badge">NEW</span>'
-              : '<span class="bt-nav__bell-item-filled-badge">SHIFT ASSIGNED</span>') +
-          '</div>' +
-          '<span class="bt-nav__bell-item-venue">' + venue + '</span>' +
-          (date ? '<span class="bt-nav__bell-item-date">' + date + (time ? ' · ' + time : '') + '</span>' : '') +
-          '<a class="bt-nav__bell-item-link" href="' + calLink + '">View Calendar →</a>' +
-          '</li>';
-        return;
-      }
-
-      html += '<li class="bt-nav__bell-item' + (isNew ? ' bt-nav__bell-item--new' : '') + '">' +
-        '<div class="bt-nav__bell-item-header">' +
-          unseenDot +
-          '<span class="bt-nav__bell-item-label">' + label + '</span>' +
-          (isNew ? '<span class="bt-nav__bell-item-new-badge">NEW</span>' : '') +
-        '</div>' +
-        '<span class="bt-nav__bell-item-venue">' + venue + '</span>' +
-        (date ? '<span class="bt-nav__bell-item-date">' + date + (time ? ' · ' + time : '') + '</span>' : '') +
-        '<a class="bt-nav__bell-item-link" href="' + calLink + '">View Calendar →</a>' +
-        '</li>';
-    });
-    html += '</ul>';
-
-    if (!_bellOlderLoaded) {
-      html += '<button class="bt-nav__bell-load-more" id="bt-nav-bell-load-older" type="button">Load older notifications</button>';
-    }
-
-    return html;
-  }
-
-  function _bellIsDropdownOpen() {
-    var el = _bellDropdownEl || document.getElementById('bt-nav-bell-dropdown');
-    return el ? el.getAttribute('aria-hidden') === 'false' : false;
-  }
-
-  function _bellRenderDropdown() {
-    var el = _bellDropdownEl || document.getElementById('bt-nav-bell-dropdown');
+  function _ntfRender() {
+    var el = _ntfDropdownEl || document.getElementById('bt-nav-bell-dropdown');
     if (!el) return;
 
-    el.innerHTML = _bellBuildHtml(
-      _bellOffersData
-        .concat(_bellAdminData)
-        .concat(_bellHostAssignmentsData)
-        .concat(_bellOlderData)
-        .concat(_bellDeletedOffersData)
-    );
-
-    // If the user clicks a notification's "View Calendar" link, mark as seen
-    // before navigation. (We stop propagation elsewhere, so markBellSeen()
-    // wouldn't otherwise run on outside-click.)
-    if (!el.dataset.btBellLinkSeenWired) {
-      el.dataset.btBellLinkSeenWired = "1";
-      el.addEventListener('click', function (e) {
-        var link = e.target && e.target.closest ? e.target.closest('a.bt-nav__bell-item-link') : null;
-        if (!link) return;
-        try { el.setAttribute('aria-hidden', 'true'); } catch (_) {}
-        markBellSeen();
-      });
+    if (!_ntfItems.length) {
+      el.innerHTML = '<p class="bt-nav__bell-empty">No notifications</p>';
+      return;
     }
 
-    var loadOlderBtn = el.querySelector('#bt-nav-bell-load-older');
-    if (loadOlderBtn) {
-      loadOlderBtn.addEventListener('click', function (e) {
+    var pinned = _ntfPinnedUnread;
+    var anyUnread = _ntfItems.some(function (n) { return !n.readAt; });
+
+    var html = '';
+    if (anyUnread) {
+      html += '<button class="bt-nav__bell-mark-read" id="bt-nav-bell-mark-read" type="button">Mark all read</button>';
+    }
+    html += '<ul class="bt-nav__bell-list">';
+
+    _ntfItems.forEach(function (n) {
+      var showNew = pinned ? (pinned.indexOf(n.id) !== -1) : !n.readAt;
+      var when = _ntfWhen(n.createdAt);
+      var open = n.link ? ('<a class="bt-nav__bell-item-open" href="' + _ntfEsc(n.link) + '">') : '<div class="bt-nav__bell-item-open">';
+      var close = n.link ? '</a>' : '</div>';
+
+      html += '<li class="bt-nav__bell-item' + (showNew ? ' bt-nav__bell-item--new' : '') + '" data-ntf-id="' + _ntfEsc(n.id) + '">' +
+        open +
+          '<div class="bt-nav__bell-item-header">' +
+            '<span class="bt-nav__bell-item-label">' + _ntfEsc(_ntfLabel(n.type)) + '</span>' +
+            (showNew ? '<span class="bt-nav__bell-item-unseen-dot" aria-hidden="true"></span>' : '') +
+          '</div>' +
+          (n.title ? '<span class="bt-nav__bell-item-venue">' + _ntfEsc(n.title) + '</span>' : '') +
+          (n.body ? '<span class="bt-nav__bell-item-body">' + _ntfEsc(n.body) + '</span>' : '') +
+          (when ? '<span class="bt-nav__bell-item-when">' + _ntfEsc(when) + '</span>' : '') +
+          (n.link ? '<span class="bt-nav__bell-item-link">View →</span>' : '') +
+        close +
+      '</li>';
+    });
+
+    html += '</ul>';
+    el.innerHTML = html;
+
+    var markBtn = el.querySelector('#bt-nav-bell-mark-read');
+    if (markBtn) {
+      markBtn.addEventListener('click', function (e) {
+        e.preventDefault();
         e.stopPropagation();
-        _bellFetchOlderItems();
+        _ntfMarkAllRead();
+        _ntfPinnedUnread = [];
+        _ntfRender();
+      });
+    }
+
+    // Clicking an item marks just that one read before navigating.
+    el.querySelectorAll('.bt-nav__bell-item-open').forEach(function (a) {
+      a.addEventListener('click', function () {
+        var li = a.closest('.bt-nav__bell-item');
+        var id = li && li.getAttribute('data-ntf-id');
+        if (id) _ntfMarkRead([id]);
+      });
+    });
+  }
+
+  function _ntfMarkRead(ids) {
+    var db = _ntfDb();
+    if (!db || !ids || !ids.length) return;
+    var now = window.firebase.firestore.FieldValue.serverTimestamp();
+    var localMs = Date.now();
+    var batch = db.batch();
+    var touched = 0;
+
+    ids.forEach(function (id) {
+      var item = _ntfItems.find(function (n) { return n.id === id; });
+      if (!item || item.readAt) return;
+      item.readAt = { toMillis: function () { return localMs; } }; // optimistic
+      batch.update(db.collection(NTF_COLLECTION).doc(id), { readAt: now });
+      touched++;
+    });
+
+    _ntfUpdateBadge();
+    if (touched) {
+      batch.commit().catch(function (err) {
+        console.error('[BtNotif] markRead failed:', err);
       });
     }
   }
 
-  function _bellLoadLatestItems() {
-    if (!_bellCurrentUid || !window.firebase || !window.firebase.firestore) return Promise.resolve();
-    var db = window.firebase.firestore();
-    var thirtyDaysAgo = window.firebase.firestore.Timestamp.fromDate(
-      new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-    );
-    var isHost = _bellUserRoles.indexOf('host') !== -1 || _bellUserRoles.indexOf('admin') === -1;
-    var isAdmin = _bellUserRoles.indexOf('admin') !== -1;
-
-    var tasks = [];
-    if (isHost) {
-      tasks.push(
-        db.collection(_bellHostNotificationsCollection)
-          .where('targetHostId', '==', _bellCurrentUid)
-          .where('createdAt', '>=', thirtyDaysAgo)
-          .orderBy('createdAt', 'desc')
-          .limit(50)
-          .get()
-          .then(function (snap) {
-            _bellHostAssignmentsData = _bellMapHostAssignmentDocs(snap.docs);
-          })
-      );
-    } else {
-      _bellHostAssignmentsData = [];
-    }
-
-    if (isAdmin) {
-      tasks.push(
-        db.collection('shiftSwapNotifications')
-          .where('status', '==', 'pending_review')
-          .where('createdAt', '>=', thirtyDaysAgo)
-          .orderBy('createdAt', 'desc')
-          .limit(50)
-          .get()
-          .then(function (snap) {
-            _bellAdminData = snap.docs.map(function (d) {
-              return Object.assign({}, d.data(), { _notifType: 'swap' });
-            });
-          })
-      );
-    } else {
-      _bellAdminData = [];
-    }
-
-    return Promise.all(tasks).then(function () {
-      if (_bellIsDropdownOpen()) _bellRenderDropdown();
-    }).catch(function (err) {
-      console.error('[BtNav] load latest bell items failed:', err);
-      if (_bellIsDropdownOpen()) _bellRenderDropdown();
-    });
+  function _ntfMarkAllRead() {
+    _ntfMarkRead(_ntfItems.filter(function (n) { return !n.readAt; }).map(function (n) { return n.id; }));
   }
 
-  function _bellUpdateBadge() {
-    var counterDocCount = Math.max(0, Number(_bellUnreadCount || 0) || 0);
-    var liveFallbackCount = 0;
+  function _ntfStart(uid) {
+    var db = _ntfDb();
+    if (!db || !uid) return;
+    _ntfUid = uid;
 
-    _bellHostAssignmentsData.forEach(function (data) {
-      var createdMs = _bellToMillis(data.createdAt);
-      if (
-        createdMs > _bellLastSeenMs &&
-        data.targetHostId === _bellCurrentUid &&
-        (
-          data._notifType === 'shift_assigned' ||
-          data._notifType === 'shift_removed' ||
-          data._notifType === 'shift_reassigned'
-        )
-      ) {
-        liveFallbackCount++;
-      }
-    });
+    if (_ntfUnsub) { try { _ntfUnsub(); } catch (_) {} _ntfUnsub = null; }
 
-    var count = Math.max(counterDocCount, liveFallbackCount);
-
-    var countEl = document.getElementById('bt-nav-bell-count');
-    if (countEl) {
-      if (count > 0) {
-        countEl.textContent = String(count);
-        countEl.hidden = false;
-        countEl.style.removeProperty('display');
-      } else {
-        countEl.textContent = '';
-        countEl.hidden = true;
-        countEl.style.display = 'none';
-      }
-    }
-  }
-
-  function _bellStopListeners() {
-    if (_bellUnsubState) { _bellUnsubState(); _bellUnsubState = null; }
-
-    _bellOffersData = [];
-    _bellDeletedOffersData = [];
-    _bellAdminData = [];
-    _bellHostAssignmentsData = [];
-    _bellLastSeenMs = _bellGetLocalSeenMs();
-    _bellOpenSeenMs = null;
-    _bellStateLoaded = false;
-    _bellCurrentUid = null;
-    _bellUserRoles = [];
-    _bellOlderData = [];
-    _bellOlderLoaded = false;
-    _bellUnreadCount = 0;
-  }
-
-  function _bellGetRolesFromCache() {
-    try {
-      var raw = sessionStorage.getItem('bt:empCache');
-      if (!raw) return [];
-      var obj = JSON.parse(raw);
-      if (Date.now() - (obj.ts || 0) > 4 * 60 * 60 * 1000) return [];
-      var emp = obj.emp || {};
-      var arr = Array.isArray(emp.roles) ? emp.roles : [];
-      var single = emp.role ? [emp.role] : [];
-      return arr.concat(single).filter(Boolean).map(function (r) { return String(r).toLowerCase(); });
-    } catch (_) {
-      return [];
-    }
-  }
-
-  function _bellGetNewestVisibleItemMs() {
-    var newest = 0;
-
-    _bellOffersData.forEach(function (data) {
-      if (
-        (data._notifType === 'coverage' ||
-         data._notifType === 'coverage_deleted' ||
-         data._notifType === 'coverage_cancelled' ||
-         data._notifType === 'coverage_filled') &&
-        data.requestingHostId === _bellCurrentUid
-      ) {
-        return;
-      }
-      var ms = _bellToMillis(data.createdAt);
-      if (ms > newest) newest = ms;
-    });
-
-    _bellHostAssignmentsData.forEach(function (data) {
-      if (
-        (data._notifType === 'shift_assigned' ||
-         data._notifType === 'shift_removed' ||
-         data._notifType === 'shift_reassigned') &&
-        data.targetHostId !== _bellCurrentUid
-      ) {
-        return;
-      }
-      var ms = _bellToMillis(data.createdAt);
-      if (ms > newest) newest = ms;
-    });
-
-    _bellAdminData.forEach(function (data) {
-      var ms = _bellToMillis(data.createdAt);
-      if (ms > newest) newest = ms;
-    });
-
-    _bellDeletedOffersData.forEach(function (data) {
-      if (
-        (data._notifType === 'coverage' ||
-         data._notifType === 'coverage_deleted' ||
-         data._notifType === 'coverage_cancelled' ||
-         data._notifType === 'coverage_filled') &&
-        data.requestingHostId === _bellCurrentUid
-      ) {
-        return;
-      }
-      var ms = _bellToMillis(data.createdAt);
-      if (ms > newest) newest = ms;
-    });
-
-    _bellOlderData.forEach(function (data) {
-      if (
-        (data._notifType === 'coverage' ||
-         data._notifType === 'coverage_deleted' ||
-         data._notifType === 'coverage_cancelled' ||
-         data._notifType === 'coverage_filled') &&
-        data.requestingHostId === _bellCurrentUid
-      ) {
-        return;
-      }
-      if (
-        (data._notifType === 'shift_assigned' ||
-         data._notifType === 'shift_removed' ||
-         data._notifType === 'shift_reassigned') &&
-        data.targetHostId !== _bellCurrentUid
-      ) {
-        return;
-      }
-      var ms = _bellToMillis(data.createdAt);
-      if (ms > newest) newest = ms;
-    });
-
-    return newest;
-  }
-
-  function _bellMapHostAssignmentDocs(docs) {
-    return docs.map(function (d) {
-      var data = d.data() || {};
-      return Object.assign({}, data, { _notifType: _bellNormalizeAssignmentType(data) });
-    });
-  }
-
-  function _bellStartListeners(uid) {
-    var db = window.firebase.firestore();
-    _bellCurrentUid = uid;
-    _bellLastKnownUid = uid;
-    _bellLastSeenMs = Math.max(_bellLastSeenMs, _bellGetLocalSeenMs());
-
-    _bellUnsubState = db.collection('userBellState').doc(uid).onSnapshot(function (snap) {
-      if (snap.metadata.hasPendingWrites) return;
-
-      _bellLastSeenMs = _bellResolveSeenMsFromStateDoc(snap);
-      _bellUnreadCount = _bellResolveUnreadCountFromStateDoc(snap);
-      _bellSetLocalSeenMs(_bellLastSeenMs);
-
-      _bellStateLoaded = true;
-      _bellUpdateBadge();
-
-      if (_bellIsDropdownOpen()) _bellRenderDropdown();
-    }, function (err) {
-      console.error('[BtNav] state listener failed:', err);
-      _bellLastSeenMs = Math.max(_bellLastSeenMs, _bellGetLocalSeenMs());
-      _bellUnreadCount = 0;
-      _bellStateLoaded = true;
-      _bellUpdateBadge();
-
-      if (_bellIsDropdownOpen()) _bellRenderDropdown();
-    });
-
-    function startRoleListeners(roles) {
-      _bellUserRoles = roles;
-      var isHost = roles.indexOf('host') !== -1;
-      var isAdmin = roles.indexOf('admin') !== -1;
-      if (!isHost && !isAdmin) isHost = true;
-
-      // Keep roles for on-demand bell fetches; we intentionally avoid
-      // collection live listeners here to reduce read volume.
-      if (!isHost && !isAdmin) {
-        _bellUserRoles = ['host'];
-      }
-
-      // Reliability fallback: keep one lightweight host-notifications listener
-      // so badge updates even if unreadCount increments lag/miss.
-      if (isHost) {
-        var sevenDaysAgo = window.firebase.firestore.Timestamp.fromDate(
-          new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-        );
-        _bellUnsubHostAssignments = db.collection(_bellHostNotificationsCollection)
-          .where('targetHostId', '==', uid)
-          .where('createdAt', '>', sevenDaysAgo)
-          .onSnapshot(function (snap) {
-            _bellHostAssignmentsData = _bellMapHostAssignmentDocs(snap.docs);
-            if (!_bellStateLoaded) {
-              _bellLastSeenMs = Math.max(_bellLastSeenMs || 0, _bellGetLocalSeenMs());
-            }
-            _bellUpdateBadge();
-            if (_bellIsDropdownOpen()) _bellRenderDropdown();
-          }, function (err) {
-            console.error('[BtNav] host assignment fallback listener failed:', err);
-          });
-      } else {
-        _bellHostAssignmentsData = [];
-      }
-    }
-
-    var cachedRoles = _bellGetRolesFromCache();
-    if (cachedRoles.length > 0) {
-      startRoleListeners(cachedRoles);
-    } else {
-      db.collection('employees').doc(uid).get().then(function (snap) {
-        var emp = snap.exists ? (snap.data() || {}) : {};
-        var arr = Array.isArray(emp.roles) ? emp.roles : [];
-        var single = emp.role ? [emp.role] : [];
-        var roles = arr.concat(single).filter(Boolean)
-          .map(function (r) { return String(r).toLowerCase(); });
-        startRoleListeners(roles);
-      }).catch(function () {
-        startRoleListeners([]);
-      });
-    }
-  }
-
-  function _bellFetchOlderItems() {
-    if (_bellOlderLoaded || !window.firebase || !window.firebase.firestore) return;
-
-    var db = window.firebase.firestore();
-    var sevenDaysAgo = window.firebase.firestore.Timestamp.fromDate(
-      new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-    );
-    var thirtyDaysAgo = window.firebase.firestore.Timestamp.fromDate(
-      new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-    );
-
-    var isHost = _bellUserRoles.indexOf('host') !== -1 || _bellUserRoles.indexOf('admin') === -1;
-    var isAdmin = _bellUserRoles.indexOf('admin') !== -1;
-
-    var el = _bellDropdownEl || document.getElementById('bt-nav-bell-dropdown');
-    if (el) {
-      var btn = el.querySelector('#bt-nav-bell-load-older');
-      if (btn) {
-        btn.textContent = 'Loading…';
-        btn.disabled = true;
-      }
-    }
-
-    var promises = [];
-
-    if (isHost) {
-      promises.push(
-        db.collection('shiftCoverageRequests')
-          .where('createdAt', '>=', thirtyDaysAgo)
-          .where('createdAt', '<', sevenDaysAgo)
-          .orderBy('createdAt', 'desc')
-          .get()
-          .then(function (snap) {
-            return snap.docs.map(function (d) {
-              var data = d.data() || {};
-              var notifType =
-                data.status === 'shift_deleted' ? 'coverage_deleted' :
-                data.status === 'cancelled' ? 'coverage_cancelled' :
-                data.status === 'approved' ? 'coverage_filled' :
-                'coverage';
-              return Object.assign({}, data, { _notifType: notifType });
-            });
-          })
-      );
-
-      promises.push(
-        db.collection(_bellHostNotificationsCollection)
-          .where('targetHostId', '==', _bellCurrentUid)
-          .where('createdAt', '>=', thirtyDaysAgo)
-          .where('createdAt', '<', sevenDaysAgo)
-          .get()
-          .then(function (snap) {
-            return _bellMapHostAssignmentDocs(snap.docs);
-          })
-      );
-    }
-
-    if (isAdmin) {
-      promises.push(
-        db.collection('shiftSwapNotifications')
-          .where('status', '==', 'pending_review')
-          .where('createdAt', '>=', thirtyDaysAgo)
-          .where('createdAt', '<', sevenDaysAgo)
-          .get()
-          .then(function (snap) {
-            return snap.docs.map(function (d) {
-              return Object.assign({}, d.data(), { _notifType: 'swap' });
-            });
-          })
-      );
-    }
-
-    Promise.all(promises).then(function (results) {
-      _bellOlderData = results.reduce(function (acc, arr) { return acc.concat(arr); }, []);
-      _bellOlderLoaded = true;
-      _bellRenderDropdown();
-    }).catch(function (err) {
-      console.error('[BtNav] fetch older failed:', err);
-      _bellOlderLoaded = true;
-      _bellRenderDropdown();
-    });
-  }
-
-  function refreshBellCount() {
-    if (!window.firebase || !window.firebase.auth) return;
-    var user = window.firebase.auth().currentUser;
-    if (!user) return;
-    _bellUpdateBadge();
-    if (_bellIsDropdownOpen()) _bellRenderDropdown();
-  }
-
-  function markBellSeen(opts) {
-    opts = opts || {};
-    if (!window.firebase || !window.firebase.auth || !window.firebase.firestore) return;
-    var user = window.firebase.auth().currentUser;
-    if (!user) return;
-
-    // Pin the seen-cutoff when the bell opens so the dropdown keeps showing "new"
-    // indicators even after the Firestore write triggers a server-confirmed snapshot.
-    // Release the pin when the bell closes so future opens reflect real seen state.
-    if (_bellIsDropdownOpen()) {
-      if (_bellOpenSeenMs === null) _bellOpenSeenMs = _bellLastSeenMs;
-    } else {
-      _bellOpenSeenMs = null;
-    }
-
-    var newestVisibleMs = _bellGetNewestVisibleItemMs();
-    if (!newestVisibleMs) newestVisibleMs = _bellLastSeenMs || 0;
-
-    if (opts.bumpToNow) {
-      newestVisibleMs = Math.max(newestVisibleMs, Date.now());
-    }
-
-    _bellLastSeenMs = Math.max(_bellLastSeenMs || 0, newestVisibleMs);
-    _bellUnreadCount = 0;
-    _bellSetLocalSeenMs(_bellLastSeenMs);
-    _bellUpdateBadge();
-
-    if (_bellIsDropdownOpen() && opts.rerender !== false) _bellRenderDropdown();
-
-    window.firebase.firestore()
-      .collection('userBellState')
-      .doc(user.uid)
-      .set({
-        unreadCount: 0,
-        lastSeenAtMs: _bellLastSeenMs,
-        lastSeenAt: window.firebase.firestore.FieldValue.serverTimestamp()
-      }, { merge: true })
-      .catch(function (err) {
-        console.error('[BtNav] markBellSeen failed:', err);
+    _ntfUnsub = db.collection(NTF_COLLECTION)
+      .where('recipientId', '==', uid)
+      .orderBy('createdAt', 'desc')
+      .limit(30)
+      .onSnapshot(function (snap) {
+        _ntfItems = snap.docs.map(function (d) {
+          return Object.assign({ id: d.id }, d.data());
+        });
+        _ntfUpdateBadge();
+        if (_ntfIsOpen()) _ntfRender();
+      }, function (err) {
+        console.error('[BtNotif] listener failed:', err);
       });
   }
 
+  function _ntfStopListener() {
+    if (_ntfUnsub) { try { _ntfUnsub(); } catch (_) {} _ntfUnsub = null; }
+  }
+
+  function _ntfReset() {
+    _ntfStopListener();
+    _ntfItems = [];
+    _ntfUid = null;
+    _ntfPinnedUnread = null;
+    _ntfUpdateBadge();
+  }
+
+  function _ntfWire() {
+    if (_ntfWired) return;
+    var btn = document.getElementById('bt-nav-bell');
+    var dd = document.getElementById('bt-nav-bell-dropdown');
+    if (!btn || !dd) return;
+    _ntfWired = true;
+    _ntfBtnEl = btn;
+    _ntfDropdownEl = dd;
+
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var open = dd.getAttribute('aria-hidden') === 'false';
+      if (open) {
+        dd.setAttribute('aria-hidden', 'true');
+        _ntfPinnedUnread = null;
+        return;
+      }
+      // Pin which items were unread as of this open, so their highlight is
+      // stable while the dropdown is up, then mark them read.
+      _ntfPinnedUnread = _ntfItems.filter(function (n) { return !n.readAt; }).map(function (n) { return n.id; });
+      dd.setAttribute('aria-hidden', 'false');
+      _ntfRender();
+      _ntfMarkAllRead();
+    });
+
+    document.addEventListener('click', function () {
+      if (dd.getAttribute('aria-hidden') === 'false') {
+        dd.setAttribute('aria-hidden', 'true');
+        _ntfPinnedUnread = null;
+      }
+    });
+
+    dd.addEventListener('click', function (e) { e.stopPropagation(); });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && dd.getAttribute('aria-hidden') === 'false') {
+        dd.setAttribute('aria-hidden', 'true');
+        _ntfPinnedUnread = null;
+      }
+    });
+  }
+
+  // Named initBellCount so the injectNav() call site is unchanged.
   function initBellCount() {
+    _ntfWire();
+
     function tryInit() {
       if (!window.firebase || !window.firebase.auth || !window.firebase.apps || !window.firebase.apps.length) {
         setTimeout(tryInit, 100);
         return;
       }
-
       window.firebase.auth().onAuthStateChanged(function (user) {
-        _bellStopListeners();
-        if (user) {
-          _bellStartListeners(user.uid);
-        } else {
-          _bellLastKnownUid = null;
-          var countEl = document.getElementById('bt-nav-bell-count');
-          if (countEl) {
-            countEl.textContent = '';
-            countEl.hidden = true;
-            countEl.style.display = 'none';
-          }
-        }
+        _ntfReset();
+        if (user) _ntfStart(user.uid);
       });
     }
 
@@ -1404,44 +960,25 @@
     }
   }
 
-  // Pause bell listeners when tab is hidden to reduce idle reads.
+  // Pause the listener while the tab is hidden to reduce idle reads.
   if (document && typeof document.addEventListener === 'function') {
     document.addEventListener('visibilitychange', function () {
       if (document.hidden) {
-        _bellStopListeners();
-      } else if (_bellLastKnownUid) {
-        _bellStartListeners(_bellLastKnownUid);
+        _ntfStopListener();
+      } else if (_ntfUid) {
+        _ntfStart(_ntfUid);
       }
     });
   }
 
-  function claimOffersListener() {
-    _offersListenerClaimed = true;
-    if (_bellUnsubOffers) {
-      _bellUnsubOffers();
-      _bellUnsubOffers = null;
-    }
-    if (_bellUnsubDeletedOffers) {
-      _bellUnsubDeletedOffers();
-      _bellUnsubDeletedOffers = null;
-    }
-  }
-
-  function setOffersData(dataArray) {
-    _bellOffersData = Array.isArray(dataArray) ? dataArray : [];
-    _bellDeletedOffersData = [];
-
-    if (!_bellStateLoaded) {
-      _bellLastSeenMs = Math.max(_bellLastSeenMs || 0, _bellGetLocalSeenMs());
-    }
-
-    if (_bellIsDropdownOpen()) _bellRenderDropdown();
-  }
-
+  // Back-compat shim. Old callers (shift-trade-requests.js, shift-swap-admin.js)
+  // fed the bell directly; the bell is now server-driven, so these are no-ops
+  // beyond a re-render.
   window.BtNavBell = {
-    refresh: refreshBellCount,
-    claimOffersListener: claimOffersListener,
-    setOffersData: setOffersData
+    refresh: function () { _ntfUpdateBadge(); if (_ntfIsOpen()) _ntfRender(); },
+    claimOffersListener: function () {},
+    setOffersData: function () {},
+    markAllRead: _ntfMarkAllRead
   };
 
   // ─── Inject ─────────────────────────────────────────────────────────────────
