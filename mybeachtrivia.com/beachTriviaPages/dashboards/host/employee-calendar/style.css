@@ -686,62 +686,76 @@ html body .calendar td:not(.week-copy-cell) {
   color: var(--secondary-color);
 }
 
-/* Offer-type picker (open vs direct switch) */
-.coverage-offer-type {
+/* Offer-type picker (open vs direct switch) — scoped + reset against the
+   admin calendar's global `input,select { width:100% }` / `label{display:block}` */
+#coverage-request-modal .coverage-offer-type {
   border: 1px solid var(--border-color);
   border-radius: 8px;
-  padding: 10px 12px 12px;
+  padding: 12px;
   margin: 0 0 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
 }
 
-.coverage-offer-type legend {
+#coverage-request-modal .coverage-offer-type__title {
   font-size: 13px;
   font-weight: 600;
   color: var(--text-secondary);
-  padding: 0 4px;
+  margin: 0 0 10px;
 }
 
-.coverage-radio {
+#coverage-request-modal .coverage-radio {
   display: flex;
   align-items: flex-start;
-  gap: 9px;
+  gap: 10px;
   cursor: pointer;
-  font-size: 13px;
+  margin: 0 0 10px;
+  font-weight: 400;
 }
 
-.coverage-radio input {
-  margin-top: 2px;
+#coverage-request-modal .coverage-radio:last-child {
+  margin-bottom: 0;
+}
+
+#coverage-request-modal .coverage-radio input[type="radio"] {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  flex: 0 0 16px;
+  margin: 1px 0 0;
+  padding: 0;
+  border-radius: 50%;
+  background: none;
+  border: none;
   accent-color: var(--primary-color);
+  -webkit-appearance: radio;
+  appearance: auto;
 }
 
-.coverage-radio input:disabled {
+#coverage-request-modal .coverage-radio input:disabled {
   cursor: not-allowed;
 }
 
-.coverage-radio input:disabled + .coverage-radio-text {
-  opacity: 0.45;
+#coverage-request-modal .coverage-radio input:disabled ~ .coverage-radio-text {
+  opacity: 0.4;
 }
 
-.coverage-radio-text {
+#coverage-request-modal .coverage-radio-text {
   display: flex;
   flex-direction: column;
   line-height: 1.35;
 }
 
-.coverage-radio-text strong {
+#coverage-request-modal .coverage-radio-text strong {
   color: var(--text-primary);
   font-weight: 600;
+  font-size: 13px;
 }
 
-.coverage-radio-text small {
+#coverage-request-modal .coverage-radio-text small {
   color: var(--text-secondary);
   font-size: 11px;
 }
 
-.coverage-lock-msg {
+#coverage-request-modal .coverage-lock-msg {
   font-size: 12px;
   line-height: 1.45;
   color: #fbbf24;
@@ -752,30 +766,33 @@ html body .calendar td:not(.week-copy-cell) {
   margin: 0 0 12px;
 }
 
-.coverage-target-group {
+#coverage-request-modal .coverage-target-group {
   display: flex;
   flex-direction: column;
   gap: 6px;
   margin-bottom: 14px;
 }
 
-.coverage-target-group label {
+#coverage-request-modal .coverage-target-group label {
+  display: block;
+  margin: 0;
   font-size: 13px;
   font-weight: 600;
   color: var(--text-secondary);
 }
 
-.coverage-target-group select {
+#coverage-request-modal .coverage-target-group select {
+  width: 100%;
   background: var(--input-bg);
   border: 1px solid var(--border-color);
   border-radius: 6px;
-  padding: 8px 10px;
+  padding: 9px 10px;
   color: var(--text-primary);
   font-size: 13px;
   font-family: inherit;
 }
 
-.coverage-target-group select:focus {
+#coverage-request-modal .coverage-target-group select:focus {
   outline: none;
   border-color: var(--primary-color);
 }

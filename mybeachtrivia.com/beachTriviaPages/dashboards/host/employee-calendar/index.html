@@ -16,7 +16,7 @@
 
   <!-- Reuse admin calendar base styles + host defensive overrides -->
   <link rel="stylesheet" href="../../admin/calendar/css/styles.css" />
-  <link rel="stylesheet" href="./style.css" />
+  <link rel="stylesheet" href="./style.css?v=20260830-swap2" />
   <!-- Unified nav bar -->
   <link rel="stylesheet" href="/beachTriviaPages/js/bt-nav.css">
   <script src="/beachTriviaPages/js/bt-nav.js?v=hostnav-20260424-3" defer></script>
@@ -400,8 +400,8 @@
           <!-- populated by ShiftTradeRequests.openRequestModal() -->
         </div>
 
-        <fieldset class="coverage-offer-type" id="coverage-offer-type">
-          <legend>How do you want to offer this shift?</legend>
+        <div class="coverage-offer-type" id="coverage-offer-type" role="radiogroup" aria-label="How do you want to offer this shift?">
+          <div class="coverage-offer-type__title">How do you want to offer this shift?</div>
           <label class="coverage-radio">
             <input type="radio" name="coverage-offer-type" value="open" checked />
             <span class="coverage-radio-text">
@@ -416,7 +416,7 @@
               <small>Send it to one specific host</small>
             </span>
           </label>
-        </fieldset>
+        </div>
 
         <p id="coverage-lock-msg" class="coverage-lock-msg" hidden></p>
 
