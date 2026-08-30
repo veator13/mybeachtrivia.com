@@ -1,0 +1,112 @@
+<!-- mybeachtrivia.com/beachTriviaPages/dashboards/admin/requests/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light dark" />
+  <title>Requests — Admin</title>
+
+  <link rel="stylesheet" href="style.css" />
+  <!-- Unified nav bar -->
+  <link rel="stylesheet" href="/beachTriviaPages/js/bt-nav.css" />
+  <script src="/beachTriviaPages/js/bt-nav.js?v=hostnav-20260830-requests" defer></script>
+
+  <!-- Firebase SDKs (compat) -->
+  <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-firestore-compat.js"></script>
+
+  <!-- Firebase config + initialize -->
+  <script src="/firebase-init.js"></script>
+
+  <!-- Auth guard (keeps page hidden until authorized) -->
+  <script src="./auth-guard.js" defer></script>
+</head>
+
+<body data-page="requests-admin">
+  <div id="auth-loading" class="auth-overlay" aria-live="polite">
+    <div class="spinner" role="status" aria-label="Loading"></div>
+    <p>Verifying access...</p>
+  </div>
+
+  <div class="container" style="display:none;">
+    <header class="page-header">
+      <div>
+        <h1 class="page-title">Requests</h1>
+        <p class="page-subtitle">Read-only history of host time-off requests and shift swaps &mdash; who asked, when, and how it was resolved.</p>
+      </div>
+    </header>
+
+    <div class="seg" role="tablist" aria-label="Request type">
+      <button class="seg-btn is-active" data-tab="timeoff" type="button" role="tab">
+        Time Off <span class="seg-badge" id="tab-badge-timeoff">0</span>
+      </button>
+      <button class="seg-btn" data-tab="swaps" type="button" role="tab">
+        Shift Swaps <span class="seg-badge" id="tab-badge-swaps">0</span>
+      </button>
+    </div>
+
+    <section class="card">
+      <div class="card-head filter-bar">
+        <div class="field">
+          <label class="label" for="statusFilter">Status</label>
+          <select id="statusFilter" class="input"></select>
+        </div>
+        <div class="field grow">
+          <label class="label" for="searchBox">Search</label>
+          <input id="searchBox" type="text" class="input" placeholder="Host, location&hellip;" autocomplete="off" />
+        </div>
+        <div class="count muted" id="rowCount" aria-live="polite"></div>
+      </div>
+
+      <div class="card-body">
+        <div class="table-wrapper">
+          <!-- Time Off table -->
+          <table class="table" id="timeoffTable">
+            <thead>
+              <tr>
+                <th scope="col">Host</th>
+                <th scope="col">Dates off</th>
+                <th scope="col">Requested</th>
+                <th scope="col">Status</th>
+                <th scope="col">Reviewed</th>
+                <th scope="col">By</th>
+                <th scope="col">Notes</th>
+              </tr>
+            </thead>
+            <tbody id="timeoffBody"></tbody>
+          </table>
+
+          <!-- Shift Swaps table -->
+          <table class="table" id="swapsTable" hidden>
+            <thead>
+              <tr>
+                <th scope="col">Type</th>
+                <th scope="col">Shift</th>
+                <th scope="col">From</th>
+                <th scope="col">To</th>
+                <th scope="col">Requested</th>
+                <th scope="col">Accepted</th>
+                <th scope="col">Status</th>
+                <th scope="col">Reviewed</th>
+                <th scope="col">By</th>
+              </tr>
+            </thead>
+            <tbody id="swapsBody"></tbody>
+          </table>
+        </div>
+
+        <p id="emptyState" class="empty muted" hidden>No requests match.</p>
+      </div>
+    </section>
+  </div>
+
+  <!-- Boot (reveals container when auth OK) -->
+  <script src="./boot.js"></script>
+  <!-- Page logic -->
+  <script src="./requests.js?v=20260830b" defer></script>
+  <!-- Route guard (prod) -->
+  <script src="/beachTriviaPages/js/auth-route-guard.v2.js?v=2025-10-14a"></script>
+</body>
+</html>

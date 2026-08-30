@@ -95,9 +95,9 @@ Known, non-blocking for Phase 3:
   the host dashboard, scoresheet, admin calendar; "Time Off" nav item present
   on every host page.
 
-Phase 6 done 2026-08-30 (host amber time-off days + admin host-picker grey/sink/
-warn). Next: Phase 7 (admin Requests history page) and Phase 8 (Sun/Mon digest,
-FCM push, email backup).
+Phases 6 & 7 done 2026-08-30 (host amber time-off days + admin host-picker
+grey/sink/warn; admin "Requests" audit page). Next: Phase 8 (Sun/Mon digest,
+FCM push, email backup) — the last phase.
 
 Phase 0 follow-ups (not blockers):
 - `notifications` has no TTL/cleanup yet — an open offer fans out ~1 doc per host.
@@ -631,8 +631,38 @@ not-off→true/no-prompt) all correct.
 NOTE: the Sep 22–24 approved `timeOffRequest` for the burner
 (`K02SrLUrihoNyhUoh08x`) was left in place so Josh can see it live — cancel it
 via host "Manage Time Off" or delete it when done.
-7. **Admin "Requests" page** — two tabs (Time Off / Shift Swaps), read-only audit
-   logs (see §3).
+7. **Admin "Requests" page** — ✅ DONE 2026-08-30, deployed + staging-tested green.
+   New `beachTriviaPages/dashboards/admin/requests/` (`index.html` + `style.css` +
+   `requests.js`; `auth-guard.js` / `boot.js` copied from `leads/`). Self-
+   contained page in the shared admin token palette, own dark-mode block. Two
+   `.seg` tabs:
+   - **Time Off** — live `timeOffRequests` `orderBy(submittedAt desc)`: host,
+     dates off (+ day count), requested (+ "inside 2 wks" flag), status pill
+     (+ conflictResolution), reviewed date, reviewer name ("host" for
+     self-cancels), notes / denial reason.
+   - **Shift Swaps** — live `shiftCoverageRequests` `orderBy(createdAt desc)`:
+     Open/Direct tag, shift (date · location · event), from host, to host
+     (accepting, or "<target> (target)" for un-answered directs), requested,
+     accepted, status pill, admin-reviewed date, reviewer + rejection reason.
+   Status `<select>` (options per tab) + debounced text search (host / location
+   / reason) + live tab-count badges + context-aware empty states. Read-only —
+   no inline actions (deferred; §9). Nav link "Requests" added to
+   `NAV_LINKS.admin` in `bt-nav.js` (between Calendar and Employees) + a
+   "📋 Requests" dashboard button; bt-nav cache-bust bumped site-wide to
+   `?v=hostnav-20260830-requests` (27 pages).
+
+**Phase 7 staging test 2026-08-30 — GREEN.** Seeded 3 time-off (approved /
+denied+reason / cancelled) and 3 swaps (open / direct-rejected+reason /
+open-approved); both tables rendered with correct sort, names, pills, reasons,
+day counts, and the inside-2-weeks flag; status filter + search + tab badges +
+empty states all correct; no console errors; admin nav shows "Requests". Swap
+test data cleaned up; the 3 time-off rows (incl. the Phase 6 approved demo) left
+for Josh to see the page populated.
+KNOWN ISSUE (pre-existing, not Phase 7): `sw.js` (scoresheet offline SW) treats
+everything under `/beachTriviaPages/js/` — including `bt-nav.js` — as a
+stale-while-revalidate asset, so a bt-nav change (new nav link) only appears on
+the *second* navigation after deploy for anyone who has visited the scoresheet.
+Self-heals; worth fixing by excluding `bt-nav.*` from the SW.
 8. **Notifications** —
    a. `shiftOfferDigest` scheduled function (Sun/Mon) + bell integration for
       time-off events.

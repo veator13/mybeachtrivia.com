@@ -24,6 +24,7 @@
     admin: [
       { label: 'Dashboard',       href: '/beachTriviaPages/dashboards/admin/' },
       { label: 'Calendar',        href: '/beachTriviaPages/dashboards/admin/calendar/' },
+      { label: 'Requests',        href: '/beachTriviaPages/dashboards/admin/requests/' },
       { label: 'Employees',       href: '/beachTriviaPages/dashboards/admin/employees-management/' },
       { label: 'Locations',       href: '/beachTriviaPages/dashboards/admin/locations-management/' },
       { label: 'Leads',           href: '/beachTriviaPages/dashboards/admin/leads/' },
