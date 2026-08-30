@@ -12,7 +12,12 @@ dropdown render; readAt persistence).** Branch: `shift-swap-timeoff` (off
 `leads-feature`).
 
 **Phase 1 done 2026-08-30** — data model, rules, and indexes for the swap +
-time-off collections deployed (additive; nothing broke). Next: Phase 2 (host UI).
+time-off collections deployed (additive; nothing broke).
+
+**Phase 2 done 2026-08-30** — host swap UI (open/direct picker, Mon–Sat week
+lock, accept → pending_admin without moving the shift). Deployed + tested on
+staging. Next: Phase 3 (admin approve/reject UI + the shift-moving Cloud
+Function). Also drop the host `shifts.employeeId` self-update rule in Phase 3.
 
 Phase 0 follow-ups (not blockers):
 - `notifications` has no TTL/cleanup yet — an open offer fans out ~1 doc per host.
@@ -396,9 +401,31 @@ Twilio at this volume is ~$1–2/month.
    - `shifts` rules unchanged this phase — admin already has full write for the
      `timeOffConflict` / `timeOffRequestId` fields; the host `employeeId`
      self-update is removed in Phase 3.
-2. **Shift swap v2 — host side** — offer-type picker (open / direct), host
-   selector for direct, week-lock check + locked-week message, `pending_admin`
-   state (Accept no longer moves the shift).
+2. **Shift swap v2 — host side** — ✅ DONE 2026-08-30, deployed + tested on
+   staging. All in `employee-calendar/` (`index.html`, `style.css`,
+   `js/shift-trade-requests.js`; cache-bust `?v=20260830-swap` / `swap3`).
+   - Coverage-request modal: "Open offer / Direct switch" picker; direct shows a
+     host `<select>` from `window.employees` minus self. Mon–Sat week lock via
+     `isDateLocked()` (`firstUnlockedMonday`): locked shift → Open disabled,
+     Direct preselected, amber "locked in" message; direct switches allowed.
+   - `submitRequest` writes `offerType` / `targetHostId` / `targetHostName`;
+     blocks a locked-week open offer client-side too.
+   - Shift Offers panel: direct offers shown only to requester + target; Open /
+     "Direct: <name>" badge; PENDING ADMIN APPROVAL badge; `pending_admin` is an
+     active status.
+   - **`acceptOffer` no longer moves the shift** — it only sets
+     `status: "pending_admin"` + `acceptingHost*` + `acceptedAt`. No
+     `shiftSwapNotifications` doc. Direct offers reject accept from non-targets.
+   - Verified end to end: open + direct create; lock enforced; fan-out
+     notifications; accept → pending_admin with shift untouched; requester +
+     admins notified.
+   - **Gap until Phase 3:** no admin approve/reject UI, so a `pending_admin`
+     swap can't complete on staging yet. `shift-swap-admin.js` still queries the
+     now-unused `shiftSwapNotifications` / `status=="open"` and shows nothing
+     actionable for these.
+   - **Repo note:** `hostGetCalendarMonth` is deployed but its source is NOT in
+     this repo (`functions_gcfv1/` drift). Always deploy functions with
+     `--only functions:<name>` — a bare `--only functions` would delete it.
 3. **Shift swap v2 — admin side** — real **Approve** + **Reject** UI;
    `approveShiftSwap` / `rejectShiftSwap` functions; shift moves only on approve.
 4. **Time off — host side** — request form (date range), 2-week warning,
