@@ -5,9 +5,20 @@ Working reference for the host shift-swap + time-off feature. Built on the
 Deploy to the **staging** Firebase Hosting channel only until signed off
 (`firebase hosting:channel:deploy staging --expires 30d`).
 
-Status: **design agreed 2026-08-30. Phase 0 (bell rebuild) built + deployed to
-staging 2026-08-30 — awaiting Josh's live test.** Branch: `shift-swap-timeoff`
-(off `leads-feature`).
+Status: **design agreed 2026-08-30. Phase 0 (bell rebuild) built, deployed, and
+live-tested on staging 2026-08-30 — all notification paths verified end to end
+(open-offer fan-out, offer-claimed, swap-pending-admin, swap-rejected; badge +
+dropdown render; readAt persistence).** Branch: `shift-swap-timeoff` (off
+`leads-feature`).
+
+Phase 0 follow-ups (not blockers):
+- `notifications` has no TTL/cleanup yet — an open offer fans out ~1 doc per host.
+  Add `expiresAt` + a Firestore TTL policy (or a scheduled prune) before this sees
+  heavy use. Spec §0 already lists `expiresAt`.
+- Bell listener pauses while the tab is `hidden` (inherited read-cost
+  optimization); it catches up on focus. Fine for now.
+- Node 20 / `firebase-functions@4` are past EOL — upgrade the functions codebase
+  (repo-wide, separate task).
 
 ---
 
