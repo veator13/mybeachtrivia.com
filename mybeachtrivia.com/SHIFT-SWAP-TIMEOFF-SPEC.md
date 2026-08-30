@@ -5,7 +5,9 @@ Working reference for the host shift-swap + time-off feature. Built on the
 Deploy to the **staging** Firebase Hosting channel only until signed off
 (`firebase hosting:channel:deploy staging --expires 30d`).
 
-Status: **design agreed 2026-08-30. Phase 0 (bell rebuild) in progress.**
+Status: **design agreed 2026-08-30. Phase 0 (bell rebuild) built + deployed to
+staging 2026-08-30 — awaiting Josh's live test.** Branch: `shift-swap-timeoff`
+(off `leads-feature`).
 
 ---
 
