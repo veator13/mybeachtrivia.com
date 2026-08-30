@@ -70,7 +70,7 @@ Known, non-blocking for Phase 3:
   transaction now returns an outcome; the close-out write + `HttpsError` happen
   after commit.
 
-Next: Phase 4 (time-off host side).
+Next: Phase 5 (time-off admin side — approve/deny + shift-conflict popup).
 
 Phase 0 follow-ups (not blockers):
 - `notifications` has no TTL/cleanup yet — an open offer fans out ~1 doc per host.
