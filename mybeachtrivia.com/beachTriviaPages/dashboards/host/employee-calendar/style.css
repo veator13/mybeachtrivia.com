@@ -773,6 +773,10 @@ html body .calendar td:not(.week-copy-cell) {
   margin-bottom: 14px;
 }
 
+#coverage-request-modal .coverage-target-group[hidden] {
+  display: none;
+}
+
 #coverage-request-modal .coverage-target-group label {
   display: block;
   margin: 0;
