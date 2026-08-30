@@ -1171,3 +1171,28 @@ html body .calendar td:not(.week-copy-cell) {
     transform: none;
   }
 }
+/* =========================================================
+   Phase 6 — your own approved time off (host calendar only)
+   High-specificity selector + !important to beat the inline
+   `html body .calendar td .date` override in index.html.
+   ========================================================= */
+html body .calendar td.host-timeoff-day {
+  background: rgba(244, 196, 48, 0.10) !important;
+}
+html body .calendar td.host-timeoff-day .date {
+  background: #f4c430 !important;
+  color: #4a3a00 !important;
+  border-bottom-color: #d9ab1f !important;
+}
+html body .calendar td.host-timeoff-day .date::after {
+  content: "TIME OFF";
+  position: absolute;
+  right: 6px;
+  top: 9px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #4a3a00;
+  opacity: 0.85;
+  pointer-events: none;
+}

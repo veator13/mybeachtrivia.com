@@ -12,6 +12,8 @@
   let _monthShiftsUnsub = null;
   let _monthLiveRangeKey = "";
   let _didAttachHostListeners = false;
+  let _timeOffUnsub = null;
+  window._hostTimeOffDays = window._hostTimeOffDays || new Set();
 
   function showDashboard() {
     const loading = $("auth-loading");
@@ -284,6 +286,78 @@
       if (typeof window.renderCalendar === "function") window.renderCalendar();
     } catch (e) {
       console.error("[host-calendar] renderCalendar failed:", e);
+    }
+    try {
+      decorateTimeOffDays();
+    } catch (_) {}
+  }
+
+  // ── Phase 6: highlight the host's own approved time-off days ─────────────
+  function addRangeToSet(startYMD, endYMD, set) {
+    const s = toYMD(startYMD);
+    const e = toYMD(endYMD) || s;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return;
+    const cur = new Date(s + "T00:00:00");
+    const end = new Date((e || s) + "T00:00:00");
+    if (isNaN(cur.getTime()) || isNaN(end.getTime())) return;
+    let guard = 0;
+    while (cur <= end && guard++ < 400) {
+      set.add(toYMD(cur));
+      cur.setDate(cur.getDate() + 1);
+    }
+  }
+
+  function decorateTimeOffDays() {
+    const set = window._hostTimeOffDays;
+    if (!set) return;
+    document.querySelectorAll("#calendar-body td[data-date]").forEach((td) => {
+      td.classList.toggle("host-timeoff-day", set.has(td.getAttribute("data-date")));
+    });
+  }
+
+  // renderCalendar (calendar-core.js) rebuilds #calendar-body wholesale and is
+  // called from many places we don't control; wrap it once so the time-off
+  // day highlight is re-applied after every render.
+  function installRenderHook() {
+    if (window.__HOST_TIMEOFF_RENDER_HOOK__) return true;
+    const orig = window.renderCalendar;
+    if (typeof orig !== "function") return false;
+    window.__HOST_TIMEOFF_RENDER_HOOK__ = true;
+    window.renderCalendar = function () {
+      const out = orig.apply(this, arguments);
+      try {
+        decorateTimeOffDays();
+      } catch (_) {}
+      return out;
+    };
+    return true;
+  }
+
+  function startTimeOffSubscription() {
+    const user = firebase.auth().currentUser;
+    if (!user || _timeOffUnsub) return;
+    try {
+      _timeOffUnsub = firebase
+        .firestore()
+        .collection("timeOffRequests")
+        .where("hostId", "==", user.uid)
+        .onSnapshot(
+          (snap) => {
+            const set = new Set();
+            snap.forEach((doc) => {
+              const d = doc.data() || {};
+              if (d.status !== "approved") return;
+              addRangeToSet(d.startDate, d.endDate, set);
+            });
+            window._hostTimeOffDays = set;
+            try {
+              decorateTimeOffDays();
+            } catch (_) {}
+          },
+          (err) => console.warn("[host-calendar] time-off listener failed:", err)
+        );
+    } catch (err) {
+      console.warn("[host-calendar] could not start time-off subscription:", err);
     }
   }
 
@@ -635,6 +709,7 @@
 
   async function loadAndRender() {
     const st = window.state;
+    installRenderHook();
     const data = await fetchMonthData(st.currentYear, st.currentMonth);
 
     window.employees = normalizeEmployeesToNameMap(data.employees || {});
@@ -653,10 +728,15 @@
 
     installShiftClickDelegate();
     attachEventListenersHost();
+    installRenderHook();
 
     try {
       window.ShiftTradeRequests?.refresh?.();
       window.ShiftTradeRequests?.refreshBell?.();
+    } catch (_) {}
+
+    try {
+      decorateTimeOffDays();
     } catch (_) {}
 
     $("calendar-loading")?.setAttribute("hidden", "");
@@ -726,6 +806,10 @@
         console.error("[host-calendar] init failed:", e);
         showError("Calendar initialization failed (permissions or server).");
       }
+
+      try {
+        startTimeOffSubscription();
+      } catch (_) {}
     });
 
     window.addEventListener("beforeunload", () => {

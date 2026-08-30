@@ -95,7 +95,9 @@ Known, non-blocking for Phase 3:
   the host dashboard, scoresheet, admin calendar; "Time Off" nav item present
   on every host page.
 
-Next: Phase 6 (calendar visuals — host yellow days, admin host-picker greying + assign warning) and Phase 7 (admin Requests history page).
+Phase 6 done 2026-08-30 (host amber time-off days + admin host-picker grey/sink/
+warn). Next: Phase 7 (admin Requests history page) and Phase 8 (Sun/Mon digest,
+FCM push, email backup).
 
 Phase 0 follow-ups (not blockers):
 - `notifications` has no TTL/cleanup yet — an open offer fans out ~1 doc per host.
@@ -595,9 +597,40 @@ Twilio at this volume is ~$1–2/month.
   three categories.
 - `totalShifts` 351 = the real Aug+Sep schedule (per-month renders show ~117);
   no runaway creation.
-6. **Calendar visuals** — host: own approved time off = yellow day-number
-   background. Admin: `timeOffConflict` shifts = red; host-picker greys + sinks
-   hosts with overlapping approved time off + warns on assign.
+6. **Calendar visuals** — ✅ DONE 2026-08-30, deployed + staging-tested green.
+   - Host calendar: the host's own **approved** time off renders with an amber
+     day-number header + "TIME OFF" tag. `host-calendar.js` — `timeOffRequests`
+     `where hostId == uid` listener (status filtered client-side, no index),
+     expands ranges to a `Set` of YMD, `decorateTimeOffDays()` toggles
+     `td.host-timeoff-day`; `window.renderCalendar` is wrapped once so the
+     highlight survives every re-render. CSS in `style.css`
+     (`html body .calendar td.host-timeoff-day .date`, high-specificity + a
+     `::after` tag). Admin red `timeOffConflict` tiles = Phase 5, unchanged.
+   - Admin host-picker: new `admin/calendar/js/timeoff-picker.js` (no-ops when
+     `__CALENDAR_READONLY__`) — subscribes to `timeOffRequests` `where status ==
+     "approved"`, exposes `window.TimeOffPicker`. On shift-modal open / date
+     change it flags `#shift-employee` `<option>`s whose host is off that date
+     (`data-timeoff="1"` + `data-timeoffLabel`); `combobox.js` `buildList` sinks
+     those to the bottom (write-in row still last) and greys them
+     (`.ss-item--timeoff`, 🌴 + "· off <range>"). `event-crud.js` `saveShift`
+     calls `TimeOffPicker.confirmAssignment(hostId, date)` before booking —
+     `confirm()` "…has approved time off (<range>). Assign anyway?"; skipped on
+     the conflict "Proceed Anyway" re-entry (`forceBooking`) and when editing a
+     shift without changing host/date.
+   - Cache-bust `?v=20260830-timeoff6` (host-calendar.js + combobox.js
+     `timeoff6b`).
+
+**Phase 6 staging test 2026-08-30 — GREEN.** Burner "Ja Vtr" given approved
+time off Sep 22–24: host calendar shows those 3 days amber + tagged, 21/25
+clean, highlight persists across month nav. Admin picker for Sep 23 — "Ja Vtr"
+greyed, "· off Sep 22 – Sep 24", sunk to just above the write-in row. Save with
+that host → single `confirm()` (no double-prompt); Cancel → shift not created;
+OK → shift created. Editing an existing shift's notes (same host/date) → no
+prompt. `TimeOffPicker.confirmAssignment` paths (off→false, off→true,
+not-off→true/no-prompt) all correct.
+NOTE: the Sep 22–24 approved `timeOffRequest` for the burner
+(`K02SrLUrihoNyhUoh08x`) was left in place so Josh can see it live — cancel it
+via host "Manage Time Off" or delete it when done.
 7. **Admin "Requests" page** — two tabs (Time Off / Shift Swaps), read-only audit
    logs (see §3).
 8. **Notifications** —

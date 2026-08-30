@@ -90,9 +90,19 @@
       var lc = (term || '').trim().toLowerCase();
       var count = 0;
 
-      getValueOptions().forEach(function (opt) {
-        if (lc && !opt.text.toLowerCase().includes(lc)) return;
+      // Options flagged data-timeoff="1" (host has approved time off on the
+      // selected date) render greyed and sink to the bottom of the list.
+      var matched = getValueOptions().filter(function (opt) {
+        return !lc || opt.text.toLowerCase().includes(lc);
+      });
+      function sinkRank(opt) {
+        if (/^__write_in/.test(opt.value)) return 2; // keep write-in row last
+        if (opt.dataset.timeoff === '1') return 1;   // time-off hosts next-to-last
+        return 0;
+      }
+      matched.sort(function (a, b) { return sinkRank(a) - sinkRank(b); });
 
+      matched.forEach(function (opt) {
         var item = document.createElement('div');
         item.className = 'ss-item';
         item.setAttribute('role', 'option');
@@ -101,7 +111,13 @@
           item.classList.add('ss-item--selected');
           item.setAttribute('aria-selected', 'true');
         }
-        item.textContent = opt.text;
+        if (opt.dataset.timeoff === '1') {
+          item.classList.add('ss-item--timeoff');
+          item.textContent = opt.text +
+            (opt.dataset.timeoffLabel ? '  · off ' + opt.dataset.timeoffLabel : '  · time off');
+        } else {
+          item.textContent = opt.text;
+        }
         item.dataset.value = opt.value;
 
         item.addEventListener('mousedown', function (e) {

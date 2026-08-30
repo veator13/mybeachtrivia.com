@@ -835,6 +835,19 @@ async function saveShift(e) {
     (window.CalendarState && window.CalendarState.forceBooking) ||
     false;
 
+  // ── Phase 6: warn before booking a host into their approved time off ────
+  // Skipped on the conflict "Proceed Anyway" re-entry (forceBooking) and when
+  // editing a shift without changing the host/date.
+  if (!forceBooking && window.TimeOffPicker && typeof window.TimeOffPicker.confirmAssignment === "function") {
+    const _sameAssignment =
+      _editingShift && String(previousEmployeeId || "") === String(employeeId || "") &&
+      String(_editingShift.date || "") === String(date || "");
+    if (!_sameAssignment && !window.TimeOffPicker.confirmAssignment(employeeId, date)) {
+      if (btn) { btn.textContent = originalText; btn.disabled = false; }
+      return;
+    }
+  }
+
   // ✅ Conflict detection (store pending + mirror into CalendarState)
   if (!forceBooking) {
     const conflicts = checkForDoubleBooking(shiftData, ctx.isEditing && ctx.editingShiftId ? ctx.editingShiftId : null);
