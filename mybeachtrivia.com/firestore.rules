@@ -402,9 +402,9 @@ service cloud.firestore {
     match /shifts/{docId} {
       allow read: if isHostOrAdmin();
       allow write: if isAdmin();
-      // Hosts may update only employeeId + updatedAt when accepting a coverage swap
-      allow update: if isHostOrAdmin()
-        && request.resource.data.diff(resource.data).changedKeys().hasOnly(['employeeId','updatedAt']);
+      // Shift reassignment for a swap is done server-side by the approveShiftSwap
+      // Cloud Function (Admin SDK). Hosts have no direct write path — accepting an
+      // offer only moves the shiftCoverageRequest to "pending_admin".
     }
 
     /* ========= Shift Coverage Requests =========
@@ -412,12 +412,11 @@ service cloud.firestore {
        return shift). Two kinds, chosen by the host:
          offerType "open"   → any host may accept (default when absent)
          offerType "direct" → only targetHostId may accept
-       Status flow (shift-swap-timeoff feature, Phase 1+):
+       Status flow (shift-swap-timeoff feature):
          open → pending_admin → approved | rejected   (+ cancelled / expired / shift_deleted)
        Accepting an offer only moves it to pending_admin; the shift itself is
-       NOT reassigned until an admin approves (done server-side by a Cloud
-       Function with the Admin SDK). The legacy "open → approved" transition is
-       still permitted until the Phase 3 admin UI ships.
+       NOT reassigned until an admin approves — done server-side by the
+       approveShiftSwap Cloud Function (Admin SDK, bypasses these rules).
     */
     match /shiftCoverageRequests/{requestId} {
       allow read: if isHostOrAdmin();
@@ -436,13 +435,9 @@ service cloud.firestore {
         );
 
       allow update: if isHostOrAdmin() && (
-        // Legacy accept: open → approved immediately (pre-Phase 3)
-        (resource.data.status == "open"
-          && request.resource.data.status == "approved"
-          && request.resource.data.acceptingHostId == request.auth.uid)
-        // New accept: open → pending_admin, no shift move yet.
+        // Accept: open → pending_admin, no shift move yet.
         // Open offers: any host but the requester. Direct offers: only the target.
-        || (resource.data.status == "open"
+        (resource.data.status == "open"
           && request.resource.data.status == "pending_admin"
           && request.resource.data.acceptingHostId == request.auth.uid
           && resource.data.requestingHostId != request.auth.uid

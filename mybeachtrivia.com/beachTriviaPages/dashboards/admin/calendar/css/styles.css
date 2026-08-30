@@ -2088,25 +2088,149 @@ input:checked + .toggle-slider:before { transform: translateX(26px); }
 .admin-swap-card-footer {
   display: flex;
   justify-content: flex-end;
+  gap: 8px;
   border-top: 1px solid rgba(255, 255, 255, 0.07);
   padding-top: 8px;
+}
+
+.admin-reject-btn,
+.admin-approve-btn,
+.admin-cancel-offer-btn {
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+}
+
+.admin-reject-btn:disabled,
+.admin-approve-btn:disabled,
+.admin-cancel-offer-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
 }
 
 .admin-reject-btn {
   background: rgba(239, 68, 68, 0.12);
   color: #ef4444;
   border: 1px solid rgba(239, 68, 68, 0.3);
-  border-radius: 6px;
-  padding: 6px 14px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
 }
 
 .admin-reject-btn:hover {
   background: rgba(239, 68, 68, 0.22);
   border-color: rgba(239, 68, 68, 0.55);
+}
+
+.admin-approve-btn {
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+}
+
+.admin-approve-btn:hover {
+  background: rgba(34, 197, 94, 0.28);
+  border-color: rgba(34, 197, 94, 0.6);
+}
+
+.admin-cancel-offer-btn {
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.admin-cancel-offer-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #ef4444;
+}
+
+.admin-swap-offer-line {
+  margin-top: 4px;
+}
+
+.admin-swap-offer {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(148, 163, 184, 0.18);
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.admin-swap-offer--direct {
+  background: rgba(96, 165, 250, 0.16);
+  color: #60a5fa;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.admin-swap-meta {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  margin-top: 3px;
+}
+
+.admin-reject-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.admin-reject-reason {
+  width: 100%;
+  resize: vertical;
+  min-height: 44px;
+  background: var(--input-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 7px 9px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.admin-reject-reason:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+.admin-reject-form-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.admin-reject-cancel {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.6);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.admin-reject-confirm {
+  background: rgba(239, 68, 68, 0.18);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #ef4444;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.admin-reject-confirm:disabled,
+.admin-reject-cancel:disabled {
+  opacity: 0.55;
+  cursor: default;
 }
 
 .admin-swap-section + .admin-swap-section {

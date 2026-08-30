@@ -359,6 +359,13 @@ exports.onSwapNotificationWrite = notifications.onSwapNotificationWrite;
 exports.onHostNotificationCreate = notifications.onHostNotificationCreate;
 
 /** ------------------------------------------
+ * Beach Trivia: admin approval of host shift swaps (Phase 3)
+ * ----------------------------------------- */
+const shiftSwap = require("./shift-swap");
+exports.approveShiftSwap = shiftSwap.approveShiftSwap;
+exports.rejectShiftSwap = shiftSwap.rejectShiftSwap;
+
+/** ------------------------------------------
  * BeachTrivia: cleanup old anonymous users (scheduled)
  * ----------------------------------------- */
 exports.cleanupStaleAnonymousUsers = functions.pubsub
