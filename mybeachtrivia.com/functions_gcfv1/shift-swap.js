@@ -71,6 +71,9 @@ exports.approveShiftSwap = functions
     const reqRef = db().collection(COL).doc(requestId);
     const reviewer = await adminName(adminUid);
 
+    // The transaction never throws for a "close the request" outcome — throwing
+    // inside runTransaction rolls back the very update that closes it. Instead it
+    // returns an outcome; the caller does the follow-up write + throws after.
     const result = await db().runTransaction(async (tx) => {
       const reqSnap = await tx.get(reqRef);
       if (!reqSnap.exists) {
@@ -96,34 +99,10 @@ exports.approveShiftSwap = functions
       const now = admin.firestore.FieldValue.serverTimestamp();
 
       if (!shiftSnap.exists) {
-        tx.update(reqRef, {
-          status: "shift_deleted",
-          adminReviewedAt: now,
-          adminReviewedBy: adminUid,
-          adminReviewedByName: reviewer,
-          resolutionNote: "The shift no longer exists.",
-          updatedAt: now,
-        });
-        throw new functions.https.HttpsError(
-          "failed-precondition",
-          "That shift no longer exists — the request has been closed."
-        );
+        return { outcome: "shift_missing" };
       }
-
-      const shift = shiftSnap.data();
-      if (String(shift.employeeId || "") !== String(req.requestingHostId || "")) {
-        tx.update(reqRef, {
-          status: "rejected",
-          adminReviewedAt: now,
-          adminReviewedBy: adminUid,
-          adminReviewedByName: reviewer,
-          rejectionReason: "The shift was reassigned before this swap was approved.",
-          updatedAt: now,
-        });
-        throw new functions.https.HttpsError(
-          "failed-precondition",
-          "That shift was already reassigned — the request has been closed."
-        );
+      if (String(shiftSnap.data().employeeId || "") !== String(req.requestingHostId || "")) {
+        return { outcome: "reassigned" };
       }
 
       // The one write that matters: move the shift.
@@ -136,8 +115,39 @@ exports.approveShiftSwap = functions
         updatedAt: now,
       });
 
-      return { ok: true, shiftId: req.shiftId, movedTo: req.acceptingHostId };
+      return { outcome: "approved", shiftId: req.shiftId, movedTo: req.acceptingHostId };
     });
+
+    if (result.outcome === "shift_missing") {
+      const now = admin.firestore.FieldValue.serverTimestamp();
+      await reqRef.update({
+        status: "shift_deleted",
+        adminReviewedAt: now,
+        adminReviewedBy: adminUid,
+        adminReviewedByName: reviewer,
+        resolutionNote: "The shift no longer exists.",
+        updatedAt: now,
+      });
+      throw new functions.https.HttpsError(
+        "failed-precondition",
+        "That shift no longer exists — the request has been closed."
+      );
+    }
+    if (result.outcome === "reassigned") {
+      const now = admin.firestore.FieldValue.serverTimestamp();
+      await reqRef.update({
+        status: "rejected",
+        adminReviewedAt: now,
+        adminReviewedBy: adminUid,
+        adminReviewedByName: reviewer,
+        rejectionReason: "The shift was reassigned before this swap was approved.",
+        updatedAt: now,
+      });
+      throw new functions.https.HttpsError(
+        "failed-precondition",
+        "That shift was already reassigned — the request has been closed."
+      );
+    }
 
     // Supersede any other still-active requests for the same shift.
     try {
