@@ -374,6 +374,13 @@ exports.approveTimeOff = timeOff.approveTimeOff;
 exports.denyTimeOff = timeOff.denyTimeOff;
 
 /** ------------------------------------------
+ * Beach Trivia: Sun/Mon uncovered-shift digest (Phase 8)
+ * ----------------------------------------- */
+const digest = require("./digest");
+exports.shiftOfferDigest = digest.shiftOfferDigest;
+exports.runShiftOfferDigestNow = digest.runShiftOfferDigestNow;
+
+/** ------------------------------------------
  * BeachTrivia: cleanup old anonymous users (scheduled)
  * ----------------------------------------- */
 exports.cleanupStaleAnonymousUsers = functions.pubsub

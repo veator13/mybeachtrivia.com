@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/beachTriviaPages/js/bt-time-off.css?v=20260830" />
   <!-- Unified nav bar -->
   <link rel="stylesheet" href="/beachTriviaPages/js/bt-nav.css">
-  <script src="/beachTriviaPages/js/bt-nav.js?v=hostnav-20260830-requests" defer></script>
+  <script src="/beachTriviaPages/js/bt-nav.js?v=hostnav-20260830-push" defer></script>
 
   <!-- Force date-number header row visible.
        This <style> block intentionally sits after bt-nav.css so it wins
@@ -113,6 +113,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-auth-compat.js" defer></script>
   <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-firestore-compat.js" defer></script>
   <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-functions-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-messaging-compat.js" defer></script>
 
   <!-- App init + host guard -->
   <script src="../../../firebase-init.js" defer></script>
@@ -130,6 +131,8 @@
   <script src="./js/shift-trade-requests.js?v=20260830-swap" defer></script>
   <script src="/beachTriviaPages/js/bt-time-off.js?v=20260830b" defer></script>
   <script src="./js/time-off-modal.js?v=20260830" defer></script>
+  <script src="/beachTriviaPages/js/bt-push-config.js?v=20260830" defer></script>
+  <script src="/beachTriviaPages/js/bt-push.js?v=20260830b" defer></script>
 </head>
 
 <body>
@@ -199,6 +202,7 @@
             <span id="shift-offers-badge" class="shift-offers-badge" aria-live="polite" aria-label="open shift offers count" hidden></span>
           </button>
           <button id="open-timeoff" class="small-btn" type="button">Manage Time Off</button>
+          <button id="bt-enable-push" class="small-btn" type="button" hidden>🔔 Turn on notifications</button>
         </div>
       </div>
 

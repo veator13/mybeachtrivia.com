@@ -9,15 +9,18 @@
   <link rel="stylesheet" href="/beachTriviaPages/js/bt-nav.css" />
   <link rel="stylesheet" href="/beachTriviaPages/js/bt-time-off.css?v=20260830" />
   <link rel="stylesheet" href="./style.css?v=20260830" />
-  <script src="/beachTriviaPages/js/bt-nav.js?v=hostnav-20260830-requests" defer></script>
+  <script src="/beachTriviaPages/js/bt-nav.js?v=hostnav-20260830-push" defer></script>
 
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js" defer></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js" defer></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-messaging-compat.js" defer></script>
 
   <script src="/beachTriviaPages/js/firebase-init-compat.js?v=1" defer></script>
   <script src="/beachTriviaPages/dashboards/host/guard-host.js?v=5" defer></script>
   <script src="/beachTriviaPages/js/bt-time-off.js?v=20260830b" defer></script>
+  <script src="/beachTriviaPages/js/bt-push-config.js?v=20260830" defer></script>
+  <script src="/beachTriviaPages/js/bt-push.js?v=20260830b" defer></script>
   <script src="./time-off-page.js?v=20260830" defer></script>
 </head>
 
@@ -73,6 +76,15 @@
         <div class="bt-to-list" id="to-list">
           <p class="bt-to-empty">Loading…</p>
         </div>
+      </section>
+
+      <section class="to-card" id="to-notify-card">
+        <h2>Notifications</h2>
+        <p class="to-page-sub" style="margin-top:0">
+          Get a push notification on this device when a shift swap or time-off
+          request needs you. You'll still get the in-app bell and an email either way.
+        </p>
+        <button type="button" id="bt-enable-push" class="bt-to-submit" hidden>🔔 Turn on notifications</button>
       </section>
     </main>
   </div>

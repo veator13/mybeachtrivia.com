@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="css/styles.css?v=20260830-timeoff6" />
   <!-- Unified nav bar -->
   <link rel="stylesheet" href="/beachTriviaPages/js/bt-nav.css">
-  <script src="/beachTriviaPages/js/bt-nav.js?v=hostnav-20260830-requests" defer></script>
+  <script src="/beachTriviaPages/js/bt-nav.js?v=hostnav-20260830-push" defer></script>
 
   <style>
     /* Toggle Switch Styling */
@@ -130,6 +130,7 @@
             Shift Offers
             <span id="admin-shift-offers-badge" class="shift-offers-badge" hidden></span>
           </button>
+          <button id="bt-enable-push" class="small-btn" type="button" hidden>🔔 Turn on notifications</button>
         </div>
       </div>
 
@@ -562,6 +563,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-functions-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-messaging-compat.js"></script>
 
   <script src="../../../firebase-init.js"></script>
   <script src="../guard-admin.js"></script>
@@ -580,6 +582,8 @@
   <script src="js/main.js?v=2"></script>
   <script src="js/shift-swap-admin.js?v=20260830-timeoff5"></script>
   <script src="js/timeoff-picker.js?v=20260830-timeoff6"></script>
+  <script src="/beachTriviaPages/js/bt-push-config.js?v=20260830"></script>
+  <script src="/beachTriviaPages/js/bt-push.js?v=20260830b"></script>
 
   <script src="/beachTriviaPages/js/auth-route-guard.v2.js?v=2025-10-14a"></script>
 </body>

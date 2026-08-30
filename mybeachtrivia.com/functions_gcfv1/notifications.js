@@ -18,6 +18,7 @@
 
 const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
+const channels = require("./notify-channels");
 
 const REGION = "us-central1";
 const COL = "notifications";
@@ -104,11 +105,14 @@ function notifId(srcTag, recipientId) {
   return `${srcTag}__${recipientId}`.replace(/[^A-Za-z0-9_.-]/g, "_").slice(0, 480);
 }
 
+// Returns true only when it actually created the doc (first delivery). A
+// retried trigger sees the existing doc and returns false — so callers can key
+// the email / push sends off the return value and never double-send.
 async function writeOne(recipientId, srcTag, payload) {
-  if (!recipientId) return;
+  if (!recipientId) return false;
   const ref = db().collection(COL).doc(notifId(srcTag, recipientId));
   const existing = await ref.get();
-  if (existing.exists) return; // already delivered
+  if (existing.exists) return false; // already delivered
   await ref.set({
     recipientId,
     type: payload.type,
@@ -119,13 +123,58 @@ async function writeOne(recipientId, srcTag, payload) {
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
     readAt: null,
   });
+  return true;
 }
 
+// Returns the subset of recipientIds that were newly notified.
 async function fanOut(recipientIds, srcTag, payload) {
   // writeOne appends `__${recipientId}` to the id, so srcTag stays per-event.
-  await Promise.all(
-    [...new Set(recipientIds)].map((uid) => writeOne(uid, srcTag, payload))
-  );
+  const uids = [...new Set(recipientIds)];
+  const wrote = await Promise.all(uids.map((uid) => writeOne(uid, srcTag, payload)));
+  return uids.filter((_, i) => wrote[i]);
+}
+
+/**
+ * Fire the email + web-push channels for a set of recipients. Best-effort:
+ * every failure is swallowed inside notify-channels. `fresh` should be the
+ * list writeOne/fanOut reported as newly notified, so retries don't re-send.
+ */
+async function alsoReach(fresh, { title, body, link, emailSubject, emailLines, emailCta }) {
+  const uids = [...new Set((fresh || []).filter(Boolean))];
+  if (!uids.length) return;
+  const jobs = [];
+
+  jobs.push(channels.sendPushToUsers(uids, { title, body, link }));
+
+  const subject = emailSubject || title;
+  if (subject) {
+    jobs.push(
+      channels.emailForUids(uids).then((emails) => {
+        if (!emails.length) return null;
+        const lines = emailLines && emailLines.length ? emailLines : [body].filter(Boolean);
+        const href = link
+          ? (link.startsWith("http") ? link : channels.SITE + link)
+          : channels.SITE;
+        return channels.sendEmail({
+          to: emails,
+          subject,
+          text: lines.join("\n\n") + "\n\n" + href,
+          html: channels.emailShell({
+            heading: title,
+            lines,
+            ctaText: emailCta || "Open Beach Trivia",
+            ctaHref: href,
+          }),
+        });
+      })
+    );
+  }
+
+  try {
+    await Promise.all(jobs);
+  } catch (err) {
+    console.error("[notifications] alsoReach failed:", err);
+  }
 }
 
 /* ── trigger: shiftCoverageRequests ────────────────────────────────────── */
@@ -157,21 +206,45 @@ exports.onCoverageRequestWrite = functions
       if (!before && status === "open") {
         const direct = after.offerType === "direct" && after.targetHostId;
         if (direct) {
-          await writeOne(after.targetHostId, `cov_${reqId}_direct`, {
+          const wrote = await writeOne(after.targetHostId, `cov_${reqId}_direct`, {
             type: "shift_offer_direct",
             title: `${after.requestingHostName || "A host"} offered you a shift`,
             body: line,
             link: HOST_CALENDAR,
             data,
           });
+          await alsoReach(wrote ? [after.targetHostId] : [], {
+            title: `${after.requestingHostName || "A host"} offered you a shift`,
+            body: line,
+            link: HOST_CALENDAR,
+            emailSubject: "A host offered you a shift",
+            emailLines: [
+              `${after.requestingHostName || "A host"} wants to hand off this shift to you:`,
+              line,
+              "Open the calendar to accept or decline.",
+            ],
+            emailCta: "View the offer",
+          });
         } else {
           const hosts = await hostUids(after.requestingHostId);
-          await fanOut(hosts, `cov_${reqId}_open`, {
+          const fresh = await fanOut(hosts, `cov_${reqId}_open`, {
             type: "shift_offer_open",
             title: "A shift is up for grabs",
             body: `${line} — offered by ${after.requestingHostName || "a host"}`,
             link: HOST_CALENDAR,
             data,
+          });
+          await alsoReach(fresh, {
+            title: "A shift is up for grabs",
+            body: `${line} — offered by ${after.requestingHostName || "a host"}`,
+            link: HOST_CALENDAR,
+            emailSubject: "A Beach Trivia shift is up for grabs",
+            emailLines: [
+              `${after.requestingHostName || "A host"} put this shift up for any host to pick up:`,
+              line,
+              "First to claim it in the calendar gets it (pending admin approval).",
+            ],
+            emailCta: "Pick up the shift",
           });
         }
         return null;
@@ -183,22 +256,45 @@ exports.onCoverageRequestWrite = functions
       if (prevStatus === "open" && (status === "pending_admin" || status === "approved")) {
         const acceptorData = { ...data, acceptingHostName: after.acceptingHostName || "" };
 
-        await writeOne(after.requestingHostId, `cov_${reqId}_claimed`, {
+        const claimedFresh = await writeOne(after.requestingHostId, `cov_${reqId}_claimed`, {
           type: "shift_offer_claimed",
           title: `${after.acceptingHostName || "A host"} took your shift`,
           body: `${line} — pending admin approval`,
           link: HOST_CALENDAR,
           data: acceptorData,
         });
+        await alsoReach(claimedFresh ? [after.requestingHostId] : [], {
+          title: `${after.acceptingHostName || "A host"} took your shift`,
+          body: `${line} — pending admin approval`,
+          link: HOST_CALENDAR,
+          emailSubject: "A host took your offered shift",
+          emailLines: [
+            `${after.acceptingHostName || "A host"} accepted your offer for:`,
+            line,
+            "It still needs admin approval before the schedule changes.",
+          ],
+        });
 
         if (status === "pending_admin") {
           const admins = await adminUids();
-          await fanOut(admins, `cov_${reqId}_pending`, {
+          const adminFresh = await fanOut(admins, `cov_${reqId}_pending`, {
             type: "swap_pending_admin",
             title: "Shift swap needs approval",
             body: `${after.requestingHostName || "Host"} → ${after.acceptingHostName || "Host"} · ${line}`,
             link: ADMIN_CALENDAR,
             data: acceptorData,
+          });
+          await alsoReach(adminFresh, {
+            title: "Shift swap needs approval",
+            body: `${after.requestingHostName || "Host"} → ${after.acceptingHostName || "Host"} · ${line}`,
+            link: ADMIN_CALENDAR,
+            emailSubject: "Shift swap waiting for your approval",
+            emailLines: [
+              `${after.requestingHostName || "A host"} offered a shift and ${after.acceptingHostName || "another host"} accepted it:`,
+              line,
+              "Approve or reject it from the admin calendar — the shift does not move until you approve.",
+            ],
+            emailCta: "Review the swap",
           });
         }
         return null;
@@ -208,17 +304,32 @@ exports.onCoverageRequestWrite = functions
       if (prevStatus === "pending_admin" && (status === "approved" || status === "rejected")) {
         const approved = status === "approved";
         const recipients = [after.requestingHostId, after.acceptingHostId].filter(Boolean);
-        await Promise.all(
+        const swapBody = `${after.requestingHostName || "Host"} → ${after.acceptingHostName || "Host"} · ${line}`;
+        const wrote = await Promise.all(
           recipients.map((uid) =>
             writeOne(uid, `cov_${reqId}_${status}_${uid}`, {
               type: approved ? "swap_approved" : "swap_rejected",
               title: approved ? "Shift swap approved" : "Shift swap rejected",
-              body: `${after.requestingHostName || "Host"} → ${after.acceptingHostName || "Host"} · ${line}`,
+              body: swapBody,
               link: HOST_CALENDAR,
               data: { ...data, acceptingHostName: after.acceptingHostName || "" },
             })
           )
         );
+        const fresh = recipients.filter((_, i) => wrote[i]);
+        await alsoReach(fresh, {
+          title: approved ? "Shift swap approved" : "Shift swap rejected",
+          body: swapBody,
+          link: HOST_CALENDAR,
+          emailSubject: approved ? "Your shift swap was approved" : "Your shift swap was rejected",
+          emailLines: approved
+            ? [`The swap is approved and the schedule is updated:`, swapBody]
+            : [
+                `An admin rejected this swap — the shift stays as it was:`,
+                swapBody,
+                after.rejectionReason ? `Reason: ${after.rejectionReason}` : "",
+              ].filter(Boolean),
+        });
         return null;
       }
 
@@ -313,7 +424,7 @@ exports.onHostNotificationCreate = functions
     const meta = HOST_NOTIF_TYPES[kind] || HOST_NOTIF_TYPES.shift_assigned;
 
     try {
-      await writeOne(d.targetHostId, `hn_${hnId}`, {
+      const wrote = await writeOne(d.targetHostId, `hn_${hnId}`, {
         type: meta.type,
         title: meta.title,
         body: shiftLine(d),
@@ -329,6 +440,20 @@ exports.onHostNotificationCreate = functions
           assignedByName: d.assignedByName || "",
         },
       });
+      // Only email/push real assignment changes, and only on first delivery.
+      if (wrote && (kind === "shift_assigned" || kind === "shift_reassigned" || kind === "shift_removed")) {
+        await alsoReach([d.targetHostId], {
+          title: meta.title,
+          body: shiftLine(d),
+          link: HOST_CALENDAR,
+          emailSubject: meta.title,
+          emailLines: [
+            meta.title + (d.assignedByName ? ` by ${d.assignedByName}` : "") + ":",
+            shiftLine(d),
+            "Check the calendar for the details.",
+          ],
+        });
+      }
     } catch (err) {
       console.error("[notifications] onHostNotificationCreate failed:", err);
     }
@@ -367,35 +492,69 @@ exports.onTimeOffRequestWrite = functions
       // New request → nudge every admin.
       if (!before && status === "pending") {
         const admins = await adminUids();
-        await fanOut(admins, `to_${reqId}_submitted`, {
+        const body = `${after.hostName || "A host"} · ${line}` +
+          (after.insideTwoWeeks ? " · inside 2 weeks" : "");
+        const fresh = await fanOut(admins, `to_${reqId}_submitted`, {
           type: "timeoff_submitted",
           title: "Time-off request to review",
-          body: `${after.hostName || "A host"} · ${line}` +
-            (after.insideTwoWeeks ? " · inside 2 weeks" : ""),
+          body,
           link: ADMIN_CALENDAR,
           data,
+        });
+        await alsoReach(fresh, {
+          title: "Time-off request to review",
+          body,
+          link: ADMIN_CALENDAR,
+          emailSubject: "New time-off request to review",
+          emailLines: [
+            `${after.hostName || "A host"} requested time off:`,
+            line + (after.insideTwoWeeks ? "  (inside the 2-week window)" : ""),
+            after.note ? `Note: ${after.note}` : "",
+            "Approve or deny it from the admin calendar.",
+          ].filter(Boolean),
+          emailCta: "Review the request",
         });
         return null;
       }
 
       // Admin decided.
       if (prev === "pending" && status === "approved") {
-        await writeOne(after.hostId, `to_${reqId}_approved`, {
+        const wrote = await writeOne(after.hostId, `to_${reqId}_approved`, {
           type: "timeoff_approved",
           title: "Time off approved",
           body: line,
           link: HOST_TIMEOFF,
           data,
         });
+        await alsoReach(wrote ? [after.hostId] : [], {
+          title: "Time off approved",
+          body: line,
+          link: HOST_TIMEOFF,
+          emailSubject: "Your time off was approved",
+          emailLines: [`Your time-off request is approved:`, line],
+        });
         return null;
       }
       if (prev === "pending" && status === "denied") {
-        await writeOne(after.hostId, `to_${reqId}_denied`, {
+        const body = line + (after.denialReason ? ` — "${after.denialReason}"` : "");
+        const wrote = await writeOne(after.hostId, `to_${reqId}_denied`, {
           type: "timeoff_denied",
           title: "Time off denied",
-          body: line + (after.denialReason ? ` — "${after.denialReason}"` : ""),
+          body,
           link: HOST_TIMEOFF,
           data,
+        });
+        await alsoReach(wrote ? [after.hostId] : [], {
+          title: "Time off denied",
+          body,
+          link: HOST_TIMEOFF,
+          emailSubject: "Your time-off request was denied",
+          emailLines: [
+            `An admin denied your time-off request:`,
+            line,
+            after.denialReason ? `Reason: ${after.denialReason}` : "",
+            "Talk to an admin if you need to work it out.",
+          ].filter(Boolean),
         });
         return null;
       }
@@ -421,13 +580,20 @@ exports.onTimeOffRequestWrite = functions
             await batch.commit();
           }
           const admins = await adminUids();
-          await fanOut(admins, `to_${reqId}_cancelled`, {
+          const body = `${after.hostName || "A host"} cancelled ${line}` +
+            (flagged && !flagged.empty ? ` — ${flagged.size} shift flag(s) cleared` : "");
+          const fresh = await fanOut(admins, `to_${reqId}_cancelled`, {
             type: "timeoff_conflict",
             title: "Approved time off was cancelled",
-            body: `${after.hostName || "A host"} cancelled ${line}` +
-              (flagged && !flagged.empty ? ` — ${flagged.size} shift flag(s) cleared` : ""),
+            body,
             link: ADMIN_CALENDAR,
             data,
+          });
+          await alsoReach(fresh, {
+            title: "Approved time off was cancelled",
+            body,
+            link: ADMIN_CALENDAR,
+            emailSubject: "A host cancelled approved time off",
           });
         }
         return null;

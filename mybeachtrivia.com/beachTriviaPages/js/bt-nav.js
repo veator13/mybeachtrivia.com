@@ -708,7 +708,8 @@
     timeoff_submitted: 'Time Off — Needs Review',
     timeoff_approved: 'Time Off Approved',
     timeoff_denied: 'Time Off Denied',
-    timeoff_conflict: 'Time Off Conflict'
+    timeoff_conflict: 'Time Off Conflict',
+    offer_digest: 'Uncovered Shifts'
   };
 
   function _ntfDb() {

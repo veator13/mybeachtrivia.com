@@ -95,9 +95,12 @@ Known, non-blocking for Phase 3:
   the host dashboard, scoresheet, admin calendar; "Time Off" nav item present
   on every host page.
 
-Phases 6 & 7 done 2026-08-30 (host amber time-off days + admin host-picker
-grey/sink/warn; admin "Requests" audit page). Next: Phase 8 (Sun/Mon digest,
-FCM push, email backup) — the last phase.
+Phases 6 & 7 done 2026-08-30. Phase 8 (Sun/Mon digest + FCM push + email
+backup) built & staging-tested 2026-08-30 — digest + push plumbing green;
+email blocked on a DEAD SendGrid key (401); FCM needs Josh's VAPID key +
+device test. See §8 "remaining for Josh". A Phase 9 was discussed: a Sunday-noon
+"here's your week" email to every host with a one-tap confirm (link → login →
+confirm) + an admin "who confirmed" view — its own design + build.
 
 Phase 0 follow-ups (not blockers):
 - `notifications` has no TTL/cleanup yet — an open offer fans out ~1 doc per host.
@@ -663,19 +666,89 @@ everything under `/beachTriviaPages/js/` — including `bt-nav.js` — as a
 stale-while-revalidate asset, so a bt-nav change (new nav link) only appears on
 the *second* navigation after deploy for anyone who has visited the scoresheet.
 Self-heals; worth fixing by excluding `bt-nav.*` from the SW.
-8. **Notifications** —
-   a. `shiftOfferDigest` scheduled function (Sun/Mon) + bell integration for
-      time-off events.
-   b. FCM web push: service worker, `manifest.json`, token capture/prune, send
-      from the event functions.
-   c. Plain-email backup send from the same functions.
+8. **Notifications** — ⏳ IN PROGRESS 2026-08-30. Digest + push plumbing built &
+   staging-tested; email blocked on a dead SendGrid key (see below).
+   - **`functions_gcfv1/notify-channels.js`** (new) — shared lib:
+     `sendEmail({to,subject,text,html})` (SendGrid, reuses
+     `functions.config().sendgrid.key`), `sendPushToUsers(uids,{title,body,link})`
+     (FCM `sendEachForMulticast`; prunes tokens on
+     `registration-token-not-registered` / `invalid-*`), `emailForUids`,
+     `emailShell`. **Email delivery gate** (`BT_NOTIFY_EMAIL` env in
+     `functions_gcfv1/.env`): `live` = send to everyone, `test` = only
+     `BT_NOTIFY_EMAIL_ALLOWLIST` addresses, anything else = log only. Currently
+     `test` with `joshuaveator@gmail.com,13berner13@gmail.com` — staging shares
+     the prod SendGrid + real `employees` emails, so this stops a broadcast from
+     spamming real hosts during testing. **Flip to `live` for production.**
+   - **`notifications.js`** — `writeOne` now returns whether it actually wrote
+     (retry-safe); each event path calls `alsoReach(freshRecipients, …)` which
+     fires push + gated email alongside the bell doc. Covers: open/direct offer,
+     offer claimed, swap needs-approval, swap approved/rejected, time-off
+     submitted/approved/denied, approved-time-off-cancelled, shift
+     assigned/removed/reassigned.
+   - **`functions_gcfv1/digest.js`** (new) — `shiftOfferDigest` pub/sub
+     `0 7 * * 0,1` America/New_York. Sunday → open offers for shifts in the
+     week that locks tomorrow (Mon–Sat); Monday → this (now-locked) week
+     (today–Sat). One `offer_digest` bell + gated email + push to every admin,
+     idempotent per calendar date. Also sweeps `open` offers whose shift date is
+     already past → `status:"expired"`. `runShiftOfferDigestNow` = admin-only
+     callable to trigger it manually.
+   - **FCM web push client**: `/firebase-messaging-sw.js` (root, registered at
+     scope **`/firebase-cloud-messaging-push-scope`** so it never collides with
+     the scoresheet `/sw.js` at `/`); `beachTriviaPages/js/bt-push.js`
+     (`BtPush.attach` / `enable` / `state`, auto-wires `#bt-enable-push`, saves
+     token to `employees/{uid}.fcmTokens` via `arrayUnion`, silent refresh when
+     already granted, foreground `onMessage`); `beachTriviaPages/js/bt-push-config.js`
+     (`window.BT_VAPID_KEY` — **empty, Josh must paste the Web Push cert key**).
+     "🔔 Turn on notifications" button on the host calendar, time-off page, and
+     admin calendar — stays hidden until `BT_VAPID_KEY` is set.
+   - `firebase.json`: `/firebase-messaging-sw.js` → `Cache-Control: no-store` +
+     `Service-Worker-Allowed: /`. `bt-nav.js` NTF_LABELS += `offer_digest`.
+     bt-nav cache-bust → `?v=hostnav-20260830-push` (27 pages).
+   - Deployed: `shiftOfferDigest`, `runShiftOfferDigestNow` (new),
+     `onCoverageRequestWrite` / `onTimeOffRequestWrite` / `onHostNotificationCreate`
+     (updated). `firebase deploy --only functions:<name>` only — never bare.
+
+**Phase 8 staging test 2026-08-30:**
+- Digest: seeded an `open` offer for a shift in the upcoming week → `runShiftOfferDigestNow`
+  → `uncovered:1`, `offer_digest` bell to all 3 admins ("1 shift still needs a
+  host · Big Ugly Brewing Wed, Sep 2"), links to admin calendar. Re-run same day
+  → `admins:0`, still 1 bell (idempotent). Past-dated `open` offers → `expired`.
+  (Bug found + fixed: the window must never reach backwards past today — Sunday
+  Aug 30 correctly targets Mon Aug 31 – Sat Sep 5.)
+- Email gate: a time-off submit fanned to 3 admins → exactly **one**
+  `sendEmail` attempt (only `joshuaveator@gmail.com`, the allowlisted admin) →
+  `Unauthorized`. The other 2 admins: zero attempts. Gate works.
+- **SendGrid key `SG.FUd_…` is DEAD — every send returns 401 Unauthorized.**
+  So `adminCreateEmployee`'s welcome email has silently been failing too.
+  Email backup can't work until Josh regenerates the SendGrid key **or** picks
+  a new provider (Resend etc.) — then it's a ~5-line swap in notify-channels.js.
+- FCM plumbing: `/firebase-messaging-sw.js` serves 200 + correct headers;
+  registers & activates at `/firebase-cloud-messaging-push-scope` (importScripts
+  from gstatic works under CSP); coexists with `/sw.js` at `/`. Button shows
+  once a `BT_VAPID_KEY` is present, hidden without one. End-to-end token +
+  delivery **unverified** — needs Josh: (1) Firebase console → Project settings →
+  Cloud Messaging → Web Push certificates → generate → paste into
+  bt-push-config.js; (2) test "Turn on notifications" on desktop + Android;
+  (3) iOS: Add to Home Screen first, then enable from the icon.
+- Bell regression: offer/claim/swap-approve/time-off all still write bell docs
+  correctly with the new `alsoReach` calls. No breakage.
+- Cleaned up test shifts + coverage requests. Kept the 3 demo time-off rows.
+
+**Phase 8 remaining for Josh:**
+1. SendGrid key (regenerate) or new email provider → give me the key.
+2. `BT_VAPID_KEY` from the Firebase console → paste into
+   `beachTriviaPages/js/bt-push-config.js`.
+3. Flip `BT_NOTIFY_EMAIL=live` in `functions_gcfv1/.env` + redeploy when signed off.
+4. PWA polish (optional): `manifest.json` name/icon/theme for a nicer
+   Add-to-Home-Screen.
 
 ---
 
 ## 9. Open items
 
-- Email sender service pick for §7.3 (Resend / Brevo / MailerSend / Trigger Email
-  extension).
+- **SendGrid key is dead (401).** Regenerate or switch provider before email
+  backup / employee-invite emails work.
+- `BT_VAPID_KEY` not yet set — FCM push button stays hidden until it is.
 - PWA assets: app icon set + `manifest.json` name / theme colour.
 - Whether the admin "Requests" page pending rows should be actionable
   (approve/deny inline) in v1 or just display.
