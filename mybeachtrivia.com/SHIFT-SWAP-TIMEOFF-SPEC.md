@@ -70,6 +70,31 @@ Known, non-blocking for Phase 3:
   transaction now returns an outcome; the close-out write + `HttpsError` happen
   after commit.
 
+**Phases 0–4 full test pass 2026-08-30 — GREEN (one security fix).**
+- **Security fix (deployed):** Firestore `changedKeys()` does NOT include
+  newly-added keys, so `changedKeys().hasOnly([...])` let a caller sneak extra
+  fields into an update. The `shiftCoverageRequests` accept branch had no key
+  restriction at all → a host accepting an open offer could re-point
+  `shiftId` + `requestingHostId` and get an admin to approve a stolen shift.
+  Fixed: accept/cancel branches now `affectedKeys().hasOnly([...])` + pin
+  `requestingHostId`/`shiftId`; create requires the shift to exist and belong to
+  the requester; `notifications` + `timeOffRequests` + `employees` self-update
+  switched to `affectedKeys()`. Re-verified: the re-point attack, junk-field
+  injection, cancel-with-extra-field, notification-field injection all denied;
+  legit accept/cancel/mark-read/self-edit still pass.
+- Full swap lifecycle via the real UI: open offer → 2nd host Accept →
+  admin Approve → shift moves; direct offer → target Accept → admin Approve →
+  shift moves back; admin Reject with reason; locked-week open offer blocked
+  (radio disabled + message), direct switch allowed; cancel at open stage.
+- Time off via the real UI: submit (>2wk and <2wk with warning), cancel a
+  pending request, cancel an admin-approved request (no approval needed),
+  cross-host privacy (a host cannot read another host's requests),
+  `subscribeMine` returns only your own.
+- Regression: admin calendar shift create/edit/delete still work; admin +
+  host calendars render with no console errors; bell opens/closes and lists on
+  the host dashboard, scoresheet, admin calendar; "Time Off" nav item present
+  on every host page.
+
 Next: Phase 5 (time-off admin side — approve/deny + shift-conflict popup).
 
 Phase 0 follow-ups (not blockers):
