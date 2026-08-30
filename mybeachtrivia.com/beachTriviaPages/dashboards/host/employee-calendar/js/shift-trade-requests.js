@@ -3,7 +3,7 @@
   "use strict";
 
   const COLLECTION = "shiftCoverageRequests";
-  const NOTIFICATIONS = "shiftSwapNotifications";
+  // (shiftSwapNotifications retired — the request doc itself is the admin queue now)
 
   const _myActiveShiftIds = new Set();
   let _liveUnsub = null;

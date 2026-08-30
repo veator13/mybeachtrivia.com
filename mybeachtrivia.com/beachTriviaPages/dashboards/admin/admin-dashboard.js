@@ -39,9 +39,9 @@
       .then(function (snap) { setEl('stat-offers', snap.size); })
       .catch(function () { setEl('stat-offers', '—'); });
 
-    // Pending swap notifications
-    db.collection('shiftSwapNotifications')
-      .where('status', '==', 'pending_review')
+    // Shift swaps awaiting admin approval
+    db.collection('shiftCoverageRequests')
+      .where('status', '==', 'pending_admin')
       .get()
       .then(function (snap) { setEl('stat-swaps', snap.size); })
       .catch(function () { setEl('stat-swaps', '—'); });
