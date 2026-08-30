@@ -3,59 +3,54 @@
 // Phase 8 — the two "extra" notification channels layered on top of the in-app
 // bell (`notifications` collection, see notifications.js):
 //
-//   sendEmail({ to, subject, text, html })      — SendGrid, reuses the existing
-//                                                 key (functions.config().sendgrid.key
-//                                                 or SENDGRID_API_KEY). No-ops if
-//                                                 no key is configured.
+//   sendEmail({ to, subject, text, html })      — Resend HTTP API. Key from
+//                                                 RESEND_API_KEY (functions_gcfv1/.env)
+//                                                 or functions.config().resend.key.
+//                                                 No-ops if no key is configured.
 //   sendPushToUsers(uids, { title, body, link }) — FCM web push to every token in
 //                                                 employees/{uid}.fcmTokens.
 //                                                 Prunes dead tokens.
 //   emailForUids(uids)                           — resolve employee emails.
 //
 // All three are best-effort: failures are logged, never thrown, so a flaky
-// SendGrid / FCM call can't roll back the Firestore write that triggered it.
+// Resend / FCM call can't roll back the Firestore write that triggered it.
 
 const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
 
 const SITE = "https://mybeachtrivia.com";
-const FROM = { email: "mybeachtrivia@gmail.com", name: "Beach Trivia" };
+
+// Sender. `onboarding@resend.dev` works with zero DNS setup; switch
+// BT_NOTIFY_EMAIL_FROM to noreply@mybeachtrivia.com once the domain is verified
+// in the Resend dashboard.
+function fromAddr() {
+  const addr = String(process.env.BT_NOTIFY_EMAIL_FROM || "onboarding@resend.dev").trim();
+  return `Beach Trivia <${addr}>`;
+}
 
 function db() {
   return admin.firestore();
 }
 
-/* ── SendGrid ──────────────────────────────────────────────────────────── */
+/* ── Resend ────────────────────────────────────────────────────────────── */
 
-let _sg = null;
-let _sgTried = false;
-
-function sendgrid() {
-  if (_sgTried) return _sg;
-  _sgTried = true;
-  const key =
-    process.env.SENDGRID_API_KEY ||
-    (functions.config().sendgrid && functions.config().sendgrid.key) ||
-    "";
-  if (!key) {
-    console.warn("[notify-channels] no SendGrid key — email disabled");
-    return null;
-  }
-  try {
-    _sg = require("@sendgrid/mail");
-    _sg.setApiKey(key);
-  } catch (err) {
-    console.error("[notify-channels] @sendgrid/mail load failed:", err);
-    _sg = null;
-  }
-  return _sg;
+function resendKey() {
+  return String(
+    process.env.RESEND_API_KEY ||
+    (functions.config().resend && functions.config().resend.key) ||
+    ""
+  ).trim();
 }
 
-// Delivery gate. Staging shares the production SendGrid account + the real
-// `employees` emails, so a broadcast fired while testing would spam real hosts.
+// Delivery gate. Staging shares the real `employees` emails, so a broadcast
+// fired while testing would spam real hosts.
 //   BT_NOTIFY_EMAIL = "live"  → send to everyone (production)
 //                   = "test"  → send only to BT_NOTIFY_EMAIL_ALLOWLIST
 //                   = other / unset → don't send, just log (default, safe)
+//
+// Note: the resend.dev sandbox sender can ONLY deliver to the Resend account
+// owner's address until a domain is verified — keep BT_NOTIFY_EMAIL=test with
+// joshuaveator@gmail.com on the allowlist until then.
 function emailMode() {
   return String(process.env.BT_NOTIFY_EMAIL || "").trim().toLowerCase();
 }
@@ -91,20 +86,40 @@ async function sendEmail(msg) {
     return { ok: false, skipped: "disabled" };
   }
 
-  const sg = sendgrid();
-  if (!sg) return { ok: false, skipped: "no-key" };
+  const key = resendKey();
+  if (!key) {
+    console.warn("[notify-channels] no Resend key (RESEND_API_KEY) — email disabled");
+    return { ok: false, skipped: "no-key" };
+  }
+
+  const subject = msg.subject || "Beach Trivia";
+  const html = msg.html || textToHtml(msg.text || "");
+  const from = fromAddr();
+
+  // One message per recipient (no shared To: header) via Resend's batch endpoint.
+  const payload = to.map((addr) => ({
+    from,
+    to: [addr],
+    subject,
+    text: msg.text || "",
+    html,
+  }));
 
   try {
-    await sg.send({
-      to,
-      from: FROM,
-      subject: msg.subject || "Beach Trivia",
-      text: msg.text || "",
-      html: msg.html || textToHtml(msg.text || ""),
-      isMultiple: true, // one message per recipient, no shared To: header
-      trackingSettings: { clickTracking: { enable: false, enableText: false } },
+    const resp = await fetch("https://api.resend.com/emails/batch", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
     });
-    console.log(`[notify-channels] email sent (${mode}): "${msg.subject}" → ${to.join(", ")}`);
+    if (!resp.ok) {
+      const detail = await resp.text().catch(() => "");
+      console.error(`[notify-channels] sendEmail failed: HTTP ${resp.status} ${detail}`.trim());
+      return { ok: false, error: `HTTP ${resp.status} ${detail}`.trim() };
+    }
+    console.log(`[notify-channels] email sent (${mode}): "${subject}" → ${to.join(", ")}`);
     return { ok: true, count: to.length };
   } catch (err) {
     console.error("[notify-channels] sendEmail failed:", err && err.message ? err.message : err);
