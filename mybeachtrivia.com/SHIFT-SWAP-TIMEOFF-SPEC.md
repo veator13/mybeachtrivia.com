@@ -18,6 +18,13 @@ time-off collections deployed (additive; nothing broke).
 lock, accept → pending_admin without moving the shift). Deployed + tested on
 staging.
 
+**Phase 3 done 2026-08-30** — admin approve/reject. `functions_gcfv1/shift-swap.js`
+(`approveShiftSwap` / `rejectShiftSwap`), rewritten `shift-swap-admin.js`,
+`shifts` host self-update rule removed. Staging-tested green (see below). The old
+`shiftSwapNotifications` collection + `onSwapNotificationWrite` function are now
+dead (nothing writes them) — left deployed, harmless; `admin-dashboard.js` and
+`shift-trade-requests.js` no longer reference them.
+
 **Phase 0–2 regression sweep done 2026-08-30 — GREEN.** Verified on staging:
 - Rules boundary (as a pure host): cannot read others' notifications, cannot
   create/delete notifications, cannot `pending_admin → approved`/`rejected`
@@ -45,8 +52,25 @@ Known, non-blocking for Phase 3:
 - Bell listener still pauses on a foreground→background transition and catches
   up on refocus.
 
-Next: Phase 3 (admin approve/reject UI + `approveShiftSwap` Cloud Function that
-moves the shift; drop the host `shifts.employeeId` self-update rule).
+**Phase 3 staging test 2026-08-30 — GREEN:**
+- Approve (from the admin panel) → shift `employeeId` moves to the accepting host,
+  request `approved`, both hosts notified, admin calendar reloads.
+- Reject (inline reason form) → request `rejected` + `rejectionReason`, shift
+  untouched, both hosts notified.
+- Orphan (shift deleted) → hidden from the panel; CF refuses and closes the
+  request as `shift_deleted`.
+- Sibling supersede → approving one offer auto-`cancelled`s the other open/
+  pending offers for the same shift; CF then refuses to approve the superseded one.
+- Already-reassigned guard → CF refuses, closes the request `rejected`, does NOT
+  clobber the shift's current `employeeId`.
+- CF only acts on `pending_admin`; rejects everything else.
+- **Bug found + fixed:** `approveShiftSwap` threw from inside the Firestore
+  transaction for the "shift missing / reassigned" cases, which rolled back the
+  very write that closes the request (left it stuck at `pending_admin`). The
+  transaction now returns an outcome; the close-out write + `HttpsError` happen
+  after commit.
+
+Next: Phase 4 (time-off host side).
 
 Phase 0 follow-ups (not blockers):
 - `notifications` has no TTL/cleanup yet — an open offer fans out ~1 doc per host.
