@@ -11,6 +11,9 @@ live-tested on staging 2026-08-30 — all notification paths verified end to end
 dropdown render; readAt persistence).** Branch: `shift-swap-timeoff` (off
 `leads-feature`).
 
+**Phase 1 done 2026-08-30** — data model, rules, and indexes for the swap +
+time-off collections deployed (additive; nothing broke). Next: Phase 2 (host UI).
+
 Phase 0 follow-ups (not blockers):
 - `notifications` has no TTL/cleanup yet — an open offer fans out ~1 doc per host.
   Add `expiresAt` + a Firestore TTL policy (or a scheduled prune) before this sees
@@ -373,11 +376,26 @@ Twilio at this volume is ~$1–2/month.
 
 ## 8. Build phases
 
-0. **Notification / bell rebuild** — see §0. `notifications` collection + rules +
-   index; `functions_gcfv1/notifications.js` triggers; `bt-notifications.js`
-   client; strip bell from `bt-nav.js`; delete `shift-bell-refresh.js`.
-1. **Data model + rules + indexes** — new collections, status enums, rule changes,
-   composite indexes. Deploy rules to staging.
+0. **Notification / bell rebuild** — ✅ DONE (see §0). `notifications` collection,
+   bell rewritten in `bt-nav.js`, `functions_gcfv1/notifications.js` triggers,
+   `shift-bell-refresh.js` deleted.
+1. **Data model + rules + indexes** — ✅ DONE 2026-08-30. Deployed to the shared
+   backend (additive, non-breaking — legacy `open → approved` accept still
+   allowed until Phase 3):
+   - `firestore.rules`: `shiftCoverageRequests` — `offerType` (open/direct) +
+     `targetHostId` validated on create; new `open → pending_admin` accept
+     transition (target-gated for direct offers); requester self-cancel. New
+     `timeOffRequests` collection (host reads/creates/cancels own; admin
+     approves/denies). `employees.fcmTokens` added to `selfAllowedKeys()`.
+   - `firestore.indexes.json`: +6 — `shiftCoverageRequests` (requestingHostId,
+     createdAt) & (targetHostId, status, createdAt); `timeOffRequests`
+     (status,startDate) & (status,endDate) & (hostId,submittedAt).
+   - `functions_gcfv1/notifications.js`: `onCoverageRequestWrite` now also fires
+     on `open → pending_admin` (notifies requester + all admins) and
+     `pending_admin → approved|rejected` (notifies both hosts).
+   - `shifts` rules unchanged this phase — admin already has full write for the
+     `timeOffConflict` / `timeOffRequestId` fields; the host `employeeId`
+     self-update is removed in Phase 3.
 2. **Shift swap v2 — host side** — offer-type picker (open / direct), host
    selector for direct, week-lock check + locked-week message, `pending_admin`
    state (Accept no longer moves the shift).

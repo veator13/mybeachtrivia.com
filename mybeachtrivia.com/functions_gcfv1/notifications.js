@@ -176,15 +176,48 @@ exports.onCoverageRequestWrite = functions
         return null;
       }
 
-      // A host accepted the offer (current model: "approved").
-      if (prevStatus === "open" && status === "approved") {
+      // A host accepted the offer.
+      //   New flow: open → pending_admin  (shift not moved yet)
+      //   Legacy:   open → approved       (pre-Phase 3, shift already moved)
+      if (prevStatus === "open" && (status === "pending_admin" || status === "approved")) {
+        const acceptorData = { ...data, acceptingHostName: after.acceptingHostName || "" };
+
         await writeOne(after.requestingHostId, `cov_${reqId}_claimed`, {
           type: "shift_offer_claimed",
           title: `${after.acceptingHostName || "A host"} took your shift`,
           body: `${line} — pending admin approval`,
           link: HOST_CALENDAR,
-          data: { ...data, acceptingHostName: after.acceptingHostName || "" },
+          data: acceptorData,
         });
+
+        if (status === "pending_admin") {
+          const admins = await adminUids();
+          await fanOut(admins, `cov_${reqId}_pending`, {
+            type: "swap_pending_admin",
+            title: "Shift swap needs approval",
+            body: `${after.requestingHostName || "Host"} → ${after.acceptingHostName || "Host"} · ${line}`,
+            link: ADMIN_CALENDAR,
+            data: acceptorData,
+          });
+        }
+        return null;
+      }
+
+      // Admin resolved the swap on the request doc itself (Phase 3 flow).
+      if (prevStatus === "pending_admin" && (status === "approved" || status === "rejected")) {
+        const approved = status === "approved";
+        const recipients = [after.requestingHostId, after.acceptingHostId].filter(Boolean);
+        await Promise.all(
+          recipients.map((uid) =>
+            writeOne(uid, `cov_${reqId}_${status}_${uid}`, {
+              type: approved ? "swap_approved" : "swap_rejected",
+              title: approved ? "Shift swap approved" : "Shift swap rejected",
+              body: `${after.requestingHostName || "Host"} → ${after.acceptingHostName || "Host"} · ${line}`,
+              link: HOST_CALENDAR,
+              data: { ...data, acceptingHostName: after.acceptingHostName || "" },
+            })
+          )
+        );
         return null;
       }
 

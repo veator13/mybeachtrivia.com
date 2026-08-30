@@ -68,7 +68,8 @@ service cloud.firestore {
       return [
         'firstName','lastName','nickname','dob',
         'phone','emergencyPhone','emergencyName','photoURL',
-        'setupCompleted','updatedAt'
+        'setupCompleted','updatedAt',
+        'fcmTokens'
       ];
     }
 
@@ -407,25 +408,50 @@ service cloud.firestore {
     }
 
     /* ========= Shift Coverage Requests =========
-       Hosts use this to offer up their shift for another host to cover.
-       - Any host/admin can read all requests (powers the Shift Offers panel).
-       - A host can create a request only for themselves (requestingHostId == their UID).
-       - A host can accept an open offer (open → approved immediately, acceptingHostId == their UID).
-       - Admin can make any status change and delete.
+       Hosts offer up a shift for another host to take (pure give-away — no
+       return shift). Two kinds, chosen by the host:
+         offerType "open"   → any host may accept (default when absent)
+         offerType "direct" → only targetHostId may accept
+       Status flow (shift-swap-timeoff feature, Phase 1+):
+         open → pending_admin → approved | rejected   (+ cancelled / expired / shift_deleted)
+       Accepting an offer only moves it to pending_admin; the shift itself is
+       NOT reassigned until an admin approves (done server-side by a Cloud
+       Function with the Admin SDK). The legacy "open → approved" transition is
+       still permitted until the Phase 3 admin UI ships.
     */
     match /shiftCoverageRequests/{requestId} {
       allow read: if isHostOrAdmin();
 
       allow create: if isHostOrAdmin()
         && request.resource.data.requestingHostId == request.auth.uid
-        && request.resource.data.status == "open";
+        && request.resource.data.status == "open"
+        && (
+          !("offerType" in request.resource.data)
+          || (
+            request.resource.data.offerType in ["open", "direct"]
+            && (request.resource.data.offerType == "open"
+                || (request.resource.data.targetHostId is string
+                    && request.resource.data.targetHostId.size() > 0))
+          )
+        );
 
       allow update: if isHostOrAdmin() && (
-        // Host accepting: open → approved immediately, acceptingHostId must be themselves
+        // Legacy accept: open → approved immediately (pre-Phase 3)
         (resource.data.status == "open"
           && request.resource.data.status == "approved"
           && request.resource.data.acceptingHostId == request.auth.uid)
-        // Admin can update any field
+        // New accept: open → pending_admin, no shift move yet.
+        // Open offers: any host. Direct offers: only the named target.
+        || (resource.data.status == "open"
+          && request.resource.data.status == "pending_admin"
+          && request.resource.data.acceptingHostId == request.auth.uid
+          && (resource.data.get("offerType", "open") == "open"
+              || resource.data.targetHostId == request.auth.uid))
+        // Requester withdraws their own offer
+        || (resource.data.requestingHostId == request.auth.uid
+          && request.resource.data.status == "cancelled"
+          && resource.data.status in ["open", "pending_admin"])
+        // Admin: any change (approve / reject / expire / fix)
         || isAdmin()
       );
 
@@ -496,6 +522,40 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).changedKeys().hasOnly(['readAt']);
 
       allow create, delete: if false;
+    }
+
+    /* ========= Time Off Requests =========
+       A host asks for a date range off (full days). Status flow:
+         pending → approved | denied     (+ cancelled, by the host, any time)
+       - Host reads only their own; admin reads all.
+       - Host creates only their own, status "pending".
+       - Host may cancel their own (pending or approved) — status/timestamps only,
+         no admin approval needed.
+       - Approve / deny / shift-conflict bookkeeping is admin-only (a Cloud
+         Function does the shift reassignments and timeOffConflict flags).
+    */
+    match /timeOffRequests/{reqId} {
+      allow read: if signedIn()
+        && (resource.data.hostId == request.auth.uid || isAdmin());
+
+      allow create: if isHostOrAdmin()
+        && request.resource.data.hostId == request.auth.uid
+        && request.resource.data.status == "pending"
+        && request.resource.data.startDate is string
+        && request.resource.data.endDate is string
+        && request.resource.data.startDate <= request.resource.data.endDate;
+
+      allow update: if isAdmin()
+        || (
+          isHostOrAdmin()
+          && resource.data.hostId == request.auth.uid
+          && request.resource.data.status == "cancelled"
+          && resource.data.status in ["pending", "approved"]
+          && request.resource.data.diff(resource.data)
+               .changedKeys().hasOnly(["status", "updatedAt", "cancelledAt"])
+        );
+
+      allow delete: if isAdmin();
     }
 
     /* ========= Leads automation (venues / leads / leadObservations) =========
