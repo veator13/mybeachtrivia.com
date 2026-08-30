@@ -686,6 +686,7 @@
   var _ntfDropdownEl = null;
   var _ntfBtnEl = null;
   var _ntfWired = false;
+  var _ntfOpen = false;       // dropdown open state (source of truth, not the DOM attr)
   var _ntfPinnedUnread = null; // ids unread at the moment the dropdown opened
 
   var NTF_COLLECTION = 'notifications';
@@ -749,8 +750,7 @@
   }
 
   function _ntfIsOpen() {
-    var el = _ntfDropdownEl || document.getElementById('bt-nav-bell-dropdown');
-    return !!el && el.getAttribute('aria-hidden') === 'false';
+    return _ntfOpen;
   }
 
   function _ntfUnreadCount() {
@@ -892,8 +892,28 @@
     _ntfStopListener();
     _ntfItems = [];
     _ntfUid = null;
+    _ntfOpen = false;
     _ntfPinnedUnread = null;
+    var dd = _ntfDropdownEl || document.getElementById('bt-nav-bell-dropdown');
+    if (dd) dd.setAttribute('aria-hidden', 'true');
     _ntfUpdateBadge();
+  }
+
+  // Single source of truth for the dropdown's open/closed state, so a stray
+  // document click or a double-fired button click can't desync it.
+  function _ntfSetOpen(open) {
+    var dd = _ntfDropdownEl || document.getElementById('bt-nav-bell-dropdown');
+    _ntfOpen = !!open;
+    if (dd) dd.setAttribute('aria-hidden', _ntfOpen ? 'false' : 'true');
+    if (_ntfOpen) {
+      // Pin which items were unread at open time so their highlight stays put
+      // while you read; opening also marks them read (badge clears).
+      _ntfPinnedUnread = _ntfItems.filter(function (n) { return !n.readAt; }).map(function (n) { return n.id; });
+      _ntfRender();
+      _ntfMarkAllRead();
+    } else {
+      _ntfPinnedUnread = null;
+    }
   }
 
   function _ntfWire() {
@@ -905,36 +925,19 @@
     _ntfBtnEl = btn;
     _ntfDropdownEl = dd;
 
-    // Unread items are marked read when the dropdown CLOSES (or via the
-    // "Mark all read" button / clicking an item), not on open — so the
-    // highlight and badge stay stable while you're reading.
-    function closeDropdown() {
-      if (dd.getAttribute('aria-hidden') === 'false') {
-        dd.setAttribute('aria-hidden', 'true');
-        _ntfMarkAllRead();
-        _ntfPinnedUnread = null;
-      }
-    }
-
     btn.addEventListener('click', function (e) {
       e.stopPropagation();
-      if (dd.getAttribute('aria-hidden') === 'false') {
-        closeDropdown();
-        return;
-      }
-      // Pin which items were unread as of this open, so their highlight is
-      // stable while the dropdown is up.
-      _ntfPinnedUnread = _ntfItems.filter(function (n) { return !n.readAt; }).map(function (n) { return n.id; });
-      dd.setAttribute('aria-hidden', 'false');
-      _ntfRender();
+      _ntfSetOpen(!_ntfOpen);
     });
 
-    document.addEventListener('click', closeDropdown);
+    document.addEventListener('click', function () {
+      if (_ntfOpen) _ntfSetOpen(false);
+    });
 
     dd.addEventListener('click', function (e) { e.stopPropagation(); });
 
     document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape') closeDropdown();
+      if (e.key === 'Escape' && _ntfOpen) _ntfSetOpen(false);
     });
   }
 
