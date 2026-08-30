@@ -75,9 +75,10 @@
   function formatRange(startYMD, endYMD) {
     if (!endYMD || endYMD === startYMD) return formatDate(startYMD);
     const s = ymdToDate(startYMD), e = ymdToDate(endYMD);
-    if (s.getFullYear() === e.getFullYear() && s.getMonth() === e.getMonth()) {
-      return s.toLocaleDateString("en-US", { month: "short", day: "numeric" }) +
-        " – " + e.toLocaleDateString("en-US", { day: "numeric", year: "numeric" });
+    const md = { month: "short", day: "numeric" };
+    if (s.getFullYear() === e.getFullYear()) {
+      return s.toLocaleDateString("en-US", md) + " – " +
+        e.toLocaleDateString("en-US", md) + ", " + e.getFullYear();
     }
     return formatDate(startYMD) + " – " + formatDate(endYMD);
   }
