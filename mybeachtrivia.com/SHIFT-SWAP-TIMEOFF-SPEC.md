@@ -716,12 +716,21 @@ Self-heals; worth fixing by excluding `bt-nav.*` from the SW.
   (Bug found + fixed: the window must never reach backwards past today — Sunday
   Aug 30 correctly targets Mon Aug 31 – Sat Sep 5.)
 - Email gate: a time-off submit fanned to 3 admins → exactly **one**
-  `sendEmail` attempt (only `joshuaveator@gmail.com`, the allowlisted admin) →
-  `Unauthorized`. The other 2 admins: zero attempts. Gate works.
-- **SendGrid key `SG.FUd_…` is DEAD — every send returns 401 Unauthorized.**
-  So `adminCreateEmployee`'s welcome email has silently been failing too.
-  Email backup can't work until Josh regenerates the SendGrid key **or** picks
-  a new provider (Resend etc.) — then it's a ~5-line swap in notify-channels.js.
+  `sendEmail` attempt (only `joshuaveator@gmail.com`, the allowlisted admin).
+  The other 2 admins: zero attempts. Gate works.
+- **Email backup now works — migrated SendGrid → Resend 2026-08-30.**
+  `notify-channels.sendEmail` POSTs `https://api.resend.com/emails/batch`
+  (Bearer `RESEND_API_KEY` in `functions_gcfv1/.env`, one message per
+  recipient, Node 20 global `fetch`, no new dep). Sender =
+  `BT_NOTIFY_EMAIL_FROM` (default `onboarding@resend.dev` — the resend.dev
+  sandbox only delivers to the Resend account owner until a domain is
+  verified). Verified end-to-end: time-off submit → log
+  `email sent (test): "New time-off request to review" → joshuaveator@gmail.com`
+  → Resend dashboard shows **Delivered**. Commit `d437894`, functions redeployed.
+- **Still dead: `adminCreateEmployee`'s welcome email in `index.js`** — separate
+  code path, still on the old SendGrid key. Easy follow-up: route it through
+  `notify-channels.sendEmail` (note: the gate would hold new-hire invites until
+  `BT_NOTIFY_EMAIL=live`).
 - FCM plumbing: `/firebase-messaging-sw.js` serves 200 + correct headers;
   registers & activates at `/firebase-cloud-messaging-push-scope` (importScripts
   from gstatic works under CSP); coexists with `/sw.js` at `/`. Button shows
@@ -735,10 +744,15 @@ Self-heals; worth fixing by excluding `bt-nav.*` from the SW.
 - Cleaned up test shifts + coverage requests. Kept the 3 demo time-off rows.
 
 **Phase 8 remaining for Josh:**
-1. SendGrid key (regenerate) or new email provider (leaning Resend) → give me the key.
+1. ~~Email provider~~ — DONE: Resend, key stored, verified delivered.
+   Sub-task still open: verify the `mybeachtrivia.com` domain in the Resend
+   dashboard (add SPF/DKIM/DMARC DNS records), then switch
+   `BT_NOTIFY_EMAIL_FROM` to `noreply@mybeachtrivia.com`. Until then only
+   `joshuaveator@gmail.com` can receive.
 2. `BT_VAPID_KEY` from the Firebase console → paste into
    `beachTriviaPages/js/bt-push-config.js`.
-3. Flip `BT_NOTIFY_EMAIL=live` in `functions_gcfv1/.env` + redeploy when signed off.
+3. Flip `BT_NOTIFY_EMAIL=live` in `functions_gcfv1/.env` + redeploy when signed
+   off (needs the Resend domain verified first, or non-Josh hosts get nothing).
 4. PWA polish (optional): `manifest.json` name/icon/theme for a nicer
    Add-to-Home-Screen.
 5. Firestore usage check — after the feature has run live ~1 week, look at
@@ -751,8 +765,10 @@ Self-heals; worth fixing by excluding `bt-nav.*` from the SW.
 
 ## 9. Open items
 
-- **SendGrid key is dead (401).** Regenerate or switch provider before email
-  backup / employee-invite emails work.
+- ~~SendGrid key dead~~ — migrated to Resend 2026-08-30, verified delivered.
+  Open sub-tasks: verify `mybeachtrivia.com` domain in Resend (DNS records) so
+  non-owner addresses can receive; migrate `adminCreateEmployee`'s welcome
+  email off the old SendGrid path.
 - `BT_VAPID_KEY` not yet set — FCM push button stays hidden until it is.
 - PWA assets: app icon set + `manifest.json` name / theme colour.
 - Whether the admin "Requests" page pending rows should be actionable
