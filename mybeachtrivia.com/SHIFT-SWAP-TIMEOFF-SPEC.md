@@ -455,8 +455,18 @@ Twilio at this volume is ~$1–2/month.
    - **Repo note:** `hostGetCalendarMonth` is deployed but its source is NOT in
      this repo (`functions_gcfv1/` drift). Always deploy functions with
      `--only functions:<name>` — a bare `--only functions` would delete it.
-3. **Shift swap v2 — admin side** — real **Approve** + **Reject** UI;
-   `approveShiftSwap` / `rejectShiftSwap` functions; shift moves only on approve.
+3. **Shift swap v2 — admin side** — ✅ DONE 2026-08-30, deployed to staging.
+   `functions_gcfv1/shift-swap.js`: `approveShiftSwap` (admin onCall, txn —
+   request must be `pending_admin`, shift must still exist + still belong to the
+   requester, then moves `shifts.employeeId` → accepting host + sets `approved`;
+   refuses/closes if the shift vanished or was reassigned; supersedes sibling
+   requests). `rejectShiftSwap` (sets `rejected` + `rejectionReason`, shift
+   untouched). Rules: `shifts` host self-update removed; legacy `open→approved`
+   dropped. `shift-swap-admin.js` rewritten — reads `shiftCoverageRequests`
+   directly (`pending_admin` → Approve/Reject, `open` → cancel), calls the CFs,
+   reloads calendar on approve, no longer touches `shiftSwapNotifications` or the
+   bell dropdown. `onCoverageRequestWrite` fires swap_approved/rejected to both
+   hosts.
 4. **Time off — host side** — request form (date range), 2-week warning,
    "Manage Time Off" modal + nav tab + page, self-cancel.
 5. **Time off — admin side** — approval queue, inside-2-weeks flag, conflict popup
