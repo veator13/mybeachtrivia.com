@@ -187,6 +187,80 @@ header > div[style] {
   color: #fff;
 }
 
+#open-timeoff {
+  min-width: 140px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+#open-timeoff:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* =========================================================
+   Manage Time Off Modal
+   ========================================================= */
+
+#timeoff-modal[aria-hidden="true"] { display: none !important; }
+#timeoff-modal[aria-hidden="false"] { display: flex !important; }
+
+#timeoff-modal.simple-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10001;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.65);
+}
+
+.timeoff-panel {
+  width: min(520px, 95vw);
+  max-height: 85vh;
+  overflow: auto;
+  border-radius: 12px;
+  padding: 20px;
+  background: #0f1720;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
+}
+
+.timeoff-panel header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.timeoff-panel header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.timeoff-list-heading {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.45);
+  margin: 20px 0 10px;
+}
+
+.timeoff-fullpage-link {
+  margin: 14px 0 0;
+  font-size: 12px;
+}
+
+.timeoff-fullpage-link a {
+  color: #60a5fa;
+  text-decoration: none;
+}
+
+.timeoff-fullpage-link a:hover { text-decoration: underline; }
+
 .shift-offers-badge {
   display: inline-flex;
   align-items: center;

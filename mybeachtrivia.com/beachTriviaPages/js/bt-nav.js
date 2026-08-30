@@ -34,6 +34,7 @@
     host: [
       { label: 'Dashboard',   href: '/beachTriviaPages/dashboards/host/' },
       { label: 'Calendar',    href: '/beachTriviaPages/dashboards/host/employee-calendar/' },
+      { label: 'Time Off',    href: '/beachTriviaPages/dashboards/host/time-off/' },
       { label: 'Scoresheet',  href: '/beachTriviaPages/dashboards/host/scoresheet/' },
       { label: 'Host Event',  href: '/beachTriviaPages/dashboards/host/host-event/' },
     ],

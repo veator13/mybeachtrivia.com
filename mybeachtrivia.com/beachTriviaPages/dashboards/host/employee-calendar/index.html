@@ -16,10 +16,11 @@
 
   <!-- Reuse admin calendar base styles + host defensive overrides -->
   <link rel="stylesheet" href="../../admin/calendar/css/styles.css?v=20260830-swap3" />
-  <link rel="stylesheet" href="./style.css?v=20260830-swap3" />
+  <link rel="stylesheet" href="./style.css?v=20260830-swap4" />
+  <link rel="stylesheet" href="/beachTriviaPages/js/bt-time-off.css?v=20260830" />
   <!-- Unified nav bar -->
   <link rel="stylesheet" href="/beachTriviaPages/js/bt-nav.css">
-  <script src="/beachTriviaPages/js/bt-nav.js?v=hostnav-20260830-bell" defer></script>
+  <script src="/beachTriviaPages/js/bt-nav.js?v=hostnav-20260830-timeoff" defer></script>
 
   <!-- Force date-number header row visible.
        This <style> block intentionally sits after bt-nav.css so it wins
@@ -127,6 +128,8 @@
   <script src="./boot.js" defer></script>
   <script src="./js/host-calendar.js?v=20260830-swap" defer></script>
   <script src="./js/shift-trade-requests.js?v=20260830-swap" defer></script>
+  <script src="/beachTriviaPages/js/bt-time-off.js?v=20260830" defer></script>
+  <script src="./js/time-off-modal.js?v=20260830" defer></script>
 </head>
 
 <body>
@@ -195,6 +198,7 @@
             Shift Offers
             <span id="shift-offers-badge" class="shift-offers-badge" aria-live="polite" aria-label="open shift offers count" hidden></span>
           </button>
+          <button id="open-timeoff" class="small-btn" type="button">Manage Time Off</button>
         </div>
       </div>
 
@@ -438,6 +442,49 @@
         </div>
 
         <p id="coverage-request-status" class="coverage-status-msg" aria-live="polite"></p>
+      </div>
+    </div>
+
+    <!-- =========================
+         Manage Time Off Modal
+         ========================= -->
+    <div class="simple-modal" id="timeoff-modal" aria-hidden="true" role="dialog" aria-labelledby="timeoff-modal-title">
+      <div class="panel timeoff-panel" role="document">
+        <header>
+          <h2 id="timeoff-modal-title">Manage Time Off</h2>
+          <button id="close-timeoff" class="btn ghost" type="button" aria-label="Close time off">Close</button>
+        </header>
+
+        <div class="bt-to-form">
+          <div class="bt-to-dates">
+            <div class="bt-to-field">
+              <label for="to-modal-start">First day off</label>
+              <input type="date" id="to-modal-start" />
+            </div>
+            <div class="bt-to-field">
+              <label for="to-modal-end">Last day off</label>
+              <input type="date" id="to-modal-end" />
+            </div>
+          </div>
+          <div class="bt-to-field">
+            <label for="to-modal-note">Note <span class="muted">(optional)</span></label>
+            <textarea id="to-modal-note" rows="2" maxlength="500" placeholder="e.g. out of town for a wedding"></textarea>
+          </div>
+          <p class="bt-to-warning" id="to-modal-warning" hidden></p>
+          <div class="bt-to-form-actions">
+            <button type="button" class="bt-to-submit" id="to-modal-submit">Submit request</button>
+          </div>
+          <p class="bt-to-status-msg" id="to-modal-status" aria-live="polite"></p>
+        </div>
+
+        <h3 class="timeoff-list-heading">Your requests</h3>
+        <div class="bt-to-list" id="to-modal-list">
+          <p class="bt-to-empty">Loading…</p>
+        </div>
+
+        <p class="timeoff-fullpage-link">
+          <a href="/beachTriviaPages/dashboards/host/time-off/">Open the full Time Off page →</a>
+        </p>
       </div>
     </div>
   </div>

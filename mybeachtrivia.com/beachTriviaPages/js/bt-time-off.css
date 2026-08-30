@@ -1,0 +1,208 @@
+/* beachTriviaPages/js/bt-time-off.css
+   Shared styles for the host time-off UI (Manage Time Off page + calendar modal).
+   Dark palette to match bt-nav / the admin calendar modals. */
+
+.bt-to-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bt-to-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.bt-to-field label {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.bt-to-dates {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.bt-to-dates .bt-to-field {
+  flex: 1 1 150px;
+}
+
+.bt-to-form input[type="date"],
+.bt-to-form textarea {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 9px 10px;
+  color: #fff;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.bt-to-form input[type="date"] { color-scheme: dark; }
+
+.bt-to-form textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+
+.bt-to-form input:focus,
+.bt-to-form textarea:focus {
+  outline: none;
+  border-color: #60a5fa;
+}
+
+.bt-to-warning {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  border-radius: 6px;
+  padding: 9px 11px;
+  margin: 0;
+}
+
+.bt-to-form-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.bt-to-submit {
+  background: #2995f3;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 9px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.15s, opacity 0.15s;
+}
+
+.bt-to-submit:hover { filter: brightness(1.08); }
+.bt-to-submit:disabled { opacity: 0.6; cursor: default; }
+
+.bt-to-status-msg {
+  font-size: 12px;
+  min-height: 16px;
+  margin: 0;
+  color: #f87171;
+}
+
+.bt-to-status-msg--ok { color: #34d399; }
+
+/* ── request list ── */
+
+.bt-to-empty {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.45);
+  margin: 0;
+  padding: 6px 0;
+}
+
+.bt-to-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bt-to-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-left: 3px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 11px 13px;
+}
+
+.bt-to-card--approved  { border-left-color: #34d399; }
+.bt-to-card--pending   { border-left-color: #fbbf24; }
+.bt-to-card--denied    { border-left-color: #f87171; }
+.bt-to-card--cancelled { border-left-color: rgba(255, 255, 255, 0.25); opacity: 0.7; }
+
+.bt-to-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.bt-to-range {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.bt-to-status {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.bt-to-status--approved  { background: rgba(52, 211, 153, 0.16); color: #34d399; }
+.bt-to-status--pending   { background: rgba(251, 191, 36, 0.16); color: #fbbf24; }
+.bt-to-status--denied    { background: rgba(248, 113, 113, 0.16); color: #f87171; }
+.bt-to-status--cancelled { background: rgba(148, 163, 184, 0.18); color: rgba(255, 255, 255, 0.55); }
+
+.bt-to-card-sub {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+  margin-top: 3px;
+}
+
+.bt-to-flag {
+  color: #fbbf24;
+  font-weight: 600;
+}
+
+.bt-to-note {
+  font-size: 12px;
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.7);
+  margin-top: 5px;
+}
+
+.bt-to-reason {
+  font-size: 12px;
+  color: #f87171;
+  margin-top: 5px;
+}
+
+.bt-to-meta {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  margin-top: 5px;
+}
+
+.bt-to-card-actions {
+  margin-top: 9px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.bt-to-cancel {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.bt-to-cancel:hover {
+  background: rgba(248, 113, 113, 0.14);
+  border-color: rgba(248, 113, 113, 0.4);
+  color: #f87171;
+}
+
+.bt-to-cancel:disabled { opacity: 0.6; cursor: default; }

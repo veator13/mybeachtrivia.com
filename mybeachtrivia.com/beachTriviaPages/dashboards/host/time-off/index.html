@@ -1,0 +1,80 @@
+<!-- mybeachtrivia.com/beachTriviaPages/dashboards/host/time-off/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Manage Time Off</title>
+
+  <link rel="stylesheet" href="/beachTriviaPages/js/bt-nav.css" />
+  <link rel="stylesheet" href="/beachTriviaPages/js/bt-time-off.css?v=20260830" />
+  <link rel="stylesheet" href="./style.css?v=20260830" />
+  <script src="/beachTriviaPages/js/bt-nav.js?v=hostnav-20260830-bell" defer></script>
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js" defer></script>
+
+  <script src="/beachTriviaPages/js/firebase-init-compat.js?v=1" defer></script>
+  <script src="/beachTriviaPages/dashboards/host/guard-host.js?v=5" defer></script>
+  <script src="/beachTriviaPages/js/bt-time-off.js?v=20260830" defer></script>
+  <script src="./time-off-page.js?v=20260830" defer></script>
+</head>
+
+<body>
+  <div id="auth-loading" aria-live="polite">Checking access…</div>
+
+  <div id="error-container" role="alert" style="display:none">
+    <div id="error-text">You do not have permission to access this page.</div>
+    <div class="to-error-actions">
+      <button id="back-to-login" type="button">Back to Login</button>
+      <button id="logout-btn" type="button">Sign out</button>
+    </div>
+  </div>
+
+  <div class="dashboard-container" style="display:none">
+    <main class="to-page">
+      <header class="to-page-header">
+        <h1>Manage Time Off</h1>
+        <p class="to-page-sub">
+          Request days off and track where each request stands. You can cancel a
+          request at any time — cancelling never needs approval.
+        </p>
+      </header>
+
+      <section class="to-card">
+        <h2>Request time off</h2>
+        <div class="bt-to-form">
+          <div class="bt-to-dates">
+            <div class="bt-to-field">
+              <label for="to-start">First day off</label>
+              <input type="date" id="to-start" />
+            </div>
+            <div class="bt-to-field">
+              <label for="to-end">Last day off</label>
+              <input type="date" id="to-end" />
+            </div>
+          </div>
+          <div class="bt-to-field">
+            <label for="to-note">Note <span class="to-optional">(optional)</span></label>
+            <textarea id="to-note" rows="2" maxlength="500"
+              placeholder="e.g. out of town for a wedding"></textarea>
+          </div>
+          <p class="bt-to-warning" id="to-warning" hidden></p>
+          <div class="bt-to-form-actions">
+            <button type="button" class="bt-to-submit" id="to-submit">Submit request</button>
+          </div>
+          <p class="bt-to-status-msg" id="to-status" aria-live="polite"></p>
+        </div>
+      </section>
+
+      <section class="to-card">
+        <h2>Your requests</h2>
+        <div class="bt-to-list" id="to-list">
+          <p class="bt-to-empty">Loading…</p>
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>
