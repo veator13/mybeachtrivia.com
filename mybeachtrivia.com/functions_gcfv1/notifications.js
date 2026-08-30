@@ -121,8 +121,9 @@ async function writeOne(recipientId, srcTag, payload) {
 }
 
 async function fanOut(recipientIds, srcTag, payload) {
+  // writeOne appends `__${recipientId}` to the id, so srcTag stays per-event.
   await Promise.all(
-    [...new Set(recipientIds)].map((uid) => writeOne(uid, `${srcTag}_${uid}`, payload))
+    [...new Set(recipientIds)].map((uid) => writeOne(uid, srcTag, payload))
   );
 }
 

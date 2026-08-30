@@ -905,36 +905,36 @@
     _ntfBtnEl = btn;
     _ntfDropdownEl = dd;
 
+    // Unread items are marked read when the dropdown CLOSES (or via the
+    // "Mark all read" button / clicking an item), not on open — so the
+    // highlight and badge stay stable while you're reading.
+    function closeDropdown() {
+      if (dd.getAttribute('aria-hidden') === 'false') {
+        dd.setAttribute('aria-hidden', 'true');
+        _ntfMarkAllRead();
+        _ntfPinnedUnread = null;
+      }
+    }
+
     btn.addEventListener('click', function (e) {
       e.stopPropagation();
-      var open = dd.getAttribute('aria-hidden') === 'false';
-      if (open) {
-        dd.setAttribute('aria-hidden', 'true');
-        _ntfPinnedUnread = null;
+      if (dd.getAttribute('aria-hidden') === 'false') {
+        closeDropdown();
         return;
       }
       // Pin which items were unread as of this open, so their highlight is
-      // stable while the dropdown is up, then mark them read.
+      // stable while the dropdown is up.
       _ntfPinnedUnread = _ntfItems.filter(function (n) { return !n.readAt; }).map(function (n) { return n.id; });
       dd.setAttribute('aria-hidden', 'false');
       _ntfRender();
-      _ntfMarkAllRead();
     });
 
-    document.addEventListener('click', function () {
-      if (dd.getAttribute('aria-hidden') === 'false') {
-        dd.setAttribute('aria-hidden', 'true');
-        _ntfPinnedUnread = null;
-      }
-    });
+    document.addEventListener('click', closeDropdown);
 
     dd.addEventListener('click', function (e) { e.stopPropagation(); });
 
     document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape' && dd.getAttribute('aria-hidden') === 'false') {
-        dd.setAttribute('aria-hidden', 'true');
-        _ntfPinnedUnread = null;
-      }
+      if (e.key === 'Escape') closeDropdown();
     });
   }
 
