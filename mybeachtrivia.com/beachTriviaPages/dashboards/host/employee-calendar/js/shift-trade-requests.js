@@ -94,17 +94,56 @@
   }
 
   function isActiveStatus(status) {
-    return status === "open";
+    return status === "open" || status === "pending_admin";
   }
 
   function isCancelledBucketStatus(status) {
-    return status === "cancelled" || status === "shift_deleted" || status === "approved";
+    return status === "cancelled" || status === "shift_deleted"
+      || status === "approved" || status === "rejected" || status === "expired";
+  }
+
+  // ── Current-week lock ──────────────────────────────────────────────────
+  // Schedule weeks are Mon–Sat (Sunday = confirm day, no shifts). A shift is
+  // "locked" once its date is before the coming Monday: on Sunday the upcoming
+  // week is still open for open offers, Monday morning it locks. Direct
+  // switches are allowed even in the locked week; open offers are not.
+  function firstUnlockedMonday(today) {
+    const now = today || new Date();
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const dow = d.getDay(); // 0=Sun … 6=Sat
+    const toMonday = dow === 0 ? -6 : -(dow - 1);
+    const weekMonday = new Date(d);
+    weekMonday.setDate(d.getDate() + toMonday + 7);
+    return weekMonday;
+  }
+
+  function isDateLocked(ymd) {
+    if (!ymd) return false;
+    const parts = String(ymd).split("-").map(Number);
+    if (parts.length !== 3 || parts.some(isNaN)) return false;
+    return new Date(parts[0], parts[1] - 1, parts[2]) < firstUnlockedMonday();
+  }
+
+  function activeHostOptions(excludeUid) {
+    const map = (window.employees && typeof window.employees === "object") ? window.employees : {};
+    return Object.keys(map)
+      .filter((id) => id && id !== excludeUid)
+      .map((id) => ({ id: id, name: map[id] || id }))
+      .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  }
+
+  // A direct switch is only visible to the two hosts it concerns.
+  function isRequestVisibleToMe(r) {
+    if (r.offerType !== "direct") return true;
+    const uid = currentUID();
+    return r.requestingHostId === uid || r.targetHostId === uid;
   }
 
   function getVisibleRequests() {
-    const rows = _allRequestsCache.slice().sort((a, b) => {
-      return toMillis(b.createdAt) - toMillis(a.createdAt);
-    });
+    const rows = _allRequestsCache
+      .slice()
+      .filter(isRequestVisibleToMe)
+      .sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt));
 
     if (_currentFilter === "cancelled") {
       return rows.filter((r) => isCancelledBucketStatus(r.status));
@@ -206,8 +245,10 @@
     const html = requests
       .map((req) => {
         const isOwn = req.requestingHostId === uid;
+        const isTarget = req.offerType === "direct" && req.targetHostId === uid;
         const typeClass = req.eventType || "";
-        const isResolved = req.status !== "open";
+        const isPending = req.status === "pending_admin";
+        const isResolved = req.status !== "open" && !isPending;
 
         let statusBadge = "";
         if (req.status === "shift_deleted") {
@@ -215,13 +256,25 @@
         } else if (req.status === "cancelled") {
           statusBadge = `<span class="coverage-status-badge coverage-status-badge--cancelled">REQUEST CANCELLED</span>`;
         } else if (req.status === "approved") {
-          statusBadge = `<span class="coverage-status-badge coverage-status-badge--filled">REQUEST FILLED</span>`;
+          statusBadge = `<span class="coverage-status-badge coverage-status-badge--filled">SWAP APPROVED</span>`;
+        } else if (req.status === "rejected") {
+          statusBadge = `<span class="coverage-status-badge coverage-status-badge--cancelled">SWAP REJECTED</span>`;
+        } else if (isPending) {
+          statusBadge = `<span class="coverage-status-badge coverage-status-badge--pending">PENDING ADMIN APPROVAL</span>`;
         }
 
+        const offerBadge = req.offerType === "direct"
+          ? `<span class="coverage-offer-badge coverage-offer-badge--direct">→ Direct: ${escHtml(req.targetHostName || "a host")}</span>`
+          : `<span class="coverage-offer-badge">Open offer</span>`;
+
         let actionHtml = "";
-        if (!isResolved) {
+        if (isPending) {
+          actionHtml = `<span class="coverage-own-label">Waiting on admin</span>`;
+        } else if (!isResolved) {
           if (isOwn) {
             actionHtml = `<span class="coverage-own-label">Your Request</span>`;
+          } else if (req.offerType === "direct" && !isTarget) {
+            actionHtml = "";
           } else {
             actionHtml = `<button
               class="btn small-btn coverage-accept-btn"
@@ -232,7 +285,7 @@
           }
         }
 
-        const cancelBtn = (!isResolved && isOwn) ? `<button
+        const cancelBtn = ((!isResolved || isPending) && isOwn) ? `<button
             class="btn coverage-cancel-btn"
             data-req-id="${escHtml(req.id)}"
             type="button"
@@ -240,7 +293,7 @@
             title="Cancel request"
           >✕</button>` : "";
 
-        const resolvedClass = isResolved ? " coverage-card--resolved" : "";
+        const resolvedClass = isResolved ? " coverage-card--resolved" : (isPending ? " coverage-card--pending" : "");
 
         return `<div class="coverage-card ${escHtml(typeClass)}${resolvedClass}" data-req-id="${escHtml(req.id)}">
           ${cancelBtn}
@@ -254,6 +307,7 @@
             <div class="coverage-time">${escHtml(formatTime(req.startTime))} – ${escHtml(formatTime(req.endTime))}</div>
             <div class="coverage-host">Requested by <strong>${escHtml(req.requestingHostName || "Unknown")}</strong></div>
             ${req.acceptingHostName ? `<div class="coverage-host">Accepted by <strong>${escHtml(req.acceptingHostName)}</strong></div>` : ""}
+            <div class="coverage-offer-line">${offerBadge}</div>
             ${req.note ? `<div class="coverage-note">"${escHtml(req.note)}"</div>` : ""}
             ${req.createdAt ? `<div class="coverage-timestamp">Submitted ${escHtml(formatTimestamp(req.createdAt))}</div>` : ""}
           </div>
@@ -315,7 +369,7 @@
       const uid = currentUID();
       _myActiveShiftIds.clear();
       requests.forEach((r) => {
-        if (r.shiftId && r.requestingHostId === uid && r.status === "open") {
+        if (r.shiftId && r.requestingHostId === uid && isActiveStatus(r.status)) {
           _myActiveShiftIds.add(String(r.shiftId));
         }
       });
@@ -391,8 +445,68 @@
       `;
     }
 
+    // ── Offer type + week lock ──────────────────────────────────────────
+    const locked = isDateLocked(shift.date);
+    modal.dataset.locked = locked ? "1" : "";
+
+    const openRadio = modal.querySelector('input[name="coverage-offer-type"][value="open"]');
+    const directRadio = modal.querySelector('input[name="coverage-offer-type"][value="direct"]');
+    const lockMsg = $("coverage-lock-msg");
+    const targetGroup = $("coverage-target-group");
+    const targetSel = $("coverage-target-host");
+
+    if (targetSel) {
+      const uid = currentUID();
+      const opts = activeHostOptions(uid);
+      targetSel.innerHTML = '<option value="">Choose a host…</option>' +
+        opts.map((o) => `<option value="${escHtml(o.id)}">${escHtml(o.name)}</option>`).join("");
+      targetSel.value = "";
+    }
+
+    if (openRadio && directRadio) {
+      if (locked) {
+        directRadio.checked = true;
+        openRadio.checked = false;
+        openRadio.disabled = true;
+      } else {
+        openRadio.checked = true;
+        directRadio.checked = false;
+        openRadio.disabled = false;
+      }
+    }
+
+    if (lockMsg) {
+      if (locked) {
+        lockMsg.textContent =
+          "Shifts for this week are locked in. To give up this shift, set up a direct switch with a specific host, or contact an admin.";
+        lockMsg.hidden = false;
+      } else {
+        lockMsg.hidden = true;
+      }
+    }
+
+    if (targetGroup) {
+      const wantDirect = locked || (directRadio && directRadio.checked);
+      targetGroup.hidden = !wantDirect;
+    }
+
     modal.setAttribute("aria-hidden", "false");
     setTimeout(() => noteField?.focus(), 60);
+  }
+
+  function wireOfferTypeToggle() {
+    const modal = $("coverage-request-modal");
+    if (!modal || modal.dataset.offerToggleWired) return;
+    modal.dataset.offerToggleWired = "1";
+    modal.querySelectorAll('input[name="coverage-offer-type"]').forEach((radio) => {
+      radio.addEventListener("change", () => {
+        const targetGroup = $("coverage-target-group");
+        const direct = modal.querySelector('input[name="coverage-offer-type"][value="direct"]');
+        if (targetGroup) targetGroup.hidden = !(direct && direct.checked);
+        const statusEl = $("coverage-request-status");
+        if (statusEl) statusEl.textContent = "";
+      });
+    });
   }
 
   async function submitRequest() {
@@ -415,18 +529,36 @@
       return;
     }
 
+    const directRadio = modal.querySelector('input[name="coverage-offer-type"][value="direct"]');
+    const offerType = (directRadio && directRadio.checked) ? "direct" : "open";
+    const locked = modal.dataset.locked === "1";
+    const targetSel = $("coverage-target-host");
+    const targetHostId = offerType === "direct" ? (targetSel && targetSel.value) || "" : "";
+    const targetHostName = targetHostId
+      ? ((targetSel.options[targetSel.selectedIndex] || {}).text || "").trim()
+      : "";
+
+    if (offerType === "open" && locked) {
+      if (statusEl) statusEl.textContent =
+        "Shifts for this week are locked in — open offers are closed. Choose a direct switch instead, or contact an admin.";
+      return;
+    }
+    if (offerType === "direct" && !targetHostId) {
+      if (statusEl) statusEl.textContent = "Pick which host you want to switch this shift to.";
+      return;
+    }
+
     try {
       const existing = await firebase
         .firestore()
         .collection(COLLECTION)
         .where("shiftId", "==", shiftId)
         .where("requestingHostId", "==", uid)
-        .where("status", "==", "open")
-        .limit(1)
         .get();
 
-      if (!existing.empty) {
-        if (statusEl) statusEl.textContent = "You already have an open coverage request for this shift.";
+      const hasActive = existing.docs.some((d) => isActiveStatus((d.data() || {}).status));
+      if (hasActive) {
+        if (statusEl) statusEl.textContent = "You already have an active coverage request for this shift.";
         return;
       }
     } catch (err) {
@@ -453,6 +585,9 @@
           requestingHostId: uid,
           requestingHostName: currentDisplayName(),
           note: noteField?.value?.trim() || "",
+          offerType: offerType,
+          targetHostId: targetHostId || null,
+          targetHostName: targetHostName || null,
           status: "open",
           acceptingHostId: null,
           acceptingHostName: null,
@@ -501,42 +636,26 @@
         return;
       }
 
+      // Direct switches can only be accepted by the named target.
+      if (req.offerType === "direct" && req.targetHostId && req.targetHostId !== uid) {
+        if (btn) { btn.disabled = false; btn.textContent = "Accept"; }
+        await refresh();
+        return;
+      }
+
       const acceptingName = currentDisplayName();
-      const db = firebase.firestore();
-      const batch = db.batch();
       const now = firebase.firestore.FieldValue.serverTimestamp();
 
-      batch.update(db.collection("shifts").doc(req.shiftId), {
-        employeeId: uid,
-        updatedAt: now,
-      });
-
-      batch.update(db.collection(COLLECTION).doc(reqId), {
-        status: "approved",
+      // New model: accepting only PROPOSES the swap. The shift is not
+      // reassigned until an admin approves (done server-side). Moving to
+      // pending_admin fires the admin notification via onCoverageRequestWrite.
+      await firebase.firestore().collection(COLLECTION).doc(reqId).update({
+        status: "pending_admin",
         acceptingHostId: uid,
         acceptingHostName: acceptingName,
+        acceptedAt: now,
         updatedAt: now,
       });
-
-      batch.set(db.collection(NOTIFICATIONS).doc(), {
-        coverageRequestId: reqId,
-        shiftId: req.shiftId,
-        shiftDate: req.shiftDate || "",
-        startTime: req.startTime || "",
-        endTime: req.endTime || "",
-        location: req.location || "",
-        eventType: req.eventType || "",
-        originalEmployeeId: req.requestingHostId,
-        originalEmployeeName: req.requestingHostName || "Unknown",
-        acceptingHostId: uid,
-        acceptingHostName: acceptingName,
-        status: "pending_review",
-        createdAt: now,
-        reviewedAt: null,
-        reviewedBy: null,
-      });
-
-      await batch.commit();
 
       if (req.shiftId) _myActiveShiftIds.delete(String(req.shiftId));
 
@@ -602,6 +721,7 @@
   function wireModal() {
     $("close-coverage-request")?.addEventListener("click", closeCoverageModal);
     $("cancel-coverage-request")?.addEventListener("click", closeCoverageModal);
+    wireOfferTypeToggle();
 
     $("submit-coverage-request")?.addEventListener("click", () => {
       submitRequest();
@@ -625,7 +745,7 @@
   async function filterOrphans(db, requests) {
     const shiftIds = [...new Set(
       requests
-        .filter((r) => r.status === "open" || r.status === "approved" || r.status === "cancelled")
+        .filter((r) => r.status === "open" || r.status === "pending_admin" || r.status === "approved" || r.status === "cancelled")
         .map((r) => r.shiftId)
         .filter(Boolean)
     )];
@@ -641,7 +761,7 @@
       .filter((r) =>
         r.shiftId &&
         !existingShiftIds.has(r.shiftId) &&
-        (r.status === "open" || r.status === "approved" || r.status === "cancelled")
+        (r.status === "open" || r.status === "pending_admin" || r.status === "approved" || r.status === "cancelled")
       )
       .forEach((r) => {
         db.collection(COLLECTION).doc(r.id).update({
@@ -654,7 +774,7 @@
       if (
         r.shiftId &&
         !existingShiftIds.has(r.shiftId) &&
-        (r.status === "open" || r.status === "approved" || r.status === "cancelled")
+        (r.status === "open" || r.status === "pending_admin" || r.status === "approved" || r.status === "cancelled")
       ) {
         return { ...r, status: "shift_deleted" };
       }
@@ -702,7 +822,7 @@
           const uid = currentUID();
           _myActiveShiftIds.clear();
           requests.forEach((r) => {
-            if (r.shiftId && r.requestingHostId === uid && r.status === "open") {
+            if (r.shiftId && r.requestingHostId === uid && isActiveStatus(r.status)) {
               _myActiveShiftIds.add(String(r.shiftId));
             }
           });

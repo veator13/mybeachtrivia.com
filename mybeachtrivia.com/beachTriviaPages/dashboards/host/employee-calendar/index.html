@@ -125,8 +125,8 @@
 
   <!-- Host hardening + shift offers -->
   <script src="./boot.js" defer></script>
-  <script src="./js/host-calendar.js" defer></script>
-  <script src="./js/shift-trade-requests.js" defer></script>
+  <script src="./js/host-calendar.js?v=20260830-swap" defer></script>
+  <script src="./js/shift-trade-requests.js?v=20260830-swap" defer></script>
 </head>
 
 <body>
@@ -398,6 +398,33 @@
 
         <div class="coverage-shift-summary" id="coverage-shift-summary" aria-live="polite">
           <!-- populated by ShiftTradeRequests.openRequestModal() -->
+        </div>
+
+        <fieldset class="coverage-offer-type" id="coverage-offer-type">
+          <legend>How do you want to offer this shift?</legend>
+          <label class="coverage-radio">
+            <input type="radio" name="coverage-offer-type" value="open" checked />
+            <span class="coverage-radio-text">
+              <strong>Open offer</strong>
+              <small>Any host can pick it up</small>
+            </span>
+          </label>
+          <label class="coverage-radio">
+            <input type="radio" name="coverage-offer-type" value="direct" />
+            <span class="coverage-radio-text">
+              <strong>Direct switch</strong>
+              <small>Send it to one specific host</small>
+            </span>
+          </label>
+        </fieldset>
+
+        <p id="coverage-lock-msg" class="coverage-lock-msg" hidden></p>
+
+        <div class="form-group coverage-target-group" id="coverage-target-group" hidden>
+          <label for="coverage-target-host">Send to</label>
+          <select id="coverage-target-host">
+            <option value="">Choose a host…</option>
+          </select>
         </div>
 
         <div class="form-group coverage-note-group">

@@ -686,6 +686,133 @@ html body .calendar td:not(.week-copy-cell) {
   color: var(--secondary-color);
 }
 
+/* Offer-type picker (open vs direct switch) */
+.coverage-offer-type {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 10px 12px 12px;
+  margin: 0 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.coverage-offer-type legend {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding: 0 4px;
+}
+
+.coverage-radio {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.coverage-radio input {
+  margin-top: 2px;
+  accent-color: var(--primary-color);
+}
+
+.coverage-radio input:disabled {
+  cursor: not-allowed;
+}
+
+.coverage-radio input:disabled + .coverage-radio-text {
+  opacity: 0.45;
+}
+
+.coverage-radio-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.35;
+}
+
+.coverage-radio-text strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.coverage-radio-text small {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.coverage-lock-msg {
+  font-size: 12px;
+  line-height: 1.45;
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 0 0 12px;
+}
+
+.coverage-target-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.coverage-target-group label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.coverage-target-group select {
+  background: var(--input-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.coverage-target-group select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+/* Offer-type / pending badges on cards in the Shift Offers panel */
+.coverage-offer-line {
+  margin-top: 4px;
+}
+
+.coverage-offer-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(148, 163, 184, 0.18);
+  color: var(--text-secondary);
+}
+
+.coverage-offer-badge--direct {
+  background: rgba(96, 165, 250, 0.16);
+  color: #60a5fa;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.coverage-status-badge--pending {
+  background: rgba(251, 191, 36, 0.16);
+  color: #fbbf24;
+}
+
+.coverage-card--pending {
+  opacity: 0.9;
+}
+
 /* Note textarea */
 .coverage-note-group {
   display: flex;
