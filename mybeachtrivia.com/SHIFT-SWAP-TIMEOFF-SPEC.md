@@ -534,8 +534,31 @@ Twilio at this volume is ~$1–2/month.
      blocked. Fixed a `formatRange` bug (Chrome renders `{day, year}` as
      "YYYY (day: N)").
    - No notifications yet — `timeoff_submitted` to admins comes with Phase 5/8.
-5. **Time off — admin side** — approval queue, inside-2-weeks flag, conflict popup
-   (reassign / resolve later); `approveTimeOff` / `denyTimeOff` / `cancelTimeOff`.
+5. **Time off — admin side** — ✅ DONE 2026-08-30, deployed to staging.
+   - `functions_gcfv1/time-off.js` (new): `approveTimeOff({requestId,
+     reassignments})` — finds the host's shifts overlapping the range; those in
+     the `reassignments` map ({shiftId: newHostId}) are moved, the rest get
+     `shifts.timeOffConflict=true` + `timeOffRequestId`; request → `approved`
+     with `conflictResolution` (none|resolved|deferred|partial) +
+     `deferredShiftIds`. `denyTimeOff({requestId, reason})` → `denied` +
+     `denialReason`. Exported in `index.js`.
+   - `notifications.js`: `onTimeOffRequestWrite` — new pending →
+     `timeoff_submitted` to all admins; approved/denied → the host; a cancelled
+     *previously-approved* request clears the `timeOffConflict` flags off its
+     shifts and notifies admins (`timeoff_conflict`). This is the "cancelTimeOff"
+     cleanup — the host still cancels via the plain client write.
+   - `shift-swap-admin.js`: the admin calendar modal ("Shift Swaps & Offers")
+     gains a "Time off — needs review" section. Approve → client conflict check
+     → none: straight through; conflicts: inline panel, a host `<select>` per
+     shift (reassign) or leave flagged. Deny → inline reason form. Inside-2-weeks
+     requests show a "⚠ Inside 2 weeks" badge.
+   - `calendar-ui.js`: `shift.timeOffConflict` → red tile + "TIME OFF" tag,
+     **admin calendar only** (`!window.__CALENDAR_READONLY__`).
+   - Indexes: `shifts` (employeeId, date); `timeOffRequests` (hostId, status,
+     endDate). Rules unchanged — the CFs use the Admin SDK.
+   - Cache-bust `?v=20260830-timeoff5`.
+   Not in this phase (→ Phase 6): host yellow time-off days; admin host-picker
+   greying + assign-time overlap warning.
 6. **Calendar visuals** — host: own approved time off = yellow day-number
    background. Admin: `timeOffConflict` shifts = red; host-picker greys + sinks
    hosts with overlapping approved time off + warns on assign.
