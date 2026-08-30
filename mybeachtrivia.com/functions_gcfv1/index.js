@@ -357,6 +357,7 @@ const notifications = require("./notifications");
 exports.onCoverageRequestWrite = notifications.onCoverageRequestWrite;
 exports.onSwapNotificationWrite = notifications.onSwapNotificationWrite;
 exports.onHostNotificationCreate = notifications.onHostNotificationCreate;
+exports.onTimeOffRequestWrite = notifications.onTimeOffRequestWrite;
 
 /** ------------------------------------------
  * Beach Trivia: admin approval of host shift swaps (Phase 3)
@@ -364,6 +365,13 @@ exports.onHostNotificationCreate = notifications.onHostNotificationCreate;
 const shiftSwap = require("./shift-swap");
 exports.approveShiftSwap = shiftSwap.approveShiftSwap;
 exports.rejectShiftSwap = shiftSwap.rejectShiftSwap;
+
+/** ------------------------------------------
+ * Beach Trivia: admin review of host time off (Phase 5)
+ * ----------------------------------------- */
+const timeOff = require("./time-off");
+exports.approveTimeOff = timeOff.approveTimeOff;
+exports.denyTimeOff = timeOff.denyTimeOff;
 
 /** ------------------------------------------
  * BeachTrivia: cleanup old anonymous users (scheduled)

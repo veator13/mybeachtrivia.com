@@ -24,6 +24,7 @@ const COL = "notifications";
 
 const HOST_CALENDAR = "/beachTriviaPages/dashboards/host/employee-calendar/";
 const ADMIN_CALENDAR = "/beachTriviaPages/dashboards/admin/calendar/";
+const HOST_TIMEOFF = "/beachTriviaPages/dashboards/host/time-off/";
 
 function db() {
   return admin.firestore();
@@ -332,4 +333,109 @@ exports.onHostNotificationCreate = functions
       console.error("[notifications] onHostNotificationCreate failed:", err);
     }
     return null;
+  });
+
+/* ── trigger: timeOffRequests ──────────────────────────────────────────── */
+
+function timeOffRangeLine(r) {
+  const s = fmtDate(r.startDate);
+  const e = r.endDate && r.endDate !== r.startDate ? " – " + fmtDate(r.endDate) : "";
+  return s + e;
+}
+
+exports.onTimeOffRequestWrite = functions
+  .region(REGION)
+  .firestore.document("timeOffRequests/{reqId}")
+  .onWrite(async (change, context) => {
+    const { reqId } = context.params;
+    const before = change.before.exists ? change.before.data() : null;
+    const after = change.after.exists ? change.after.data() : null;
+    if (!after) return null;
+
+    const prev = before ? before.status : null;
+    const status = after.status;
+    const line = timeOffRangeLine(after);
+    const data = {
+      timeOffRequestId: reqId,
+      hostId: after.hostId || "",
+      hostName: after.hostName || "",
+      startDate: after.startDate || "",
+      endDate: after.endDate || "",
+    };
+
+    try {
+      // New request → nudge every admin.
+      if (!before && status === "pending") {
+        const admins = await adminUids();
+        await fanOut(admins, `to_${reqId}_submitted`, {
+          type: "timeoff_submitted",
+          title: "Time-off request to review",
+          body: `${after.hostName || "A host"} · ${line}` +
+            (after.insideTwoWeeks ? " · inside 2 weeks" : ""),
+          link: ADMIN_CALENDAR,
+          data,
+        });
+        return null;
+      }
+
+      // Admin decided.
+      if (prev === "pending" && status === "approved") {
+        await writeOne(after.hostId, `to_${reqId}_approved`, {
+          type: "timeoff_approved",
+          title: "Time off approved",
+          body: line,
+          link: HOST_TIMEOFF,
+          data,
+        });
+        return null;
+      }
+      if (prev === "pending" && status === "denied") {
+        await writeOne(after.hostId, `to_${reqId}_denied`, {
+          type: "timeoff_denied",
+          title: "Time off denied",
+          body: line + (after.denialReason ? ` — "${after.denialReason}"` : ""),
+          link: HOST_TIMEOFF,
+          data,
+        });
+        return null;
+      }
+
+      // Host cancelled a previously-approved request → clear any red flags its
+      // approval left on shifts, and let the admins know.
+      if (prev && prev !== "cancelled" && status === "cancelled") {
+        if (prev === "approved") {
+          const flagged = await db()
+            .collection("shifts")
+            .where("timeOffRequestId", "==", reqId)
+            .get();
+          if (!flagged.empty) {
+            const batch = db().batch();
+            const now = admin.firestore.FieldValue.serverTimestamp();
+            flagged.docs.forEach((d) => {
+              batch.update(d.ref, {
+                timeOffConflict: admin.firestore.FieldValue.delete(),
+                timeOffRequestId: admin.firestore.FieldValue.delete(),
+                updatedAt: now,
+              });
+            });
+            await batch.commit();
+          }
+          const admins = await adminUids();
+          await fanOut(admins, `to_${reqId}_cancelled`, {
+            type: "timeoff_conflict",
+            title: "Approved time off was cancelled",
+            body: `${after.hostName || "A host"} cancelled ${line}` +
+              (flagged && !flagged.empty ? ` — ${flagged.size} shift flag(s) cleared` : ""),
+            link: ADMIN_CALENDAR,
+            data,
+          });
+        }
+        return null;
+      }
+
+      return null;
+    } catch (err) {
+      console.error("[notifications] onTimeOffRequestWrite failed:", err);
+      return null;
+    }
   });

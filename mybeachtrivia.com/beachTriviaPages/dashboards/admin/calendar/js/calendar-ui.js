@@ -82,6 +82,15 @@ function setupMonthNavigationDropzones() {
       const shiftDiv = document.createElement("div");
       shiftDiv.classList.add("shift", shift.type);
 
+      // Assigned host has approved time off overlapping this shift and the admin
+      // chose "leave flagged" — render red until it's reassigned (or the time
+      // off is cancelled). Set by the approveTimeOff Cloud Function. Admin
+      // calendar only (the host calendar is read-only and must not leak other
+      // hosts' time off).
+      if (shift.timeOffConflict === true && !window.__CALENDAR_READONLY__) {
+        shiftDiv.classList.add("timeoff-conflict");
+      }
+
       // Mark shift tile if assigned to a temp employee
       if (window.employeesData?.[shift.employeeId]?.isTemp === true) {
         shiftDiv.classList.add("temp-host");

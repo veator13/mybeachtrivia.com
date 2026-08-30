@@ -212,6 +212,154 @@
       <h3 class="admin-swap-section-title">${escHtml(title)}</h3>${cardsHtml}</div>`;
   }
 
+  // ── time off ─────────────────────────────────────────────────────────────
+
+  const TIMEOFF = "timeOffRequests";
+
+  function toRange(r) {
+    if (!r.endDate || r.endDate === r.startDate) return formatDate(r.startDate);
+    return formatDate(r.startDate) + " – " + formatDate(r.endDate);
+  }
+  function toDays(r) {
+    const a = String(r.startDate).split("-").map(Number);
+    const b = String(r.endDate || r.startDate).split("-").map(Number);
+    return Math.round((new Date(b[0], b[1] - 1, b[2]) - new Date(a[0], a[1] - 1, a[2])) / 86400000) + 1;
+  }
+  function empName(id) {
+    return (window.employees || {})[id] || id || "Unknown";
+  }
+  function hostOptions(exclude) {
+    const m = window.employees || {};
+    return Object.keys(m)
+      .filter((id) => id && id !== exclude)
+      .map((id) => ({ id: id, name: m[id] || id }))
+      .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  }
+
+  function timeOffCard(r) {
+    const n = toDays(r);
+    const flag = r.insideTwoWeeks ? '<span class="admin-to-flag">⚠ Inside 2 weeks</span>' : "";
+    return `<div class="admin-swap-card admin-to-card" data-to-id="${escHtml(r.id)}"
+        data-host="${escHtml(r.hostId)}" data-start="${escHtml(r.startDate)}" data-end="${escHtml(r.endDate || r.startDate)}">
+      <div class="admin-swap-card-header">
+        <span class="admin-to-name">${escHtml(r.hostName || empName(r.hostId))}</span>
+        ${flag}
+      </div>
+      <div class="admin-swap-card-body">
+        <div class="admin-to-range">${escHtml(toRange(r))}</div>
+        <div class="admin-swap-meta">${n} day${n === 1 ? "" : "s"}${r.submittedAt ? " · requested " + escHtml(formatTimestamp(r.submittedAt)) : ""}</div>
+        ${r.note ? `<div class="admin-swap-note">"${escHtml(r.note)}"</div>` : ""}
+      </div>
+      <div class="admin-swap-card-footer">
+        <button class="admin-to-approve-btn" type="button">Approve</button>
+        <button class="admin-to-deny-btn" type="button">Deny</button>
+      </div>
+    </div>`;
+  }
+
+  async function approveTimeOffFlow(card) {
+    if (_busy) return;
+    const reqId = card.dataset.toId;
+    const hostId = card.dataset.host;
+    const btn = card.querySelector(".admin-to-approve-btn");
+    if (btn) { btn.disabled = true; btn.textContent = "Checking…"; }
+
+    let conflicts = [];
+    try {
+      const snap = await firebase.firestore().collection("shifts")
+        .where("employeeId", "==", hostId)
+        .where("date", ">=", card.dataset.start)
+        .where("date", "<=", card.dataset.end)
+        .get();
+      conflicts = snap.docs.map((d) => Object.assign({ id: d.id }, d.data()));
+    } catch (e) {
+      console.error("[ShiftSwapAdmin] conflict check failed:", e);
+    }
+
+    if (!conflicts.length) {
+      await callApproveTimeOff(reqId, {});
+      return;
+    }
+    renderConflictPanel(card, reqId, hostId, conflicts);
+  }
+
+  function renderConflictPanel(card, reqId, hostId, conflicts) {
+    const footer = card.querySelector(".admin-swap-card-footer");
+    const optionsHtml = '<option value="">— leave flagged —</option>' +
+      hostOptions(hostId).map((o) => `<option value="${escHtml(o.id)}">${escHtml(o.name)}</option>`).join("");
+    footer.innerHTML = `
+      <div class="admin-to-conflict">
+        <p class="admin-to-conflict-lead">${conflicts.length} shift${conflicts.length === 1 ? " falls" : "s fall"} inside this time off. Reassign each, or leave it flagged — flagged shifts show red on the calendar until sorted.</p>
+        ${conflicts.map((s) => `
+          <div class="admin-to-conflict-row">
+            <span class="admin-to-conflict-shift">${escHtml(formatDate(s.date))} · ${escHtml(s.location || "")} · ${escHtml(eventLabel(s.type))}</span>
+            <select class="admin-to-reassign" data-shift-id="${escHtml(s.id)}">${optionsHtml}</select>
+          </div>`).join("")}
+        <div class="admin-reject-form-buttons">
+          <button type="button" class="admin-reject-cancel">Back</button>
+          <button type="button" class="admin-to-conflict-confirm">Approve time off</button>
+        </div>
+      </div>`;
+    footer.querySelector(".admin-reject-cancel").addEventListener("click", () => refreshAdmin());
+    footer.querySelector(".admin-to-conflict-confirm").addEventListener("click", () => {
+      const reassignments = {};
+      footer.querySelectorAll(".admin-to-reassign").forEach((sel) => {
+        if (sel.value) reassignments[sel.dataset.shiftId] = sel.value;
+      });
+      footer.querySelectorAll("button,select").forEach((el) => (el.disabled = true));
+      footer.querySelector(".admin-to-conflict-confirm").textContent = "Approving…";
+      callApproveTimeOff(reqId, reassignments);
+    });
+  }
+
+  async function callApproveTimeOff(reqId, reassignments) {
+    if (_busy) return;
+    _busy = true;
+    try {
+      await fn("approveTimeOff")({ requestId: reqId, reassignments: reassignments });
+      refreshCalendar();
+      await refreshAdmin();
+    } catch (err) {
+      console.error("[ShiftSwapAdmin] approveTimeOff failed:", err);
+      alert(err && err.message ? err.message : "Could not approve this time off.");
+      await refreshAdmin();
+    } finally {
+      _busy = false;
+    }
+  }
+
+  function denyTimeOffForm(card, reqId) {
+    const footer = card.querySelector(".admin-swap-card-footer");
+    footer.innerHTML = `
+      <div class="admin-reject-form">
+        <textarea class="admin-reject-reason" rows="2" maxlength="500" placeholder="Reason (optional — the host sees this)"></textarea>
+        <div class="admin-reject-form-buttons">
+          <button type="button" class="admin-reject-cancel">Back</button>
+          <button type="button" class="admin-reject-confirm">Deny time off</button>
+        </div>
+      </div>`;
+    footer.querySelector(".admin-reject-cancel").addEventListener("click", () => refreshAdmin());
+    footer.querySelector(".admin-reject-confirm").addEventListener("click", async () => {
+      if (_busy) return;
+      _busy = true;
+      const reason = footer.querySelector(".admin-reject-reason").value.trim();
+      footer.querySelectorAll("button,textarea").forEach((el) => (el.disabled = true));
+      footer.querySelector(".admin-reject-confirm").textContent = "Denying…";
+      try {
+        await fn("denyTimeOff")({ requestId: reqId, reason: reason });
+        await refreshAdmin();
+      } catch (err) {
+        console.error("[ShiftSwapAdmin] denyTimeOff failed:", err);
+        alert(err && err.message ? err.message : "Could not deny this request.");
+        footer.querySelectorAll("button,textarea").forEach((el) => (el.disabled = false));
+        footer.querySelector(".admin-reject-confirm").textContent = "Deny time off";
+      } finally {
+        _busy = false;
+      }
+    });
+    footer.querySelector(".admin-reject-reason").focus();
+  }
+
   // ── main refresh ─────────────────────────────────────────────────────────
 
   async function refreshAdmin() {
@@ -221,13 +369,15 @@
 
     try {
       const db = firebase.firestore();
-      const [pendSnap, openSnap] = await Promise.all([
+      const [pendSnap, openSnap, toSnap] = await Promise.all([
         db.collection(COVERAGE).where("status", "==", "pending_admin").orderBy("createdAt", "desc").get(),
         db.collection(COVERAGE).where("status", "==", "open").orderBy("createdAt", "desc").get(),
+        db.collection(TIMEOFF).where("status", "==", "pending").orderBy("startDate", "asc").get(),
       ]);
 
       let pending = pendSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
       let open = openSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const timeOff = toSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
       // Drop requests whose shift no longer exists (admin can write shift_deleted).
       const all = pending.concat(open);
@@ -247,18 +397,19 @@
         open = open.filter((r) => !r.shiftId || alive.has(r.shiftId));
       }
 
-      const total = pending.length + open.length;
+      const total = pending.length + open.length + timeOff.length;
       if (badge) { badge.textContent = String(total); badge.hidden = false; }
       try { window.BtNavBell?.refresh?.(); } catch (_) {}
 
       if (!container) return;
       if (total === 0) {
-        container.innerHTML = '<p class="admin-swap-empty">No pending swaps or open offers.</p>';
+        container.innerHTML = '<p class="admin-swap-empty">No pending swaps, open offers, or time-off requests.</p>';
         return;
       }
 
       let html = "";
-      if (pending.length) html += section("Pending approvals", pending.map(pendingCard).join(""));
+      if (timeOff.length) html += section("Time off — needs review", timeOff.map(timeOffCard).join(""));
+      if (pending.length) html += section("Pending swap approvals", pending.map(pendingCard).join(""));
       if (open.length) html += section("Open offers", open.map(openOfferCard).join(""));
       container.innerHTML = html;
 
@@ -268,6 +419,10 @@
         b.addEventListener("click", () => openRejectForm(b.closest(".admin-swap-card"), b.dataset.reqId)));
       container.querySelectorAll(".admin-cancel-offer-btn").forEach((b) =>
         b.addEventListener("click", () => cancelOpenOffer(b.dataset.reqId, b)));
+      container.querySelectorAll(".admin-to-approve-btn").forEach((b) =>
+        b.addEventListener("click", () => approveTimeOffFlow(b.closest(".admin-to-card"))));
+      container.querySelectorAll(".admin-to-deny-btn").forEach((b) =>
+        b.addEventListener("click", () => denyTimeOffForm(b.closest(".admin-to-card"), b.closest(".admin-to-card").dataset.toId)));
     } catch (err) {
       console.error("[ShiftSwapAdmin] refreshAdmin failed:", err);
       if (container) container.innerHTML = '<p class="admin-swap-empty">Could not load swaps.</p>';
