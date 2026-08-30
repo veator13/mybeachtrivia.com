@@ -735,12 +735,17 @@ Self-heals; worth fixing by excluding `bt-nav.*` from the SW.
 - Cleaned up test shifts + coverage requests. Kept the 3 demo time-off rows.
 
 **Phase 8 remaining for Josh:**
-1. SendGrid key (regenerate) or new email provider → give me the key.
+1. SendGrid key (regenerate) or new email provider (leaning Resend) → give me the key.
 2. `BT_VAPID_KEY` from the Firebase console → paste into
    `beachTriviaPages/js/bt-push-config.js`.
 3. Flip `BT_NOTIFY_EMAIL=live` in `functions_gcfv1/.env` + redeploy when signed off.
 4. PWA polish (optional): `manifest.json` name/icon/theme for a nicer
    Add-to-Home-Screen.
+5. Firestore usage check — after the feature has run live ~1 week, look at
+   Firebase console → Firestore → Usage (reads/writes/day) to confirm real
+   numbers match the estimate (est. ~15–25k reads/day, ~200–300 writes/day, both
+   well inside the 50k / 20k free tier). Also set a Google Cloud billing budget
+   alert (~$1/mo) as a runaway-cost tripwire.
 
 ---
 
@@ -752,3 +757,10 @@ Self-heals; worth fixing by excluding `bt-nav.*` from the SW.
 - PWA assets: app icon set + `manifest.json` name / theme colour.
 - Whether the admin "Requests" page pending rows should be actionable
   (approve/deny inline) in v1 or just display.
+- Firestore read/write budget: verified fine on paper (all listeners are
+  scoped — bell `limit 30` + pauses on hidden tab, host calendar month-bounded,
+  coverage offers 7-day window, notif fan-out ~1 write/recipient/event). One
+  cheap improvement outstanding: the admin **Requests** page runs two
+  *unbounded* collection listeners (`timeOffRequests` + `shiftCoverageRequests`,
+  no `.limit()`) — add `.limit(150)` + "show older" before those collections
+  grow large. Recheck real numbers in Firebase console after ~1 week live.
