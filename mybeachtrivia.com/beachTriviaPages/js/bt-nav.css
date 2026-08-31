@@ -158,37 +158,36 @@ body {
   box-shadow: none;
 }
 
-/* ── Hamburger (mobile) ── */
+/* ── Waffle / app-grid menu button (mobile) ── */
 #bt-nav .bt-nav__hamburger {
   display: none;
-  flex-direction: column;
+  align-items: center;
   justify-content: center;
-  gap: 5px;
   cursor: pointer;
-  background: none;
+  background: none !important; /* beat page-level `button{background}` bleed */
   border: none;
   padding: 6px;
-  border-radius: 6px;
+  border-radius: 8px;
   flex-shrink: 0;
+  color: #fff;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 #bt-nav .bt-nav__hamburger:hover {
-  background-color: rgba(255, 255, 255, 0.15);
+  background-color: rgba(255, 255, 255, 0.15) !important;
 }
 
-#bt-nav .bt-nav__hamburger span {
+#bt-nav .bt-nav__hamburger svg {
   display: block;
   width: 22px;
-  height: 2px;
-  background-color: #fff;
-  border-radius: 2px;
-  transition: transform 0.25s, opacity 0.25s;
+  height: 22px;
 }
 
-/* Hamburger open state */
-#bt-nav .bt-nav__hamburger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
-#bt-nav .bt-nav__hamburger.open span:nth-child(2) { opacity: 0; }
-#bt-nav .bt-nav__hamburger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+/* waffle by default, X while the drawer is open */
+#bt-nav .bt-nav__hamburger .bt-nav__ico-close { display: none; }
+#bt-nav .bt-nav__hamburger.open .bt-nav__ico-waffle { display: none; }
+#bt-nav .bt-nav__hamburger.open .bt-nav__ico-close { display: block; }
 
 /* ── Mobile drawer ── */
 .bt-nav__drawer {

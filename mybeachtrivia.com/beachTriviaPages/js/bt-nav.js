@@ -472,7 +472,13 @@
     ham.type = 'button';
     ham.setAttribute('aria-label', 'Toggle navigation menu');
     ham.setAttribute('aria-expanded', 'false');
-    ham.innerHTML = '<span></span><span></span><span></span>';
+    ham.innerHTML =
+      '<svg class="bt-nav__ico-waffle" width="22" height="22" viewBox="0 0 22 22" fill="currentColor" aria-hidden="true">' +
+      '<rect x="1" y="1" width="5" height="5" rx="1.5"/><rect x="8.5" y="1" width="5" height="5" rx="1.5"/><rect x="16" y="1" width="5" height="5" rx="1.5"/>' +
+      '<rect x="1" y="8.5" width="5" height="5" rx="1.5"/><rect x="8.5" y="8.5" width="5" height="5" rx="1.5"/><rect x="16" y="8.5" width="5" height="5" rx="1.5"/>' +
+      '<rect x="1" y="16" width="5" height="5" rx="1.5"/><rect x="8.5" y="16" width="5" height="5" rx="1.5"/><rect x="16" y="16" width="5" height="5" rx="1.5"/></svg>' +
+      '<svg class="bt-nav__ico-close" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">' +
+      '<path d="M6 6l12 12M18 6L6 18"/></svg>';
     nav.appendChild(ham);
 
     const drawer = document.createElement('div');
