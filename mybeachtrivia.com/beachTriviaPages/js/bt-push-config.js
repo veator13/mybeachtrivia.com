@@ -9,4 +9,4 @@
  * Paste it below. It is a PUBLIC key — safe to commit and ship to the browser.
  * Until it is set, bt-push.js keeps the "Turn on notifications" button hidden.
  */
-window.BT_VAPID_KEY = "";
+window.BT_VAPID_KEY = "BH1tYhBcwy7XNppE5qmvMztjojmdst0AQjEBjkJ-m_bwZYLWgmsrMgcxI5j4gQvL1kVCW0yZElqtREK21ZsPXW0";
