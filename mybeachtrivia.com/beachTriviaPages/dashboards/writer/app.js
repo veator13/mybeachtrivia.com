@@ -5696,13 +5696,24 @@
     appReady = true;
     setupAutosave();
 
-    // Last-ditch save + warn before leaving with unsaved changes.
+    // On the way out: always flush (localStorage is synchronous and reliable;
+    // the cloud write is best-effort). Only actually *prompt* the browser's
+    // "Leave site?" dialog when autosave has genuinely fallen behind — a save
+    // errored, or the last cloud save is older than the max autosave gap. In
+    // normal use the pill shows "All changes saved" and there's no dialog.
     window.addEventListener("beforeunload", function (e) {
       if (!isDirty) return;
-      writeLocalAutosave();               // synchronous — the real safety net
-      try { runCloudAutosave(); } catch (_) {} // best-effort, may not finish
-      e.preventDefault();
-      e.returnValue = "";
+      writeLocalAutosave();
+      if (!_autosaveCloudInFlight) {
+        try { runCloudAutosave(); } catch (_) {}
+      }
+      var stale =
+        _autosaveRetryPending ||
+        Date.now() - _autosaveLastCloudAt > AUTOSAVE_CLOUD_MAX_GAP_MS + 5000;
+      if (stale) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
     });
 
     console.log("[writer] app initialized");
