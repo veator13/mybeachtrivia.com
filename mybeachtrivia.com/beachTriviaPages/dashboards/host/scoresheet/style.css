@@ -2037,6 +2037,7 @@ body.modal-open #teamTable th {
     width: 100%;
   }
   .search-input-wrap .search-input {
+    order: -1;
     flex: 1 1 100%;
     width: 100% !important;
     max-width: none !important;
@@ -2045,16 +2046,21 @@ body.modal-open #teamTable th {
     box-sizing: border-box;
   }
   .search-nav-btn {
-    flex: 0 0 auto;
-    width: 44px !important;
-    height: 40px;
+    flex: 1 1 0 !important;
+    width: auto !important;
+    min-width: 0;
+    height: 42px;
     padding: 0 !important;
   }
   .search-match-count {
-    flex: 1 1 auto;
-    text-align: left;
+    order: 1; /* sit between the two arrows */
+    flex: 0 0 auto;
+    min-width: 44px;
+    text-align: center;
     font-size: 13px;
   }
+  .search-input-wrap > #btnSearchPrev { order: 0; }
+  .search-input-wrap > #btnSearchNext { order: 2; }
   .search-container > #btnSearch {
     width: 100%;
   }
