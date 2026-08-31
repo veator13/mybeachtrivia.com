@@ -1,105 +1,110 @@
 /* mybeachtrivia.com/beachTriviaPages/dashboards/host/scoresheet/js/mobile-scoring.js
  *
- * Phone helper for the scoring table. The table is ~33 columns wide, so on a
- * phone you're lost the moment you scroll sideways. This adds a sticky
- * "jump to round" bar above the table — tap R1 / R2 / HT / R3 / R4 / Final /
- * Bonus / Total and the table scrolls so that section lands right next to the
- * frozen Team Name column.
+ * Phone layout for the scoring table. The full table is ~33 columns — useless
+ * on a phone. On <= 820px this adds a "view" dropdown above the table:
  *
- * Pure DOM + scrollLeft. No change to the score model or table-build.js.
- * Only active <= 820px; desktop is untouched.
+ *   Setup            team name + delete + bonus + TEAM #  (no score columns)
+ *   Round 1..4       team name (display) + that round's 5 inputs + round total
+ *   Half Time        team name + Half Time input + First Half Total
+ *   Final Question   team name + Final Question input + Second Half Total
+ *   Results          team name + every total + Bonus + Final Score
+ *
+ * Switching a view just sets `#teamTable[data-mview]`; style.css hides the
+ * columns that view doesn't need (via :has() selectors on the existing input
+ * classes — no change to table-build.js or the score model). Desktop: the
+ * dropdown isn't shown and no data-mview is set, so the full table renders.
  */
 (function () {
   "use strict";
 
   var BP = 820;
-  var BAR_ID = "score-jumpbar";
+  var SEL_ID = "score-view-select";
+  var WRAP_ID = "score-view-bar";
+  var LS_KEY = "bt:scoresheetMView";
 
-  // label -> regex that identifies the section's <th> in the first header row
-  var SECTIONS = [
-    { key: "r1", label: "R1", rx: /round\s*1/i },
-    { key: "r2", label: "R2", rx: /round\s*2/i },
-    { key: "ht", label: "HT", rx: /half\s*time/i },
-    { key: "r3", label: "R3", rx: /round\s*3/i },
-    { key: "r4", label: "R4", rx: /round\s*4/i },
-    { key: "fq", label: "FQ", rx: /final\s*question/i },
-    { key: "bonus", label: "B", rx: /^bonus$/i },
-    { key: "final", label: "Tot", rx: /final\s*score/i },
+  var VIEWS = [
+    { key: "setup", label: "Setup — team names" },
+    { key: "r1", label: "Round 1" },
+    { key: "r2", label: "Round 2" },
+    { key: "ht", label: "Half Time" },
+    { key: "r3", label: "Round 3" },
+    { key: "r4", label: "Round 4" },
+    { key: "fq", label: "Final Question" },
+    { key: "results", label: "Results — bonus & final" },
   ];
 
   function isMobile() {
     return window.matchMedia("(max-width: " + BP + "px)").matches;
   }
 
-  function wrapper() { return document.querySelector(".table-wrapper"); }
   function table() { return document.getElementById("teamTable"); }
+  function wrapper() { return document.querySelector(".table-wrapper"); }
 
-  function headerCells() {
+  function savedView() {
+    try {
+      var v = localStorage.getItem(LS_KEY);
+      if (v && VIEWS.some(function (x) { return x.key === v; })) return v;
+    } catch (e) {}
+    return "setup";
+  }
+
+  function applyView(key) {
     var t = table();
-    if (!t) return [];
-    var row = t.querySelector("thead tr.top_row");
-    return row ? Array.prototype.slice.call(row.children) : [];
-  }
-
-  function stickyWidth() {
-    var c = document.querySelector("#teamTable td.sticky-col, #teamTable th.sticky-col");
-    return c ? c.getBoundingClientRect().width : 0;
-  }
-
-  // Scroll the table-wrapper so the matched section header sits just to the
-  // right of the frozen Team column. Uses live on-screen rects + scrollBy so
-  // it doesn't depend on offsetParent quirks under sticky/border-collapse.
-  function jumpTo(rx) {
+    if (!t) return;
+    t.setAttribute("data-mview", key);
+    try { localStorage.setItem(LS_KEY, key); } catch (e) {}
     var w = wrapper();
-    if (!w) return;
-    var th = headerCells().filter(function (el) {
-      return rx.test((el.textContent || "").replace(/\s+/g, " ").trim());
-    })[0];
-    if (!th) return;
+    if (w) w.scrollLeft = 0;
+  }
 
-    var wRect = w.getBoundingClientRect();
-    var thRect = th.getBoundingClientRect();
-    var delta = thRect.left - wRect.left - stickyWidth() - 6;
-
-    var maxLeft = w.scrollWidth - w.clientWidth;
-    var target = Math.max(0, Math.min(w.scrollLeft + delta, maxLeft));
-
-    // Direct assignment always works; scrollTo({behavior:"smooth"}) is a silent
-    // no-op on this page. CSS `scroll-behavior: smooth` on .table-wrapper
-    // animates the assignment.
-    w.scrollLeft = target;
+  function clearView() {
+    var t = table();
+    if (t) t.removeAttribute("data-mview");
   }
 
   function buildBar() {
     var bar = document.createElement("div");
-    bar.id = BAR_ID;
-    bar.className = "score-jumpbar";
-    bar.setAttribute("role", "group");
-    bar.setAttribute("aria-label", "Jump to round");
+    bar.id = WRAP_ID;
+    bar.className = "score-view-bar";
 
-    SECTIONS.forEach(function (s) {
-      var b = document.createElement("button");
-      b.type = "button";
-      b.className = "score-jumpbar__chip";
-      b.textContent = s.label;
-      b.addEventListener("click", function () { jumpTo(s.rx); });
-      bar.appendChild(b);
+    var label = document.createElement("label");
+    label.setAttribute("for", SEL_ID);
+    label.className = "score-view-bar__label";
+    label.textContent = "View";
+
+    var sel = document.createElement("select");
+    sel.id = SEL_ID;
+    sel.className = "score-view-bar__select";
+    VIEWS.forEach(function (v) {
+      var o = document.createElement("option");
+      o.value = v.key;
+      o.textContent = v.label;
+      sel.appendChild(o);
     });
+    sel.value = savedView();
+    sel.addEventListener("change", function () { applyView(this.value); });
+
+    bar.appendChild(label);
+    bar.appendChild(sel);
     return bar;
   }
 
   function sync() {
     var w = wrapper();
     if (!w || !w.parentNode) return;
-    var existing = document.getElementById(BAR_ID);
+    var existing = document.getElementById(WRAP_ID);
 
     if (!isMobile()) {
       if (existing) existing.remove();
+      clearView();
       return;
     }
     if (!existing) {
-      w.parentNode.insertBefore(buildBar(), w);
+      existing = buildBar();
+      w.parentNode.insertBefore(existing, w);
     }
+    var sel = document.getElementById(SEL_ID);
+    applyView(sel ? sel.value : savedView());
   }
 
   var _t;
@@ -113,8 +118,6 @@
 
   function start() {
     sync();
-    // The table body is rebuilt on load / sort / team add; the bar lives
-    // outside it so it survives, but the wrapper itself may mount late.
     var tries = 0;
     var iv = setInterval(function () {
       if (wrapper() || ++tries > 40) {
@@ -122,6 +125,15 @@
         sync();
       }
     }, 150);
+    // The tbody is rebuilt on load / sort / add-team; re-apply the view class
+    // (it lives on #teamTable, which survives, but be safe).
+    var t = table();
+    if (t && window.MutationObserver) {
+      var mo = new MutationObserver(function () {
+        if (isMobile() && !t.getAttribute("data-mview")) applyView(savedView());
+      });
+      mo.observe(t, { childList: true, subtree: true });
+    }
   }
 
   if (document.readyState === "loading") {
@@ -130,5 +142,5 @@
     start();
   }
 
-  window.BtScoreJump = { jumpTo: jumpTo, sync: sync };
+  window.BtScoreView = { apply: applyView, sync: sync };
 })();
