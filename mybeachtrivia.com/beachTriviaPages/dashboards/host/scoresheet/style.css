@@ -2133,7 +2133,7 @@ body.modal-open #teamTable th {
     background: #181818;
   }
   .score-view-bar__label {
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.04em;
@@ -2143,8 +2143,9 @@ body.modal-open #teamTable th {
   .score-view-bar__select {
     flex: 1 1 auto;
     min-width: 0;
-    padding: 10px 12px;
-    font-size: 15px;
+    padding: 13px 14px;
+    font-size: 18px;
+    line-height: 1.2;
     font-weight: 700;
     text-transform: none;
     letter-spacing: normal;
@@ -2154,6 +2155,11 @@ body.modal-open #teamTable th {
     border-radius: 10px;
     -webkit-appearance: none;
     appearance: none;
+  }
+  .score-view-bar__select option {
+    font-size: 17px;
+    padding: 10px;
+    background: #1e1e1e;
   }
 
   /* Second "Add Team" at the bottom of the list (no scroll-to-top) */
