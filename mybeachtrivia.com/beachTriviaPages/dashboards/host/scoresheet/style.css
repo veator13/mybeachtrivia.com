@@ -2307,12 +2307,19 @@ body.modal-open #teamTable th {
     width: 92px !important;
     min-width: 92px !important;
   }
-  /* single-round views: trim cell padding so the round fits with little/no scroll */
-  #teamTable[data-mview]:not([data-mview="setup"]):not([data-mview="results"]) tbody td {
+  /* single-round views: trim cell padding so the round fits with little/no scroll.
+     r1..r4 only — ht/fq get their own wider single input below. */
+  #teamTable[data-mview="r1"] tbody td,
+  #teamTable[data-mview="r2"] tbody td,
+  #teamTable[data-mview="r3"] tbody td,
+  #teamTable[data-mview="r4"] tbody td {
     padding-left: 3px !important;
     padding-right: 3px !important;
   }
-  #teamTable[data-mview]:not([data-mview="setup"]):not([data-mview="results"]) tbody td input[type="number"] {
+  #teamTable[data-mview="r1"] tbody td input[type="number"],
+  #teamTable[data-mview="r2"] tbody td input[type="number"],
+  #teamTable[data-mview="r3"] tbody td input[type="number"],
+  #teamTable[data-mview="r4"] tbody td input[type="number"] {
     width: 42px !important;
     min-width: 42px !important;
   }
@@ -2364,12 +2371,18 @@ body.modal-open #teamTable th {
   }
 
   /* HT / FQ views: fat input, skinny total column */
-  #teamTable[data-mview="ht"] .halftime-input,
-  #teamTable[data-mview="fq"] .finalquestion-input {
-    width: 64px !important;
-    min-width: 64px !important;
-    height: 44px !important;
-    font-size: 18px !important;
+  #teamTable[data-mview="ht"] tbody td input.halftime-input[type="number"],
+  #teamTable[data-mview="fq"] tbody td input.finalquestion-input[type="number"] {
+    width: 72px !important;
+    min-width: 72px !important;
+    height: 46px !important;
+    font-size: 19px !important;
+    padding: 4px !important;
+  }
+  #teamTable[data-mview="fq"] tbody td.fq-cell-td {
+    width: 124px !important;
+    min-width: 124px !important;
+    max-width: 124px !important;
   }
   #teamTable[data-mview="ht"] tbody td:has(> span.first-half-total),
   #teamTable[data-mview="fq"] tbody td:has(> span.second-half-total) {
