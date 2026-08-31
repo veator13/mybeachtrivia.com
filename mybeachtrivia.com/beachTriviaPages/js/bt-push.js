@@ -188,22 +188,34 @@
     }
   }
 
-  // On load, if permission is already granted, work out whether THIS device is
-  // actually subscribed (token present in employees/{uid}.fcmTokens) and keep
-  // the stored token fresh. Does not prompt.
+  // On load: decide whether THIS device is subscribed and keep its (rotatable)
+  // token fresh. The per-device opt-in signal is localStorage "bt:pushOn",
+  // maintained by enable()/disable() — FCM tokens rotate, so we can't rely on an
+  // exact match against employees/{uid}.fcmTokens. Never prompts.
   async function refreshIfGranted() {
     if (!supported() || Notification.permission !== "granted") {
-      // Permission was never granted or was revoked in browser settings —
-      // any stored "on" hint is stale.
-      if (_subscribed) setSubscribed(false);
+      if (_subscribed) setSubscribed(false); // permission revoked in browser settings
       return;
     }
     var user = firebase.auth().currentUser;
+
+    var choice = null;
+    try { choice = localStorage.getItem("bt:pushOn"); } catch (_) {}
+    if (choice === "0") { setSubscribed(false); return; } // turned off here
+
+    // choice === "1" → opted in here. choice === null → maybe opted in before
+    // this flag existed; adopt only if this device's token is already saved.
     try {
       var reg = await ensureSW();
       var token = await messaging().getToken({ vapidKey: vapidKey(), serviceWorkerRegistration: reg });
-      if (!token) { setSubscribed(false); return; }
-      _lastToken = token;
+      if (!token) return; // transient — keep last known state, don't flip off
+
+      if (choice === "1") {
+        await saveToken(token);   // re-add rotated token; sets subscribed=true
+        wireForeground();
+        return;
+      }
+
       var saved = [];
       if (user) {
         try {
@@ -213,12 +225,10 @@
         } catch (_) {}
       }
       if (saved.indexOf(token) !== -1) {
-        try { localStorage.setItem("bt:pushToken", token); } catch (_) {}
-        setSubscribed(true);
+        _lastToken = token;
+        await saveToken(token);
         wireForeground();
       } else {
-        // Permission granted but this device isn't in the list → they turned it
-        // off here (or it's a fresh device). Leave it off; don't re-add silently.
         setSubscribed(false);
       }
     } catch (_) {}
@@ -228,11 +238,31 @@
 
   var _btns = [];
 
-  function setLabel(btn, icon, text) {
+  // Matches the nav notification bell in bt-nav.js (same Feather/Lucide stroke).
+  var SVG_OPEN =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" ' +
+    'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
+    'stroke-linejoin="round" aria-hidden="true">';
+  var BELL_PATHS = '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>' +
+    '<path d="M13.73 21a2 2 0 0 1-3.46 0"/>';
+  var ICONS = {
+    // OFF — outline bell, matches the nav notification bell exactly.
+    bell: SVG_OPEN + BELL_PATHS + '</svg>',
+    // ON — same bell, filled (solid) so it reads as "active".
+    bellFilled:
+      '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" ' +
+      'fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" ' +
+      'stroke-linejoin="round" aria-hidden="true">' + BELL_PATHS + '</svg>',
+    bellOff: SVG_OPEN + '<path d="M8.7 3A6 6 0 0 1 18 8c0 3 .5 4.8 1.2 6"/>' +
+      '<path d="M6 8c0 4-1.5 6-3 7h13"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>' +
+      '<line x1="2" y1="2" x2="22" y2="22"/></svg>',
+  };
+
+  function setLabel(btn, iconKey, text) {
     btn.textContent = "";
     var i = document.createElement("span");
     i.className = "bt-push__icon";
-    i.textContent = icon;
+    i.innerHTML = ICONS[iconKey] || "";
     var t = document.createElement("span");
     t.className = "bt-push__label";
     t.textContent = text;
@@ -249,7 +279,7 @@
       btn.hidden = false;
       btn.disabled = true;
       btn.classList.add("bt-push--blocked");
-      setLabel(btn, "🔕", "Notifications blocked");
+      setLabel(btn, "bellOff", "Notifications blocked");
       btn.title = "Notifications are blocked for mybeachtrivia.com. Turn them back on in your browser's site settings, then reload.";
       return;
     }
@@ -257,11 +287,11 @@
     btn.disabled = false;
     if (st.subscribed === true && st.permission === "granted") {
       btn.classList.add("bt-push--on");
-      // green check = currently on; label = what a tap does
-      setLabel(btn, "✓", "Notifications on");
+      // filled gold bell = on; label = what a tap does
+      setLabel(btn, "bellFilled", "Turn off notifications");
       btn.title = "This device gets a push when a shift or time-off update needs you. Tap to turn off here.";
     } else {
-      setLabel(btn, "🔔", "Turn on notifications");
+      setLabel(btn, "bell", "Turn on notifications");
       btn.title = "Get a push on this device when a shift or time-off update needs you.";
     }
   }
@@ -280,7 +310,7 @@
       var wasOn = state().subscribed === true;
       btn.disabled = true;
       btn.classList.add("bt-push--busy");
-      setLabel(btn, wasOn ? "✓" : "🔔", wasOn ? "Turning off…" : "Turning on…");
+      setLabel(btn, wasOn ? "bellFilled" : "bell", wasOn ? "Turning off…" : "Turning on…");
       var res = wasOn ? await disable() : await enable();
       btn.classList.remove("bt-push--busy");
       if (!res.ok && !wasOn && res.reason === "unsupported") { btn.hidden = true; return; }
@@ -321,11 +351,11 @@
       "  -webkit-appearance:none;appearance:none;box-shadow:none;",
       "}",
       "#bt-enable-push.bt-push-btn:hover{filter:brightness(1.08);}",
-      "#bt-enable-push.bt-push-btn .bt-push__icon{font-size:13px;line-height:1;}",
-      // ON — same pill, green + check
+      "#bt-enable-push.bt-push-btn .bt-push__icon{display:inline-flex;align-items:center;margin:-1px 0;}",
+      "#bt-enable-push.bt-push-btn .bt-push__icon svg{display:block;width:16px;height:16px;}",
+      // ON — same pill, green background, filled gold bell
       "#bt-enable-push.bt-push--on{background:#157a4c;}",
-      "#bt-enable-push.bt-push--on .bt-push__icon{color:#8ef0bd;font-weight:800;}",
-      "#bt-enable-push.bt-push--on .bt-push__label::after{content:'\\00a0\\2014\\00a0tap to turn off';font-weight:500;opacity:.82;}",
+      "#bt-enable-push.bt-push--on .bt-push__icon{color:#ffd36b;}",
       // BLOCKED / BUSY
       "#bt-enable-push.bt-push--blocked{background:#5b6675;opacity:.7;cursor:not-allowed;}",
       "#bt-enable-push.bt-push--busy{opacity:.7;cursor:default;}",
