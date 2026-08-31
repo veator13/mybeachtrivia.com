@@ -713,6 +713,16 @@
     runCloudAutosave();
   }
 
+  // The topbar "Save" button — the work already autosaves, so this just forces
+  // a sync right now (and reassures with a pill flash when nothing's pending).
+  function manualSave() {
+    if (!isDirty && !_autosaveRetryPending) {
+      updateAutosavePill("saved");
+      return;
+    }
+    flushAutosaveNow();
+  }
+
   function autosaveWhenLabel(ms) {
     if (!ms) return "a previous session";
     var then = new Date(ms);
@@ -980,9 +990,8 @@
   // ─── Topbar buttons ────────────────────────────────────────────
 
   function bindTopbarButtons() {
-    var btnSaveDraft = $("#btn-save-draft");
-    var btnUpdateDraft = $("#btn-update-draft");
-    var btnSaveNewDraft = $("#btn-save-new-draft");
+    var btnSave = $("#btn-save");
+    var btnMakeCopy = $("#btn-make-copy");
     var btnValidate = $("#btn-preview-publish");
     var btnPublish = $("#btn-publish");
     var btnBack = $("#back-to-login");
@@ -1020,18 +1029,17 @@
       });
     }
 
-    if (btnSaveDraft) {
-      btnSaveDraft.addEventListener("click", function () {
-        performDraftSave(false);
-      });
+    // "Save" is just "sync to the cloud now" — the work already autosaves.
+    if (btnSave) {
+      btnSave.addEventListener("click", manualSave);
     }
-    if (btnUpdateDraft) {
-      btnUpdateDraft.addEventListener("click", function () {
-        performDraftSave(true);
-      });
-    }
-    if (btnSaveNewDraft) {
-      btnSaveNewDraft.addEventListener("click", function () {
+    // "Make a Copy" branches: write a brand-new draft doc and keep editing it,
+    // leaving the original as its last autosave left it.
+    if (btnMakeCopy) {
+      btnMakeCopy.addEventListener("click", function () {
+        activeDraftId = null;
+        activePublishedId = null;
+        isDirty = true;
         performDraftSave(false);
       });
     }
@@ -1113,23 +1121,13 @@
   var activePublishedId = null;
 
   function syncDraftSaveButtons() {
-    var btnFirst = $("#btn-save-draft");
-    var btnUpdate = $("#btn-update-draft");
-    var btnNew = $("#btn-save-new-draft");
-    if (!btnFirst) return;
-    if (activeDraftId) {
-      btnFirst.classList.add("hidden");
-      if (btnUpdate) btnUpdate.classList.remove("hidden");
-      if (btnNew) btnNew.classList.remove("hidden");
-    } else {
-      btnFirst.classList.remove("hidden");
-      if (btnUpdate) btnUpdate.classList.add("hidden");
-      if (btnNew) btnNew.classList.add("hidden");
-    }
+    // "Make a Copy" only makes sense once there's a saved draft to copy.
+    var btnCopy = $("#btn-make-copy");
+    if (btnCopy) btnCopy.classList.toggle("hidden", !activeDraftId);
   }
 
   function setDraftSaveButtonsDisabled(disabled) {
-    ["btn-save-draft", "btn-update-draft", "btn-save-new-draft"].forEach(function (id) {
+    ["btn-save", "btn-make-copy"].forEach(function (id) {
       var b = document.getElementById(id);
       if (b) b.disabled = !!disabled;
     });
