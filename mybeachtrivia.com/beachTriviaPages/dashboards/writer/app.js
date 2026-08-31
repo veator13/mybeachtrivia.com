@@ -749,22 +749,24 @@
 
   function maybeOfferAutosaveRestore() {
     var raw;
-    try { raw = localStorage.getItem(AUTOSAVE_LS_KEY); } catch (_) { return; }
-    if (!raw) return;
+    try { raw = localStorage.getItem(AUTOSAVE_LS_KEY); } catch (_) { maybeOfferResumeLastDraft(); return; }
+    if (!raw) { maybeOfferResumeLastDraft(); return; }
 
     var saved;
-    try { saved = JSON.parse(raw); } catch (_) { clearLocalAutosave(); return; }
+    try { saved = JSON.parse(raw); } catch (_) { clearLocalAutosave(); maybeOfferResumeLastDraft(); return; }
     if (!saved || !saved.data || !Array.isArray(saved.data.blocks) ||
         !autosaveHasRealContent(saved.data)) {
       clearLocalAutosave();
+      maybeOfferResumeLastDraft();
       return;
     }
 
     // If the local copy already matches the Firestore draft, it synced fine on
-    // the way out — clear it quietly, no prompt. Only a mismatch (or a missing
-    // draft) means there's genuinely unsynced work to recover.
+    // the way out — clear it quietly and offer to resume. Only a mismatch (or a
+    // missing draft) means there's genuinely unsynced work to recover, and then
+    // the restore prompt takes precedence over "continue where you left off".
     function decide(alreadySynced) {
-      if (alreadySynced) { clearLocalAutosave(); return; }
+      if (alreadySynced) { clearLocalAutosave(); maybeOfferResumeLastDraft(); return; }
       showAutosaveRestorePrompt(saved);
     }
 
@@ -778,6 +780,53 @@
     } else {
       decide(false); // never made it to Firestore at all
     }
+  }
+
+  // Decision 3: on reopen, ask before dropping the writer into a blank show.
+  function maybeOfferResumeLastDraft() {
+    if (activeDraftId || activePublishedId) return; // already editing something
+
+    var user = firebase.auth().currentUser;
+    if (!user) return;
+
+    firebase.firestore().collection("showDrafts")
+      .where("authorUid", "==", user.uid)
+      .orderBy("lastTouchedAt", "desc")
+      .limit(1)
+      .get()
+      .then(function (snap) {
+        if (snap.empty || activeDraftId || activePublishedId) return;
+        var doc = snap.docs[0];
+        var data = doc.data();
+        if (!autosaveHasRealContent(data)) return;
+
+        var bar = $("#resume-draft-bar");
+        var text = $("#resume-draft-text");
+        if (!bar) return;
+        var title = String((data.show && data.show.title) || "").trim();
+        if (text) {
+          text.textContent = title
+            ? 'Continue "' + title + '"?'
+            : "Continue your most recent draft?";
+        }
+        bar.classList.remove("hidden");
+
+        $("#resume-draft-yes").onclick = function () {
+          bar.classList.add("hidden");
+          try {
+            restoreShow(data, doc.id, "draft");
+          } catch (err) {
+            console.error("[writer] resume failed:", err);
+            if (text) text.textContent = "Couldn't open that draft — use Open Show instead.";
+          }
+        };
+        $("#resume-draft-no").onclick = function () {
+          bar.classList.add("hidden");
+        };
+      })
+      .catch(function (err) {
+        console.warn("[writer] resume-draft check failed:", err);
+      });
   }
 
   function showAutosaveRestorePrompt(saved) {

@@ -78,6 +78,14 @@
     <button type="button" id="autosave-restore-no" class="btn btn-sm btn-outline">Discard</button>
   </div>
 
+  <!-- Offer to pick up the most recent draft on reopen -->
+  <div id="resume-draft-bar" class="autosave-restore-bar hidden" role="status" aria-live="polite">
+    <span class="autosave-restore-icon" aria-hidden="true">📄</span>
+    <span id="resume-draft-text">Continue where you left off?</span>
+    <button type="button" id="resume-draft-yes" class="btn btn-sm btn-primary">Continue</button>
+    <button type="button" id="resume-draft-no" class="btn btn-sm btn-outline">Start new</button>
+  </div>
+
   <!-- Open Show modal -->
   <div id="open-show-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-label="Open Show">
     <div class="modal-card">
@@ -879,7 +887,7 @@
   <script src="js/question-form.js?v=writer-20260502-title-inline-edit" defer></script>
   <script src="js/block-builder.js?v=writer-20260502-category-slide-kind-fix" defer></script>
   <script src="js/preview.js?v=writer-20260513-cat-list-fix" defer></script>
-  <script src="app.js?v=writer-20260831-autosave3" defer></script>
+  <script src="app.js?v=writer-20260831-resume" defer></script>
 
 </body>
 </html>
