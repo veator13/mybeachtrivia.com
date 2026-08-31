@@ -89,19 +89,54 @@
     return bar;
   }
 
+  var ADD_ID = "score-add-team-bottom";
+
+  function buildAddTeam() {
+    var b = document.createElement("button");
+    b.id = ADD_ID;
+    b.type = "button";
+    b.className = "score-add-team-bottom";
+    b.textContent = "+ Add Team";
+    b.addEventListener("click", function () {
+      try {
+        if (typeof window.addTeam === "function") window.addTeam();
+        else {
+          var top = document.getElementById("btnAddTeam");
+          if (top) top.click();
+        }
+      } catch (e) {}
+      // bring the new (last) row into view
+      setTimeout(function () {
+        var rows = document.querySelectorAll("#teamTable tbody tr");
+        var last = rows[rows.length - 1];
+        if (last) last.scrollIntoView({ block: "center", behavior: "smooth" });
+        var nameInput = last && last.querySelector("input.teamName");
+        if (nameInput) { try { nameInput.focus(); } catch (e) {} }
+      }, 60);
+    });
+    return b;
+  }
+
   function sync() {
     var w = wrapper();
     if (!w || !w.parentNode) return;
     var existing = document.getElementById(WRAP_ID);
+    var addBtn = document.getElementById(ADD_ID);
 
     if (!isMobile()) {
       if (existing) existing.remove();
+      if (addBtn) addBtn.remove();
       clearView();
       return;
     }
     if (!existing) {
       existing = buildBar();
       w.parentNode.insertBefore(existing, w);
+    }
+    if (!addBtn) {
+      addBtn = buildAddTeam();
+      if (w.nextSibling) w.parentNode.insertBefore(addBtn, w.nextSibling);
+      else w.parentNode.appendChild(addBtn);
     }
     var sel = document.getElementById(SEL_ID);
     applyView(sel ? sel.value : savedView());
