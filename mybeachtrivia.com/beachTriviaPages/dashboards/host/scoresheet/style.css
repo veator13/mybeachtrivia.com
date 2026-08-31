@@ -1966,6 +1966,108 @@ body.modal-open #teamTable th {
     #teamTable td.sticky-col .btnDeleteTeam { width: 32px; height: 32px; min-width: 32px; font-size: 20px; border-radius: 10px; }
 }
 
+/* =========================================================
+   MOBILE scoring (<= 820px)
+   - kill the `zoom` (breaks sticky + input hit-testing on iOS)
+   - real touch scrolling for the wide table
+   - score inputs big enough to actually tap
+   - narrower frozen right columns
+   - "jump to round" bar (injected by js/mobile-scoring.js)
+   ========================================================= */
+@media (max-width: 820px) {
+  /* `main { zoom: 0.8 }` (desktop table-fit trick) makes iOS Safari mis-map
+     taps and jam scroll containers — the "can't scroll / can't type" bug. */
+  main { zoom: 1 !important; }
+
+  :root {
+    --final-col-width: 88px;   /* was 165 */
+    --bonus-col-width: 52px;   /* was 90  */
+  }
+
+  .table-wrapper {
+    max-height: 72vh;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    touch-action: pan-x pan-y;
+  }
+
+  /* Score inputs — override the desktop "shrink to fit" (30x25px) */
+  #teamTable td input[type="number"] {
+    width: 44px !important;
+    min-width: 44px !important;
+    height: 42px !important;
+    font-size: 17px !important;
+    padding: 4px 2px !important;
+  }
+  #teamTable .halftime-input,
+  #teamTable .finalquestion-input { width: 48px !important; }
+
+  #teamTable th,
+  #teamTable td {
+    padding: 6px 5px !important;
+    font-size: 14px !important;
+  }
+
+  /* Frozen team column: narrower, but still readable */
+  #teamTable td.sticky-col,
+  #teamTable th.sticky-col,
+  .sticky-col {
+    min-width: 118px !important;
+    width: 118px !important;
+  }
+  #teamTable .teamName,
+  .teamName {
+    width: 98px !important;
+    height: 40px !important;
+    font-size: 14px !important;
+  }
+  #teamTable td.sticky-col .btnDeleteTeam {
+    width: 26px !important;
+    height: 26px !important;
+    min-width: 26px !important;
+    font-size: 16px !important;
+  }
+
+  td.fq-cell-td { min-width: 82px !important; width: 82px !important; }
+  td.sticky-col-right span { font-size: 15px !important; }
+
+  /* ---- Jump-to-round bar ---- */
+  .score-jumpbar {
+    position: sticky;
+    top: 56px; /* under the sticky bt-nav */
+    z-index: 40;
+    display: flex;
+    gap: 6px;
+    padding: 8px 2px;
+    margin: 4px 0 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    background: #181818;
+  }
+  .score-jumpbar::-webkit-scrollbar { display: none; }
+  .score-jumpbar__chip {
+    flex: 0 0 auto;
+    padding: 9px 15px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: none;
+    letter-spacing: normal;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .score-jumpbar__chip:active {
+    background: #00ffcc;
+    color: #063;
+    border-color: #00ffcc;
+  }
+}
+
 /* =========================
    Invert Standings Button (icon style)
    ========================= */
