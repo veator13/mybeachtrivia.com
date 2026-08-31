@@ -107,7 +107,17 @@ All client listeners are scoped (bell `limit(30)` + pauses on hidden tab; host c
 - Root cause of "can't navigate on a phone": the `@media (max-width:768px)` rule in `beachTriviaPages/js/bt-nav.css` set `.bt-nav__hamburger { display:flex }` at a lower specificity than the base `#bt-nav .bt-nav__hamburger { display:none }`, so the menu button was invisible on every page. Fixed by scoping the responsive rules under `#bt-nav`.
 - The button is now a **waffle / 3×3 app-grid SVG** (shows an X while the drawer is open). Both icons are inline SVG so page-level `button{background}` CSS can't bleed in. The notification bell stays visible on mobile (only the desktop link row + user chrome are hidden).
 - Drawer closes on outside tap / Escape.
-- **Cache-bust:** `bt-nav.css?v=btnav-20260831-waffle`, `bt-nav.js?v=hostnav-20260831-waffle2` — applied to all 27 HTML pages via `sed`. **Any bt-nav.css/js change requires a new site-wide `?v=` sed** (the files are referenced on ~27 pages).
+- **Cache-bust (changed 2026-08-31):** the 27 pages no longer hand-write the
+  `bt-nav.css` / `bt-nav.js` tags. Each page has one line —
+  `<script src="/beachTriviaPages/js/bt-head.js"></script>` — and
+  **`beachTriviaPages/js/bt-head.js`** `document.write`s the shared tags with a
+  content-hash `?v=`. bt-head.js is served `no-cache` (firebase.json) so a
+  bt-nav change reaches every page on the next load. **After editing
+  `bt-nav.js` or `bt-nav.css`, run `node tools/cachebust.mjs`** (re-stamps the
+  hash into bt-head.js) before deploying — no more site-wide `sed`.
+  `node tools/cachebust.mjs --check` is a pre-deploy/CI guard.
+  `sw.js` bypasses `bt-head.js` / `bt-nav.*` entirely, so the scoresheet SW
+  can't serve them stale.
 
 ### 3c. Host calendar — mobile agenda — done
 
@@ -151,7 +161,14 @@ Files: `beachTriviaPages/dashboards/host/scoresheet/js/mobile-scoring.js` (new),
 - **Firestore rules:** use `affectedKeys()` not `changedKeys()` for any `.hasOnly()` — `changedKeys()` excludes newly-added keys, which was an exploitable hole (fixed in Phase 4).
 - **Cloud Functions:** never bare `--only functions` (deletes `hostGetCalendarMonth`).
 - **Service workers:** `/sw.js` (scoresheet offline) owns scope `/`. Registering anything else at `/` replaces it. The FCM SW uses a deliberately narrow scope.
-- **`bt-nav.css` / `bt-nav.js`:** referenced on ~27 pages; every change needs a site-wide `?v=` `sed`.
+- **`bt-nav.css` / `bt-nav.js`:** now included on every page via
+  `beachTriviaPages/js/bt-head.js` (one `<script>` line per page). After editing
+  either, run `node tools/cachebust.mjs` before deploying — do **not** hand-edit
+  `?v=` on the pages any more. (See §3b.)
+- **Smoke tests:** `e2e/` (Playwright). `cd e2e && npm install && npx playwright
+  install chromium`, then `npm test` (public checks) or with
+  `BT_HOST_EMAIL`/`BT_HOST_PASSWORD` set for the authed host checks. Targets
+  staging by default.
 - **Chrome date quirk:** `date.toLocaleDateString({ day, year })` renders as `"YYYY (day: N)"` — build date-range strings manually.
 - **`:has()` in CSS:** used in the scoresheet mobile block. Fine for current browsers (Safari 15.4+, Chrome 105+).
 - **CSP** (`firebase.json`): allows `https://www.gstatic.com` (scripts), `https://*.googleapis.com` / `https://*.gstatic.com` (connect) — enough for FCM. Also carries an unrelated pre-existing `https://accounts.spotify.com` frame-src addition.
