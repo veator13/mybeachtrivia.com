@@ -10,7 +10,7 @@
   <script src="/beachTriviaPages/js/bt-head.js"></script>
 
   <!-- Writer styles -->
-  <link rel="stylesheet" href="style.css?v=writer-20260513-cat-header2" />
+  <link rel="stylesheet" href="style.css?v=writer-20260831-autosave" />
 
   <!-- PPTX export -->
   <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3/dist/pptxgen.bundle.js" defer></script>
@@ -54,9 +54,9 @@
             <span class="unsaved-icon" aria-hidden="true">⚠</span>
             <span id="unsaved-banner-text">Unsaved</span>
           </div>
-          <span class="autosave-pill" aria-label="Draft autosave enabled">
+          <span class="autosave-pill" aria-label="Save status" aria-live="polite">
             <span class="autosave-dot" aria-hidden="true"></span>
-            Draft autosave ready
+            All changes saved
           </span>
           <button class="btn btn-outline" type="button" id="btn-open-show">Open Show</button>
           <button class="btn btn-outline" type="button" id="btn-export-pptx" title="Export current show as a host-backup .pptx">Export PPTX</button>
@@ -69,6 +69,14 @@
       </div>
     </div>
   </section>
+
+  <!-- Autosave: offer to restore work that didn't sync last session -->
+  <div id="autosave-restore-bar" class="autosave-restore-bar hidden" role="alert" aria-live="assertive">
+    <span class="autosave-restore-icon" aria-hidden="true">↩</span>
+    <span id="autosave-restore-text">Unsaved work from a previous session was found.</span>
+    <button type="button" id="autosave-restore-yes" class="btn btn-sm btn-primary">Restore it</button>
+    <button type="button" id="autosave-restore-no" class="btn btn-sm btn-outline">Discard</button>
+  </div>
 
   <!-- Open Show modal -->
   <div id="open-show-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-label="Open Show">
@@ -871,7 +879,7 @@
   <script src="js/question-form.js?v=writer-20260502-title-inline-edit" defer></script>
   <script src="js/block-builder.js?v=writer-20260502-category-slide-kind-fix" defer></script>
   <script src="js/preview.js?v=writer-20260513-cat-list-fix" defer></script>
-  <script src="app.js?v=writer-20260513-no-cat-in-answers" defer></script>
+  <script src="app.js?v=writer-20260831-autosave3" defer></script>
 
 </body>
 </html>

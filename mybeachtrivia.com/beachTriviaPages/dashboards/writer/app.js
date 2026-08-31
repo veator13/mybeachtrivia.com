@@ -516,21 +516,31 @@
     };
   }
 
-  // Updates the autosave pill text in the topbar.
-  // States: "saving" | "saved" | "error" | "ready"
+  // Updates the status pill in the topbar. This is now the single source of
+  // truth for save state (the #unsaved-banner is kept only for the
+  // published-show "you have unpublished changes" case).
+  // States: "saving" | "saved" | "error" | "dirty" | "clean"
   function updateAutosavePill(state) {
     var pill = document.querySelector(".autosave-pill");
     if (!pill) return;
     var dot = '<span class="autosave-dot" aria-hidden="true"></span> ';
+    pill.classList.remove(
+      "autosave-pill--saving",
+      "autosave-pill--dirty",
+      "autosave-pill--error"
+    );
     if (state === "saving") {
+      pill.classList.add("autosave-pill--saving");
       pill.innerHTML = dot + "Saving\u2026";
-    } else if (state === "saved") {
-      pill.innerHTML = dot + "Draft saved";
-      setTimeout(function () { updateAutosavePill("ready"); }, 3000);
     } else if (state === "error") {
-      pill.innerHTML = dot + "Save failed";
+      pill.classList.add("autosave-pill--error");
+      pill.innerHTML = dot + "Save failed \u2014 will retry";
+    } else if (state === "dirty") {
+      pill.classList.add("autosave-pill--dirty");
+      pill.innerHTML = dot + "Editing\u2026";
     } else {
-      pill.innerHTML = dot + "Draft autosave ready";
+      // "saved" and "clean" both land here
+      pill.innerHTML = dot + "All changes saved";
     }
   }
 
@@ -538,8 +548,17 @@
 
   // Call whenever the show is modified after the last save/publish.
   function markDirty() {
-    if (!appReady || isDirty) return;
+    if (!appReady) return;
+
+    // Always (re)arm autosave on every edit — not just the first.
+    scheduleAutosave();
+
+    if (isDirty) return;
     isDirty = true;
+    updateAutosavePill("dirty");
+
+    // The topbar banner is only useful for the published-show case; for drafts
+    // the pill already says "Editing…" and autosave handles persistence.
     var banner = $("#unsaved-banner");
     var bannerText = $("#unsaved-banner-text");
     if (!banner) return;
@@ -549,25 +568,263 @@
       bannerText.textContent = "Unpublished";
       banner.setAttribute("title", pubMsg);
       banner.setAttribute("aria-label", pubMsg);
+      banner.classList.remove("hidden");
     } else {
-      var draftMsg =
-        "You have unsaved changes — use Save Draft, or update the current draft / save a new one in the top bar.";
-      bannerText.textContent = "Unsaved";
-      banner.setAttribute("title", draftMsg);
-      banner.setAttribute("aria-label", draftMsg);
+      banner.classList.add("hidden");
     }
-    banner.classList.remove("hidden");
   }
 
-  // Call after a successful save or publish to clear the banner.
+  // Call after a successful save or publish to clear the dirty state.
   function markClean() {
     isDirty = false;
+    updateAutosavePill("clean");
     var banner = $("#unsaved-banner");
     if (banner) {
       banner.classList.add("hidden");
       banner.removeAttribute("title");
       banner.removeAttribute("aria-label");
     }
+  }
+
+  // ─── Autosave ─────────────────────────────────────────────────
+  //
+  // Two layers:
+  //   • localStorage — debounced ~2s after the last edit. Free, synchronous,
+  //     survives a crash / accidental tab close.
+  //   • Firestore    — when the writer has been idle ~8s, and at most once every
+  //     ~45s while they type continuously. Also flushed on tab-hide / close.
+  //
+  // On a successful Firestore write the local copy is cleared, so anything left
+  // in localStorage on the next load is genuinely unsynced work → offer to
+  // restore it. A blank new show stays local-only (no Firestore doc) until it
+  // has real content, so poking at the editor never spawns an empty draft.
+
+  var AUTOSAVE_LS_KEY = "bt:writer:autosave:v1";
+  var AUTOSAVE_LOCAL_DEBOUNCE_MS = 2000;
+  var AUTOSAVE_CLOUD_IDLE_MS = 8000;
+  var AUTOSAVE_CLOUD_MAX_GAP_MS = 45000;
+
+  var _autosaveLocalTimer = null;
+  var _autosaveCloudTimer = null;
+  var _autosaveLastCloudAt = 0;
+  var _autosaveCloudInFlight = false;
+  var _autosaveRetryPending = false;
+
+  function autosaveHasRealContent(data) {
+    try {
+      var src = data || serializeShowForSave();
+      var title = String((src.show && src.show.title) || "").trim();
+      if (title && !isDefaultTriviaShowTitle(title)) return true;
+      var blocks = Array.isArray(src.blocks) ? src.blocks : [];
+      if (blocks.length > 1) return true;
+      return blocks.some(function (e) {
+        var b = (e && e.formData && e.formData.block) || {};
+        return String(b.questionText || b.question || "").trim().length > 0;
+      });
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function writeLocalAutosave() {
+    try {
+      var data = serializeShowForSave();
+      data.lastTouchedAt = null; // the serverTimestamp sentinel doesn't serialize
+      localStorage.setItem(
+        AUTOSAVE_LS_KEY,
+        JSON.stringify({
+          draftId: activeDraftId || null,
+          publishedId: activePublishedId || null,
+          savedAt: Date.now(),
+          data: data,
+        })
+      );
+    } catch (_) {}
+  }
+
+  function clearLocalAutosave() {
+    try { localStorage.removeItem(AUTOSAVE_LS_KEY); } catch (_) {}
+  }
+
+  function scheduleAutosave() {
+    if (!appReady) return;
+
+    clearTimeout(_autosaveLocalTimer);
+    _autosaveLocalTimer = setTimeout(writeLocalAutosave, AUTOSAVE_LOCAL_DEBOUNCE_MS);
+
+    clearTimeout(_autosaveCloudTimer);
+    var sinceLast = Date.now() - _autosaveLastCloudAt;
+    var delay =
+      sinceLast >= AUTOSAVE_CLOUD_MAX_GAP_MS
+        ? 0
+        : Math.min(AUTOSAVE_CLOUD_IDLE_MS, AUTOSAVE_CLOUD_MAX_GAP_MS - sinceLast);
+    _autosaveCloudTimer = setTimeout(runCloudAutosave, delay);
+  }
+
+  function runCloudAutosave() {
+    if (!appReady || _autosaveCloudInFlight) return;
+    if (!isDirty && !_autosaveRetryPending) return;
+
+    // Autosave writes drafts only. A loaded published show keeps its manual
+    // "Publish Show" flow; localStorage still protects it from a crash.
+    if (activePublishedId) return;
+
+    var data = serializeShowForSave();
+    if (!activeDraftId && !autosaveHasRealContent(data)) return; // stay local-only
+
+    _autosaveCloudInFlight = true;
+    _autosaveRetryPending = false;
+    updateAutosavePill("saving");
+
+    var db = firebase.firestore();
+    var isNew = !activeDraftId;
+    var ref;
+    if (isNew) {
+      ref = db.collection("showDrafts").doc();
+      activeDraftId = ref.id;
+      data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+    } else {
+      ref = db.collection("showDrafts").doc(activeDraftId);
+    }
+
+    ref.set(data)
+      .then(function () {
+        _autosaveLastCloudAt = Date.now();
+        _autosaveCloudInFlight = false;
+        markClean();
+        clearTimeout(_autosaveLocalTimer); // stop a stray local write re-populating
+        clearLocalAutosave();
+        syncDraftSaveButtons();
+        console.log("[writer] autosaved draft", activeDraftId, isNew ? "(new)" : "");
+      })
+      .catch(function (err) {
+        console.error("[writer] autosave failed:", err);
+        _autosaveCloudInFlight = false;
+        _autosaveRetryPending = true;
+        if (isNew) activeDraftId = null; // retry as a fresh doc next time
+        updateAutosavePill("error");
+      });
+  }
+
+  function flushAutosaveNow() {
+    clearTimeout(_autosaveLocalTimer);
+    clearTimeout(_autosaveCloudTimer);
+    writeLocalAutosave();
+    runCloudAutosave();
+  }
+
+  function autosaveWhenLabel(ms) {
+    if (!ms) return "a previous session";
+    var then = new Date(ms);
+    var mins = Math.round((Date.now() - ms) / 60000);
+    if (mins < 1) return "moments ago";
+    if (mins < 60) return mins + (mins === 1 ? " minute ago" : " minutes ago");
+    var time = then.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+    var sameDay = then.toDateString() === new Date().toDateString();
+    return sameDay
+      ? time
+      : then.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + ", " + time;
+  }
+
+  function hideAutosaveRestoreBar() {
+    var bar = $("#autosave-restore-bar");
+    if (bar) bar.classList.add("hidden");
+  }
+
+  // Cheap content signature — used to tell "genuinely unsynced work" from a
+  // stale localStorage copy that already matches what's in Firestore.
+  function showFingerprint(data) {
+    try {
+      var blocks = Array.isArray(data.blocks) ? data.blocks : [];
+      return [
+        blocks.length,
+        String((data.show && data.show.title) || ""),
+        String((data.show && data.show.dateLabel) || ""),
+        JSON.stringify(blocks).length,
+      ].join("|");
+    } catch (_) {
+      return "?";
+    }
+  }
+
+  function maybeOfferAutosaveRestore() {
+    var raw;
+    try { raw = localStorage.getItem(AUTOSAVE_LS_KEY); } catch (_) { return; }
+    if (!raw) return;
+
+    var saved;
+    try { saved = JSON.parse(raw); } catch (_) { clearLocalAutosave(); return; }
+    if (!saved || !saved.data || !Array.isArray(saved.data.blocks) ||
+        !autosaveHasRealContent(saved.data)) {
+      clearLocalAutosave();
+      return;
+    }
+
+    // If the local copy already matches the Firestore draft, it synced fine on
+    // the way out — clear it quietly, no prompt. Only a mismatch (or a missing
+    // draft) means there's genuinely unsynced work to recover.
+    function decide(alreadySynced) {
+      if (alreadySynced) { clearLocalAutosave(); return; }
+      showAutosaveRestorePrompt(saved);
+    }
+
+    if (saved.draftId) {
+      firebase.firestore().collection("showDrafts").doc(saved.draftId).get()
+        .then(function (snap) {
+          decide(snap.exists &&
+            showFingerprint(snap.data()) === showFingerprint(saved.data));
+        })
+        .catch(function () { decide(false); });
+    } else {
+      decide(false); // never made it to Firestore at all
+    }
+  }
+
+  function showAutosaveRestorePrompt(saved) {
+    var bar = $("#autosave-restore-bar");
+    var text = $("#autosave-restore-text");
+    if (!bar) return;
+    if (text) {
+      text.textContent =
+        "Unsaved work from " + autosaveWhenLabel(saved.savedAt) + " was found.";
+    }
+    bar.classList.remove("hidden");
+
+    var yes = $("#autosave-restore-yes");
+    var no = $("#autosave-restore-no");
+    if (yes) yes.onclick = function () {
+      try {
+        restoreShow(
+          saved.data,
+          saved.draftId || saved.publishedId || null,
+          saved.publishedId ? "published" : "draft"
+        );
+      } catch (err) {
+        console.error("[writer] autosave restore failed:", err);
+        if (text) text.textContent =
+          "That saved copy couldn't be opened. Your work is still stored — try reloading, or Discard to start fresh.";
+        return; // keep the bar + localStorage; don't touch the cloud
+      }
+      hideAutosaveRestoreBar();
+      isDirty = true; // it was never synced — persist it now
+      flushAutosaveNow();
+    };
+    if (no) no.onclick = function () {
+      clearLocalAutosave();
+      hideAutosaveRestoreBar();
+    };
+  }
+
+  function setupAutosave() {
+    // Flush right before a close / navigation.
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden && isDirty) flushAutosaveNow();
+    });
+    window.addEventListener("pagehide", function () {
+      if (isDirty) { writeLocalAutosave(); runCloudAutosave(); }
+    });
+
+    maybeOfferAutosaveRestore();
   }
 
   // ─── Show-wide validation ──────────────────────────────────────
@@ -826,8 +1083,11 @@
     savePromise
       .then(function () {
         console.log("[writer] draft saved:", activeDraftId, updateExisting ? "update" : "new");
+        _autosaveLastCloudAt = Date.now();
         updateAutosavePill("saved");
         markClean();
+        clearTimeout(_autosaveLocalTimer);
+        clearLocalAutosave();
         syncDraftSaveButtons();
       })
       .catch(function (err) {
@@ -5355,12 +5615,15 @@
 
     installWriterDevFillFeud();
 
-    // Mark app as ready — dirty tracking is now active
+    // Mark app as ready — dirty tracking + autosave are now active
     appReady = true;
+    setupAutosave();
 
-    // Warn before leaving with unsaved changes (refresh, close, navigate away).
+    // Last-ditch save + warn before leaving with unsaved changes.
     window.addEventListener("beforeunload", function (e) {
       if (!isDirty) return;
+      writeLocalAutosave();               // synchronous — the real safety net
+      try { runCloudAutosave(); } catch (_) {} // best-effort, may not finish
       e.preventDefault();
       e.returnValue = "";
     });

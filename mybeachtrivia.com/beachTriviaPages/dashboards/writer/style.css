@@ -2039,6 +2039,53 @@ textarea {
   box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.12);
 }
 
+/* Pill state colours — default (above) is the green "saved" look */
+.autosave-pill--dirty {
+  color: #fcd34d;
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.28);
+}
+.autosave-pill--dirty .autosave-dot {
+  background: #f59e0b;
+  box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.14);
+}
+.autosave-pill--saving {
+  color: #93c5fd;
+  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(59, 130, 246, 0.28);
+}
+.autosave-pill--saving .autosave-dot {
+  background: #3b82f6;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.14);
+}
+.autosave-pill--error {
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+.autosave-pill--error .autosave-dot {
+  background: #ef4444;
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.16);
+}
+
+/* Autosave "restore previous session" bar (between topbar and shell) */
+.autosave-restore-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 16px 0;
+  padding: 10px 14px;
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.32);
+  border-radius: var(--radius-sm);
+  color: #dbeafe;
+  font-size: 13px;
+  font-weight: 600;
+}
+.autosave-restore-bar.hidden { display: none; }
+.autosave-restore-icon { font-size: 15px; flex-shrink: 0; }
+#autosave-restore-text { flex: 1; }
+
 .status-row {
   display: flex;
   gap: 10px;
