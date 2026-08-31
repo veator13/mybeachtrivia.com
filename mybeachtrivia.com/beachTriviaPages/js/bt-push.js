@@ -345,19 +345,19 @@
       "  display:inline-flex;align-items:center;gap:7px;",
       "  padding:8px 15px;min-height:34px;border-radius:8px;",
       "  font-size:13px;font-weight:600;line-height:1;white-space:nowrap;",
-      "  border:1px solid transparent;",
-      "  background:#2f6fb3;color:#fff;",  // OFF = solid blue call-to-action
+      "  border:1px solid rgba(255,255,255,.14);",
+      "  background:#3a444f;color:#fff;",  // OFF = neutral grey ("not on")
       "  cursor:pointer;transition:filter .15s,opacity .15s;",
       "  -webkit-appearance:none;appearance:none;box-shadow:none;",
       "}",
-      "#bt-enable-push.bt-push-btn:hover{filter:brightness(1.08);}",
+      "#bt-enable-push.bt-push-btn:hover{filter:brightness(1.12);}",
       "#bt-enable-push.bt-push-btn .bt-push__icon{display:inline-flex;align-items:center;margin:-1px 0;}",
       "#bt-enable-push.bt-push-btn .bt-push__icon svg{display:block;width:16px;height:16px;}",
       // ON — same pill, green background, filled gold bell
-      "#bt-enable-push.bt-push--on{background:#157a4c;}",
+      "#bt-enable-push.bt-push--on{background:#157a4c;border-color:rgba(255,255,255,.18);}",
       "#bt-enable-push.bt-push--on .bt-push__icon{color:#ffd36b;}",
       // BLOCKED / BUSY
-      "#bt-enable-push.bt-push--blocked{background:#5b6675;opacity:.7;cursor:not-allowed;}",
+      "#bt-enable-push.bt-push--blocked{background:#3a444f;opacity:.5;cursor:not-allowed;}",
       "#bt-enable-push.bt-push--busy{opacity:.7;cursor:default;}",
       "@media (max-width:640px){#bt-enable-push.bt-push-btn{width:100%;justify-content:center;}}",
     ].join("\n");
