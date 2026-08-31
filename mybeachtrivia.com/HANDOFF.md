@@ -76,9 +76,10 @@ Full design + phase-by-phase status is in [`SHIFT-SWAP-TIMEOFF-SPEC.md`](SHIFT-S
 
 **Email backup (Resend) — working, verified delivered.**
 - `functions_gcfv1/notify-channels.js` `sendEmail()` POSTs `https://api.resend.com/emails/batch` (Bearer `RESEND_API_KEY`). Node 20 global `fetch`, no new dependency.
-- `functions_gcfv1/.env` (gitignored, ships with the functions deploy):
+- `functions_gcfv1/.env` (gitignored, ships with the functions deploy) holds the
+  real values — **do not paste secrets into this file, it is committed.** Keys:
   ```
-  RESEND_API_KEY=re_EX4TMLrQ_AU22dYwGAH5wrxyi4HxmXrg9
+  RESEND_API_KEY=<in functions_gcfv1/.env>
   BT_NOTIFY_EMAIL_FROM=onboarding@resend.dev
   BT_NOTIFY_EMAIL=test
   BT_NOTIFY_EMAIL_ALLOWLIST=joshuaveator@gmail.com,13berner13@gmail.com
