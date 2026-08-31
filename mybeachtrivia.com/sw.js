@@ -17,7 +17,7 @@
   // ✅ MUST MATCH the cache-busting version used in index.html assets.
   // Bumping this forces a brand-new cache name below, which wipes out any
   // stale "canonical" (no-?v=) entries left over from a previous deploy.
-  const ASSET_V = "20260831-mobile10";
+  const ASSET_V = "20260831-mobile11";
 
   // ✅ Bump this whenever you deploy changes to scoresheet assets (CSS/JS/HTML)
   const VERSION = `scoresheet-offline-v4-${ASSET_V}`;
@@ -31,7 +31,7 @@
   const PRECACHE_URLS = [
     // Scoresheet route + local assets
     "/beachTriviaPages/dashboards/host/scoresheet/index.html",
-    "/beachTriviaPages/dashboards/host/scoresheet/style.css?v=20260831-mobile10",
+    "/beachTriviaPages/dashboards/host/scoresheet/style.css?v=20260831-mobile11",
     "/beachTriviaPages/dashboards/host/scoresheet/final-neg-guard.js?v=20251025163459",
 
     "/beachTriviaPages/dashboards/host/scoresheet/js/dom-utils.js?v=20260218-04",
@@ -50,7 +50,7 @@
     "/beachTriviaPages/dashboards/host/scoresheet/js/submit-scores.js?v=20260218-04",
     "/beachTriviaPages/dashboards/host/scoresheet/js/grid-enforcer.js?v=20260218-04",
     "/beachTriviaPages/dashboards/host/scoresheet/js/main.js?v=20260512-full-table",
-    "/beachTriviaPages/dashboards/host/scoresheet/js/mobile-scoring.js?v=20260831-mobile10",
+    "/beachTriviaPages/dashboards/host/scoresheet/js/mobile-scoring.js?v=20260831-mobile11",
 
     // Shared auth/firebase bootstrap used by scoresheet
     "/beachTriviaPages/js/firebase-init-compat.js",

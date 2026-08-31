@@ -2073,25 +2073,34 @@ body.modal-open #teamTable th {
     padding: 12px !important;
     align-items: stretch;
   }
-  /* projector / TV controls — not useful on a phone */
+  /* Pop-out (separate window) + fullscreen are pointless on a phone; the modal
+     is already near-fullscreen. Auto-scroll stays — a host may cast to a TV. */
   #btnFullscreenStandings,
-  #btnPopoutStandings,
-  #btnAutoScrollStandings {
+  #btnPopoutStandings {
     display: none !important;
   }
   #btnCloseStandings {
     top: 10px !important;
     right: 10px !important;
+    left: auto !important;
     width: 44px !important;
     height: 44px !important;
     font-size: 24px !important;
+  }
+  #btnAutoScrollStandings {
+    top: 10px !important;
+    right: 62px !important;
+    left: auto !important;
+    width: 44px !important;
+    height: 44px !important;
+    font-size: 20px !important;
   }
   #standingsModal #standingsTitle {
     align-self: stretch;
     text-align: left;
     font-size: 20px !important;
     line-height: 44px !important;
-    margin: 0 52px 6px 4px !important;
+    margin: 0 112px 6px 4px !important;
   }
   #standingsModal #btnInvertStandings {
     margin: 2px auto 10px !important;
