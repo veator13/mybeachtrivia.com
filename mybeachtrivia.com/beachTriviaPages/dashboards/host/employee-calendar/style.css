@@ -628,35 +628,83 @@ html body .calendar td:not(.week-copy-cell) {
 }
 
 @media (max-width: 768px) {
+  /* Compact the whole control stack — it was eating most of the screen
+     before the agenda even started. */
+  .container > header { margin-bottom: 6px; }
+  .container > header h1 { font-size: 20px; }
+
+  .controls { gap: 8px; }
+
+  /* Month nav on ONE row: ‹ August 2026 › */
+  .date-nav {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .date-nav #prev-month,
+  .date-nav #next-month {
+    flex: 0 0 auto;
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+  .date-nav .month-display {
+    flex: 1 1 auto;
+    text-align: center;
+    font-size: 16px;
+    margin: 0;
+  }
+
+  /* Three selectors side by side, wrapping only if they must */
   .filters {
-    flex-direction: column;
-    align-items: stretch;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 8px;
   }
 
   .employee-filter,
   .event-filter,
   .location-filter,
-  .view-buttons,
   .filter-group {
-    width: 100%;
+    flex: 1 1 30%;
+    min-width: 96px;
+    display: flex;
+    flex-direction: column;
     align-items: stretch;
   }
 
-  .button-group-inline {
+  .filters .filter-group label {
+    font-size: 11px;
+    margin-bottom: 3px;
+    color: var(--text-secondary, #9aa4b2);
+  }
+
+  .filters select {
     width: 100%;
-    flex-wrap: wrap;
+    padding: 8px 8px;
+    font-size: 13px;
   }
 
-  .button-group-inline .small-btn {
-    flex: 1 1 140px;
-  }
+  /* Expand/Collapse All is meaningless in the agenda — hide it on mobile */
+  .view-buttons { display: none !important; }
 
+  /* Action buttons: 2-up, compact */
   .host-actions {
     width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
   }
-
-  #open-shift-offers {
-    width: 100%;
+  .host-actions .small-btn,
+  .host-actions #open-shift-offers,
+  #bt-enable-push.bt-push-btn {
+    flex: 1 1 calc(50% - 4px);
+    min-height: 38px;
+    justify-content: center;
+    width: auto;
   }
 
   .shift {
@@ -870,18 +918,6 @@ html body .calendar td:not(.week-copy-cell) {
   #calendar-agenda .shift .toggle-button,
   #calendar-agenda .shift .shift-controls {
     display: none !important;
-  }
-
-  /* Tighten the controls above the agenda so nothing runs off-screen. */
-  .host-actions {
-    flex-wrap: wrap;
-  }
-
-  .host-actions .small-btn,
-  .host-actions #open-shift-offers,
-  #bt-enable-push.bt-push-btn {
-    flex: 1 1 100%;
-    justify-content: center;
   }
 }
 
