@@ -30,9 +30,16 @@
     shift_deleted: "Shift deleted"
   };
 
-  var state = { tab: "timeoff", status: "", q: "" };
+  // Both collections are read newest-first and capped at PAGE rows; "Show older"
+  // widens the active tab's cap by another PAGE. Keeps a multi-year audit log
+  // from turning every page-load into a full-collection read.
+  var PAGE = 150;
+
+  var state = { tab: "timeoff", status: "", q: "", toLimit: PAGE, swLimit: PAGE };
   var toRows = [];
   var swRows = [];
+  var toCapped = false;
+  var swCapped = false;
   var unsubTO = null;
   var unsubSW = null;
 
@@ -91,28 +98,39 @@
   }
 
   // ── data ───────────────────────────────────────────────────────────────
-  function start() {
-    var db = firebase.firestore();
-
-    unsubTO = db.collection("timeOffRequests")
+  function subscribeTimeOff() {
+    if (unsubTO) { unsubTO(); unsubTO = null; }
+    unsubTO = firebase.firestore().collection("timeOffRequests")
       .orderBy("submittedAt", "desc")
+      .limit(state.toLimit)
       .onSnapshot(function (snap) {
+        toCapped = snap.size >= state.toLimit;
         toRows = snap.docs.map(function (d) {
           var x = d.data() || {};
           return { id: d.id, __d: x };
         });
         render();
       }, function (err) { console.error("[requests] time-off listener:", err); });
+  }
 
-    unsubSW = db.collection("shiftCoverageRequests")
+  function subscribeSwaps() {
+    if (unsubSW) { unsubSW(); unsubSW = null; }
+    unsubSW = firebase.firestore().collection("shiftCoverageRequests")
       .orderBy("createdAt", "desc")
+      .limit(state.swLimit)
       .onSnapshot(function (snap) {
+        swCapped = snap.size >= state.swLimit;
         swRows = snap.docs.map(function (d) {
           var x = d.data() || {};
           return { id: d.id, __d: x };
         });
         render();
       }, function (err) { console.error("[requests] swaps listener:", err); });
+  }
+
+  function start() {
+    subscribeTimeOff();
+    subscribeSwaps();
   }
 
   // ── filtering ──────────────────────────────────────────────────────────
@@ -259,8 +277,8 @@
   }
 
   function render() {
-    $("#tab-badge-timeoff").textContent = toRows.length;
-    $("#tab-badge-swaps").textContent = swRows.length;
+    $("#tab-badge-timeoff").textContent = toRows.length + (toCapped ? "+" : "");
+    $("#tab-badge-swaps").textContent = swRows.length + (swCapped ? "+" : "");
 
     var isTO = state.tab === "timeoff";
     $("#timeoffTable").hidden = !isTO;
@@ -268,10 +286,14 @@
 
     var shown = isTO ? renderTimeOff() : renderSwaps();
     var total = isTO ? toRows.length : swRows.length;
+    var capped = isTO ? toCapped : swCapped;
 
-    $("#rowCount").textContent = shown === total
+    $("#rowCount").textContent = (shown === total
       ? shown + (shown === 1 ? " request" : " requests")
-      : shown + " of " + total + " shown";
+      : shown + " of " + total + " shown") + (capped ? " (newest " + total + ")" : "");
+
+    var older = $("#showOlderWrap");
+    if (older) older.hidden = !capped;
 
     var empty = $("#emptyState");
     empty.hidden = shown !== 0;
@@ -308,6 +330,12 @@
       var v = this.value;
       clearTimeout(searchT);
       searchT = setTimeout(function () { state.q = v.trim(); render(); }, 150);
+    });
+
+    var olderBtn = $("#showOlderBtn");
+    if (olderBtn) olderBtn.addEventListener("click", function () {
+      if (state.tab === "timeoff") { state.toLimit += PAGE; subscribeTimeOff(); }
+      else { state.swLimit += PAGE; subscribeSwaps(); }
     });
 
     buildStatusOptions();

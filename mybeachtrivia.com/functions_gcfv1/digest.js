@@ -79,6 +79,11 @@ async function writeBell(recipientId, srcTag, payload) {
   const id = `${srcTag}__${recipientId}`.replace(/[^A-Za-z0-9_.-]/g, "_").slice(0, 480);
   const ref = db().collection("notifications").doc(id);
   if ((await ref.get()).exists) return false;
+  // Matches notifications.js: self-delete 60 days out via the Firestore TTL
+  // policy on `expiresAt`.
+  const expiresAt = admin.firestore.Timestamp.fromMillis(
+    Date.now() + 60 * 24 * 60 * 60 * 1000
+  );
   await ref.set({
     recipientId,
     type: payload.type,
@@ -88,6 +93,7 @@ async function writeBell(recipientId, srcTag, payload) {
     data: payload.data || {},
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
     readAt: null,
+    expiresAt,
   });
   return true;
 }

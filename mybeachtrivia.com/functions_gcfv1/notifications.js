@@ -23,6 +23,12 @@ const channels = require("./notify-channels");
 const REGION = "us-central1";
 const COL = "notifications";
 
+// Bell notifications self-delete this many days after creation, via the
+// Firestore TTL policy on the `expiresAt` field (see README / firebase console:
+// Firestore > TTL). Keeps the collection from growing without bound — the bell
+// only ever shows the newest ~30 anyway.
+const TTL_DAYS = 60;
+
 const HOST_CALENDAR = "/beachTriviaPages/dashboards/host/employee-calendar/";
 const ADMIN_CALENDAR = "/beachTriviaPages/dashboards/admin/calendar/";
 const HOST_TIMEOFF = "/beachTriviaPages/dashboards/host/time-off/";
@@ -113,6 +119,9 @@ async function writeOne(recipientId, srcTag, payload) {
   const ref = db().collection(COL).doc(notifId(srcTag, recipientId));
   const existing = await ref.get();
   if (existing.exists) return false; // already delivered
+  const expiresAt = admin.firestore.Timestamp.fromMillis(
+    Date.now() + TTL_DAYS * 24 * 60 * 60 * 1000
+  );
   await ref.set({
     recipientId,
     type: payload.type,
@@ -122,6 +131,7 @@ async function writeOne(recipientId, srcTag, payload) {
     data: payload.data || {},
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
     readAt: null,
+    expiresAt,
   });
   return true;
 }

@@ -193,6 +193,21 @@ body {
 
 .empty { padding: 22px 4px 6px; text-align: center; }
 
+/* ── "show older" pager ──────────────────────────────────────────────── */
+.show-older { padding: 14px 4px 4px; text-align: center; }
+.btn-older {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.btn-older:hover { background: var(--row-hover); }
+
 /* ── status pills ────────────────────────────────────────────────────── */
 .pill {
   display: inline-block;
