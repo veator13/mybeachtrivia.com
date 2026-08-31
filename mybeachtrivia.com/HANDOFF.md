@@ -183,10 +183,22 @@ Files: `beachTriviaPages/dashboards/host/scoresheet/js/mobile-scoring.js` (new),
 2. **Phase 8 email:** verify `mybeachtrivia.com` in Resend (DNS), switch `BT_NOTIFY_EMAIL_FROM`.
 3. **Phase 8 push:** real device test (iOS = Add to Home Screen first).
 4. **Phase 8 go-live prep:** `BT_NOTIFY_EMAIL=live` + redeploy the 5 functions — only on Josh's sign-off.
-5. **Cheap cleanup:** `.limit(150)` on the admin Requests page listeners; migrate `adminCreateEmployee` welcome email to Resend.
+5. **Cheap cleanup:** ~~`.limit(150)` on the admin Requests page listeners~~ (done
+   2026-08-31, commit `eb27c59`); migrate `adminCreateEmployee` welcome email to Resend.
 6. **Merge decision:** how to get this to `main` / production (whole branch vs cherry-pick — it also carries the Leads feature). **Not yet.**
 7. **Phase 9** (Sunday weekly-schedule + confirm email) — separate build.
 8. Optional: PWA polish (`manifest.json`) for a nicer iOS Add-to-Home-Screen.
+9. **Rotate the `RESEND_API_KEY`** — it was pasted into `HANDOFF.md` (commit
+   `e900ac0`) while that file was being served publicly at
+   `https://<site>/HANDOFF.md`. The public exposure is fixed (repo `.md` docs are
+   now in the hosting `ignore` list → 404, commit `f4850da`) and the key is
+   redacted from HANDOFF, but it still sits in git history. Low urgency — the
+   site is obscure and staging-only — but do it before this branch reaches
+   production. New key → `functions_gcfv1/.env` → `firebase deploy --only
+   functions:<the 5 notify fns>`.
+10. **Node 20 / firebase-functions@4 EOL:** functions runtime Node 20 is
+    decommissioned **2026-10-30**; `firebase-functions` 4.9 is past EOL. Upgrade
+    the `functions_gcfv1` codebase (own task, repo-wide) before end of October.
 
 ---
 
