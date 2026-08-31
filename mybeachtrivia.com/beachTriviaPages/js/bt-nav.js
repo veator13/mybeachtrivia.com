@@ -541,6 +541,17 @@
       });
     });
 
+    // Close the drawer on a click/tap anywhere outside it (but not on the
+    // waffle button itself — that toggles) and on Escape.
+    document.addEventListener('click', function (e) {
+      if (!drawer.classList.contains('open')) return;
+      if (drawer.contains(e.target) || ham.contains(e.target)) return;
+      closeDrawer();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && drawer.classList.contains('open')) closeDrawer();
+    });
+
     return { nav: nav, drawer: drawer };
   }
 
