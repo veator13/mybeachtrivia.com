@@ -67,6 +67,63 @@
     return 9999;
   }
 
+  // Smooth-scroll the agenda so the first day-card on/after `ds` sits just
+  // below the sticky nav + week bar.
+  function scrollToDate(ds) {
+    var el = document.getElementById("calendar-agenda");
+    if (!el) return;
+    var cards = el.querySelectorAll(".agenda-day[data-date]");
+    var target = null;
+    for (var i = 0; i < cards.length; i++) {
+      if (cards[i].getAttribute("data-date") >= ds) { target = cards[i]; break; }
+    }
+    if (!target) target = cards[cards.length - 1];
+    if (!target) return;
+    var bar = el.querySelector(".agenda-weekbar");
+    var offset = 56 + (bar ? bar.offsetHeight : 0) + 8;
+    var top = target.getBoundingClientRect().top + window.pageYOffset - offset;
+    window.scrollTo({ top: top < 0 ? 0 : top, behavior: "smooth" });
+  }
+
+  function buildWeekBar(y, m, daysInMonth, today) {
+    var bar = document.createElement("div");
+    bar.className = "agenda-weekbar";
+    var firstDow = new Date(y, m, 1).getDay(); // 0 = Sun
+
+    var weeks = []; // [{start, end}] day numbers, clamped to the month
+    var wStart = 1;
+    while (wStart <= daysInMonth) {
+      var wEnd = wStart === 1 ? (7 - firstDow) : Math.min(wStart + 6, daysInMonth);
+      weeks.push({ start: wStart, end: Math.min(wEnd, daysInMonth) });
+      wStart = wEnd + 1;
+    }
+
+    var todayInMonth =
+      today.slice(0, 7) === (y + "-" + pad(m + 1));
+
+    if (todayInMonth) {
+      var tBtn = document.createElement("button");
+      tBtn.type = "button";
+      tBtn.className = "agenda-weekbar__chip agenda-weekbar__chip--today";
+      tBtn.textContent = "Today";
+      tBtn.addEventListener("click", function () { scrollToDate(today); });
+      bar.appendChild(tBtn);
+    }
+
+    weeks.forEach(function (w, idx) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "agenda-weekbar__chip";
+      btn.textContent = w.start === w.end ? String(w.start) : (w.start + "–" + w.end);
+      var goto = ymd(y, m, w.start);
+      btn.setAttribute("data-week", String(idx));
+      btn.addEventListener("click", function () { scrollToDate(goto); });
+      bar.appendChild(btn);
+    });
+
+    return bar;
+  }
+
   function render() {
     var el = hostEl();
 
@@ -106,14 +163,22 @@
       list.sort(function (a, b) { return toMinutes(a.startTime) - toMinutes(b.startTime); });
       shiftCount += list.length;
 
+      var isPast = ds < today;
       var dObj = new Date(y, m, d);
       var card = document.createElement("section");
       card.className = "agenda-day";
+      card.setAttribute("data-date", ds);
       if (ds === today) card.classList.add("agenda-day--today");
       if (isOff) card.classList.add("agenda-day--timeoff");
+      if (isPast) card.classList.add("agenda-day--past", "agenda-day--collapsed");
 
-      var head = document.createElement("div");
+      var head = document.createElement("button");
+      head.type = "button";
       head.className = "agenda-day__head";
+      head.setAttribute("aria-expanded", isPast ? "false" : "true");
+      var countTxt = list.length
+        ? list.length + (list.length === 1 ? " shift" : " shifts")
+        : (isOff ? "time off" : "");
       head.innerHTML =
         '<span class="agenda-day__dow">' +
           dObj.toLocaleDateString("en-US", { weekday: "short" }) +
@@ -122,7 +187,14 @@
         '<span class="agenda-day__mon">' +
           dObj.toLocaleDateString("en-US", { month: "short" }) +
         '</span>' +
-        (isOff ? '<span class="agenda-day__tag">TIME OFF</span>' : "");
+        (isOff ? '<span class="agenda-day__tag">TIME OFF</span>' : "") +
+        '<span class="agenda-day__count">' + countTxt + '</span>' +
+        '<span class="agenda-day__chev" aria-hidden="true"></span>';
+      head.addEventListener("click", function () {
+        var c = this.parentNode;
+        var collapsed = c.classList.toggle("agenda-day--collapsed");
+        this.setAttribute("aria-expanded", String(!collapsed));
+      });
       card.appendChild(head);
 
       var body = document.createElement("div");
@@ -148,6 +220,8 @@
     }
 
     el.innerHTML = "";
+    el.appendChild(buildWeekBar(y, m, daysInMonth, today));
+
     if (!frag.childNodes.length) {
       var empty = document.createElement("p");
       empty.className = "agenda-empty";
@@ -156,7 +230,20 @@
     } else {
       el.appendChild(frag);
     }
+
+    // When the month in view contains today, jump past the collapsed history
+    // to today — once per distinct month render, not on every re-render.
+    var monthKey = y + "-" + pad(m + 1);
+    var todayInMonth = today.slice(0, 7) === monthKey;
+    if (todayInMonth && _lastScrolledMonth !== monthKey) {
+      _lastScrolledMonth = monthKey;
+      setTimeout(function () { scrollToDate(today); }, 60);
+    } else if (!todayInMonth) {
+      _lastScrolledMonth = null;
+    }
   }
+
+  var _lastScrolledMonth = null;
 
   function schedule() {
     if (_raf) cancelAnimationFrame(_raf);

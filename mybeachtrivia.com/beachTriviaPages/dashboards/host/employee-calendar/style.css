@@ -696,6 +696,47 @@ html body .calendar td:not(.week-copy-cell) {
     margin-top: 4px;
   }
 
+  /* Sticky week jump-bar */
+  .agenda-weekbar {
+    position: sticky;
+    top: 56px; /* under the sticky bt-nav */
+    z-index: 5;
+    display: flex;
+    gap: 6px;
+    padding: 8px 2px;
+    margin: 0 0 10px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    background: var(--bg, #0f141b);
+    background: var(--background-color, #0f141b);
+  }
+
+  .agenda-weekbar::-webkit-scrollbar { display: none; }
+
+  .agenda-weekbar__chip {
+    flex: 0 0 auto;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-primary, #e9eef5);
+    font-size: 12px;
+    font-weight: 700;
+    padding: 7px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+    white-space: nowrap;
+  }
+
+  .agenda-weekbar__chip:active { background: rgba(255, 255, 255, 0.16); }
+
+  .agenda-weekbar__chip--today {
+    background: #2995f3;
+    border-color: #2995f3;
+    color: #fff;
+  }
+
   .agenda-empty {
     text-align: center;
     color: var(--text-secondary, #9aa4b2);
@@ -720,14 +761,25 @@ html body .calendar td:not(.week-copy-cell) {
     background: rgba(244, 196, 48, 0.16);
   }
 
+  /* Header is a full-width toggle button */
   .agenda-day__head {
     display: flex;
     align-items: baseline;
     gap: 8px;
-    padding: 10px 14px;
+    width: 100%;
+    padding: 12px 14px;
     background: rgba(255, 255, 255, 0.05);
+    border: none;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+    font: inherit;
   }
+
+  .agenda-day--collapsed .agenda-day__head { border-bottom: none; }
 
   .agenda-day__dow {
     font-size: 12px;
@@ -753,7 +805,6 @@ html body .calendar td:not(.week-copy-cell) {
   }
 
   .agenda-day__tag {
-    margin-left: auto;
     font-size: 10px;
     font-weight: 800;
     letter-spacing: 0.05em;
@@ -762,6 +813,31 @@ html body .calendar td:not(.week-copy-cell) {
     padding: 3px 7px;
     border-radius: 999px;
   }
+
+  .agenda-day__count {
+    margin-left: auto;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary, #9aa4b2);
+  }
+
+  .agenda-day__chev {
+    width: 8px;
+    height: 8px;
+    border-right: 2px solid var(--text-secondary, #9aa4b2);
+    border-bottom: 2px solid var(--text-secondary, #9aa4b2);
+    transform: rotate(45deg);
+    transition: transform 0.18s;
+    align-self: center;
+    margin-left: 2px;
+  }
+
+  .agenda-day--collapsed .agenda-day__chev { transform: rotate(-45deg); }
+
+  /* Past days: dimmed + collapsed by default; expanding one restores it */
+  .agenda-day--past.agenda-day--collapsed { opacity: 0.6; }
+
+  .agenda-day--collapsed .agenda-day__shifts { display: none; }
 
   .agenda-day__shifts {
     padding: 10px 12px;
