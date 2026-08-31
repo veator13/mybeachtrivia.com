@@ -228,25 +228,40 @@
 
   var _btns = [];
 
+  function setLabel(btn, icon, text) {
+    btn.textContent = "";
+    var i = document.createElement("span");
+    i.className = "bt-push__icon";
+    i.textContent = icon;
+    var t = document.createElement("span");
+    t.className = "bt-push__label";
+    t.textContent = text;
+    btn.appendChild(i);
+    btn.appendChild(t);
+  }
+
   function paintBtn(btn) {
     var st = state();
-    btn.classList.remove("bt-push--on");
+    btn.classList.add("bt-push-btn");
+    btn.classList.remove("bt-push--on", "bt-push--blocked");
     if (!st.supported) { btn.hidden = true; return; }
     if (st.permission === "denied") {
       btn.hidden = false;
       btn.disabled = true;
-      btn.textContent = "🔕 Notifications blocked — allow them in browser settings";
-      btn.title = "Notifications are blocked for mybeachtrivia.com. Turn them back on in your browser's site settings.";
+      btn.classList.add("bt-push--blocked");
+      setLabel(btn, "🔕", "Notifications blocked");
+      btn.title = "Notifications are blocked for mybeachtrivia.com. Turn them back on in your browser's site settings, then reload.";
       return;
     }
     btn.hidden = false;
     btn.disabled = false;
     if (st.subscribed === true && st.permission === "granted") {
       btn.classList.add("bt-push--on");
-      btn.textContent = "✅ Notifications on — tap to turn off";
-      btn.title = "You'll get a push when a shift or time-off update needs you. Tap to turn off on this device.";
+      // green check = currently on; label = what a tap does
+      setLabel(btn, "✓", "Notifications on");
+      btn.title = "This device gets a push when a shift or time-off update needs you. Tap to turn off here.";
     } else {
-      btn.textContent = "🔔 Turn on notifications";
+      setLabel(btn, "🔔", "Turn on notifications");
       btn.title = "Get a push on this device when a shift or time-off update needs you.";
     }
   }
@@ -264,8 +279,10 @@
     btn.addEventListener("click", async function () {
       var wasOn = state().subscribed === true;
       btn.disabled = true;
-      btn.textContent = wasOn ? "Turning off…" : "…";
+      btn.classList.add("bt-push--busy");
+      setLabel(btn, wasOn ? "✓" : "🔔", wasOn ? "Turning off…" : "Turning on…");
       var res = wasOn ? await disable() : await enable();
+      btn.classList.remove("bt-push--busy");
       if (!res.ok && !wasOn && res.reason === "unsupported") { btn.hidden = true; return; }
       // paintBtn (via setSubscribed / _paintAll) has the final say, but repaint
       // here too in case enable() failed without changing subscribed state.
@@ -286,16 +303,35 @@
 
   window.BtPush = { attach: attach, enable: enable, disable: disable, state: state };
 
-  // Minimal "on" styling — the button keeps its page's base class (.small-btn /
-  // .bt-to-submit), this just tints it green + adds a check affordance.
+  // Full styling for #bt-enable-push, injected once so all 3 host/admin pages
+  // (which each load their own stylesheet) render it identically. Dark theme.
   function injectStyle() {
     if (document.getElementById("bt-push-style")) return;
     var s = document.createElement("style");
     s.id = "bt-push-style";
-    s.textContent =
-      "#bt-enable-push.bt-push--on{" +
-      "background:#e7f6ec!important;border-color:#37a862!important;color:#1c6b3c!important;}" +
-      "#bt-enable-push.bt-push--on:hover{background:#d8f0e0!important;}";
+    s.textContent = [
+      "#bt-enable-push.bt-push-btn{",
+      "  display:inline-flex;align-items:center;gap:7px;",
+      "  padding:8px 15px;min-height:34px;border-radius:8px;",
+      "  font-size:13px;font-weight:600;line-height:1;white-space:nowrap;",
+      "  border:1px solid rgba(255,255,255,.22);",
+      "  background:rgba(255,255,255,.07);color:#e9eef5;",
+      "  cursor:pointer;transition:background .15s,border-color .15s,color .15s,opacity .15s;",
+      "  -webkit-appearance:none;appearance:none;box-shadow:none;",
+      "}",
+      "#bt-enable-push.bt-push-btn:hover{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.4);}",
+      "#bt-enable-push.bt-push-btn .bt-push__icon{font-size:13px;line-height:1;}",
+      // ON — green with a check; hovering reveals it's a turn-off control (red)
+      "#bt-enable-push.bt-push--on{background:#157a4c;border-color:#1c9160;color:#fff;}",
+      "#bt-enable-push.bt-push--on .bt-push__icon{color:#8ef0bd;font-weight:800;}",
+      "#bt-enable-push.bt-push--on .bt-push__label::after{content:'\\00a0\\2014\\00a0tap to turn off';font-weight:500;opacity:.82;}",
+      "#bt-enable-push.bt-push--on:hover{background:#a5342a;border-color:#c0392b;}",
+      "#bt-enable-push.bt-push--on:hover .bt-push__icon{color:#fff;}",
+      // BLOCKED / BUSY
+      "#bt-enable-push.bt-push--blocked{opacity:.55;cursor:not-allowed;background:rgba(255,255,255,.05);}",
+      "#bt-enable-push.bt-push--busy{opacity:.7;cursor:default;}",
+      "@media (max-width:640px){#bt-enable-push.bt-push-btn{width:100%;justify-content:center;}}",
+    ].join("\n");
     document.head.appendChild(s);
   }
 
