@@ -1993,6 +1993,78 @@ body.modal-open #teamTable th {
     scroll-behavior: smooth;
   }
 
+  /* ---- Tidy the button row on mobile ----
+     Row 1: Add Team | Standings   Row 2: search + Search   Row 3: Submit */
+  .button-container {
+    display: flex !important;
+    flex-direction: column;
+    gap: 10px;
+    margin: 14px 0 12px;
+  }
+  .button-container button {
+    padding: 12px 12px;
+    font-size: 14px;
+    border-radius: 10px;
+  }
+
+  .btn-group-left,
+  .btn-group-center,
+  .btn-group-right {
+    flex: 1 1 100% !important;
+    width: 100%;
+    margin: 0 !important;
+  }
+
+  .btn-group-left {
+    display: flex;
+    gap: 10px;
+  }
+  .btn-group-left > button {
+    flex: 1 1 0;
+  }
+
+  .search-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+  }
+  .search-input-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+  }
+  .search-input-wrap .search-input {
+    flex: 1 1 100%;
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0;
+    height: 42px;
+    box-sizing: border-box;
+  }
+  .search-nav-btn {
+    flex: 0 0 auto;
+    width: 44px !important;
+    height: 40px;
+    padding: 0 !important;
+  }
+  .search-match-count {
+    flex: 1 1 auto;
+    text-align: left;
+    font-size: 13px;
+  }
+  .search-container > #btnSearch {
+    width: 100%;
+  }
+
+  .btn-group-right > #btnSubmitScores {
+    width: 100%;
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    font-weight: 800;
+  }
+
   /* Score inputs — override the desktop "shrink to fit" (30x25px) */
   #teamTable td input[type="number"] {
     width: 44px !important;
