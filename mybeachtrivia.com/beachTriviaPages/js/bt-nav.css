@@ -244,12 +244,23 @@ body {
 
 /* ── Responsive ── */
 @media (max-width: 768px) {
-  .bt-nav__links,
-  .bt-nav__right {
+  /* Hide the desktop link row + user chrome, but KEEP the notification bell
+     reachable. All selectors carry #bt-nav so they beat the base
+     `#bt-nav .bt-nav__hamburger { display:none }` rule (equal specificity,
+     later wins) — a bare `.bt-nav__hamburger` here would lose and the menu
+     would be unreachable on mobile. */
+  #bt-nav .bt-nav__links,
+  #bt-nav .bt-nav__username,
+  #bt-nav .bt-nav__logout {
     display: none;
   }
 
-  .bt-nav__hamburger {
+  #bt-nav .bt-nav__right {
+    margin-left: auto;
+    gap: 2px;
+  }
+
+  #bt-nav .bt-nav__hamburger {
     display: flex;
   }
 }
