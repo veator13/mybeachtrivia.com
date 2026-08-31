@@ -19,12 +19,12 @@
   var SECTIONS = [
     { key: "r1", label: "R1", rx: /round\s*1/i },
     { key: "r2", label: "R2", rx: /round\s*2/i },
-    { key: "ht", label: "Half", rx: /half\s*time/i },
+    { key: "ht", label: "HT", rx: /half\s*time/i },
     { key: "r3", label: "R3", rx: /round\s*3/i },
     { key: "r4", label: "R4", rx: /round\s*4/i },
-    { key: "fq", label: "Final", rx: /final\s*question/i },
-    { key: "bonus", label: "Bonus", rx: /^bonus$/i },
-    { key: "final", label: "Total", rx: /final\s*score/i },
+    { key: "fq", label: "FQ", rx: /final\s*question/i },
+    { key: "bonus", label: "B", rx: /^bonus$/i },
+    { key: "final", label: "Tot", rx: /final\s*score/i },
   ];
 
   function isMobile() {
