@@ -503,17 +503,22 @@
 
       if (!item || typeof item !== 'object') return;
 
-      const key =
-        item.id ||
-        item.locationId ||
-        item.venueId ||
-        item.name ||
-        item.locationName ||
-        item.venueName;
+      // Index by every identifier the shift might carry: id/locationId/venueId
+      // AND the venue name, because shifts from hostGetCalendarMonth join to a
+      // location by name (their locationId is empty).
+      const keys = [
+        item.id,
+        item.locationId,
+        item.venueId,
+        item.name,
+        item.locationName,
+        item.venueName
+      ];
 
-      if (!key) return;
-
-      map[String(key)] = { ...item };
+      keys.forEach((key) => {
+        if (key == null || key === '') return;
+        map[String(key)] = { ...item };
+      });
     });
 
     return map;
@@ -522,42 +527,36 @@
   function hydrateShiftWithLocation(shift, locationsMap) {
     const out = { ...shift };
 
-    const directName =
+    const locationKey =
+      shift.locationId ||
+      shift.venueId ||
       shift.venueName ||
       shift.locationName ||
       shift.venue ||
       shift.location;
 
-    if (!directName) {
-      const locationKey =
-        shift.locationId ||
-        shift.venueId ||
-        shift.location ||
-        shift.venue;
+    const location = locationKey != null ? locationsMap[String(locationKey)] : null;
 
-      const location = locationKey != null ? locationsMap[String(locationKey)] : null;
+    if (location) {
+      out.venueName =
+        out.venueName ||
+        location.venueName ||
+        location.locationName ||
+        location.name ||
+        String(locationKey);
 
-      if (location) {
-        out.venueName =
-          out.venueName ||
-          location.venueName ||
-          location.locationName ||
-          location.name ||
-          String(locationKey);
+      out.locationName = out.locationName || out.venueName;
 
-        out.locationName = out.locationName || out.venueName;
+      out.address =
+        out.address ||
+        location.address ||
+        location.venueAddress ||
+        buildAddressLine(location);
 
-        out.address =
-          out.address ||
-          location.address ||
-          location.venueAddress ||
-          buildAddressLine(location);
-
-        out.street = out.street || location.street || '';
-        out.city = out.city || location.city || '';
-        out.state = out.state || location.state || '';
-        out.zip = out.zip || location.zip || location.zipCode || '';
-      }
+      out.street = out.street || location.street || '';
+      out.city = out.city || location.city || '';
+      out.state = out.state || location.state || '';
+      out.zip = out.zip || location.zip || location.zipCode || '';
     }
 
     return out;
