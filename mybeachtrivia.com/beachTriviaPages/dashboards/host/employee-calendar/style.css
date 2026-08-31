@@ -677,6 +677,139 @@ html body .calendar td:not(.week-copy-cell) {
 }
 
 /* =========================================================
+   Mobile agenda view (replaces the 7-col month table <= 768px)
+   ========================================================= */
+
+#calendar-agenda { display: none; }
+
+@media (max-width: 768px) {
+  /* The month table is unreadable on a phone — hide it and its skeleton,
+     show the agenda instead. */
+  .calendar-container,
+  #calendar,
+  #calendar-loading {
+    display: none !important;
+  }
+
+  #calendar-agenda {
+    display: block;
+    margin-top: 4px;
+  }
+
+  .agenda-empty {
+    text-align: center;
+    color: var(--text-secondary, #9aa4b2);
+    padding: 32px 12px;
+    font-size: 14px;
+  }
+
+  .agenda-day {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 12px;
+    margin: 0 0 12px;
+    overflow: hidden;
+  }
+
+  .agenda-day--today {
+    border-color: #2995f3;
+    box-shadow: 0 0 0 1px #2995f3 inset;
+  }
+
+  .agenda-day--timeoff .agenda-day__head {
+    background: rgba(244, 196, 48, 0.16);
+  }
+
+  .agenda-day__head {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 10px 14px;
+    background: rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .agenda-day__dow {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-secondary, #9aa4b2);
+  }
+
+  .agenda-day--today .agenda-day__dow { color: #2995f3; }
+
+  .agenda-day__num {
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--text-primary, #f4f6fa);
+    line-height: 1;
+  }
+
+  .agenda-day__mon {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary, #9aa4b2);
+  }
+
+  .agenda-day__tag {
+    margin-left: auto;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    color: #4a3a00;
+    background: #f4c430;
+    padding: 3px 7px;
+    border-radius: 999px;
+  }
+
+  .agenda-day__shifts {
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .agenda-day__none {
+    margin: 0;
+    padding: 2px 2px 4px;
+    font-size: 13px;
+    font-style: italic;
+    color: var(--text-secondary, #9aa4b2);
+  }
+
+  /* Shift tiles reuse the desktop .shift markup; make them full-width,
+     always-expanded blocks in the agenda. */
+  #calendar-agenda .shift {
+    width: 100%;
+    margin: 0 !important;
+    border-radius: 10px;
+    cursor: pointer;
+  }
+
+  #calendar-agenda .shift .shift-details {
+    display: block !important;
+  }
+
+  #calendar-agenda .shift .toggle-button,
+  #calendar-agenda .shift .shift-controls {
+    display: none !important;
+  }
+
+  /* Tighten the controls above the agenda so nothing runs off-screen. */
+  .host-actions {
+    flex-wrap: wrap;
+  }
+
+  .host-actions .small-btn,
+  .host-actions #open-shift-offers,
+  #bt-enable-push.bt-push-btn {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+}
+
+/* =========================================================
    Coverage Request Modal
    ========================================================= */
 
