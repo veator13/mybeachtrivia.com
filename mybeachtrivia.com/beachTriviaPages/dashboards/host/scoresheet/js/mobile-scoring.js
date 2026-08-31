@@ -67,25 +67,73 @@
     bar.id = WRAP_ID;
     bar.className = "score-view-bar";
 
-    var label = document.createElement("label");
-    label.setAttribute("for", SEL_ID);
+    var label = document.createElement("span");
     label.className = "score-view-bar__label";
     label.textContent = "View";
 
-    var sel = document.createElement("select");
-    sel.id = SEL_ID;
-    sel.className = "score-view-bar__select";
-    VIEWS.forEach(function (v) {
-      var o = document.createElement("option");
-      o.value = v.key;
-      o.textContent = v.label;
-      sel.appendChild(o);
-    });
-    sel.value = savedView();
-    sel.addEventListener("change", function () { applyView(this.value); });
+    // Custom combobox that matches the Venue picker (.venue-combo*), so the
+    // option list is fully stylable (native <select> popups aren't).
+    var combo = document.createElement("div");
+    combo.className = "venue-combo score-view-combo";
+    combo.setAttribute("aria-expanded", "false");
 
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.id = SEL_ID;
+    btn.className = "score-view-combo__btn";
+    btn.setAttribute("aria-haspopup", "listbox");
+
+    var list = document.createElement("div");
+    list.className = "venue-combo__list";
+    list.setAttribute("role", "listbox");
+
+    var current = savedView();
+
+    function labelFor(k) {
+      for (var i = 0; i < VIEWS.length; i++) if (VIEWS[i].key === k) return VIEWS[i].label;
+      return VIEWS[0].label;
+    }
+    function setOpen(open) {
+      combo.setAttribute("aria-expanded", open ? "true" : "false");
+    }
+    function choose(k) {
+      current = k;
+      btn.textContent = labelFor(k);
+      list.querySelectorAll(".venue-combo__item").forEach(function (el) {
+        el.setAttribute("aria-selected", el.getAttribute("data-key") === k ? "true" : "false");
+      });
+      applyView(k);
+      setOpen(false);
+    }
+
+    VIEWS.forEach(function (v) {
+      var item = document.createElement("button");
+      item.type = "button";
+      item.className = "venue-combo__item";
+      item.setAttribute("role", "option");
+      item.setAttribute("data-key", v.key);
+      item.setAttribute("aria-selected", v.key === current ? "true" : "false");
+      item.textContent = v.label;
+      item.addEventListener("click", function () { choose(v.key); });
+      list.appendChild(item);
+    });
+
+    btn.textContent = labelFor(current);
+    btn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      setOpen(combo.getAttribute("aria-expanded") !== "true");
+    });
+    document.addEventListener("click", function (e) {
+      if (!combo.contains(e.target)) setOpen(false);
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") setOpen(false);
+    });
+
+    combo.appendChild(btn);
+    combo.appendChild(list);
     bar.appendChild(label);
-    bar.appendChild(sel);
+    bar.appendChild(combo);
     return bar;
   }
 
@@ -138,8 +186,7 @@
       if (w.nextSibling) w.parentNode.insertBefore(addBtn, w.nextSibling);
       else w.parentNode.appendChild(addBtn);
     }
-    var sel = document.getElementById(SEL_ID);
-    applyView(sel ? sel.value : savedView());
+    applyView(savedView());
   }
 
   var _t;
