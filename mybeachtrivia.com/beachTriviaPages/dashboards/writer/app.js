@@ -3177,12 +3177,9 @@
       templateWorkflow.type = "feud-show";
       templateWorkflow.advancedBlockIds = {};
       setTemplateBuilderTabVisible(true);
-      // Update the show-type toggle to Feud
-      document.querySelectorAll(".show-type-btn").forEach(function (b) {
-        b.classList.toggle("active", b.getAttribute("data-show-type") === "feud");
-      });
-      var hiddenShowType = $("#show-type");
-      if (hiddenShowType) hiddenShowType.value = "feud";
+      // Choosing the Feud template is the writer choosing Feud — set the label
+      // (once, as a default; they can still change it).
+      setShowType("feud");
     } else {
       var fallbackBlock = WriterBlockBuilder.createBlockByType(normalized, formData);
       templateEntries = [{ block: fallbackBlock, formData: formData }];
@@ -4942,17 +4939,16 @@
     var wf = (data && data.writerUi) || {};
     var wfType = String(wf.templateWorkflowType || "");
 
+    // Editor mode (which builder cards to show) follows the saved workflow /
+    // block content. The show-type LABEL is the writer's own choice and is
+    // restored separately by WriterQuestionForm.setFormData — never overridden
+    // here.
     if (!!wf.templateWorkflowActive && wfType === "feud-show" || detectFeudShowFromBlocks(showState.blocks)) {
       templateWorkflow.active = true;
       templateWorkflow.type = "feud-show";
       templateWorkflow.advancedBlockIds = {};
       setTemplateBuilderTabVisible(true);
       renderTemplateBuilderList();
-      document.querySelectorAll(".show-type-btn").forEach(function (b) {
-        b.classList.toggle("active", b.getAttribute("data-show-type") === "feud");
-      });
-      var hiddenShowType = $("#show-type");
-      if (hiddenShowType) hiddenShowType.value = "feud";
       return;
     }
 
@@ -5269,15 +5265,11 @@
   }
 
   function getShowTypeFromOpenShowData(data) {
-    var inferred = inferOpenShowTypeFromData(data);
-    var st = (data && data.show && data.show.showType) ? String(data.show.showType) : "";
-    // Feud (and other) full shows often still have the default "classic-trivia" on the root
-    // show object; prefer writerUi/blocks when the stored value is that default.
-    if (st === "classic-trivia" && (inferred === "feud" || inferred === "mixed")) {
-      return inferred;
-    }
+    // The writer's saved pick is authoritative. Only fall back to inference for
+    // legacy drafts that predate an explicit stored show type.
+    var st = (data && data.show && data.show.showType) ? String(data.show.showType).trim() : "";
     if (st) return st;
-    return inferred;
+    return inferOpenShowTypeFromData(data);
   }
 
   function showTypeToLabelForPicker(st) {
@@ -5544,18 +5536,58 @@
 
   // ─── Show type toggle ──────────────────────────────────────────
 
+  // Sets the show-type LABEL — the writer's own category, saved with the show
+  // and used downstream (schedule, Open Show filter, future question-bank
+  // queries). Nothing infers or overrides it.
+  function setShowType(type) {
+    var val = type || "classic-trivia";
+    document.querySelectorAll(".show-type-btn").forEach(function (b) {
+      b.classList.toggle("active", b.getAttribute("data-show-type") === val);
+    });
+    var hiddenInput = $("#show-type");
+    if (hiddenInput && hiddenInput.value !== val) {
+      hiddenInput.value = val;
+      hiddenInput.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+  }
+
+  function showHasTriviaQuestions() {
+    return (showState.blocks || []).some(function (e) {
+      var t = String((e && e.block && e.block.type) || "").toLowerCase();
+      return t === "single-question" || t === "image-question" ||
+             t === "audio-question" || t === "true-false" ||
+             t === "ordering" || t === "matching";
+    });
+  }
+  function showHasFeudQuestions() {
+    return (showState.blocks || []).some(function (e) {
+      var t = String((e && e.block && e.block.type) || "").toLowerCase();
+      return t.indexOf("feud") !== -1 && t !== "feud-rules";
+    });
+  }
+
   function bindShowTypeToggle() {
     document.querySelectorAll(".show-type-btn").forEach(function (btn) {
       btn.addEventListener("click", function () {
-        var type = btn.getAttribute("data-show-type");
-        document.querySelectorAll(".show-type-btn").forEach(function (b) {
-          b.classList.toggle("active", b === btn);
-        });
-        var hiddenInput = $("#show-type");
-        if (hiddenInput) {
-          hiddenInput.value = type || "classic-trivia";
-          hiddenInput.dispatchEvent(new Event("input", { bubbles: true }));
+        var type = btn.getAttribute("data-show-type") || "classic-trivia";
+        var current = ($("#show-type") && $("#show-type").value) || "classic-trivia";
+        if (type === current) return;
+
+        // Feud questions are a different format from trivia questions. Warn
+        // before a switch that leaves the show and its label mismatched.
+        if (type === "feud" && showHasTriviaQuestions()) {
+          if (!window.confirm(
+            "Feud shows use survey-style questions (answers with point values). " +
+            "Your existing trivia questions won't convert. Set the type to Feud anyway?"
+          )) return;
+        } else if (current === "feud" && showHasFeudQuestions()) {
+          if (!window.confirm(
+            "This show contains Feud survey questions — changing the type won't " +
+            "convert them. Change it anyway?"
+          )) return;
         }
+
+        setShowType(type);
         markDirty();
       });
     });
