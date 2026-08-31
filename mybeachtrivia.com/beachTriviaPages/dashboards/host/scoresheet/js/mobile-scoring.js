@@ -23,7 +23,7 @@
   var LS_KEY = "bt:scoresheetMView";
 
   var VIEWS = [
-    { key: "setup", label: "Setup — Team Names" },
+    { key: "setup", label: "Team Names & Like 👍🏼" },
     { key: "r1", label: "Round 1" },
     { key: "r2", label: "Round 2" },
     { key: "ht", label: "Half Time" },
