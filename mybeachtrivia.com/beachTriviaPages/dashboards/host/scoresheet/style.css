@@ -2120,7 +2120,27 @@ body.modal-open #teamTable th {
     min-width: 42px !important;
   }
 
-  /* Setup: team column only (name + delete + bonus + TEAM #) */
+  /* Setup: team column only — let the name input use the full row width. */
+  #teamTable[data-mview="setup"] tbody td.sticky-col {
+    display: flex !important;
+    align-items: center;
+    gap: 8px;
+    width: 100% !important;
+    padding: 8px 10px !important;
+  }
+  #teamTable[data-mview="setup"] .teamName {
+    flex: 1 1 auto !important;
+    width: auto !important;
+    min-width: 0 !important;
+    height: 42px !important;
+    font-size: 15px !important;
+  }
+  #teamTable[data-mview="setup"] td.sticky-col .btnDeleteTeam,
+  #teamTable[data-mview="setup"] td.sticky-col .teamCheckboxWrapper,
+  #teamTable[data-mview="setup"] td.sticky-col .teamNumWrapper {
+    flex: 0 0 auto;
+    transform: none;
+  }
 
   /* Round 1–4: that round's 5 inputs + its round total */
   #teamTable[data-mview="r1"] tbody td:has(> input.round1-input),
