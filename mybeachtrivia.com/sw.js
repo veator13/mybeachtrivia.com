@@ -17,7 +17,7 @@
   // ✅ MUST MATCH the cache-busting version used in index.html assets.
   // Bumping this forces a brand-new cache name below, which wipes out any
   // stale "canonical" (no-?v=) entries left over from a previous deploy.
-  const ASSET_V = "20260831-mobile23";
+  const ASSET_V = "20260831-bthead";
 
   // ✅ Bump this whenever you deploy changes to scoresheet assets (CSS/JS/HTML)
   const VERSION = `scoresheet-offline-v4-${ASSET_V}`;
@@ -26,12 +26,25 @@
   const SCORESHEET_PREFIX = "/beachTriviaPages/dashboards/host/scoresheet/";
   const SHARED_PREFIX = "/beachTriviaPages/js/";
 
+  // Always let these hit the network — never cache them. bt-head.js is the
+  // shared <head> include on every page and carries the cache-busting version
+  // for bt-nav.*; if the SW served it stale, a nav/CSS change would lag a
+  // reload for anyone who'd visited the scoresheet.
+  const ALWAYS_FRESH = [
+    "/beachTriviaPages/js/bt-head.js",
+    "/beachTriviaPages/js/bt-nav.js",
+    "/beachTriviaPages/js/bt-nav.css",
+  ];
+  function isAlwaysFresh(url) {
+    return ALWAYS_FRESH.indexOf(url.pathname || "") !== -1;
+  }
+
   // NOTE: these must match the exact hrefs/srcs (incl. querystrings) in
   // index.html — each file has its own independent ?v=, not a shared one.
   const PRECACHE_URLS = [
     // Scoresheet route + local assets
     "/beachTriviaPages/dashboards/host/scoresheet/index.html",
-    "/beachTriviaPages/dashboards/host/scoresheet/style.css?v=20260831-mobile23",
+    "/beachTriviaPages/dashboards/host/scoresheet/style.css?v=20260831-bthead",
     "/beachTriviaPages/dashboards/host/scoresheet/final-neg-guard.js?v=20251025163459",
 
     "/beachTriviaPages/dashboards/host/scoresheet/js/dom-utils.js?v=20260218-04",
@@ -50,7 +63,7 @@
     "/beachTriviaPages/dashboards/host/scoresheet/js/submit-scores.js?v=20260218-04",
     "/beachTriviaPages/dashboards/host/scoresheet/js/grid-enforcer.js?v=20260218-04",
     "/beachTriviaPages/dashboards/host/scoresheet/js/main.js?v=20260512-full-table",
-    "/beachTriviaPages/dashboards/host/scoresheet/js/mobile-scoring.js?v=20260831-mobile23",
+    "/beachTriviaPages/dashboards/host/scoresheet/js/mobile-scoring.js?v=20260831-bthead",
 
     // Shared auth/firebase bootstrap used by scoresheet
     "/beachTriviaPages/js/firebase-init-compat.js",
@@ -245,6 +258,9 @@
 
     // Only same-origin
     if (!isSameOrigin(url)) return;
+
+    // Shared nav/head files: bypass the SW entirely so they're never stale.
+    if (isAlwaysFresh(url)) return;
 
     const isNav = req.mode === "navigate";
     const path = url.pathname || "";
