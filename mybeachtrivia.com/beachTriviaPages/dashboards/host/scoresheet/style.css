@@ -2204,8 +2204,9 @@ body.modal-open #teamTable th {
     flex: 1 1 auto;
     min-width: 0;
     padding: 13px 14px;
-    font-size: 18px;
-    line-height: 1.2;
+    /* the native option-list popup scales with the <select>'s own font-size */
+    font-size: 21px;
+    line-height: 1.25;
     font-weight: 700;
     text-transform: none;
     letter-spacing: normal;
@@ -2217,8 +2218,9 @@ body.modal-open #teamTable th {
     appearance: none;
   }
   .score-view-bar__select option {
-    font-size: 17px;
-    padding: 10px;
+    font-size: 21px;
+    line-height: 2;
+    padding: 12px;
     background: #1e1e1e;
   }
 
