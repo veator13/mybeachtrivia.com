@@ -3297,6 +3297,14 @@ textarea {
   border-radius: 7px;
 }
 
+/* Gear in the preview header — icon-only, jumps to Slide Options */
+.preview-area .preview-header-actions .preview-gear-btn {
+  padding: 0;
+  width: 26px;
+  font-size: 14px;
+  line-height: 1;
+}
+
 .preview-area .panel-body {
   flex: 1 1 auto;
   min-height: 0;

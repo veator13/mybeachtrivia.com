@@ -2673,6 +2673,18 @@
     });
   }
 
+  // Gear in the Slide Preview header — jump to Slide Options for whatever slide
+  // is currently previewed (a 3rd path to it, alongside the Storyboard list and
+  // the Questions cards).
+  function bindPreviewCustomizeGear() {
+    var btn = $("#preview-customize-btn");
+    if (!btn) return;
+    btn.addEventListener("click", function () {
+      var blockIdx = blockIndexForFlatIdx(showState.currentIdx);
+      if (blockIdx >= 0) openCustomizeSlide(blockIdx);
+    });
+  }
+
   function openCustomizeSlide(blockIdx) {
     var entry = showState.blocks[blockIdx];
     if (!entry) return;
@@ -5696,6 +5708,7 @@
     if (window.WriterPreview) WriterPreview.init();
 
     bindFilmstripCanvasSync();
+    bindPreviewCustomizeGear();
 
     initTabs();
     bindModuleEvents();
