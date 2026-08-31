@@ -2065,6 +2065,51 @@ body.modal-open #teamTable th {
     font-weight: 800;
   }
 
+  /* ---- Standings modal on mobile ---- */
+  #standingsModal .modal-content {
+    width: 96vw !important;
+    height: 90vh !important;
+    max-width: none !important;
+    padding: 12px !important;
+    align-items: stretch;
+  }
+  /* projector / TV controls — not useful on a phone */
+  #btnFullscreenStandings,
+  #btnPopoutStandings,
+  #btnAutoScrollStandings {
+    display: none !important;
+  }
+  #btnCloseStandings {
+    top: 10px !important;
+    right: 10px !important;
+    width: 44px !important;
+    height: 44px !important;
+    font-size: 24px !important;
+  }
+  #standingsModal #standingsTitle {
+    align-self: stretch;
+    text-align: left;
+    font-size: 20px !important;
+    line-height: 44px !important;
+    margin: 0 52px 6px 4px !important;
+  }
+  #standingsModal #btnInvertStandings {
+    margin: 2px auto 10px !important;
+    padding: 9px 22px !important;
+    font-size: 14px !important;
+    align-self: center;
+  }
+  #standingsModal #modalRankingList {
+    width: 100% !important;
+    margin: 0 !important;
+  }
+  #standingsModal #modalRankingList li {
+    padding: 12px 12px !important;
+    font-size: 16px !important;
+    margin: 8px 0 !important;
+    border-radius: 12px !important;
+  }
+
   /* Score inputs — override the desktop "shrink to fit" (30x25px) */
   #teamTable td input[type="number"] {
     width: 44px !important;
