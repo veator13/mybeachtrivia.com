@@ -1990,6 +1990,7 @@ body.modal-open #teamTable th {
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
     touch-action: pan-x pan-y;
+    scroll-behavior: smooth;
   }
 
   /* Score inputs — override the desktop "shrink to fit" (30x25px) */

@@ -42,24 +42,32 @@
   }
 
   function stickyWidth() {
-    var c = document.querySelector("#teamTable .sticky-col");
+    var c = document.querySelector("#teamTable td.sticky-col, #teamTable th.sticky-col");
     return c ? c.getBoundingClientRect().width : 0;
   }
 
+  // Scroll the table-wrapper so the matched section header sits just to the
+  // right of the frozen Team column. Uses live on-screen rects + scrollBy so
+  // it doesn't depend on offsetParent quirks under sticky/border-collapse.
   function jumpTo(rx) {
     var w = wrapper();
     if (!w) return;
-    var th = headerCells().filter(function (el) { return rx.test((el.textContent || "").trim()); })[0];
+    var th = headerCells().filter(function (el) {
+      return rx.test((el.textContent || "").replace(/\s+/g, " ").trim());
+    })[0];
     if (!th) return;
-    // offsetLeft is relative to the table (the offset parent); subtract the
-    // frozen column so the section starts just past it, with a little air.
-    var left = th.offsetLeft - stickyWidth() - 6;
-    if (left < 0) left = 0;
-    try {
-      w.scrollTo({ left: left, behavior: "smooth" });
-    } catch (e) {
-      w.scrollLeft = left;
-    }
+
+    var wRect = w.getBoundingClientRect();
+    var thRect = th.getBoundingClientRect();
+    var delta = thRect.left - wRect.left - stickyWidth() - 6;
+
+    var maxLeft = w.scrollWidth - w.clientWidth;
+    var target = Math.max(0, Math.min(w.scrollLeft + delta, maxLeft));
+
+    // Direct assignment always works; scrollTo({behavior:"smooth"}) is a silent
+    // no-op on this page. CSS `scroll-behavior: smooth` on .table-wrapper
+    // animates the assignment.
+    w.scrollLeft = target;
   }
 
   function buildBar() {
