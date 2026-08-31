@@ -23,14 +23,14 @@
   var LS_KEY = "bt:scoresheetMView";
 
   var VIEWS = [
-    { key: "setup", label: "Setup — team names" },
+    { key: "setup", label: "Setup — Team Names" },
     { key: "r1", label: "Round 1" },
     { key: "r2", label: "Round 2" },
     { key: "ht", label: "Half Time" },
     { key: "r3", label: "Round 3" },
     { key: "r4", label: "Round 4" },
     { key: "fq", label: "Final Question" },
-    { key: "results", label: "Results — bonus & final" },
+    { key: "results", label: "Results — Bonus & Final" },
   ];
 
   function isMobile() {
