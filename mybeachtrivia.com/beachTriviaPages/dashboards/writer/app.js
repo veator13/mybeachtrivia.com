@@ -783,6 +783,27 @@
   }
 
   // Decision 3: on reopen, ask before dropping the writer into a blank show.
+  // Only for a *recent* draft, and only until the writer says "Start new" for it
+  // (unless they've since edited it again, which re-arms the prompt).
+  var RESUME_DISMISS_KEY = "bt:writer:resumeDismissed:v1";
+  var RESUME_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
+
+  function getResumeDismissals() {
+    try { return JSON.parse(localStorage.getItem(RESUME_DISMISS_KEY)) || {}; }
+    catch (_) { return {}; }
+  }
+  function addResumeDismissal(draftId) {
+    if (!draftId) return;
+    try {
+      var d = getResumeDismissals();
+      d[draftId] = Date.now();
+      // prune anything older than the max age so the map can't grow forever
+      var cutoff = Date.now() - RESUME_MAX_AGE_MS;
+      Object.keys(d).forEach(function (k) { if (d[k] < cutoff) delete d[k]; });
+      localStorage.setItem(RESUME_DISMISS_KEY, JSON.stringify(d));
+    } catch (_) {}
+  }
+
   function maybeOfferResumeLastDraft() {
     if (activeDraftId || activePublishedId) return; // already editing something
 
@@ -799,6 +820,12 @@
         var doc = snap.docs[0];
         var data = doc.data();
         if (!autosaveHasRealContent(data)) return;
+
+        var touchedMs = lastTouchedMsForOpenShow(data);
+        if (!touchedMs || Date.now() - touchedMs > RESUME_MAX_AGE_MS) return; // too old
+
+        var dismissedAt = getResumeDismissals()[doc.id];
+        if (dismissedAt && dismissedAt >= touchedMs) return; // dismissed, not touched since
 
         var bar = $("#resume-draft-bar");
         var text = $("#resume-draft-text");
@@ -821,6 +848,7 @@
           }
         };
         $("#resume-draft-no").onclick = function () {
+          addResumeDismissal(doc.id);
           bar.classList.add("hidden");
         };
       })
