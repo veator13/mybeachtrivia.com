@@ -310,25 +310,24 @@
     var s = document.createElement("style");
     s.id = "bt-push-style";
     s.textContent = [
+      // Shared shape — every state is the same solid pill; only colour + icon change.
       "#bt-enable-push.bt-push-btn{",
       "  display:inline-flex;align-items:center;gap:7px;",
       "  padding:8px 15px;min-height:34px;border-radius:8px;",
       "  font-size:13px;font-weight:600;line-height:1;white-space:nowrap;",
-      "  border:1px solid rgba(255,255,255,.22);",
-      "  background:rgba(255,255,255,.07);color:#e9eef5;",
-      "  cursor:pointer;transition:background .15s,border-color .15s,color .15s,opacity .15s;",
+      "  border:1px solid transparent;",
+      "  background:#2f6fb3;color:#fff;",  // OFF = solid blue call-to-action
+      "  cursor:pointer;transition:filter .15s,opacity .15s;",
       "  -webkit-appearance:none;appearance:none;box-shadow:none;",
       "}",
-      "#bt-enable-push.bt-push-btn:hover{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.4);}",
+      "#bt-enable-push.bt-push-btn:hover{filter:brightness(1.08);}",
       "#bt-enable-push.bt-push-btn .bt-push__icon{font-size:13px;line-height:1;}",
-      // ON — green with a check; hovering reveals it's a turn-off control (red)
-      "#bt-enable-push.bt-push--on{background:#157a4c;border-color:#1c9160;color:#fff;}",
+      // ON — same pill, green + check
+      "#bt-enable-push.bt-push--on{background:#157a4c;}",
       "#bt-enable-push.bt-push--on .bt-push__icon{color:#8ef0bd;font-weight:800;}",
       "#bt-enable-push.bt-push--on .bt-push__label::after{content:'\\00a0\\2014\\00a0tap to turn off';font-weight:500;opacity:.82;}",
-      "#bt-enable-push.bt-push--on:hover{background:#a5342a;border-color:#c0392b;}",
-      "#bt-enable-push.bt-push--on:hover .bt-push__icon{color:#fff;}",
       // BLOCKED / BUSY
-      "#bt-enable-push.bt-push--blocked{opacity:.55;cursor:not-allowed;background:rgba(255,255,255,.05);}",
+      "#bt-enable-push.bt-push--blocked{background:#5b6675;opacity:.7;cursor:not-allowed;}",
       "#bt-enable-push.bt-push--busy{opacity:.7;cursor:default;}",
       "@media (max-width:640px){#bt-enable-push.bt-push-btn{width:100%;justify-content:center;}}",
     ].join("\n");
