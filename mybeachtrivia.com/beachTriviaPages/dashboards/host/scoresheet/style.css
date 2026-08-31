@@ -2363,6 +2363,21 @@ body.modal-open #teamTable th {
     display: table-cell !important;
   }
 
+  /* HT / FQ views: fat input, skinny total column */
+  #teamTable[data-mview="ht"] .halftime-input,
+  #teamTable[data-mview="fq"] .finalquestion-input {
+    width: 64px !important;
+    min-width: 64px !important;
+    height: 44px !important;
+    font-size: 18px !important;
+  }
+  #teamTable[data-mview="ht"] tbody td:has(> span.first-half-total),
+  #teamTable[data-mview="fq"] tbody td:has(> span.second-half-total) {
+    width: 56px !important;
+    min-width: 56px !important;
+    max-width: 56px !important;
+  }
+
   /* Results: every total + Bonus + Final Score */
   #teamTable[data-mview="results"] tbody td.round1-total,
   #teamTable[data-mview="results"] tbody td:has(> span[id^="r2Total"]),
