@@ -2371,18 +2371,26 @@ body.modal-open #teamTable th {
   }
 
   /* HT / FQ views: fat input, skinny total column */
-  #teamTable[data-mview="ht"] tbody td input.halftime-input[type="number"],
-  #teamTable[data-mview="fq"] tbody td input.finalquestion-input[type="number"] {
+  #teamTable[data-mview="ht"] tbody td input.halftime-input[type="number"] {
     width: 72px !important;
     min-width: 72px !important;
     height: 46px !important;
     font-size: 19px !important;
     padding: 4px !important;
   }
+  /* FQ: number field ~2x wide; the ✓/✕ toggle just slides right after it */
+  #teamTable[data-mview="fq"] tbody td input.finalquestion-input[type="number"] {
+    width: 144px !important;
+    min-width: 144px !important;
+    height: 46px !important;
+    font-size: 19px !important;
+    padding: 4px 8px !important;
+    flex: 0 0 auto !important;
+  }
   #teamTable[data-mview="fq"] tbody td.fq-cell-td {
-    width: 124px !important;
-    min-width: 124px !important;
-    max-width: 124px !important;
+    width: auto !important;
+    min-width: 208px !important;
+    max-width: none !important;
   }
   #teamTable[data-mview="ht"] tbody td:has(> span.first-half-total),
   #teamTable[data-mview="fq"] tbody td:has(> span.second-half-total) {
