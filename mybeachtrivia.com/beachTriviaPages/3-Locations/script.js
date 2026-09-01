@@ -128,6 +128,7 @@ document.addEventListener("DOMContentLoaded", function () {
   function computeRangeFromPreset(preset) {
     const today = ymdTodayNY();
 
+    if (preset === "today") return { startStr: today, endExclusiveStr: addDaysYmd(today, 1) };
     if (preset === "next7") return { startStr: today, endExclusiveStr: addDaysYmd(today, 7) };
     if (preset === "next30") return { startStr: today, endExclusiveStr: addDaysYmd(today, 30) };
     if (preset === "next90") return { startStr: today, endExclusiveStr: addDaysYmd(today, 90) };
