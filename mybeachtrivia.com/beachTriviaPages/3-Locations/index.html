@@ -6,13 +6,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Beach Trivia</title>
 
+  <meta name="description" content="Find Beach Trivia nights, music bingo, and Beach Feud events across Hampton Roads — Virginia Beach, Norfolk, Chesapeake, Newport News and more. Interactive map + weekly schedule." />
+
   <link rel="stylesheet" href="/nav-footer.css" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=20260901-locations3" />
 
   <!-- API key for Google Maps — loaded dynamically by script.js to avoid race conditions -->
   <script>window.__GMAPS_API_KEY__ = "AIzaSyC6YuQnkDSQNX2P_WiGqEmnZpcbel5B__4";</script>
 
-  <script src="script.js" defer></script>
+  <!-- Marker clustering (optional; script.js degrades gracefully if it fails) -->
+  <script src="https://cdn.jsdelivr.net/npm/@googlemaps/markerclusterer@2.5.3/dist/index.min.js" defer></script>
+
+  <script src="script.js?v=20260901-locations3" defer></script>
 </head>
 
 <body>
@@ -47,11 +52,9 @@
   </header>
 
   <div id="header-mask"></div>
-  <div id="js-barrier"></div>
 
   <main>
     <div id="trivia" class="service">
-      <div class="fade-overlay"></div>
       <div class="service-content">
         <div class="image-container">
           <img src="../images/Interrobang.svg.png" alt="Interrobang Image - Trivia" class="service-image" />
@@ -65,6 +68,23 @@
           <h3>Find Our Events</h3>
 
           <div id="locations-filters" class="locations-filters" aria-label="Locations filters">
+            <div class="filter-row filter-venue">
+              <label for="venueSearchInput">Venue</label>
+              <div id="venueSearchField" class="venue-search">
+                <input
+                  id="venueSearchInput"
+                  type="text"
+                  autocomplete="off"
+                  placeholder="All venues — type to search"
+                  role="combobox"
+                  aria-expanded="false"
+                  aria-autocomplete="list"
+                  aria-controls="venueSearchList"
+                />
+                <div id="venueSearchList" class="venue-search-list" role="listbox" hidden></div>
+              </div>
+            </div>
+
             <div class="filter-row">
               <label for="datePresetSelect">Date Range</label>
               <select id="datePresetSelect">
@@ -112,17 +132,17 @@
 
           <div id="map-layout">
             <aside id="locations-overlay" aria-label="Scheduled events">
-              <h4 class="overlay-title">Scheduled Events</h4>
+              <h4 class="overlay-title">Where to Play</h4>
 
               <div id="locationsOverlayStatus" class="overlay-status" aria-live="polite">
-                Loading venues…
+                Loading events…
               </div>
 
               <div id="locationsOverlayBody"></div>
             </aside>
 
             <div id="map-wrapper">
-              <div id="map" style="width:100%; height:550px; border-radius:10px;"></div>
+              <div id="map"></div>
             </div>
           </div>
         </div>

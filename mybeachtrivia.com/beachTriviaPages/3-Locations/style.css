@@ -76,21 +76,7 @@ main {
     border-radius: 25px;
     text-align: center;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-    overflow: hidden;
-    will-change: transform, opacity;
     z-index: 1;
-}
-
-/* Fade overlay for the top of containers */
-.fade-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 0;
-    z-index: 10;
-    pointer-events: none;
-    background-color: transparent;
 }
 
 .service-content {
@@ -271,20 +257,18 @@ main {
     width: 100%;
 }
 
-/* Reset global height/width/max-width overrides inside the map so Google Maps
-   can control its own internal elements (fixes drag and marker hover) */
-#map * {
-    height: initial;
-    width: initial;
-    max-width: initial;
+/* The public site's global `* { max-width: 100% }` (style.css) fights Google
+   Maps' internal absolutely-positioned tiles/controls. Undo it inside the map
+   and its InfoWindow only. */
+#map *,
+.gm-style *,
+.gm-style-iw *,
+.gm-style-iw-d * {
+    max-width: none;
 }
 
-/* Fix Google Maps InfoWindow — it renders outside #map so needs its own reset */
-.gm-style-iw, .gm-style-iw-c, .gm-style-iw-d, .gm-style-iw-t,
-.gm-style-iw *, .gm-style-iw-d * {
-    height: auto !important;
-    width: auto !important;
-    max-width: none !important;
+.gm-style-iw-d {
+    overflow: auto !important;
 }
 
 /* Wrapper defines map height */
@@ -316,46 +300,171 @@ main {
     z-index: 5;
 }
 
-.location-badge {
-    display: flex;
-    align-items: flex-start;
-    margin-bottom: 10px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-    height: auto;
-    width: auto;
-}
+/* ── Venue search combobox ── */
+.filter-venue { flex: 1 1 260px; }
 
-.location-badge:last-child {
-    margin-bottom: 0;
-    padding-bottom: 0;
-    border-bottom: none;
-}
+.venue-search { position: relative; }
 
-.location-info {
-    flex-grow: 1;
-    text-align: left;
-    height: auto;
-    width: auto;
-}
-
-.location-info h4 {
-    margin: 0 0 5px 0;
+.venue-search input {
+    color: black;
+    background: rgba(255, 255, 255, 0.95);
+    border: none;
+    border-radius: 10px;
+    height: 36px;
+    padding: 0 12px;
+    width: 100%;
+    box-sizing: border-box;
     font-size: 14px;
-    color: white;
 }
 
-.location-info p {
+.venue-search-list {
+    position: absolute;
+    z-index: 40;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    max-height: 260px;
+    overflow-y: auto;
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+    padding: 4px;
+}
+
+.venue-option {
+    color: #1e293b;
+    font-size: 13px;
+    padding: 8px 10px;
+    border-radius: 7px;
+    cursor: pointer;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.venue-option:hover,
+.venue-option.is-selected {
+    background: #e0edff;
+    color: #0b1220;
+}
+
+.venue-option--empty {
+    color: #64748b;
+    cursor: default;
+    font-style: italic;
+}
+
+.venue-option--empty:hover { background: transparent; }
+
+/* ── Venue cards in the sidebar ── */
+.venue-card {
+    text-align: left;
+    padding: 10px 8px;
+    margin-bottom: 8px;
+    border-radius: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+    cursor: pointer;
+    transition: background 0.12s;
+}
+
+.venue-card:last-child { margin-bottom: 0; border-bottom: none; }
+
+.venue-card:hover,
+.venue-card:focus,
+.venue-card.is-hover {
+    background: rgba(85, 218, 255, 0.14);
+    outline: none;
+}
+
+.venue-card h4 {
     margin: 0 0 3px 0;
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.9);
+    font-size: 14px;
+    color: #fff;
+}
+
+.venue-card-addr {
+    margin: 0 0 6px 0;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.75);
     line-height: 1.3;
 }
 
-.location-info .event-time {
-    color: #ff9d00;
-    font-weight: bold;
+.venue-card-events {
+    margin: 0;
+    padding: 0;
+}
+
+.venue-card-events li {
     font-size: 12px;
+    color: rgba(255, 255, 255, 0.92);
+    line-height: 1.4;
+    margin: 2px 0;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.evt-dot {
+    flex: 0 0 auto;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    transform: translateY(1px);
+}
+
+.venue-card-more {
+    color: rgba(255, 255, 255, 0.6);
+    font-style: italic;
+}
+
+.venue-card-dir {
+    display: inline-block;
+    margin-top: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #7dd3fc;
+}
+
+.venue-card-dir:hover { color: #bae6fd; }
+
+/* ── Map loading / error states ── */
+#map-loading {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    background: linear-gradient(180deg, #13203b 0%, #081120 100%);
+    color: #cbd5e1;
+    font-size: 13px;
+}
+
+.map-spinner {
+    width: 34px;
+    height: 34px;
+    border: 3px solid rgba(255, 255, 255, 0.15);
+    border-top-color: #55daff;
+    border-radius: 50%;
+    animation: bt-spin 0.9s linear infinite;
+}
+
+@keyframes bt-spin { to { transform: rotate(360deg); } }
+
+.map-msg {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding: 24px;
+    text-align: center;
+    color: #475569;
+    font-size: 14px;
+    line-height: 1.5;
+    background: #e2e8f0;
 }
 
 /********** FOOTER **********/
@@ -382,6 +491,11 @@ main {
         width: 92%;
         padding: 20px;
     }
+
+    .filter-venue { flex: 1 1 100%; }
+
+    #locations-overlay { order: 2; }
+    #map-wrapper { order: 1; }
 
     #map-layout {
         flex-direction: column;

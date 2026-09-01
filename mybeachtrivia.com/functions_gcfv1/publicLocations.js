@@ -2,8 +2,13 @@
 //
 // Public, unauthenticated endpoint for the marketing site's Locations page
 // (beachTriviaPages/3-Locations). Returns the venues that have scheduled events
-// in a date window, each with its address and a stripped-down list of shifts
-// (event type / date / time only — no employee names, notes or internal fields).
+// in a date window, each with its address, coordinates, and a stripped-down
+// list of shifts (event type / date / time only — no employee names, notes or
+// internal fields).
+//
+// Coordinates: geocoded once, server-side, via OpenStreetMap Nominatim (no API
+// key needed) and cached back onto the `locations` doc as `geo: {lat,lng}`.
+// After the first warm-up the browser never geocodes anything.
 //
 // Exposed to the browser same-origin via a hosting rewrite:
 //   GET /api/scheduled-venues?start=YYYY-MM-DD&end=YYYY-MM-DD&type=<eventType|all>
@@ -19,6 +24,12 @@ function db() {
 const REGION = "us-central1";
 const DEFAULT_WINDOW_DAYS = 30;
 const MAX_WINDOW_DAYS = 120;
+
+// Geocoding (Nominatim usage policy: <= 1 req/sec, identify yourself).
+const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
+const NOMINATIM_UA = "mybeachtrivia.com locations map (contact: joshuaveator@gmail.com)";
+const GEOCODE_GAP_MS = 1100;
+const HAMPTON_ROADS_VIEWBOX = "-76.7,37.3,-75.9,36.5"; // bias results to the region
 
 // ── date helpers (all YYYY-MM-DD strings, America/New_York calendar) ──────────
 function pad2(n) {
@@ -60,8 +71,7 @@ function str(v) {
 }
 
 // Some `locations` docs have junk in the address field (an email, a phone, a
-// note). Only pass through something that plausibly geocodes: has a digit and a
-// letter, isn't an email, and is long enough to be a street address.
+// note). Only pass through something that plausibly geocodes.
 function cleanAddress(v) {
   const s = str(v);
   if (!s || s.length < 6) return "";
@@ -70,7 +80,6 @@ function cleanAddress(v) {
   return s;
 }
 
-// A shift's `date` is normally a "YYYY-MM-DD" string; be lenient about Timestamps.
 function shiftDateYmd(raw) {
   if (isYmd(raw)) return raw;
   if (raw && typeof raw.toDate === "function") {
@@ -90,6 +99,73 @@ function timeToMinutes(t) {
   if (mer === "pm" && h !== 12) h += 12;
   if (mer === "am" && h === 12) h = 0;
   return h * 60 + min;
+}
+
+function num(v) {
+  return typeof v === "number" && isFinite(v) ? v : null;
+}
+
+// A stored geo is usable if it has finite lat/lng. (No TTL — venues don't move.)
+function readGeo(d) {
+  const g = d && d.geo;
+  if (g && num(g.lat) != null && num(g.lng) != null) {
+    return { lat: g.lat, lng: g.lng };
+  }
+  // tolerate flat lat/lng fields too
+  if (num(d && d.lat) != null && num(d && d.lng) != null) {
+    return { lat: d.lat, lng: d.lng };
+  }
+  return null;
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Suite / unit / floor tokens break Nominatim more often than they help.
+function simplifyAddress(addr) {
+  return str(addr)
+    .replace(/,?\s*(#|ste\.?|suite|unit|apt\.?|floor|fl\.?|building|bldg\.?)\s*[\w-]+/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s*,\s*,/g, ",")
+    .trim();
+}
+
+async function geocodeQuery(query) {
+  const url =
+    `${NOMINATIM_URL}?format=jsonv2&limit=1&countrycodes=us` +
+    `&viewbox=${encodeURIComponent(HAMPTON_ROADS_VIEWBOX)}&bounded=0` +
+    `&q=${encodeURIComponent(query)}`;
+  try {
+    const resp = await fetch(url, { headers: { "User-Agent": NOMINATIM_UA } });
+    if (!resp.ok) return null;
+    const arr = await resp.json();
+    const hit = Array.isArray(arr) ? arr[0] : null;
+    if (!hit) return null;
+    const lat = Number(hit.lat);
+    const lng = Number(hit.lon);
+    if (!isFinite(lat) || !isFinite(lng)) return null;
+    return { lat, lng };
+  } catch (e) {
+    console.warn("[publicGetScheduledVenues] geocode error:", query, e.message);
+    return null;
+  }
+}
+
+// Try a few phrasings, oldest-and-most-specific first.
+async function geocodeVenue(name, address) {
+  const tries = [];
+  if (address) {
+    tries.push(address);
+    const simple = simplifyAddress(address);
+    if (simple && simple !== address) tries.push(simple);
+  }
+  if (name) tries.push(`${name}, Virginia Beach, VA`);
+
+  for (let i = 0; i < tries.length; i++) {
+    const hit = await geocodeQuery(tries[i]);
+    if (hit) return { ...hit, query: tries[i] };
+    if (i < tries.length - 1) await sleep(GEOCODE_GAP_MS);
+  }
+  return null;
 }
 
 // ── the endpoint ────────────────────────────────────────────────────────────
@@ -118,7 +194,6 @@ exports.publicGetScheduledVenues = functions
         ? req.query.end
         : addDays(startStr, DEFAULT_WINDOW_DAYS);
 
-      // sanity: end after start, window capped
       if (daysBetween(startStr, endExclusiveStr) <= 0) {
         endExclusiveStr = addDays(startStr, DEFAULT_WINDOW_DAYS);
       }
@@ -140,17 +215,19 @@ exports.publicGetScheduledVenues = functions
         firestore.collection("locations").get(),
       ]);
 
-      // location name -> { address, active, isTemp }
+      // location name -> { name, address, geo, ref, needsGeocode }
       const locByName = new Map();
       locationsSnap.forEach((doc) => {
         const d = doc.data() || {};
         const name = str(d.name);
         if (!name) return;
+        const address = cleanAddress(d.address);
         locByName.set(name.toLowerCase(), {
           name,
-          address: cleanAddress(d.address),
-          active: d.active !== false && d.isActive !== false,
-          isTemp: d.isTemp === true,
+          address,
+          geo: readGeo(d),
+          ref: doc.ref,
+          hadAddress: !!address,
         });
       });
 
@@ -177,6 +254,8 @@ exports.publicGetScheduledVenues = functions
           venueMap.set(key, {
             name: loc ? loc.name : venueName,
             address: loc ? loc.address : "",
+            geo: loc ? loc.geo : null,
+            _loc: loc || null,
             shifts: [],
           });
         }
@@ -190,13 +269,25 @@ exports.publicGetScheduledVenues = functions
         });
       });
 
-      const venues = Array.from(venueMap.values())
+      const venues = Array.from(venueMap.values());
+
+      // Coordinates come from the `geo` cache on each `locations` doc, warmed by
+      // the geocodeVenuesCron job below. Anything still missing is geocoded in
+      // the browser (Google) and cached there — the response stays instant.
+
+      const out = venues
         .map((v) => {
           v.shifts.sort((a, b) => {
             if (a.date !== b.date) return a.date < b.date ? -1 : 1;
             return timeToMinutes(a.startTime) - timeToMinutes(b.startTime);
           });
-          return v;
+          return {
+            name: v.name,
+            address: v.address,
+            lat: v.geo ? v.geo.lat : null,
+            lng: v.geo ? v.geo.lng : null,
+            shifts: v.shifts,
+          };
         })
         .sort((a, b) =>
           a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
@@ -206,10 +297,96 @@ exports.publicGetScheduledVenues = functions
         ok: true,
         range: { startStr, endExclusiveStr },
         eventTypes: Array.from(eventTypeSet).sort(),
-        venues,
+        venues: out,
       });
     } catch (err) {
       console.error("[publicGetScheduledVenues] failed:", err);
       res.status(500).json({ ok: false, error: "internal", message: err.message });
+    }
+  });
+
+// ── geocode cache warmer ────────────────────────────────────────────────────
+// Fills the `geo` field on `locations` docs that have an address but no coords
+// yet. Runs off the request path so page loads stay instant. A handful per run
+// keeps it well inside Nominatim's usage policy; over a few hours every
+// resolvable venue is cached. (Venues Nominatim can't place stay client-side.)
+async function warmGeocodes(limit) {
+  const snap = await db().collection("locations").get();
+  const pending = [];
+  snap.forEach((doc) => {
+    const d = doc.data() || {};
+    if (!str(d.name)) return;
+    if (readGeo(d)) return;
+    if (d.geoFailedAt) {
+      // retry a previously-failed venue at most weekly
+      const failedMs = d.geoFailedAt.toMillis ? d.geoFailedAt.toMillis() : 0;
+      if (Date.now() - failedMs < 7 * 24 * 3600 * 1000) return;
+    }
+    const address = cleanAddress(d.address);
+    if (!address && !str(d.name)) return;
+    pending.push({ ref: doc.ref, name: str(d.name), address });
+  });
+
+  let done = 0;
+  for (const v of pending) {
+    if (done >= limit) break;
+    const hit = await geocodeVenue(v.name, v.address);
+    if (hit) {
+      await v.ref.set(
+        {
+          geo: {
+            lat: hit.lat,
+            lng: hit.lng,
+            source: "nominatim",
+            query: hit.query,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          geoFailedAt: admin.firestore.FieldValue.delete(),
+        },
+        { merge: true }
+      );
+    } else {
+      await v.ref.set(
+        { geoFailedAt: admin.firestore.FieldValue.serverTimestamp() },
+        { merge: true }
+      );
+    }
+    done++;
+    if (done < pending.length) await sleep(GEOCODE_GAP_MS);
+  }
+  return { pending: pending.length, processed: done };
+}
+
+exports.geocodeVenuesCron = functions
+  .region(REGION)
+  .runWith({ timeoutSeconds: 120 })
+  .pubsub.schedule("every 30 minutes")
+  .timeZone("America/New_York")
+  .onRun(async () => {
+    try {
+      const r = await warmGeocodes(8);
+      console.log("[geocodeVenuesCron]", JSON.stringify(r));
+    } catch (e) {
+      console.error("[geocodeVenuesCron] failed:", e);
+    }
+    return null;
+  });
+
+// Manual trigger (admin) for backfills: GET /publicGetScheduledVenues is public,
+// this one takes the LEADS_API_KEY so we don't add another secret.
+exports.geocodeVenuesNow = functions
+  .region(REGION)
+  .runWith({ timeoutSeconds: 300, secrets: ["LEADS_API_KEY"] })
+  .https.onRequest(async (req, res) => {
+    if (req.get("x-leads-api-key") !== process.env.LEADS_API_KEY) {
+      res.status(401).json({ error: "unauthorized" });
+      return;
+    }
+    try {
+      const limit = Math.min(50, Number(req.query.limit) || 30);
+      const r = await warmGeocodes(limit);
+      res.status(200).json({ ok: true, ...r });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e.message });
     }
   });

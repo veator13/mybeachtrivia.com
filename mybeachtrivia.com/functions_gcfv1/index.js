@@ -354,6 +354,8 @@ exports.leadsResearchQueue = leads.leadsResearchQueue;
  * ----------------------------------------- */
 const publicLocations = require("./publicLocations");
 exports.publicGetScheduledVenues = publicLocations.publicGetScheduledVenues;
+exports.geocodeVenuesCron = publicLocations.geocodeVenuesCron;
+exports.geocodeVenuesNow = publicLocations.geocodeVenuesNow;
 
 /** ------------------------------------------
  * Beach Trivia: nav-bell notifications (Phase 0 of shift-swap feature)

@@ -1,83 +1,15 @@
 // mybeachtrivia.com/beachTriviaPages/3-Locations/script.js
-// Drop-in replacement (CSP-safe + Locations overlay + REAL Google Maps pins)
+//
+// Public Locations page: an interactive Google Map of the venues that have Beach
+// Trivia events in a chosen window, plus a venue-grouped event list. Data comes
+// from the publicGetScheduledVenues Cloud Function (same-origin via
+// /api/scheduled-venues); coordinates are geocoded + cached server-side, so the
+// browser normally does zero geocoding.
 
 document.addEventListener("DOMContentLoaded", function () {
-  // -----------------------------
-  // Fade effect (optimized)
-  // -----------------------------
-  const headerHeight = 80;
-  const barrierTop = 95;
+  "use strict";
 
-  const headerMask = document.getElementById("header-mask");
-  const jsBarrier = document.getElementById("js-barrier");
-  const services = Array.from(document.querySelectorAll(".service"));
-  const fadeOverlays = Array.from(document.querySelectorAll(".fade-overlay"));
-
-  if (headerMask) {
-    headerMask.style.height = headerHeight + "px";
-    headerMask.style.background = "url(../images/BGimage2.jpeg) no-repeat fixed";
-    headerMask.style.backgroundSize = "cover";
-  }
-  if (jsBarrier) jsBarrier.style.top = barrierTop + "px";
-
-  let rafPending = false;
-  function updateFadeEffects() {
-    services.forEach((service, index) => {
-      const rect = service.getBoundingClientRect();
-      const serviceTop = rect.top;
-      const serviceHeight = rect.height;
-      const fadeOverlay = fadeOverlays[index];
-
-      const distanceToBarrier = serviceTop - barrierTop;
-
-      if (distanceToBarrier <= 0) {
-        const pixelsAboveBarrier = Math.abs(distanceToBarrier);
-        const fadeHeight = Math.min(serviceHeight, pixelsAboveBarrier);
-
-        if (fadeOverlay) fadeOverlay.style.height = `${fadeHeight}px`;
-
-        const gradientStart = fadeHeight;
-        const gradientEnd = Math.min(serviceHeight, fadeHeight + 30);
-
-        const gradientPercentages = [0, 0.1, 0.3, 0.5, 0.7, 0.9];
-        let maskGradient = "linear-gradient(to bottom, transparent 0, ";
-
-        gradientPercentages.forEach((percent, i) => {
-          const position =
-            gradientStart + (gradientEnd - gradientStart) * (i / (gradientPercentages.length - 1));
-          maskGradient += `rgba(0,0,0,${percent}) ${position}px, `;
-        });
-
-        maskGradient += `black ${gradientEnd}px, black 100%)`;
-
-        service.style.maskImage = maskGradient;
-        service.style.webkitMaskImage = maskGradient;
-
-        service.style.pointerEvents = fadeHeight > serviceHeight * 0.9 ? "none" : "auto";
-      } else {
-        if (fadeOverlay) fadeOverlay.style.height = "0px";
-        service.style.maskImage = "none";
-        service.style.webkitMaskImage = "none";
-        service.style.pointerEvents = "auto";
-      }
-    });
-
-    rafPending = false;
-  }
-
-  function requestUpdate() {
-    if (rafPending) return;
-    rafPending = true;
-    requestAnimationFrame(updateFadeEffects);
-  }
-
-  window.addEventListener("scroll", requestUpdate, { passive: true });
-  window.addEventListener("resize", requestUpdate);
-  requestUpdate();
-
-  // -----------------------------
-  // Locations overlay + filters
-  // -----------------------------
+  // ── DOM refs ───────────────────────────────────────────────────────────────
   const datePresetSelect = document.getElementById("datePresetSelect");
   const eventTypeSelect = document.getElementById("eventTypeSelect");
   const dayOfWeekSelect = document.getElementById("dayOfWeekSelect");
@@ -85,18 +17,41 @@ document.addEventListener("DOMContentLoaded", function () {
   const startDateInput = document.getElementById("startDateInput");
   const endDateInput = document.getElementById("endDateInput");
 
+  const venueInput = document.getElementById("venueSearchInput");
+  const venueList = document.getElementById("venueSearchList");
+
   const overlayStatus = document.getElementById("locationsOverlayStatus");
   const overlayBody = document.getElementById("locationsOverlayBody");
 
-  // Same-origin via a hosting rewrite (firebase.json) -> the
-  // publicGetScheduledVenues Cloud Function. Falls back to the raw function URL
-  // if the rewrite 404s (e.g. an old cached firebase.json).
   const FUNCTION_URL = "/api/scheduled-venues";
   const FUNCTION_URL_FALLBACK =
     "https://us-central1-beach-trivia-website.cloudfunctions.net/publicGetScheduledVenues";
 
-  function pad2(n) {
-    return String(n).padStart(2, "0");
+  const HAMPTON_ROADS_CENTER = { lat: 36.9, lng: -76.3 };
+  const GEO_CACHE_KEY = "bt_geocode_cache_v2";
+  const GEO_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+  // Marker colour per event type.
+  const TYPE_COLORS = {
+    "classic-trivia": "#2563eb",
+    "themed-trivia": "#7c3aed",
+    "music-bingo": "#16a34a",
+    "beach-feud": "#ea580c",
+    "game-show": "#db2777",
+  };
+  const DEFAULT_COLOR = "#64748b";
+
+  // ── tiny utils ─────────────────────────────────────────────────────────────
+  const pad2 = (n) => String(n).padStart(2, "0");
+  const safeText = (v) => String(v == null ? "" : v).trim();
+
+  function escapeHtml(s) {
+    return String(s == null ? "" : s)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
   }
 
   function ymdTodayNY() {
@@ -111,23 +66,24 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function addDaysYmd(ymd, days) {
-    const [y, m, d] = String(ymd).split("-").map((x) => Number(x));
+    const [y, m, d] = String(ymd).split("-").map(Number);
     const dt = new Date(Date.UTC(y, m - 1, d));
     dt.setUTCDate(dt.getUTCDate() + Number(days || 0));
     return `${dt.getUTCFullYear()}-${pad2(dt.getUTCMonth() + 1)}-${pad2(dt.getUTCDate())}`;
   }
 
   function monthRangeFromYmd(ymd) {
-    const [y, m] = String(ymd).split("-").map((x) => Number(x));
-    const start = new Date(Date.UTC(y, m - 1, 1));
-    const end = new Date(Date.UTC(y, m, 1));
-    const fmt = (d) => `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
-    return { startStr: fmt(start), endExclusiveStr: fmt(end) };
+    const [y, m] = String(ymd).split("-").map(Number);
+    const fmt = (dt) =>
+      `${dt.getUTCFullYear()}-${pad2(dt.getUTCMonth() + 1)}-${pad2(dt.getUTCDate())}`;
+    return {
+      startStr: fmt(new Date(Date.UTC(y, m - 1, 1))),
+      endExclusiveStr: fmt(new Date(Date.UTC(y, m, 1))),
+    };
   }
 
   function computeRangeFromPreset(preset) {
     const today = ymdTodayNY();
-
     if (preset === "today") return { startStr: today, endExclusiveStr: addDaysYmd(today, 1) };
     if (preset === "next7") return { startStr: today, endExclusiveStr: addDaysYmd(today, 7) };
     if (preset === "next30") return { startStr: today, endExclusiveStr: addDaysYmd(today, 30) };
@@ -135,10 +91,52 @@ document.addEventListener("DOMContentLoaded", function () {
     if (preset === "thisMonth") return monthRangeFromYmd(today);
 
     const startStr = startDateInput?.value || today;
-    const endStr = endDateInput?.value || addDaysYmd(startStr, 30);
+    let endStr = endDateInput?.value || addDaysYmd(startStr, 30);
+    if (endStr <= startStr) endStr = addDaysYmd(startStr, 1);
+    return { startStr, endExclusiveStr: endStr };
+  }
 
-    const endExclusiveStr = endStr <= startStr ? addDaysYmd(startStr, 1) : endStr;
-    return { startStr, endExclusiveStr };
+  function formatEventDate(dateStr) {
+    const raw = safeText(dateStr);
+    const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const dt = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(raw);
+    if (Number.isNaN(dt.getTime())) return raw;
+    return dt.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  }
+
+  function formatEventType(typeStr) {
+    const raw = safeText(typeStr);
+    if (!raw) return "";
+    return raw
+      .replace(/[-_]+/g, " ")
+      .trim()
+      .split(/\s+/)
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+      .join(" ");
+  }
+
+  function timeRange(startTime, endTime) {
+    return [safeText(startTime), safeText(endTime)].filter(Boolean).join("–");
+  }
+
+  function parseTimeToMinutes(t) {
+    const m = safeText(t).toLowerCase().match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/);
+    if (!m) return 24 * 60;
+    let h = Number(m[1]);
+    const min = Number(m[2] || 0);
+    if (m[3] === "pm" && h !== 12) h += 12;
+    if (m[3] === "am" && h === 12) h = 0;
+    return h * 60 + min;
+  }
+
+  function shiftDayNumber(dateStr) {
+    const m = safeText(dateStr).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return null;
+    return new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))).getUTCDay();
+  }
+
+  function venueKey(name) {
+    return safeText(name).toLowerCase();
   }
 
   function setStatus(msg) {
@@ -147,718 +145,45 @@ document.addEventListener("DOMContentLoaded", function () {
     overlayStatus.style.display = msg ? "block" : "none";
   }
 
-  function clearOverlay() {
-    if (overlayBody) overlayBody.innerHTML = "";
-  }
+  // ── state ──────────────────────────────────────────────────────────────────
+  let allVenues = []; // last API response (already type-filtered server-side)
+  let selectedVenue = ""; // "" = all venues
+  let lastRange = null;
 
-  function safeText(v) {
-    const s = String(v || "").trim();
-    return s.length ? s : "";
-  }
-
-  function formatEventDate(dateStr) {
-    const raw = safeText(dateStr);
-    if (!raw) return "";
-
-    const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (isoMatch) {
-      const year = Number(isoMatch[1]);
-      const month = Number(isoMatch[2]);
-      const day = Number(isoMatch[3]);
-
-      const dt = new Date(year, month - 1, day);
-      return dt.toLocaleDateString("en-US", {
-        month: "long",
-        day: "numeric",
-      });
+  // ── data fetch ─────────────────────────────────────────────────────────────
+  async function fetchVenues(base, qs) {
+    const resp = await fetch(`${base}?${qs.toString()}`, { method: "GET" });
+    const json = await resp.json().catch(() => null);
+    if (!resp.ok || !json || json.ok !== true) {
+      const err = new Error(json?.error || json?.message || `HTTP ${resp.status}`);
+      err.status = resp.status;
+      throw err;
     }
-
-    const fallback = new Date(raw);
-    if (!Number.isNaN(fallback.getTime())) {
-      return fallback.toLocaleDateString("en-US", {
-        month: "long",
-        day: "numeric",
-      });
-    }
-
-    return raw;
+    return json;
   }
 
-  function formatEventType(typeStr) {
-    const raw = safeText(typeStr);
-    if (!raw) return "";
-
-    return raw
-      .replace(/[-_]+/g, " ")
-      .replace(/\s+/g, " ")
-      .trim()
-      .split(" ")
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-      .join(" ");
-  }
-
-  function parseTimeToMinutes(timeStr) {
-    const raw = safeText(timeStr).toLowerCase();
-    if (!raw) return 0;
-
-    const match = raw.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i);
-    if (!match) return 0;
-
-    let hour = Number(match[1]);
-    const minute = Number(match[2] || 0);
-    const meridiem = (match[3] || "").toLowerCase();
-
-    if (meridiem === "pm" && hour !== 12) hour += 12;
-    if (meridiem === "am" && hour === 12) hour = 0;
-
-    return hour * 60 + minute;
-  }
-
-  function parseShiftDateToDayNumber(dateStr) {
-    const raw = safeText(dateStr);
-    if (!raw) return null;
-
-    const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (isoMatch) {
-      const y = Number(isoMatch[1]);
-      const m = Number(isoMatch[2]);
-      const d = Number(isoMatch[3]);
-      const dt = new Date(Date.UTC(y, m - 1, d));
-      return dt.getUTCDay();
-    }
-
-    const fallback = new Date(raw);
-    if (!Number.isNaN(fallback.getTime())) {
-      return fallback.getDay();
-    }
-
-    return null;
-  }
-
-  function parseShiftDateTimeMs(shift) {
-    const rawDate = safeText(shift?.date);
-    if (!rawDate) return Number.POSITIVE_INFINITY;
-
-    const isoMatch = rawDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    let y, m, d;
-
-    if (isoMatch) {
-      y = Number(isoMatch[1]);
-      m = Number(isoMatch[2]);
-      d = Number(isoMatch[3]);
-    } else {
-      const fallback = new Date(rawDate);
-      if (Number.isNaN(fallback.getTime())) return Number.POSITIVE_INFINITY;
-      y = fallback.getFullYear();
-      m = fallback.getMonth() + 1;
-      d = fallback.getDate();
-    }
-
-    const minutes = parseTimeToMinutes(shift?.startTime);
-    const hoursPart = Math.floor(minutes / 60);
-    const minutesPart = minutes % 60;
-
-    return Date.UTC(y, m - 1, d, hoursPart, minutesPart, 0, 0);
-  }
-
-  function sortShiftsByDateTime(shifts) {
-    return [...(Array.isArray(shifts) ? shifts : [])].sort((a, b) => {
-      const aTime = parseShiftDateTimeMs(a);
-      const bTime = parseShiftDateTimeMs(b);
-      if (aTime !== bTime) return aTime - bTime;
-
-      const aVenue = safeText(a?.venueName).toLowerCase();
-      const bVenue = safeText(b?.venueName).toLowerCase();
-      if (aVenue !== bVenue) return aVenue.localeCompare(bVenue);
-
-      const aType = safeText(a?.type).toLowerCase();
-      const bType = safeText(b?.type).toLowerCase();
-      if (aType !== bType) return aType.localeCompare(bType);
-
-      return safeText(a?.startTime).localeCompare(safeText(b?.startTime));
-    });
-  }
-
-  function filterVenuesByDayOfWeek(venues, selectedDay) {
-    if (!Array.isArray(venues)) return [];
-    if (!selectedDay || selectedDay === "all") return venues;
-
-    return venues
-      .map((venue) => {
-        const shifts = Array.isArray(venue?.shifts) ? venue.shifts : [];
-        const filteredShifts = shifts.filter((shift) => {
-          const dayNum = parseShiftDateToDayNumber(shift?.date);
-          return dayNum !== null && String(dayNum) === String(selectedDay);
-        });
-
-        if (!filteredShifts.length) return null;
-
-        return {
-          ...venue,
-          shifts: filteredShifts,
-        };
-      })
-      .filter(Boolean);
-  }
-
-  function setEventTypeOptions(eventTypes, keepCurrentValue) {
-    if (!eventTypeSelect) return;
-
-    const current = keepCurrentValue ? String(eventTypeSelect.value || "all") : "all";
-    eventTypeSelect.innerHTML = `<option value="all">All</option>`;
-
-    (eventTypes || []).forEach((t) => {
-      const tt = String(t || "").trim();
-      if (!tt) return;
-      const opt = document.createElement("option");
-      opt.value = tt;
-      opt.textContent = formatEventType(tt);
-      eventTypeSelect.appendChild(opt);
-    });
-
-    const canKeep =
-      current !== "all" && Array.from(eventTypeSelect.options).some((o) => String(o.value) === current);
-
-    eventTypeSelect.value = canKeep ? current : "all";
-  }
-
-  function flattenVenuesToEvents(venues) {
-    const events = [];
-
-    (venues || []).forEach((venue) => {
-      const venueName = safeText(venue?.name) || "Unnamed Venue";
-      const venueAddress = safeText(venue?.address) || "Address not set";
-      const venueKey = getVenueKey(venueName, venueAddress);
-      const shifts = Array.isArray(venue?.shifts) ? venue.shifts : [];
-
-      shifts.forEach((shift) => {
-        events.push({
-          venueKey,
-          venueName,
-          venueAddress,
-          type: safeText(shift?.type),
-          date: safeText(shift?.date),
-          startTime: safeText(shift?.startTime),
-          endTime: safeText(shift?.endTime),
-          sortTime: parseShiftDateTimeMs(shift),
-          venueRef: venue,
-          rawShift: shift,
-        });
-      });
-    });
-
-    return sortShiftsByDateTime(events);
-  }
-
-  // -----------------------------
-  // Google Maps state + helpers
-  // -----------------------------
-  const HAMPTON_ROADS_CENTER = { lat: 36.9, lng: -76.3 };
-  const GEO_CACHE_KEY = "bt_geocode_cache_v1";
-  const GEO_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-
-  let gMap = null;
-  let gGeocoder = null;
-  let gInfoWindow = null;
-  let gMarkers = [];
-  let gMapClass = null;
-  let gMarkerByVenueKey = new Map();
-  let gHighlightedMarker = null;
-
-  function getVenueKey(name, address) {
-    return `${safeText(name).toLowerCase()}|||${safeText(address).toLowerCase()}`;
-  }
-
-  function getGeoCache() {
-    try {
-      const raw = localStorage.getItem(GEO_CACHE_KEY);
-      const obj = raw ? JSON.parse(raw) : {};
-      return obj && typeof obj === "object" ? obj : {};
-    } catch {
-      return {};
-    }
-  }
-
-  function setGeoCache(cache) {
-    try {
-      localStorage.setItem(GEO_CACHE_KEY, JSON.stringify(cache || {}));
-    } catch {}
-  }
-
-  function normalizeQueryForGeocode(name, address) {
-    const a = safeText(address);
-    const n = safeText(name);
-    if (a) return a;
-    if (n) return `${n} Hampton Roads VA`;
-    return "Hampton Roads VA";
-  }
-
-  function ensureMapDivExists() {
-    const mapDiv = document.getElementById("map");
-    if (mapDiv) return mapDiv;
-
-    const wrapper = document.getElementById("map-wrapper");
-    if (!wrapper) return null;
-
-    const fallback = document.createElement("div");
-    fallback.id = "map";
-    fallback.style.width = "100%";
-    fallback.style.height = "550px";
-    fallback.style.borderRadius = "10px";
-    wrapper.insertBefore(fallback, wrapper.firstChild);
-    return fallback;
-  }
-
-  function loadGoogleMapsJs(apiKey) {
-    if (window.__btGmapsPromise) return window.__btGmapsPromise;
-
-    window.__btGmapsPromise = new Promise((resolve, reject) => {
-      if (window.google?.maps?.Map || window.google?.maps?.importLibrary) {
-        resolve(true);
-        return;
-      }
-
-      const k = String(apiKey || "").trim();
-      if (!k) {
-        reject(new Error("missing api key"));
-        return;
-      }
-
-      const existing = document.querySelector('script[data-bt-gmaps="1"]');
-      if (existing) {
-        const t0 = Date.now();
-        const iv = setInterval(() => {
-          if (window.google?.maps?.Map || window.google?.maps?.importLibrary) {
-            clearInterval(iv);
-            resolve(true);
-          } else if (Date.now() - t0 > 15000) {
-            clearInterval(iv);
-            reject(new Error("gmaps load timeout"));
-          }
-        }, 100);
-        return;
-      }
-
-      const cbName = "__btMapsReady";
-      window[cbName] = () => {
-        try {
-          delete window[cbName];
-        } catch {}
-        resolve(true);
-      };
-
-      const s = document.createElement("script");
-      s.setAttribute("data-bt-gmaps", "1");
-      s.async = true;
-      s.defer = true;
-      s.onerror = () => reject(new Error("gmaps script load failed"));
-      s.src =
-        `https://maps.googleapis.com/maps/api/js` +
-        `?key=${encodeURIComponent(k)}` +
-        `&v=weekly` +
-        `&loading=async` +
-        `&callback=${cbName}`;
-
-      document.head.appendChild(s);
-    });
-
-    return window.__btGmapsPromise;
-  }
-
-  function openVenueInfo(marker, venue) {
-    if (!gInfoWindow || !marker || !venue) return;
-    try {
-      gInfoWindow.setContent(buildInfoHtml(venue));
-      gInfoWindow.open({ map: gMap, anchor: marker });
-    } catch {}
-  }
-
-  function highlightMarker(marker) {
-    if (!marker || !window.google?.maps?.Animation) return;
-    if (gHighlightedMarker === marker) return;
-
-    clearMarkerHighlight();
-
-    gHighlightedMarker = marker;
-
-    try {
-      if (typeof marker.setAnimation === "function") {
-        marker.setAnimation(google.maps.Animation.BOUNCE);
-      }
-      if (typeof marker.setZIndex === "function") {
-        marker.setZIndex(google.maps.Marker.MAX_ZINDEX + 1);
-      }
-    } catch {}
-  }
-
-  function clearMarkerHighlight() {
-    if (!gHighlightedMarker) return;
-
-    try {
-      if (typeof gHighlightedMarker.setAnimation === "function") {
-        gHighlightedMarker.setAnimation(null);
-      }
-      if (typeof gHighlightedMarker.setZIndex === "function") {
-        gHighlightedMarker.setZIndex(undefined);
-      }
-    } catch {}
-
-    gHighlightedMarker = null;
-  }
-
-  function highlightMarkerForVenueKey(venueKey) {
-    const marker = gMarkerByVenueKey.get(venueKey);
-    if (!marker) return;
-    highlightMarker(marker);
-  }
-
-  function focusMarkerForVenueKey(venueKey) {
-    const marker = gMarkerByVenueKey.get(venueKey);
-    if (!marker || !gMap) return;
-
-    highlightMarker(marker);
-
-    try {
-      const pos =
-        typeof marker.getPosition === "function"
-          ? marker.getPosition()
-          : marker.position || null;
-
-      if (pos) {
-        gMap.panTo(pos);
-        if (typeof gMap.getZoom === "function" && gMap.getZoom() < 12) {
-          gMap.setZoom(12);
-        }
-      }
-    } catch {}
-
-    if (marker.__btVenueRef) {
-      openVenueInfo(marker, marker.__btVenueRef);
-    }
-  }
-
-  function renderOverlay(venues, range) {
-    clearOverlay();
-    if (!overlayBody) return;
-
-    const events = flattenVenuesToEvents(venues);
-
-    if (!events.length) {
-      const rangeText =
-        range && range.startStr && range.endExclusiveStr
-          ? ` (${range.startStr} → ${range.endExclusiveStr})`
-          : "";
-      setStatus(`No scheduled venues found for this filter.${rangeText}`);
-      return;
-    }
-
-    setStatus("");
-    const frag = document.createDocumentFragment();
-
-    events.forEach((event) => {
-      const badge = document.createElement("div");
-      badge.className = "location-badge";
-      badge.tabIndex = 0;
-      badge.style.cursor = "pointer";
-
-      const info = document.createElement("div");
-      info.className = "location-info";
-
-      const h4 = document.createElement("h4");
-      h4.textContent = event.venueName;
-
-      const pAddr = document.createElement("p");
-      pAddr.textContent = event.venueAddress;
-
-      const formattedType = formatEventType(event.type);
-      const formattedDate = formatEventDate(event.date);
-      const timePart = [event.startTime, event.endTime].filter(Boolean).join("–");
-      const pieces = [formattedType, formattedDate, timePart].filter(Boolean);
-
-      const pEvent = document.createElement("p");
-      pEvent.className = "event-time";
-      pEvent.textContent = pieces.join(" • ");
-
-      info.appendChild(h4);
-      info.appendChild(pAddr);
-      info.appendChild(pEvent);
-
-      badge.appendChild(info);
-
-      badge.addEventListener("mouseenter", () => {
-        highlightMarkerForVenueKey(event.venueKey);
-      });
-
-      badge.addEventListener("mouseleave", () => {
-        clearMarkerHighlight();
-      });
-
-      badge.addEventListener("focus", () => {
-        highlightMarkerForVenueKey(event.venueKey);
-      });
-
-      badge.addEventListener("blur", () => {
-        clearMarkerHighlight();
-      });
-
-      badge.addEventListener("click", () => {
-        focusMarkerForVenueKey(event.venueKey);
-      });
-
-      badge.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          focusMarkerForVenueKey(event.venueKey);
-        }
-      });
-
-      frag.appendChild(badge);
-    });
-
-    overlayBody.appendChild(frag);
-  }
-
-  function clearMarkers() {
-    gMarkers.forEach((m) => {
-      try {
-        if (typeof m.setAnimation === "function") m.setAnimation(null);
-      } catch {}
-
-      try {
-        if (typeof m.setMap === "function") m.setMap(null);
-        else m.map = null;
-      } catch {}
-    });
-    gMarkers = [];
-    gMarkerByVenueKey = new Map();
-    gHighlightedMarker = null;
-  }
-
-  function showMapError(msg) {
-    const mapDiv = document.getElementById("map");
-    if (!mapDiv) return;
-    mapDiv.innerHTML =
-      '<div style="display:flex;align-items:center;justify-content:center;' +
-      'height:100%;padding:24px;text-align:center;color:#555;font:14px/1.5 sans-serif;">' +
-      escapeHtml(msg) +
-      "</div>";
-  }
-
-  async function initMapIfPossible() {
-    if (gMap) return true;
-
-    const finalKey = window.__GMAPS_API_KEY__;
-
-    try {
-      await loadGoogleMapsJs(finalKey);
-
-      const mapDiv = ensureMapDivExists();
-      if (!mapDiv) throw new Error("missing map wrapper");
-
-      let MapCtor = null;
-      if (typeof google.maps.importLibrary === "function") {
-        ({ Map: MapCtor } = await google.maps.importLibrary("maps"));
-      } else if (typeof google.maps.Map === "function") {
-        MapCtor = google.maps.Map;
-      }
-      if (!MapCtor) throw new Error("Maps API loaded but no map constructor found");
-
-      gMapClass = MapCtor;
-      gGeocoder = gGeocoder || new google.maps.Geocoder();
-      gInfoWindow = gInfoWindow || new google.maps.InfoWindow({ disableAutoPan: true });
-
-      gMap = new gMapClass(mapDiv, {
-        center: HAMPTON_ROADS_CENTER,
-        zoom: 10,
-        zoomControl: true,
-        gestureHandling: "greedy",
-        mapTypeControl: false,
-        streetViewControl: false,
-        fullscreenControl: true,
-      });
-
-      // If the container was mid-layout when the map was created, nudge it to
-      // re-measure once things settle + whenever the box resizes.
-      const nudge = () => {
-        try {
-          google.maps.event.trigger(gMap, "resize");
-          gMap.setCenter(HAMPTON_ROADS_CENTER);
-        } catch (_) {}
-      };
-      setTimeout(nudge, 300);
-      setTimeout(nudge, 1200);
-      if (typeof ResizeObserver !== "undefined") {
-        new ResizeObserver(() => {
-          try {
-            google.maps.event.trigger(gMap, "resize");
-          } catch (_) {}
-        }).observe(mapDiv);
-      }
-
-      return true;
-    } catch (e) {
-      console.warn("[locations] maps init failed:", e?.message || e);
-      showMapError("Map unavailable right now — the event list below still works.");
-      return false;
-    }
-  }
-
-  function buildInfoHtml(venue) {
-    const name = safeText(venue?.name) || "Venue";
-    const address = safeText(venue?.address);
-    const shifts = sortShiftsByDateTime(Array.isArray(venue?.shifts) ? venue.shifts : []);
-
-    const lines = [];
-    lines.push(`<div style="font-family:sans-serif;width:240px;min-width:240px;color:#222;line-height:1.4;">`);
-    lines.push(`<div style="font-weight:700;margin-bottom:6px;color:#111;">${escapeHtml(name)}</div>`);
-    if (address) lines.push(`<div style="margin-bottom:6px;color:#555;">${escapeHtml(address)}</div>`);
-    if (shifts.length) {
-      lines.push(`<div style="font-weight:700;margin:8px 0 4px 0;color:#111;">Upcoming</div>`);
-      shifts.slice(0, 5).forEach((s) => {
-        const type = formatEventType(s.type);
-        const date = formatEventDate(s.date);
-        const start = safeText(s.startTime);
-        const end = safeText(s.endTime);
-        const timePart = [start, end].filter(Boolean).join("–");
-        const pieces = [type, date, timePart].filter(Boolean);
-        lines.push(`<div style="margin:2px 0;color:#333;">• ${escapeHtml(pieces.join(" • "))}</div>`);
-      });
-      if (shifts.length > 5) {
-        lines.push(`<div style="opacity:0.75;margin-top:4px;color:#333;">+ ${shifts.length - 5} more…</div>`);
-      }
-    }
-    lines.push(`</div>`);
-    return lines.join("");
-  }
-
-  function escapeHtml(s) {
-    return String(s || "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
-  }
-
-  async function geocodeVenue(venue, cache) {
-    if (!gGeocoder) return null;
-
-    const query = normalizeQueryForGeocode(venue?.name, venue?.address);
-    const cacheKey = query.toLowerCase();
-
-    const now = Date.now();
-    const cached = cache[cacheKey];
-    if (cached && cached.lat && cached.lng && cached.ts && now - cached.ts < GEO_CACHE_TTL_MS) {
-      return { lat: cached.lat, lng: cached.lng, query, fromCache: true };
-    }
-
-    const result = await new Promise((resolve) => {
-      gGeocoder.geocode({ address: query }, (results, status) => {
-        if (status === "OK" && results && results[0] && results[0].geometry) {
-          const loc = results[0].geometry.location;
-          resolve({ lat: loc.lat(), lng: loc.lng(), query, fromCache: false });
-        } else {
-          resolve(null);
-        }
-      });
-    });
-
-    if (result) {
-      cache[cacheKey] = { lat: result.lat, lng: result.lng, ts: now };
-    }
-
-    return result;
-  }
-
-  async function updateMapPins(venues) {
-    const ok = await initMapIfPossible();
-    if (!ok || !gMap) return;
-
-    clearMarkers();
-
-    const cache = getGeoCache();
-    const bounds = new google.maps.LatLngBounds();
-    let pinned = 0;
-
-    for (const v of venues || []) {
-      const geo = await geocodeVenue(v, cache);
-      if (!geo) continue;
-
-      const pos = { lat: geo.lat, lng: geo.lng };
-      const marker = new google.maps.Marker({
-        position: pos,
-        map: gMap,
-        title: safeText(v?.name) || "Venue",
-      });
-
-      marker.__btVenueRef = v;
-      marker.__btVenueKey = getVenueKey(v?.name, v?.address);
-
-      marker.addListener("click", () => openVenueInfo(marker, v));
-      marker.addListener("mouseover", () => openVenueInfo(marker, v));
-      marker.addListener("mouseout", () => {
-        try {
-          gInfoWindow.close();
-        } catch {}
-      });
-
-      gMarkers.push(marker);
-      gMarkerByVenueKey.set(marker.__btVenueKey, marker);
-      bounds.extend(pos);
-      pinned++;
-
-      if (!geo.fromCache) await new Promise((r) => setTimeout(r, 120));
-    }
-
-    setGeoCache(cache);
-
-    if (pinned > 0) {
-      gMap.fitBounds(bounds, 60);
-    } else {
-      gMap.setCenter(HAMPTON_ROADS_CENTER);
-      gMap.setZoom(10);
-    }
-  }
-
-  // -----------------------------
-  // Fetch + render + map pins
-  // -----------------------------
   async function refreshLocations() {
-    if (!overlayBody && !overlayStatus) return;
-
     const preset = datePresetSelect ? String(datePresetSelect.value || "next30") : "next30";
-    const { startStr, endExclusiveStr } = computeRangeFromPreset(preset);
+    const range = computeRangeFromPreset(preset);
+    lastRange = range;
     const type = eventTypeSelect ? String(eventTypeSelect.value || "all") : "all";
-    const selectedDay = dayOfWeekSelect ? String(dayOfWeekSelect.value || "all") : "all";
 
-    setStatus("Loading venues…");
-    clearOverlay();
+    setStatus("Loading events…");
+    if (overlayBody) overlayBody.innerHTML = "";
+    showMapLoading(true);
 
     const qs = new URLSearchParams();
-    qs.set("start", startStr);
-    qs.set("end", endExclusiveStr);
+    qs.set("start", range.startStr);
+    qs.set("end", range.endExclusiveStr);
     qs.set("type", type && type !== "all" ? type : "all");
 
-    async function fetchVenues(base) {
-      const resp = await fetch(`${base}?${qs.toString()}`, { method: "GET" });
-      const json = await resp.json().catch(() => null);
-      if (!resp.ok || !json || json.ok !== true) {
-        const msg = json?.error || json?.message || `HTTP ${resp.status}`;
-        const err = new Error(String(msg));
-        err.status = resp.status;
-        throw err;
-      }
-      return json;
-    }
-
-    let data;
+    let data = null;
     try {
-      data = await fetchVenues(FUNCTION_URL);
+      data = await fetchVenues(FUNCTION_URL, qs);
     } catch (e) {
-      // Rewrite missing / 404 → try the raw function URL once.
       if (e.status === 404) {
         try {
-          data = await fetchVenues(FUNCTION_URL_FALLBACK);
+          data = await fetchVenues(FUNCTION_URL_FALLBACK, qs);
         } catch (e2) {
           console.warn("[locations] fetch failed (fallback):", e2);
         }
@@ -868,44 +193,667 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     if (!data) {
-      setStatus("Could not load venues right now. Please try again.");
+      showMapLoading(false);
+      setStatus("Could not load events right now. Please try again.");
       return;
     }
 
-    let venues = Array.isArray(data.venues) ? data.venues : [];
-    const eventTypes = Array.isArray(data.eventTypes) ? data.eventTypes : [];
-
-    if (eventTypes.length) setEventTypeOptions(eventTypes, true);
-
-    venues = filterVenuesByDayOfWeek(venues, selectedDay);
-
-    renderOverlay(venues, data.range || null);
-    updateMapPins(venues).catch((e) => console.warn("[locations] updateMapPins failed:", e));
+    allVenues = Array.isArray(data.venues) ? data.venues : [];
+    if (Array.isArray(data.eventTypes) && data.eventTypes.length) {
+      setEventTypeOptions(data.eventTypes);
+    }
+    buildVenueOptions(allVenues);
+    applyClientFilters();
   }
 
+  // ── client-side filtering (venue + day of week) ────────────────────────────
+  function applyClientFilters() {
+    const day = dayOfWeekSelect ? String(dayOfWeekSelect.value || "all") : "all";
+
+    let venues = allVenues.map((v) => ({ ...v, shifts: [...(v.shifts || [])] }));
+
+    if (selectedVenue) {
+      venues = venues.filter((v) => venueKey(v.name) === venueKey(selectedVenue));
+    }
+
+    if (day !== "all") {
+      venues = venues
+        .map((v) => ({
+          ...v,
+          shifts: v.shifts.filter((s) => String(shiftDayNumber(s.date)) === day),
+        }))
+        .filter((v) => v.shifts.length);
+    }
+
+    renderList(venues);
+    renderJsonLd(venues);
+    updateMapPins(venues);
+  }
+
+  // ── venue combobox ─────────────────────────────────────────────────────────
+  function buildVenueOptions(venues) {
+    if (!venueList) return;
+    const names = Array.from(new Set(venues.map((v) => safeText(v.name)).filter(Boolean)))
+      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+    venueList.__names = names;
+    // keep current selection if it still exists
+    if (selectedVenue && !names.some((n) => venueKey(n) === venueKey(selectedVenue))) {
+      selectedVenue = "";
+      if (venueInput) venueInput.value = "";
+    }
+    renderVenueOptions(venueInput ? venueInput.value : "");
+  }
+
+  // forgiving match: exact-substring first, then a loose subsequence match so a
+  // couple of typos / missing letters still find the venue.
+  function looseMatch(needle, haystack) {
+    const n = needle.toLowerCase().trim();
+    const h = haystack.toLowerCase();
+    if (!n) return { hit: true, score: 0 };
+    if (h.includes(n)) return { hit: true, score: h.indexOf(n) };
+    let i = 0;
+    let gaps = 0;
+    for (let c = 0; c < h.length && i < n.length; c++) {
+      if (h[c] === n[i]) i++;
+      else if (i > 0) gaps++;
+    }
+    // allow all chars matched in order with a small number of gaps
+    if (i === n.length && gaps <= Math.max(2, Math.floor(n.length / 3))) {
+      return { hit: true, score: 1000 + gaps };
+    }
+    return { hit: false, score: Infinity };
+  }
+
+  function renderVenueOptions(query) {
+    if (!venueList) return;
+    const names = venueList.__names || [];
+    const q = safeText(query);
+
+    const matches = (q
+      ? names
+          .map((name) => ({ name, ...looseMatch(q, name) }))
+          .filter((m) => m.hit)
+          .sort((a, b) => a.score - b.score || a.name.localeCompare(b.name))
+          .map((m) => m.name)
+      : names
+    ).slice(0, 60);
+
+    const frag = document.createDocumentFragment();
+
+    const allOpt = document.createElement("div");
+    allOpt.className = "venue-option" + (!selectedVenue ? " is-selected" : "");
+    allOpt.setAttribute("role", "option");
+    allOpt.dataset.value = "";
+    allOpt.textContent = "All venues";
+    frag.appendChild(allOpt);
+
+    if (!matches.length && q) {
+      const none = document.createElement("div");
+      none.className = "venue-option venue-option--empty";
+      none.textContent = `No venue matches “${q}”`;
+      frag.appendChild(none);
+    }
+
+    matches.forEach((name) => {
+      const opt = document.createElement("div");
+      opt.className =
+        "venue-option" + (venueKey(name) === venueKey(selectedVenue) ? " is-selected" : "");
+      opt.setAttribute("role", "option");
+      opt.dataset.value = name;
+      opt.textContent = name;
+      frag.appendChild(opt);
+    });
+
+    venueList.innerHTML = "";
+    venueList.appendChild(frag);
+  }
+
+  function openVenueList() {
+    if (!venueList) return;
+    renderVenueOptions(venueInput ? venueInput.value : "");
+    venueList.hidden = false;
+    if (venueInput) venueInput.setAttribute("aria-expanded", "true");
+  }
+  function closeVenueList() {
+    if (!venueList) return;
+    venueList.hidden = true;
+    if (venueInput) venueInput.setAttribute("aria-expanded", "false");
+  }
+
+  function chooseVenue(name) {
+    selectedVenue = safeText(name);
+    if (venueInput) venueInput.value = selectedVenue;
+    closeVenueList();
+    applyClientFilters();
+  }
+
+  if (venueInput && venueList) {
+    venueInput.addEventListener("focus", openVenueList);
+    venueInput.addEventListener("click", openVenueList);
+    venueInput.addEventListener("input", () => {
+      openVenueList();
+      // typing invalidates a previously locked selection until they pick again
+      selectedVenue = "";
+    });
+    venueInput.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        closeVenueList();
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        const first = venueList.querySelector(".venue-option:not(.venue-option--empty)");
+        if (first) chooseVenue(first.dataset.value);
+      }
+    });
+    venueList.addEventListener("mousedown", (e) => {
+      const opt = e.target.closest(".venue-option");
+      if (!opt || opt.classList.contains("venue-option--empty")) return;
+      e.preventDefault();
+      chooseVenue(opt.dataset.value);
+    });
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest("#venueSearchField")) closeVenueList();
+    });
+  }
+
+  // ── event-type <select> options (from API) ─────────────────────────────────
+  function setEventTypeOptions(eventTypes) {
+    if (!eventTypeSelect) return;
+    const current = String(eventTypeSelect.value || "all");
+    eventTypeSelect.innerHTML = '<option value="all">All</option>';
+    eventTypes.forEach((t) => {
+      const tt = safeText(t);
+      if (!tt) return;
+      const opt = document.createElement("option");
+      opt.value = tt;
+      opt.textContent = formatEventType(tt);
+      eventTypeSelect.appendChild(opt);
+    });
+    eventTypeSelect.value = Array.from(eventTypeSelect.options).some((o) => o.value === current)
+      ? current
+      : "all";
+  }
+
+  // ── event list (grouped by venue) ─────────────────────────────────────────
+  function renderList(venues) {
+    if (!overlayBody) return;
+    overlayBody.innerHTML = "";
+
+    const totalEvents = venues.reduce((n, v) => n + (v.shifts?.length || 0), 0);
+    if (!totalEvents) {
+      setStatus(
+        selectedVenue
+          ? `No upcoming events for ${selectedVenue} in this window.`
+          : "No events found for this filter."
+      );
+      return;
+    }
+    setStatus(
+      `${venues.length} venue${venues.length === 1 ? "" : "s"} · ` +
+        `${totalEvents} event${totalEvents === 1 ? "" : "s"}`
+    );
+
+    const frag = document.createDocumentFragment();
+
+    venues.forEach((v) => {
+      const card = document.createElement("div");
+      card.className = "venue-card";
+      card.tabIndex = 0;
+      card.dataset.venue = venueKey(v.name);
+
+      const h4 = document.createElement("h4");
+      h4.textContent = safeText(v.name) || "Venue";
+      card.appendChild(h4);
+
+      if (safeText(v.address)) {
+        const addr = document.createElement("p");
+        addr.className = "venue-card-addr";
+        addr.textContent = v.address;
+        card.appendChild(addr);
+      }
+
+      const shifts = [...(v.shifts || [])].sort((a, b) => {
+        if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+        return parseTimeToMinutes(a.startTime) - parseTimeToMinutes(b.startTime);
+      });
+
+      const ul = document.createElement("ul");
+      ul.className = "venue-card-events";
+      shifts.slice(0, 4).forEach((s) => {
+        const li = document.createElement("li");
+        const dot = document.createElement("span");
+        dot.className = "evt-dot";
+        dot.style.background = TYPE_COLORS[s.type] || DEFAULT_COLOR;
+        li.appendChild(dot);
+        const label = [
+          formatEventType(s.type) + (s.theme ? `: ${s.theme}` : ""),
+          formatEventDate(s.date),
+          timeRange(s.startTime, s.endTime),
+        ]
+          .filter(Boolean)
+          .join(" · ");
+        li.appendChild(document.createTextNode(label));
+        ul.appendChild(li);
+      });
+      if (shifts.length > 4) {
+        const li = document.createElement("li");
+        li.className = "venue-card-more";
+        li.textContent = `+ ${shifts.length - 4} more`;
+        ul.appendChild(li);
+      }
+      card.appendChild(ul);
+
+      if (safeText(v.address) || safeText(v.name)) {
+        const dir = document.createElement("a");
+        dir.className = "venue-card-dir";
+        dir.href =
+          "https://www.google.com/maps/dir/?api=1&destination=" +
+          encodeURIComponent(
+            safeText(v.address) ? `${v.name}, ${v.address}` : `${v.name} Virginia Beach VA`
+          );
+        dir.target = "_blank";
+        dir.rel = "noopener";
+        dir.textContent = "Get directions ↗";
+        card.appendChild(dir);
+      }
+
+      const key = venueKey(v.name);
+      card.addEventListener("mouseenter", () => highlightVenue(key, true));
+      card.addEventListener("mouseleave", () => highlightVenue(key, false));
+      card.addEventListener("focus", () => highlightVenue(key, true));
+      card.addEventListener("blur", () => highlightVenue(key, false));
+      card.addEventListener("click", () => focusVenueOnMap(key));
+      card.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          focusVenueOnMap(key);
+        }
+      });
+
+      frag.appendChild(card);
+    });
+
+    overlayBody.appendChild(frag);
+  }
+
+  // ── SEO: JSON-LD Event structured data ────────────────────────────────────
+  function renderJsonLd(venues) {
+    let el = document.getElementById("bt-events-jsonld");
+    if (!el) {
+      el = document.createElement("script");
+      el.type = "application/ld+json";
+      el.id = "bt-events-jsonld";
+      document.head.appendChild(el);
+    }
+    const items = [];
+    venues.forEach((v) => {
+      (v.shifts || []).slice(0, 8).forEach((s) => {
+        items.push({
+          "@context": "https://schema.org",
+          "@type": "Event",
+          name: `${formatEventType(s.type)}${s.theme ? `: ${s.theme}` : ""} at ${v.name}`,
+          startDate: s.date,
+          eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",
+          eventStatus: "https://schema.org/EventScheduled",
+          location: {
+            "@type": "Place",
+            name: v.name,
+            address: v.address || undefined,
+          },
+          organizer: { "@type": "Organization", name: "Beach Trivia", url: "https://mybeachtrivia.com" },
+        });
+      });
+    });
+    el.textContent = JSON.stringify(items.slice(0, 50));
+  }
+
+  // ── Google Maps ───────────────────────────────────────────────────────────
+  let gMap = null;
+  let gInfoWindow = null;
+  let gGeocoder = null;
+  let gClusterer = null;
+  let gMarkers = [];
+  let gMarkerByVenue = new Map();
+  let gBouncing = null;
+
+  function showMapLoading(on) {
+    const wrap = document.getElementById("map-wrapper");
+    if (!wrap) return;
+    let sp = document.getElementById("map-loading");
+    if (on) {
+      if (!sp) {
+        sp = document.createElement("div");
+        sp.id = "map-loading";
+        sp.innerHTML = '<div class="map-spinner"></div><span>Loading map…</span>';
+        wrap.appendChild(sp);
+      }
+      sp.style.display = "flex";
+    } else if (sp) {
+      sp.style.display = "none";
+    }
+  }
+
+  function showMapError(msg) {
+    const mapDiv = document.getElementById("map");
+    if (!mapDiv) return;
+    mapDiv.innerHTML =
+      '<div class="map-msg">' + escapeHtml(msg) + "</div>";
+  }
+
+  function loadGoogleMapsJs(apiKey) {
+    if (window.__btGmapsPromise) return window.__btGmapsPromise;
+    window.__btGmapsPromise = new Promise((resolve, reject) => {
+      if (window.google?.maps?.importLibrary || window.google?.maps?.Map) return resolve(true);
+      const k = String(apiKey || "").trim();
+      if (!k) return reject(new Error("missing api key"));
+      const cb = "__btMapsReady";
+      window[cb] = () => {
+        try { delete window[cb]; } catch (_) {}
+        resolve(true);
+      };
+      const s = document.createElement("script");
+      s.async = true;
+      s.defer = true;
+      s.onerror = () => reject(new Error("gmaps script load failed"));
+      s.src =
+        "https://maps.googleapis.com/maps/api/js?key=" +
+        encodeURIComponent(k) +
+        "&v=weekly&loading=async&callback=" + cb;
+      document.head.appendChild(s);
+    });
+    return window.__btGmapsPromise;
+  }
+
+  async function initMap() {
+    if (gMap) return true;
+    try {
+      await loadGoogleMapsJs(window.__GMAPS_API_KEY__);
+      const mapDiv = document.getElementById("map");
+      if (!mapDiv) throw new Error("no #map");
+
+      let MapCtor = null;
+      if (typeof google.maps.importLibrary === "function") {
+        ({ Map: MapCtor } = await google.maps.importLibrary("maps"));
+      } else {
+        MapCtor = google.maps.Map;
+      }
+
+      gGeocoder = new google.maps.Geocoder();
+      gInfoWindow = new google.maps.InfoWindow({ disableAutoPan: false });
+      gMap = new MapCtor(mapDiv, {
+        center: HAMPTON_ROADS_CENTER,
+        zoom: 10,
+        gestureHandling: "greedy",
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: true,
+      });
+
+      const nudge = () => {
+        try {
+          google.maps.event.trigger(gMap, "resize");
+        } catch (_) {}
+      };
+      setTimeout(nudge, 300);
+      setTimeout(nudge, 1200);
+      if (typeof ResizeObserver !== "undefined") {
+        new ResizeObserver(nudge).observe(mapDiv);
+      }
+      return true;
+    } catch (e) {
+      console.warn("[locations] map init failed:", e?.message || e);
+      showMapError("Map unavailable right now — the event list still works.");
+      return false;
+    }
+  }
+
+  // The venue's most-common event type — drives the pin colour.
+  function primaryType(venue) {
+    const counts = {};
+    (venue.shifts || []).forEach((s) => {
+      if (s.type) counts[s.type] = (counts[s.type] || 0) + 1;
+    });
+    let best = "";
+    let n = 0;
+    Object.keys(counts).forEach((t) => {
+      if (counts[t] > n) {
+        n = counts[t];
+        best = t;
+      }
+    });
+    return best;
+  }
+
+  function pinIcon(color) {
+    const svg =
+      `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="40" viewBox="0 0 28 40">` +
+      `<path d="M14 0C6.3 0 0 6.1 0 13.7 0 24 14 40 14 40s14-16 14-26.3C28 6.1 21.7 0 14 0z" fill="${color}"/>` +
+      `<circle cx="14" cy="14" r="5" fill="#fff"/></svg>`;
+    return {
+      url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg),
+      scaledSize: new google.maps.Size(28, 40),
+      anchor: new google.maps.Point(14, 40),
+    };
+  }
+
+  // localStorage fallback geocode cache (only used when the API gave no coords)
+  function getGeoCache() {
+    try {
+      const o = JSON.parse(localStorage.getItem(GEO_CACHE_KEY) || "{}");
+      return o && typeof o === "object" ? o : {};
+    } catch (_) {
+      return {};
+    }
+  }
+  function setGeoCache(c) {
+    try {
+      localStorage.setItem(GEO_CACHE_KEY, JSON.stringify(c || {}));
+    } catch (_) {}
+  }
+
+  async function clientGeocode(venue, cache) {
+    if (!gGeocoder) return null;
+    const q = safeText(venue.address) || `${safeText(venue.name)} Virginia Beach VA`;
+    const key = q.toLowerCase();
+    const hit = cache[key];
+    const now = Date.now();
+    if (hit && hit.lat && hit.lng && now - (hit.ts || 0) < GEO_CACHE_TTL_MS) {
+      return { lat: hit.lat, lng: hit.lng, cached: true };
+    }
+    const r = await new Promise((res) => {
+      gGeocoder.geocode({ address: q }, (results, status) => {
+        if (status === "OK" && results && results[0]) {
+          const loc = results[0].geometry.location;
+          res({ lat: loc.lat(), lng: loc.lng(), cached: false });
+        } else res(null);
+      });
+    });
+    if (r) cache[key] = { lat: r.lat, lng: r.lng, ts: now };
+    return r;
+  }
+
+  function clearMarkers() {
+    if (gClusterer) {
+      try { gClusterer.clearMarkers(); } catch (_) {}
+    }
+    gMarkers.forEach((m) => {
+      try { m.setMap(null); } catch (_) {}
+    });
+    gMarkers = [];
+    gMarkerByVenue = new Map();
+    gBouncing = null;
+  }
+
+  async function updateMapPins(venues) {
+    const ok = await initMap();
+    if (!ok || !gMap) {
+      showMapLoading(false);
+      return;
+    }
+    clearMarkers();
+
+    const cache = getGeoCache();
+    const bounds = new google.maps.LatLngBounds();
+    let pinned = 0;
+    let cacheDirty = false;
+
+    for (const v of venues) {
+      let lat = typeof v.lat === "number" ? v.lat : null;
+      let lng = typeof v.lng === "number" ? v.lng : null;
+
+      if (lat == null || lng == null) {
+        const g = await clientGeocode(v, cache);
+        if (g) {
+          lat = g.lat;
+          lng = g.lng;
+          if (!g.cached) {
+            cacheDirty = true;
+            await new Promise((r) => setTimeout(r, 120));
+          }
+        }
+      }
+      if (lat == null || lng == null) continue;
+
+      const pos = { lat, lng };
+      const color = TYPE_COLORS[primaryType(v)] || DEFAULT_COLOR;
+      const marker = new google.maps.Marker({
+        position: pos,
+        title: safeText(v.name),
+        icon: pinIcon(color),
+      });
+      marker.__venue = v;
+      marker.__key = venueKey(v.name);
+      marker.addListener("click", () => openVenueInfo(marker));
+      marker.addListener("mouseover", () => openVenueInfo(marker));
+
+      gMarkers.push(marker);
+      gMarkerByVenue.set(marker.__key, marker);
+      bounds.extend(pos);
+      pinned++;
+    }
+
+    if (cacheDirty) setGeoCache(cache);
+
+    // cluster (graceful if the lib didn't load)
+    if (window.markerClusterer?.MarkerClusterer) {
+      gClusterer = new window.markerClusterer.MarkerClusterer({ map: gMap, markers: gMarkers });
+    } else {
+      gMarkers.forEach((m) => m.setMap(gMap));
+    }
+
+    showMapLoading(false);
+
+    if (pinned > 1) {
+      gMap.fitBounds(bounds, 48);
+    } else if (pinned === 1) {
+      gMap.setCenter(bounds.getCenter());
+      gMap.setZoom(14);
+    } else {
+      gMap.setCenter(HAMPTON_ROADS_CENTER);
+      gMap.setZoom(10);
+    }
+  }
+
+  function buildInfoHtml(v) {
+    const shifts = [...(v.shifts || [])].sort((a, b) => {
+      if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+      return parseTimeToMinutes(a.startTime) - parseTimeToMinutes(b.startTime);
+    });
+    const rows = shifts
+      .slice(0, 5)
+      .map((s) => {
+        const c = TYPE_COLORS[s.type] || DEFAULT_COLOR;
+        const label = [
+          formatEventType(s.type) + (s.theme ? `: ${escapeHtml(s.theme)}` : ""),
+          formatEventDate(s.date),
+          timeRange(s.startTime, s.endTime),
+        ]
+          .filter(Boolean)
+          .join(" &middot; ");
+        return `<div style="margin:3px 0;color:#333;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${c};margin-right:6px;"></span>${label}</div>`;
+      })
+      .join("");
+    const more =
+      shifts.length > 5
+        ? `<div style="opacity:.7;margin-top:3px;color:#333;">+ ${shifts.length - 5} more</div>`
+        : "";
+    const dir =
+      "https://www.google.com/maps/dir/?api=1&destination=" +
+      encodeURIComponent(
+        safeText(v.address) ? `${v.name}, ${v.address}` : `${v.name} Virginia Beach VA`
+      );
+    return (
+      `<div style="font-family:sans-serif;width:250px;color:#222;line-height:1.45;">` +
+      `<div style="font-weight:700;color:#111;">${escapeHtml(v.name)}</div>` +
+      (safeText(v.address)
+        ? `<div style="color:#666;margin:2px 0 6px;">${escapeHtml(v.address)}</div>`
+        : `<div style="height:4px;"></div>`) +
+      rows +
+      more +
+      `<a href="${dir}" target="_blank" rel="noopener" style="display:inline-block;margin-top:8px;color:#2563eb;font-weight:600;">Get directions ↗</a>` +
+      `</div>`
+    );
+  }
+
+  function openVenueInfo(marker) {
+    if (!gInfoWindow || !marker) return;
+    try {
+      gInfoWindow.setContent(buildInfoHtml(marker.__venue));
+      gInfoWindow.open({ map: gMap, anchor: marker });
+    } catch (_) {}
+  }
+
+  function highlightVenue(key, on) {
+    const marker = gMarkerByVenue.get(key);
+    if (!marker) return;
+    try {
+      if (on) {
+        if (gBouncing && gBouncing !== marker) gBouncing.setAnimation(null);
+        marker.setAnimation(google.maps.Animation.BOUNCE);
+        marker.setZIndex(google.maps.Marker.MAX_ZINDEX + 1);
+        gBouncing = marker;
+      } else {
+        marker.setAnimation(null);
+        marker.setZIndex(null);
+        if (gBouncing === marker) gBouncing = null;
+      }
+    } catch (_) {}
+    document
+      .querySelectorAll(".venue-card")
+      .forEach((c) => c.classList.toggle("is-hover", on && c.dataset.venue === key));
+  }
+
+  function focusVenueOnMap(key) {
+    const marker = gMarkerByVenue.get(key);
+    if (!marker || !gMap) return;
+    highlightVenue(key, true);
+    setTimeout(() => highlightVenue(key, false), 1400);
+    const pos = marker.getPosition();
+    if (pos) {
+      gMap.panTo(pos);
+      if (gMap.getZoom() < 13) gMap.setZoom(13);
+    }
+    openVenueInfo(marker);
+  }
+
+  // ── filter wiring ──────────────────────────────────────────────────────────
   function applyPresetUI() {
     const preset = datePresetSelect ? String(datePresetSelect.value || "next30") : "next30";
-    const isCustom = preset === "custom";
-
-    if (customDatesRow) customDatesRow.style.display = isCustom ? "flex" : "none";
-
-    if (isCustom) {
+    if (customDatesRow) customDatesRow.style.display = preset === "custom" ? "flex" : "none";
+    if (preset === "custom") {
       const today = ymdTodayNY();
       if (startDateInput && !startDateInput.value) startDateInput.value = today;
       if (endDateInput && !endDateInput.value) endDateInput.value = addDaysYmd(today, 30);
     }
   }
 
-  if (datePresetSelect) {
-    datePresetSelect.addEventListener("change", () => {
-      applyPresetUI();
-      refreshLocations();
-    });
-  }
-  if (eventTypeSelect) eventTypeSelect.addEventListener("change", refreshLocations);
-  if (dayOfWeekSelect) dayOfWeekSelect.addEventListener("change", refreshLocations);
-  if (startDateInput) startDateInput.addEventListener("change", refreshLocations);
-  if (endDateInput) endDateInput.addEventListener("change", refreshLocations);
+  datePresetSelect?.addEventListener("change", () => {
+    applyPresetUI();
+    refreshLocations();
+  });
+  eventTypeSelect?.addEventListener("change", refreshLocations);
+  startDateInput?.addEventListener("change", refreshLocations);
+  endDateInput?.addEventListener("change", refreshLocations);
+  dayOfWeekSelect?.addEventListener("change", applyClientFilters);
 
   applyPresetUI();
   refreshLocations();
