@@ -140,14 +140,43 @@ block at a time** as you type. Everything visual goes through `slide-paint.js`.
   each host app + in slide-paint.js — converge in a later pass.
   **Not yet done:** steps 2–5 (writer preview → slide-paint.js is the big one).
 
-### Next session starts here
+- 2026-08-31 — **Step 2 done (flag-gated).** `writer/js/preview.js`:
+  `USE_SHARED_PAINT = true`; `renderFromFormData` builds a `formDataToSlide()`
+  adapter object and calls `BeachTriviaSlidePaint.paintSlide` for the visual
+  layer, then re-applies the writer-only passes (theme class, media, inline
+  chrome, mode toolbar). Title slides still use the writer's own overlay
+  (guarded — the branch pre-builds the writer's `.slide-title-overlay` so the
+  painter doesn't lazily create a host-flavoured one). `slide-model.js` +
+  `slide-paint.js` now loaded in `writer.html`.
+  Staging-tested: MC / feud / short-response / ordering / display / title all
+  render, inline editing still works, live↔reveal works, no console errors.
+  Skeletons were already class-compatible.
 
-- Step 2: writer preview → `slide-paint.js`. In `writer/js/preview.js`, add a
-  `formData → normalized slide` adapter (one block), call
-  `BeachTriviaSlidePaint.paintSlide` for the visual layer, keep
-  `applyPreviewInlineChrome` running after it as the edit layer. Flag-gate the
-  old path (`renderFromFormData` internals) until every question type ×
-  {live,reveal} is verified against the host stage.
-- The writer preview stage skeleton and slide-paint's `buildSkeleton` must
-  agree on element classes — diff `.preview-stage` markup in writer.html vs
-  what `buildSkeleton` creates before starting.
+### Known drift found in step 2 (fix in step 3)
+
+- **Category label overlaps the round badge** on question slides
+  (`.slide-category` sits on top of `.slide-badge`). Pre-existing bug in
+  `slide-paint.js` / its CSS — **it's on the live host today too**
+  (live-console shows it). Now visible in the writer preview because it's the
+  same painter. CSS fix in the shared layer helps both.
+- The writer's old `renderMeta` prefixed "Slide State: " / "Theme: ";
+  `formDataToSlide` bakes those prefixes into `stateLabel` / `theme` so the
+  writer keeps its labels while the host stays bare. Decide later whether the
+  host should show them too (then move the prefix into `slide-paint`).
+- `formDataToSlide` feud reveal maps writer `_feudRevealCount` → `feudRevealCount`;
+  the deferred-flip animation field (`feudRevealDeferIndex`) isn't wired — the
+  writer's step-reveal buttons animate via preview.js's own feud fns still.
+
+### Next session starts here — step 3
+
+1. Fix the category/badge overlap in `slide-paint.js` (CSS or paint order).
+   Verify on both writer preview and live-console.
+2. Once step 2 has been exercised on real shows for a bit: delete the now-dead
+   writer-only renderers from `preview.js` — `renderRoundBadge`,
+   `renderCategory`, `renderQuestion`, `renderOptions`, `renderAnswer`,
+   `renderFeudAnswerGrid`, `renderMeta` — and drop the `USE_SHARED_PAINT` flag
+   (keep the old code in git history).
+3. Converge the leftover local `DISPLAY_BLOCK_TYPES` / `slideRevealApplicable`
+   copies (4 host apps + slide-paint.js + preview.js) onto
+   `BeachTriviaSlideModel`.
+4. Then steps 4–5 (thumbnails, PPTX) per the migration list above.

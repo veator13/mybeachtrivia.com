@@ -616,6 +616,60 @@
   // Block types that are display-only and never need a reveal interaction.
   const DISPLAY_BLOCK_TYPES = ["intro-slide", "info-slide", "round-start", "category-slide"];
 
+  // Step 2 of the shared-renderer plan (dashboards/shared/SLIDE-RENDER-PLAN.md):
+  // route the writer preview's slide *visuals* through the same painter the host
+  // playback screens use, so they can't drift. The writer keeps ownership of the
+  // editing chrome, media, theme class, mode toolbar and title overlay.
+  const USE_SHARED_PAINT = true;
+
+  // normalized writer formData  ->  the flat `slide` shape BeachTriviaSlidePaint
+  // consumes. Mirrors BeachTriviaSlideModel.flattenShow but for a single, being-
+  // edited block. The "Slide State: " / "Theme: " label prefixes are baked in
+  // here so the writer preview keeps its labels (host adapter omits them).
+  function formDataToSlide(data, mode, effectiveType, isDisplayBlock) {
+    var b = data.block;
+    var stateLabel = String(mode).toLowerCase() === "reveal" ? "Reveal Mode" : "Live Question";
+    var theme = b.themeStyle || "Standard Trivia";
+
+    // category-slide stores its list in `categories[]`; the painter reads a
+    // "• A • B • C" string in `question`.
+    var question = b.questionText || "";
+    if (b.type === "category-slide") {
+      var cats = (Array.isArray(b.categories) ? b.categories : [])
+        .map(function (c) { return String(c || "").trim(); })
+        .filter(Boolean);
+      if (cats.length) question = "• " + cats.join(" • ");
+    } else if (!question && !isDisplayBlock) {
+      question = "Your question will appear here.";
+    }
+
+    var revealCount;
+    if (String(mode).toLowerCase() === "reveal") revealCount = 999;
+    else revealCount = _feudRevealCount;
+
+    return {
+      stateKey: "",
+      stateLabel: "Slide State: " + stateLabel,
+      kind: b.type === "answers-summary" ? "answers-summary" : "question",
+      blockType: b.type || "",
+      questionType: b.questionType || "multiple-choice",
+      roundBadge: b.roundName || "Round",
+      category: b.categoryName || "Category",
+      question: question,
+      questionAlign: b.questionAlign || "left",
+      questionFontScale: typeof b.questionFontScale === "number" ? b.questionFontScale : 1.0,
+      options: Array.isArray(b.options) ? b.options : [],
+      matchingPairs: Array.isArray(b.matchingPairs) ? b.matchingPairs : [],
+      orderingItems: Array.isArray(b.orderingItems) ? b.orderingItems : [],
+      feudAnswers: Array.isArray(b.feudAnswers) ? b.feudAnswers : [],
+      feudRevealCount: revealCount,
+      answer: b.answerText || "",
+      notes: "", // writer keeps host notes off the slide
+      theme: "Theme: " + theme,
+      alwaysReveal: b.type === "answers-summary",
+    };
+  }
+
   function renderFromFormData(formData, renderOpts) {
     renderOpts = renderOpts || {};
     _hideTitleOverlay();
@@ -637,6 +691,45 @@
     // Stamp block type so CSS can apply block-specific layouts (e.g. round-start facelift)
     if (dom && dom.previewStage) {
       dom.previewStage.setAttribute("data-block-type", data.block.type || "");
+    }
+
+    // ── Shared painter path (see SLIDE-RENDER-PLAN.md step 2) ────────────────
+    if (
+      USE_SHARED_PAINT &&
+      window.BeachTriviaSlidePaint &&
+      dom && dom.previewStage &&
+      data.block.type !== "title"
+    ) {
+      // Make sure the title overlay in the stage is the WRITER's flavour (it has
+      // the data-title-part hooks renderTitleSlide needs); otherwise the painter
+      // would lazily create its own, host-flavoured one.
+      if (!dom.previewStage.querySelector(".slide-title-overlay")) {
+        var wOverlay = _buildTitleOverlay();
+        wOverlay.style.display = "none";
+        dom.previewStage.appendChild(wOverlay);
+      }
+
+      var slide = formDataToSlide(data, mode, effectiveType, isDisplayBlock);
+      window.BeachTriviaSlidePaint.paintSlide(
+        dom.previewStage,
+        slide,
+        String(mode).toLowerCase() === "reveal"
+      );
+
+      // Writer-only layers on top of the shared visual:
+      applyThemeClass(data.block.themeStyle || "Standard Trivia");
+      renderMedia(effectiveType, data.block.imageUrl, data.block.audioUrl);
+      renderNotes("");
+      syncAnswerPreviewToMode(mode);
+      if (!renderOpts.skipToolbar) {
+        syncRevealToolbarToMode(getMode());
+      }
+
+      var isAnsSummaryP = String(data.block.type || "").toLowerCase() === "answers-summary";
+      var inlineEnabledP = !renderOpts.skipToolbar;
+      if (isAnsSummaryP && !data.block.manualAnswers) inlineEnabledP = false;
+      applyPreviewInlineChrome(inlineEnabledP, data, effectiveType, mode, isDisplayBlock);
+      return;
     }
 
     renderRoundBadge(data.block.roundName || "Round");
@@ -1521,6 +1614,7 @@
         options: normalizeOptions(block.options),
         matchingPairs: Array.isArray(block.matchingPairs) ? block.matchingPairs : [],
         orderingItems: Array.isArray(block.orderingItems) ? block.orderingItems : [],
+        categories: Array.isArray(block.categories) ? block.categories : [],
         feudAnswers: Array.isArray(block.feudAnswers) ? block.feudAnswers : [],
         imageUrl: stringOr(block.imageUrl, ""),
         audioUrl: stringOr(block.audioUrl, ""),

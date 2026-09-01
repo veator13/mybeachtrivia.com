@@ -878,10 +878,14 @@
 
   </main>
 
+  <!-- Shared slide model + painter (same code the host playback screens use) -->
+  <script src="/beachTriviaPages/dashboards/shared/slide-model.js?v=20260831-model1" defer></script>
+  <script src="/beachTriviaPages/dashboards/shared/slide-paint.js?v=20260513-cat-vertical" defer></script>
+
   <!-- JS modules — load order: form → builder → preview → app -->
   <script src="js/question-form.js?v=writer-20260502-title-inline-edit" defer></script>
   <script src="js/block-builder.js?v=writer-20260502-category-slide-kind-fix" defer></script>
-  <script src="js/preview.js?v=writer-20260513-cat-list-fix" defer></script>
+  <script src="js/preview.js?v=writer-20260831-sharedpaint" defer></script>
   <script src="app.js?v=writer-20260831-deadweight" defer></script>
 
 </body>
