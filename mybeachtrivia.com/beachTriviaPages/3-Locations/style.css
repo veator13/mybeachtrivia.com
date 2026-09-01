@@ -145,6 +145,9 @@ main {
     background: rgba(0, 0, 0, 0.25);
     backdrop-filter: blur(8px);
     box-sizing: border-box;
+    /* Sit above the map so the venue-search dropdown isn't clipped by it. */
+    position: relative;
+    z-index: 30;
 }
 
 .locations-filters .filter-row {
@@ -201,6 +204,8 @@ main {
     align-items: stretch;
     gap: 16px;
     width: 100%;
+    position: relative;
+    z-index: 1;
 }
 
 /* Sidebar event list */

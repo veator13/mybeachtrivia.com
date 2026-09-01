@@ -70,6 +70,21 @@ function str(v) {
   return String(v == null ? "" : v).trim();
 }
 
+// Corrected addresses for venues whose `locations` doc has a missing / mall- or
+// plaza-style address that won't geocode. Keyed by lowercased venue name.
+// (Verified online 2026-09; update the doc in the admin calendar to retire an
+// entry here.)
+const ADDRESS_OVERRIDES = {
+  "aj gators fairfield": "5218 Providence Rd, Virginia Beach, VA 23464",
+  "dave & busters": "701 Lynnhaven Pkwy, Virginia Beach, VA 23452",
+  "dave and busters": "701 Lynnhaven Pkwy, Virginia Beach, VA 23452",
+  "wasserhund vb": "1805 Laskin Rd, Virginia Beach, VA 23454",
+};
+
+function overrideAddress(name, current) {
+  return ADDRESS_OVERRIDES[str(name).toLowerCase()] || current;
+}
+
 // Some `locations` docs have junk in the address field (an email, a phone, a
 // note). Only pass through something that plausibly geocodes.
 function cleanAddress(v) {
@@ -221,7 +236,7 @@ exports.publicGetScheduledVenues = functions
         const d = doc.data() || {};
         const name = str(d.name);
         if (!name) return;
-        const address = cleanAddress(d.address);
+        const address = overrideAddress(name, cleanAddress(d.address));
         locByName.set(name.toLowerCase(), {
           name,
           address,
@@ -315,16 +330,18 @@ async function warmGeocodes(limit) {
   const pending = [];
   snap.forEach((doc) => {
     const d = doc.data() || {};
-    if (!str(d.name)) return;
+    const name = str(d.name);
+    if (!name) return;
     if (readGeo(d)) return;
-    if (d.geoFailedAt) {
-      // retry a previously-failed venue at most weekly
+    const address = overrideAddress(name, cleanAddress(d.address));
+    if (!address) return;
+    // Retry a previously-failed venue at most weekly — unless we now have a
+    // different address to try (a correction, or an ADDRESS_OVERRIDES entry).
+    if (d.geoFailedAt && d.geoFailedQuery === address) {
       const failedMs = d.geoFailedAt.toMillis ? d.geoFailedAt.toMillis() : 0;
       if (Date.now() - failedMs < 7 * 24 * 3600 * 1000) return;
     }
-    const address = cleanAddress(d.address);
-    if (!address && !str(d.name)) return;
-    pending.push({ ref: doc.ref, name: str(d.name), address });
+    pending.push({ ref: doc.ref, name, address });
   });
 
   let done = 0;
@@ -342,12 +359,16 @@ async function warmGeocodes(limit) {
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           },
           geoFailedAt: admin.firestore.FieldValue.delete(),
+          geoFailedQuery: admin.firestore.FieldValue.delete(),
         },
         { merge: true }
       );
     } else {
       await v.ref.set(
-        { geoFailedAt: admin.firestore.FieldValue.serverTimestamp() },
+        {
+          geoFailedAt: admin.firestore.FieldValue.serverTimestamp(),
+          geoFailedQuery: v.address,
+        },
         { merge: true }
       );
     }
