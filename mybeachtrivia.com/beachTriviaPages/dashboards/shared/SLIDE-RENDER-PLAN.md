@@ -190,9 +190,37 @@ host preview / cast; (b) switch the slide font `clamp()`s from `cqw` to `cqmin`
 so short stages shrink text; (c) re-enable a working `autoFitStageText`.
 Recommend (a) — cleanest, and it belongs in the shared layer.
 
+- 2026-08-31 — **"scale slide to fit its box" fix DONE (option a).** New shared
+  module `slide-stage.js` + `slide-stage.css` (`window.BeachTriviaSlideStage`):
+  paints a slide into a fixed **1280×720 `.slide-canvas`** and `transform:
+  scale(min(w/1280, h/720))` + centres it inside whatever frame the consumer
+  gives it (letterboxed on non-16:9). Same trick as Google Slides / reveal.js.
+  Display-only — nothing about size is stored (confirmed with Josh).
+  `paintSlide(el, slide, revealed, { scaleToFit: true })` opts in — it calls
+  `BeachTriviaSlideStage.ensure(el)` itself, so consumers just add the flag +
+  the two `<script>`/`<link>` tags.
+  **Rolled out & staging-verified:** live-console (host+cast stages, MC live +
+  reveal), host-mixed (MC + feud grid), host-feud (feud step-reveal / hide flip
+  animations still work — `stage.querySelector` reaches into the canvas),
+  host-themed-trivia (same edit pattern, not separately clicked).
+  Commits `1ec9048`, `0330f69`. `slide-paint.js?v=20260831-scalefit`,
+  `slide-stage*?v=20260831-stage1`, host `app.js?v=20260831-scalefit`.
+  **Not yet migrated:** `/cast-game` (has its own bespoke `--cast-scale`
+  700×394 scheme — works, converging it is a behaviour change on the live
+  audience TV view, do carefully); writer preview + writer filmstrip thumbs
+  (see step 3.1 below).
+
 ### Next session — step 3
 
-1. Decide + implement the "scale slide to fit its box" fix (see above).
+1. **Writer preview + thumbnails → the shared stage.** `preview.js` already
+   goes through `paintSlide` (flag `USE_SHARED_PAINT`) but WITHOUT
+   `{ scaleToFit: true }`. Adding it is fiddly here: `preview.js` pokes
+   `dom.previewStage` directly a lot (`_buildTitleOverlay` appendChild, inline
+   chrome, `ensurePreviewSlideSkeleton`, `autoFitStageText`, the
+   `thumb-preview-stage` path). `ensure()` reparents the frame's children into
+   `.slide-canvas`, so `appendChild` targets and `.slide-canvas > x` CSS need a
+   re-check. Also decide whether thumb stages want the full canvas or stay as-is.
+   Then `/cast-game`.
 2. Once step 2 has been exercised on real shows for a bit: delete the now-dead
    writer-only renderers from `preview.js` — `renderRoundBadge`,
    `renderCategory`, `renderQuestion`, `renderOptions`, `renderAnswer`,
