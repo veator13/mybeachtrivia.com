@@ -222,18 +222,23 @@ Recommend (a) — cleanest, and it belongs in the shared layer.
   board — all scale, no overflow; inline editing still round-trips; thumbs
   unaffected; no console errors. **The writer preview and the host stage are
   now the same renderer end to end.**
-  **Not yet migrated:** `/cast-game` (its own bespoke `--cast-scale` 700×394
-  scheme — works; converging it is a behaviour change on the live audience TV
-  view, do carefully); writer filmstrip thumbs (deliberately left flat — a
-  1280px canvas scaled into a ~120px thumb is wasteful; revisit only if the
-  thumbs visibly drift from the real slide).
+  Writer filmstrip thumbs deliberately left flat — a 1280px canvas scaled into
+  a ~120px thumb is wasteful; revisit only if the thumbs visibly drift.
 
-### Next session — step 3
+- 2026-08-31 — **`/cast-game` (audience TV) → the shared canvas DONE.** Commit
+  `a441246`. Dropped the `--cast-scale` scheme (700×393.75 `.preview-stage`
+  transform-scaled off `window.innerWidth`); `#cast-stage` now fills the
+  viewport as the frame and slide-stage.js scales the 1280×720 canvas into it.
+  All 4 `paintSlide(castStage, …)` calls (incl. feud reveal/hide animation)
+  pass `{ scaleToFit: true }`; `updateCastScale()` gutted to a no-op.
+  Staging-verified on a live session: full-screen fit + letterbox, feud board
+  live + reveal, live host→cast updates, no overflow, scales up past 1280.
+  **All 4 renderer surfaces — writer preview, host consoles, `/cast-game` —
+  now run the one shared painter + stage. Piece 1 of the plan is complete.**
 
-1. **`/cast-game` → the shared stage** (last renderer surface). Replace its
-   `--cast-scale` CSS-var scheme with `{ scaleToFit: true }` + the two tags.
-   Test carefully on a real cast session — this is the audience TV view.
-2. Once the writer canvas has been exercised on real shows for a bit: delete the now-dead
+### Next — cleanup (no user-visible change)
+
+1. Once the writer canvas has been exercised on real shows for a bit: delete the now-dead
    writer-only renderers from `preview.js` — `renderRoundBadge`,
    `renderCategory`, `renderQuestion`, `renderOptions`, `renderAnswer`,
    `renderFeudAnswerGrid`, `renderMeta` — and drop the `USE_SHARED_PAINT` flag
