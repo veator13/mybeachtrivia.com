@@ -325,7 +325,7 @@
       feudRevealCount: newCount,
       feudRevealDeferIndex: deferIdx,
     });
-    window.BeachTriviaSlidePaint.paintSlide(stage, paintData, showAnswer);
+    window.BeachTriviaSlidePaint.paintSlide(stage, paintData, showAnswer, { scaleToFit: true });
     if (afterPaint) afterPaint();
     requestAnimationFrame(function () {
       requestAnimationFrame(function () {
@@ -450,7 +450,7 @@
         paintSlide.feudRevealCount = undefined;
       }
       var showAnswer = state.hostRevealed || slide.alwaysReveal;
-      window.BeachTriviaSlidePaint.paintSlide(dom['host-stage'], paintSlide, showAnswer);
+      window.BeachTriviaSlidePaint.paintSlide(dom['host-stage'], paintSlide, showAnswer, { scaleToFit: true });
       setText('host-notes', slide.notes || '');
     }
     updateRevealChrome();
@@ -471,7 +471,7 @@
         paintSlide.feudRevealCount = undefined;
       }
       var showAnswer = state.revealed || slide.alwaysReveal;
-      window.BeachTriviaSlidePaint.paintSlide(dom['cast-stage'], paintSlide, showAnswer);
+      window.BeachTriviaSlidePaint.paintSlide(dom['cast-stage'], paintSlide, showAnswer, { scaleToFit: true });
     }
     updateRevealChrome();
   }

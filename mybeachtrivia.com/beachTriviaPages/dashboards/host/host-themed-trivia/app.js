@@ -301,7 +301,7 @@
     if (dom['btn-prev']) dom['btn-prev'].disabled = state.hostSlide === 0;
     if (dom['btn-next']) dom['btn-next'].disabled = state.hostSlide >= total - 1;
     if (slide) {
-      window.BeachTriviaSlidePaint.paintSlide(dom['host-stage'], slide, state.hostRevealed || slide.alwaysReveal);
+      window.BeachTriviaSlidePaint.paintSlide(dom['host-stage'], slide, state.hostRevealed || slide.alwaysReveal, { scaleToFit: true });
       setText('host-notes', slide.notes || '');
     }
     updateRevealChrome();
@@ -314,7 +314,7 @@
     if (dom['btn-cast-prev']) dom['btn-cast-prev'].disabled = state.castSlide === 0;
     if (dom['btn-cast-next']) dom['btn-cast-next'].disabled = state.castSlide >= total - 1;
     if (slide) {
-      window.BeachTriviaSlidePaint.paintSlide(dom['cast-stage'], slide, state.revealed || slide.alwaysReveal);
+      window.BeachTriviaSlidePaint.paintSlide(dom['cast-stage'], slide, state.revealed || slide.alwaysReveal, { scaleToFit: true });
     }
     updateRevealChrome();
   }
