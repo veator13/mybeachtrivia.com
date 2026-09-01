@@ -3558,15 +3558,17 @@ textarea {
 }
 
 .preview-stage .title-slide-eyebrow {
-  font-size: clamp(0.6rem, 1.4cqw, 0.9rem);
+  font-size: clamp(0.7rem, 1.7cqw, 1.1rem);
 }
 
 .preview-stage .title-slide-qr-label {
-  font-size: clamp(0.7rem, 1.3cqw, 0.92rem);
+  font-size: clamp(0.95rem, 2cqw, 1.45rem);
+  margin-top: clamp(6px, 1cqw, 12px);
 }
 
 .preview-stage .title-slide-qr-hint {
-  font-size: clamp(0.58rem, 1.05cqw, 0.74rem);
+  font-size: clamp(0.78rem, 1.5cqw, 1.1rem);
+  margin-top: clamp(3px, 0.5cqw, 6px);
 }
 
 /* ─── Title slide structure card chip ─────────────────────────── */
