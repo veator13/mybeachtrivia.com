@@ -362,7 +362,7 @@
       return;
     }
     var showHostAnswer = state.hostRevealed || slide.alwaysReveal;
-    window.BeachTriviaSlidePaint.paintSlide(dom['host-stage'], slide, showHostAnswer);
+    window.BeachTriviaSlidePaint.paintSlide(dom['host-stage'], slide, showHostAnswer, { scaleToFit: true });
     setText('host-notes', slide.notes || '');
     updateRevealChrome();
   }
@@ -379,7 +379,7 @@
       return;
     }
     var showAnswer = state.revealed || slide.alwaysReveal;
-    window.BeachTriviaSlidePaint.paintSlide(dom['cast-stage'], slide, showAnswer);
+    window.BeachTriviaSlidePaint.paintSlide(dom['cast-stage'], slide, showAnswer, { scaleToFit: true });
     setText('cast-status-label', showAnswer ? 'Answer visible to audience' : 'Answer hidden until revealed');
     updateRevealChrome();
   }

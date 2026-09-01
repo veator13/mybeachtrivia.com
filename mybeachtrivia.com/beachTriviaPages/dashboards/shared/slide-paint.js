@@ -14,8 +14,15 @@
 
   // ── Slide painter ──────────────────────────────────────────────────────────
 
-  function paintSlide(el, slide, revealed) {
+  function paintSlide(el, slide, revealed, opts) {
     if (!el || !slide) return;
+    opts = opts || {};
+
+    // Fixed-canvas mode: paint into a 1280x720 .slide-canvas that
+    // slide-stage.js scales to fill the frame (works on any screen/aspect).
+    if (opts.scaleToFit && global.BeachTriviaSlideStage) {
+      el = global.BeachTriviaSlideStage.ensure(el) || el;
+    }
 
     var isTitle   = isTitleSlide(slide);
     var blockType = slide.blockType || slide.kind || '';
