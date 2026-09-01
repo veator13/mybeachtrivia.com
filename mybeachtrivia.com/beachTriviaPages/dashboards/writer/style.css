@@ -3524,33 +3524,33 @@ textarea {
 }
 
 .preview-stage .title-slide-inner {
-  padding: clamp(8px, 1.2cqw, 20px) clamp(10px, 1.5cqw, 24px);
+  padding: clamp(10px, 1.6cqw, 28px) clamp(12px, 2cqw, 34px);
   min-height: 0;
-  justify-content: flex-start;
-  gap: clamp(4px, 0.8cqw, 12px);
+  justify-content: space-between;
+  gap: clamp(6px, 1cqw, 16px);
 }
 
 .preview-stage .title-slide-heading {
-  font-size: clamp(1rem, 3.2cqw, 2rem);
+  font-size: clamp(1.2rem, 3.6cqw, 2.6rem);
 }
 
 .preview-stage .title-slide-center-row {
-  gap: clamp(16px, 3cqw, 44px);
+  gap: clamp(20px, 3.8cqw, 60px);
 }
 
 .preview-stage .title-slide-logo img {
-  width: min(340px, 27cqw);
-  height: min(340px, 27cqw);
+  width: min(460px, 37cqw);
+  height: min(460px, 37cqw);
   max-width: 100%;
 }
 
 .preview-stage .title-slide-qr-card {
-  padding: clamp(10px, 1.4cqw, 18px) clamp(12px, 1.8cqw, 22px);
+  padding: clamp(12px, 1.7cqw, 22px) clamp(14px, 2.2cqw, 28px);
 }
 
 .preview-stage .title-slide-qr-card img {
-  width: min(160px, 13cqw);
-  height: min(160px, 13cqw);
+  width: min(220px, 18cqw);
+  height: min(220px, 18cqw);
 }
 
 .preview-stage .title-slide-eyebrow-row {
