@@ -3,8 +3,6 @@
 (function () {
   'use strict';
 
-  var DISPLAY_BLOCK_TYPES = ['intro-slide', 'info-slide', 'round-start', 'category-slide'];
-
   const state = {
     shows: [],
     deck: { id: null, title: '', slides: [] },
@@ -211,15 +209,9 @@
     return window.BeachTriviaSlideModel.flattenShow(data, { defaultTheme: 'Themed Trivia' });
   }
 
+  // Shared: dashboards/shared/slide-model.js (was a local copy here).
   function slideRevealApplicable(slide) {
-    if (!slide) return false;
-    var kind = String(slide.kind || '').toLowerCase();
-    if (kind === 'title' || String(slide.stateLabel || '').toLowerCase().includes('title slide')) return false;
-    var bt = slide.blockType || slide.kind || '';
-    if (DISPLAY_BLOCK_TYPES.indexOf(bt) !== -1) return false;
-    if (String(slide.questionType || '').toLowerCase() === 'display') return false;
-    if (slide.alwaysReveal) return false;
-    return true;
+    return window.BeachTriviaSlideModel.slideRevealApplicable(slide);
   }
 
   function updateRevealChrome() {

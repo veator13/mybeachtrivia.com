@@ -5,8 +5,6 @@
 
   var WRITER_ASSETS = '/beachTriviaPages/dashboards/writer/assets/images/';
 
-  var DISPLAY_BLOCK_TYPES = ['intro-slide', 'info-slide', 'round-start', 'category-slide'];
-
   const state = {
     shows: [],
     deck: { id: null, title: '', theme: 'Standard Trivia', slides: [] },
@@ -246,16 +244,9 @@
     return window.BeachTriviaSlideModel.flattenShow(data, { defaultTheme: 'Standard Trivia' });
   }
 
+  // Shared: dashboards/shared/slide-model.js (was a local copy here).
   function slideRevealApplicable(slide) {
-    if (!slide) return false;
-    var kind = String(slide.kind || '').toLowerCase();
-    var stateLabel = String(slide.stateLabel || '').toLowerCase();
-    if (kind === 'title' || stateLabel.indexOf('title slide') !== -1) return false;
-    var blockType = slide.blockType || slide.kind || '';
-    if (DISPLAY_BLOCK_TYPES.indexOf(blockType) !== -1) return false;
-    if (String(slide.questionType || '').toLowerCase() === 'display') return false;
-    if (slide.alwaysReveal) return false;
-    return true;
+    return window.BeachTriviaSlideModel.slideRevealApplicable(slide);
   }
 
   function updateRevealChrome() {

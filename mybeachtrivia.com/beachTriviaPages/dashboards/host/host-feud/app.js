@@ -3,8 +3,6 @@
 (function () {
   'use strict';
 
-  var DISPLAY_BLOCK_TYPES = ['intro-slide', 'info-slide', 'round-start', 'category-slide'];
-
   const state = {
     shows: [],
     deck: { id: null, title: '', slides: [] },
@@ -260,17 +258,11 @@
     }).length;
   }
 
+  // Shared: dashboards/shared/slide-model.js (was a local copy here) — plus the
+  // feud-specific carve-out: feud slides use the per-answer step controls, not
+  // the generic Reveal button.
   function slideRevealApplicable(slide) {
-    if (!slide) return false;
-    var kind = String(slide.kind || '').toLowerCase();
-    var stateLabel = String(slide.stateLabel || '').toLowerCase();
-    if (kind === 'title' || stateLabel.includes('title slide')) return false;
-    var blockType = slide.blockType || slide.kind || '';
-    if (DISPLAY_BLOCK_TYPES.indexOf(blockType) !== -1) return false;
-    if (String(slide.questionType || '').toLowerCase() === 'display') return false;
-    if (slide.alwaysReveal) return false;
-    if (isFeudSlide(slide)) return false; // feud uses its own controls
-    return true;
+    return window.BeachTriviaSlideModel.slideRevealApplicable(slide) && !isFeudSlide(slide);
   }
 
   // ── Navigation ─────────────────────────────────────────────────────────────
