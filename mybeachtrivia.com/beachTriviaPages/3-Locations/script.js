@@ -22,6 +22,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   const overlayStatus = document.getElementById("locationsOverlayStatus");
   const overlayBody = document.getElementById("locationsOverlayBody");
+  const legendBox = document.getElementById("locationsLegend");
 
   const FUNCTION_URL = "/api/scheduled-venues";
   const FUNCTION_URL_FALLBACK =
@@ -225,9 +226,29 @@ document.addEventListener("DOMContentLoaded", function () {
         .filter((v) => v.shifts.length);
     }
 
+    renderLegend(venues);
     renderList(venues);
     renderJsonLd(venues);
     updateMapPins(venues);
+  }
+
+  // ── color key for event types (only the ones currently shown) ──────────────
+  function renderLegend(venues) {
+    if (!legendBox) return;
+    const present = new Set();
+    venues.forEach((v) => (v.shifts || []).forEach((s) => s.type && present.add(s.type)));
+    const ordered = Object.keys(TYPE_COLORS).filter((t) => present.has(t));
+    present.forEach((t) => { if (!TYPE_COLORS[t]) ordered.push(t); });
+    legendBox.innerHTML = ordered
+      .map(
+        (t) =>
+          '<span class="legend-item"><span class="legend-swatch" style="background:' +
+          (TYPE_COLORS[t] || DEFAULT_COLOR) +
+          '"></span>' +
+          escapeHtml(formatEventType(t)) +
+          "</span>"
+      )
+      .join("");
   }
 
   // ── venue combobox ─────────────────────────────────────────────────────────

@@ -9,7 +9,7 @@
   <meta name="description" content="Find Beach Trivia nights, music bingo, and Beach Feud events across Hampton Roads — Virginia Beach, Norfolk, Chesapeake, Newport News and more. Interactive map + weekly schedule." />
 
   <link rel="stylesheet" href="/nav-footer.css" />
-  <link rel="stylesheet" href="style.css?v=20260901-locations5" />
+  <link rel="stylesheet" href="style.css?v=20260901-locations6" />
 
   <!-- API key for Google Maps — loaded dynamically by script.js to avoid race conditions -->
   <script>window.__GMAPS_API_KEY__ = "AIzaSyC6YuQnkDSQNX2P_WiGqEmnZpcbel5B__4";</script>
@@ -17,7 +17,7 @@
   <!-- Marker clustering (optional; script.js degrades gracefully if it fails) -->
   <script src="https://cdn.jsdelivr.net/npm/@googlemaps/markerclusterer@2.5.3/dist/index.min.js" defer></script>
 
-  <script src="script.js?v=20260901-locations5" defer></script>
+  <script src="script.js?v=20260901-locations6" defer></script>
 </head>
 
 <body>
@@ -133,6 +133,8 @@
           <div id="map-layout">
             <aside id="locations-overlay" aria-label="Scheduled events">
               <h4 class="overlay-title">Where to Play</h4>
+
+              <div id="locationsLegend" class="map-legend" aria-label="Event type colors"></div>
 
               <div id="locationsOverlayStatus" class="overlay-status" aria-live="polite">
                 Loading events…
