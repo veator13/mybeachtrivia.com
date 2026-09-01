@@ -267,13 +267,33 @@ Recommend (a) — cleanest, and it belongs in the shared layer.
     `.filmstrip-preview-inner` transform → exact miniatures of the host output,
     autofit included. `syncFilmstripCanvasVars` sets the fixed size.
 
+- 2026-09-01 — **PPTX + model convergence DONE.** Commits `7ae1912`, `7109674`.
+  - `flattenSlidesForExport` now delegates to `flattenShow(data,
+    { keepRevealPairs: true })` + a thin PPTX-only overlay. `flattenShow`
+    gained `normalizeOptions` (array **or** `{A,B,…}` object) and a
+    slide→block→`entry.formData.block` fallback for options / matchingPairs /
+    orderingItems / feudAnswers — some shows only stored the ordering/matching
+    payload under `formData.block`, so those questions were blank on host /
+    cast / PPTX. Now render everywhere.
+  - Type sizes bumped for legibility (question 46→52, MC option 28→32); the
+    "dense" compact MC layout now triggers at 6+ options (was 5) so 4- and
+    5-option slides look consistent, with `autoFitStageText` catching any that
+    still run tall. Title-slide logo/QR enlarged.
+
 ### Still open
 
-1. **PPTX export → shared model** (plan step 5). `host/js/export-show-pptx.js`
-   has **uncommitted WIP** (ordering-item fallback, `<br>`→newline, logo
-   embedding, reveal-slide `alwaysReveal`) — converging its local flattener
-   onto `BeachTriviaSlideModel.flattenShow` now would clobber that. Commit the
-   WIP first, then do a focused pass (its *rendering* stays separate — pptxgenjs
-   objects, not DOM).
-2. **`slide-paint.js` local `DISPLAY_BLOCK_TYPES`** — still a 4-item literal
+1. **The two stylesheet copies** — `shared/preview-stage.css` and
+   `writer/style.css` carry the same `.slide-*` rules and every change now has
+   to be mirrored by hand (done 3× on 2026-09-01 alone). Make `writer.html`
+   load `preview-stage.css` and delete the dupes from `style.css` (keep only
+   the writer-only `.preview-stage-wrap` / inline-edit / filmstrip rules).
+2. **Writer serialization** — `serializeShowForSave` doesn't copy the form's
+   `orderingItems` / `matchingPairs` onto `block` / `block.slides`, so the data
+   only survives under `formData.block`. `flattenShow` now compensates, but the
+   serializer should be fixed so the published `block` is self-contained.
+3. **`slide-paint.js` local `DISPLAY_BLOCK_TYPES`** — still a 4-item literal
    (leaf file, `/cast-game` loads it without slide-model.js). Low value.
+4. **Writer mobile override** — `@media` block sets
+   `.preview-stage-wrap .slide-question { font-size: clamp(18px, 8vw, 36px) }`
+   which fights the fixed-canvas sizing on phones. Revisit once the canvas
+   approach is settled.
