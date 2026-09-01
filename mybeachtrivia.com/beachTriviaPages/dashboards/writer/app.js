@@ -5477,16 +5477,14 @@
    * Exposed on window for DevTools: syncFilmstripCanvasVars()
    */
   function syncFilmstripCanvasVars() {
-    var mainStage = document.querySelector(".preview-stage-wrap .preview-stage");
+    // Thumbs now render the fixed 1280x720 slide canvas (same as the host stage)
+    // and scale it down, so the reference size is constant — no longer synced
+    // from the main preview frame. Kept as a function so existing callers/RO
+    // wiring don't need touching; the CSS default already carries these values.
     var strip = document.getElementById("slide-filmstrip");
-    if (!mainStage || !strip) return false;
-    var w = mainStage.offsetWidth;
-    var h = mainStage.offsetHeight;
-    if (!w || w < 80) return false;
-    strip.style.setProperty("--filmstrip-preview-canvas-w", w + "px");
-    if (h && h > 20) {
-      strip.style.setProperty("--filmstrip-preview-canvas-h", h + "px");
-    }
+    if (!strip) return false;
+    strip.style.setProperty("--filmstrip-preview-canvas-w", "1280px");
+    strip.style.setProperty("--filmstrip-preview-canvas-h", "720px");
     return true;
   }
 

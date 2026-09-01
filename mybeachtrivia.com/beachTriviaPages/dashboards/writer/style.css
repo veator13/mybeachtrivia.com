@@ -2799,11 +2799,12 @@ textarea {
 /* ─── Slide Filmstrip ───────────────────────────────────────────── */
 
 #slide-filmstrip {
-  /* Width + height synced from main Slide Preview in app.js (same box = same flex layout when scaled) */
-  --filmstrip-preview-canvas-w: 870px;
-  --filmstrip-preview-canvas-h: 489px;
+  /* Thumbs render the real 1280x720 slide canvas and scale it down, so each
+     tile is an exact miniature of the host stage / Slide Preview. */
+  --filmstrip-preview-canvas-w: 1280px;
+  --filmstrip-preview-canvas-h: 720px;
   --filmstrip-thumb-stage-w: 124px;
-  --filmstrip-thumb-stage-h: 80px;
+  --filmstrip-thumb-stage-h: 70px; /* 124 * 9/16, matches the 16:9 canvas */
 }
 
 .slide-filmstrip {
@@ -3678,7 +3679,7 @@ textarea {
 
   #slide-filmstrip {
     --filmstrip-thumb-stage-w: 108px;
-    --filmstrip-thumb-stage-h: 68px;
+    --filmstrip-thumb-stage-h: 61px; /* 108 * 9/16 */
   }
 
   .slide-filmstrip {
