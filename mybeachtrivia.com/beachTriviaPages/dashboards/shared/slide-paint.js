@@ -298,7 +298,9 @@
       var opts = Array.isArray(slide.options) ? slide.options.filter(Boolean) : [];
       if (!opts.length) { optEl.style.display = 'none'; return; }
       optEl.style.display = '';
-      optEl.classList.toggle('slide-options--dense', opts.length >= 5);
+      // 6+ options get the compact layout; up to 5 render full-size and let
+      // autoFitStageText scale the band down if a particular slide runs tall.
+      optEl.classList.toggle('slide-options--dense', opts.length >= 6);
       opts.forEach(function (opt, i) {
         var row = document.createElement('div');
         var isCorrect = revealed && opt === slide.answer;

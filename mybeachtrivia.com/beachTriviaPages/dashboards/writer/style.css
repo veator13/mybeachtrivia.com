@@ -1315,7 +1315,7 @@ textarea {
 }
 
 .slide-question {
-  font-size: clamp(22px, 5cqw, 46px);
+  font-size: clamp(24px, 5.4cqw, 52px);
   line-height: 1.12;
   font-weight: 900;
   color: #f8fafc;
@@ -1845,8 +1845,8 @@ textarea {
 }
 
 .slide-option {
-  font-size: clamp(18px, 3.1cqw, 28px);
-  padding: clamp(8px, 1.61cqw, 14px) clamp(10px, 1.84cqw, 16px);
+  font-size: clamp(20px, 3.5cqw, 32px);
+  padding: clamp(10px, 1.8cqw, 17px) clamp(12px, 2cqw, 18px);
   border-radius: clamp(10px, 1.84cqw, 16px);
   background: rgba(255, 255, 255, 0.07);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -1857,18 +1857,18 @@ textarea {
 }
 
 .slide-options--dense {
-  gap: clamp(4px, 0.69cqw, 6px);
+  gap: clamp(6px, 1cqw, 10px);
 }
 
 .slide-options--dense .slide-option {
-  font-size: clamp(12px, 2.07cqw, 18px);
-  padding: clamp(4px, 0.8cqw, 7px) clamp(8px, 1.38cqw, 12px);
+  font-size: clamp(16px, 2.9cqw, 27px);
+  padding: clamp(8px, 1.4cqw, 13px) clamp(12px, 1.8cqw, 18px);
 }
 
 .slide-options--dense .slide-option-key {
-  width: clamp(18px, 2.76cqw, 24px);
-  height: clamp(18px, 2.76cqw, 24px);
-  font-size: clamp(9px, 1.15cqw, 11px);
+  width: clamp(24px, 3.6cqw, 32px);
+  height: clamp(24px, 3.6cqw, 32px);
+  font-size: clamp(12px, 1.5cqw, 15px);
 }
 
 .slide-option.correct {
@@ -3536,22 +3536,22 @@ textarea {
 }
 
 .preview-stage .title-slide-center-row {
-  gap: clamp(8px, 1.2cqw, 20px);
+  gap: clamp(16px, 3cqw, 44px);
 }
 
 .preview-stage .title-slide-logo img {
-  width: min(200px, 32cqw);
-  height: min(200px, 32cqw);
+  width: min(340px, 27cqw);
+  height: min(340px, 27cqw);
   max-width: 100%;
 }
 
 .preview-stage .title-slide-qr-card {
-  padding: 8px 10px;
+  padding: clamp(10px, 1.4cqw, 18px) clamp(12px, 1.8cqw, 22px);
 }
 
 .preview-stage .title-slide-qr-card img {
-  width: min(72px, 14cqw);
-  height: min(72px, 14cqw);
+  width: min(160px, 13cqw);
+  height: min(160px, 13cqw);
 }
 
 .preview-stage .title-slide-eyebrow-row {
@@ -3559,15 +3559,15 @@ textarea {
 }
 
 .preview-stage .title-slide-eyebrow {
-  font-size: clamp(0.55rem, 1.2cqw, 0.72rem);
+  font-size: clamp(0.6rem, 1.4cqw, 0.9rem);
 }
 
 .preview-stage .title-slide-qr-label {
-  font-size: clamp(0.6rem, 1.1cqw, 0.72rem);
+  font-size: clamp(0.7rem, 1.3cqw, 0.92rem);
 }
 
 .preview-stage .title-slide-qr-hint {
-  font-size: clamp(0.5rem, 0.9cqw, 0.58rem);
+  font-size: clamp(0.58rem, 1.05cqw, 0.74rem);
 }
 
 /* ─── Title slide structure card chip ─────────────────────────── */
