@@ -1260,11 +1260,10 @@ textarea {
   display: inline-flex;
   align-items: center;
   padding:
-    clamp(3px, 0.8cqw, 7px)
-    clamp(6px, 1.38cqw, 12px);
+    clamp(4px, 1cqw, 9px)
+    clamp(8px, 1.7cqw, 16px);
   border-radius: 999px;
-  /* Match original scale on large slides (1.38cqw); lower floor so it can shrink when the stage is narrow */
-  font-size: clamp(6px, 1.38cqw, 12px);
+  font-size: clamp(9px, 1.7cqw, 16px);
   font-weight: 800;
   letter-spacing: 0.05em;
   line-height: 1.15;
