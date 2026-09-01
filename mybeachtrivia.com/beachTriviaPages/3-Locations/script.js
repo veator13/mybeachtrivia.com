@@ -676,6 +676,24 @@ document.addEventListener("DOMContentLoaded", function () {
         fullscreenControl: true,
       });
 
+      // If the container was mid-layout when the map was created, nudge it to
+      // re-measure once things settle + whenever the box resizes.
+      const nudge = () => {
+        try {
+          google.maps.event.trigger(gMap, "resize");
+          gMap.setCenter(HAMPTON_ROADS_CENTER);
+        } catch (_) {}
+      };
+      setTimeout(nudge, 300);
+      setTimeout(nudge, 1200);
+      if (typeof ResizeObserver !== "undefined") {
+        new ResizeObserver(() => {
+          try {
+            google.maps.event.trigger(gMap, "resize");
+          } catch (_) {}
+        }).observe(mapDiv);
+      }
+
       return true;
     } catch (e) {
       console.warn("[locations] maps init failed:", e?.message || e);

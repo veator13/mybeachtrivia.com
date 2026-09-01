@@ -59,6 +59,17 @@ function str(v) {
   return String(v == null ? "" : v).trim();
 }
 
+// Some `locations` docs have junk in the address field (an email, a phone, a
+// note). Only pass through something that plausibly geocodes: has a digit and a
+// letter, isn't an email, and is long enough to be a street address.
+function cleanAddress(v) {
+  const s = str(v);
+  if (!s || s.length < 6) return "";
+  if (s.includes("@")) return "";
+  if (!/\d/.test(s) || !/[a-z]/i.test(s)) return "";
+  return s;
+}
+
 // A shift's `date` is normally a "YYYY-MM-DD" string; be lenient about Timestamps.
 function shiftDateYmd(raw) {
   if (isYmd(raw)) return raw;
@@ -137,7 +148,7 @@ exports.publicGetScheduledVenues = functions
         if (!name) return;
         locByName.set(name.toLowerCase(), {
           name,
-          address: str(d.address),
+          address: cleanAddress(d.address),
           active: d.active !== false && d.isActive !== false,
           isTemp: d.isTemp === true,
         });
