@@ -130,4 +130,24 @@ block at a time** as you type. Everything visual goes through `slide-paint.js`.
 
 ## Progress log
 
-- 2026-08-31 — survey complete, plan written. Nothing migrated yet.
+- 2026-08-31 — survey complete, plan written.
+- 2026-08-31 — **Step 1 done.** `slide-model.js` created; the 4 host players
+  (live-console, host-feud, host-mixed, host-themed-trivia) now call
+  `BeachTriviaSlideModel.flattenShow(data, { defaultTheme })` instead of their
+  own `flattenSlides`. Verified 0 diffs vs old output on both real published
+  shows (36 + 31 slides). live-console load/navigate/reveal tested green.
+  `DISPLAY_BLOCK_TYPES` / `slideRevealApplicable` still have local copies in
+  each host app + in slide-paint.js — converge in a later pass.
+  **Not yet done:** steps 2–5 (writer preview → slide-paint.js is the big one).
+
+### Next session starts here
+
+- Step 2: writer preview → `slide-paint.js`. In `writer/js/preview.js`, add a
+  `formData → normalized slide` adapter (one block), call
+  `BeachTriviaSlidePaint.paintSlide` for the visual layer, keep
+  `applyPreviewInlineChrome` running after it as the edit layer. Flag-gate the
+  old path (`renderFromFormData` internals) until every question type ×
+  {live,reveal} is verified against the host stage.
+- The writer preview stage skeleton and slide-paint's `buildSkeleton` must
+  agree on element classes — diff `.preview-stage` markup in writer.html vs
+  what `buildSkeleton` creates before starting.
