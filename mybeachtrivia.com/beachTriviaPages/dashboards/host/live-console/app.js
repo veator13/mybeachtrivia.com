@@ -241,56 +241,9 @@
 
   // ── Slides ─────────────────────────────────────────────────────────────────
 
+  // Shared: dashboards/shared/slide-model.js (was a local copy here).
   function flattenSlides(data) {
-    const blocks = Array.isArray(data.blocks) ? data.blocks : [];
-    const slides = [];
-    blocks.forEach(function (entry) {
-      const block = entry && entry.block;
-      if (!block) return;
-      const roundBadge = block.roundName || block.label || '';
-      (Array.isArray(block.slides) ? block.slides : []).forEach(function (s) {
-        /* Writer emits back-to-back live + reveal for the same question (same prompt).
-           Host advances with Prev/Next and uses Reveal to show answers — keep only the live
-           slide here. Standalone reveal slides (e.g. reveal pass after turn-in) stay: the
-           previous flattened slide is not the matching *.live. */
-        var sk = String(s.stateKey || '');
-        if (/\.reveal$/i.test(sk)) {
-          var liveKey = sk.replace(/\.reveal$/i, '.live');
-          if (slides.length) {
-            var prevKey = String(slides[slides.length - 1].stateKey || '');
-            if (prevKey === liveKey) {
-              return;
-            }
-          }
-        }
-        var isTitle = (s.kind === 'title' || s.type === 'title' || block.type === 'title');
-        var showTitle = (data.show && data.show.title) || '';
-        var showDate  = (data.show && data.show.dateLabel) || '';
-        slides.push({
-          stateKey:      s.stateKey    || '',
-          stateLabel:    s.stateLabel  || (isTitle ? 'Title Slide' : ''),
-          roundBadge:    s.title       || roundBadge,
-          category:      s.categoryName || s.category || block.categoryName || (isTitle ? showDate : ''),
-          question:      s.prompt      || s.question  || (isTitle ? showTitle : ''),
-          questionAlign: s.questionAlign || block.questionAlign || 'left',
-          questionFontScale:
-            typeof s.questionFontScale === 'number'
-              ? s.questionFontScale
-              : (typeof block.questionFontScale === 'number' ? block.questionFontScale : 1.0),
-          options:       Array.isArray(s.options) ? s.options.filter(Boolean) : [],
-          matchingPairs: Array.isArray(s.matchingPairs) ? s.matchingPairs : [],
-          orderingItems: Array.isArray(s.orderingItems) ? s.orderingItems : [],
-          answer:        s.answer      || '',
-          notes:         s.notes       || '',
-          theme:         s.themeStyle  || block.themeStyle || 'Standard Trivia',
-          alwaysReveal:  !!(s.answerVisibleByDefault || s.kind === 'summary' || s.kind === 'answers-summary'),
-          kind:          s.kind        || s.type       || (block.type === 'title' ? 'title' : 'question'),
-          blockType:     block.type    || '',
-          questionType:  s.questionType || block.questionType || 'multiple-choice',
-        });
-      });
-    });
-    return slides;
+    return window.BeachTriviaSlideModel.flattenShow(data, { defaultTheme: 'Standard Trivia' });
   }
 
   function slideRevealApplicable(slide) {
