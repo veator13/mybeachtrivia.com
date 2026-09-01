@@ -184,18 +184,32 @@ main {
 
 .locations-filters select,
 .locations-filters input[type="date"] {
-    color: black;
-    background: rgba(255, 255, 255, 0.9);
-    border: none;
+    color: #e2e8f0;
+    background: #1e293b;
+    border: 1px solid rgba(255, 255, 255, 0.14);
     border-radius: 10px;
     height: 36px;
     padding: 0 10px;
     width: 100%;
     box-sizing: border-box;
+    font-size: 14px;
+}
+
+.locations-filters select:focus,
+.locations-filters input[type="date"]:focus,
+.venue-search input:focus {
+    outline: none;
+    border-color: #55daff;
 }
 
 .locations-filters option {
-    color: black;
+    color: #e2e8f0;
+    background: #1e293b;
+}
+
+/* date-picker calendar icon: keep it visible on the dark field */
+.locations-filters input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1) opacity(0.7);
 }
 
 /* Two-column layout: event list on left, map on right */
@@ -311,15 +325,19 @@ main {
 .venue-search { position: relative; }
 
 .venue-search input {
-    color: black;
-    background: rgba(255, 255, 255, 0.95);
-    border: none;
+    color: #e2e8f0;
+    background: #1e293b;
+    border: 1px solid rgba(255, 255, 255, 0.14);
     border-radius: 10px;
     height: 36px;
     padding: 0 12px;
     width: 100%;
     box-sizing: border-box;
     font-size: 14px;
+}
+
+.venue-search input::placeholder {
+    color: rgba(226, 232, 240, 0.5);
 }
 
 .venue-search-list {
@@ -330,14 +348,15 @@ main {
     right: 0;
     max-height: 260px;
     overflow-y: auto;
-    background: #fff;
+    background: #1e293b;
+    border: 1px solid rgba(255, 255, 255, 0.14);
     border-radius: 10px;
-    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
     padding: 4px;
 }
 
 .venue-option {
-    color: #1e293b;
+    color: #e2e8f0;
     font-size: 13px;
     padding: 8px 10px;
     border-radius: 7px;
@@ -350,12 +369,12 @@ main {
 
 .venue-option:hover,
 .venue-option.is-selected {
-    background: #e0edff;
-    color: #0b1220;
+    background: #334155;
+    color: #fff;
 }
 
 .venue-option--empty {
-    color: #64748b;
+    color: rgba(226, 232, 240, 0.55);
     cursor: default;
     font-style: italic;
 }
