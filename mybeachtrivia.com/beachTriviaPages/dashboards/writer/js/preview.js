@@ -46,6 +46,26 @@
     return (root || document).querySelector(selector);
   }
 
+  // ── Fixed-canvas stage (shared with the host players) ──────────────────────
+  // The main preview paints into a 1280x720 `.slide-canvas` that
+  // BeachTriviaSlideStage scales to fit the preview card, so the writer sees the
+  // exact layout/type sizes a host screen gets. Filmstrip thumbnails keep the
+  // old flat stage (they're already scaled down another way).
+
+  /** Where slide DOM actually lives — the canvas when the scaled stage is on. */
+  function previewCanvasHost(stageEl) {
+    if (!stageEl) return stageEl;
+    return stageEl.querySelector(":scope > .slide-canvas") || stageEl;
+  }
+
+  function stageWantsScale(stageEl) {
+    return !!(
+      window.BeachTriviaSlideStage &&
+      stageEl &&
+      !stageEl.classList.contains("thumb-preview-stage")
+    );
+  }
+
   /** Bind preview DOM from a `.preview-stage` root (main preview or filmstrip thumb). */
   function collectDomFromPreviewStage(stageEl) {
     if (!stageEl) return null;
@@ -71,7 +91,9 @@
   /** Minimal slide markup matching `writer.html` — used for filmstrip thumbs. */
   function ensurePreviewSlideSkeleton(stageEl) {
     if (!stageEl || stageEl.querySelector(".slide-middle")) return;
-    stageEl.innerHTML = [
+    // Write into the scale-to-fit canvas when it's present, so we don't blow it away.
+    var target = stageEl.querySelector(":scope > .slide-canvas") || stageEl;
+    target.innerHTML = [
       '<div class="slide-top">',
       '  <span class="slide-badge"></span>',
       '  <div class="slide-meta-stack"></div>',
@@ -477,10 +499,14 @@
     dom.previewStage.dataset.writerPreviewView = "title";
     dom.previewStage.removeAttribute("data-block-type");
 
-    var overlay = dom.previewStage.querySelector(".slide-title-overlay");
+    if (stageWantsScale(dom.previewStage)) {
+      window.BeachTriviaSlideStage.ensure(dom.previewStage);
+    }
+    var titleHost = previewCanvasHost(dom.previewStage);
+    var overlay = titleHost.querySelector(".slide-title-overlay");
     if (!overlay) {
       overlay = _buildTitleOverlay();
-      dom.previewStage.appendChild(overlay);
+      titleHost.appendChild(overlay);
     }
     overlay.style.display = "flex";
 
@@ -700,20 +726,28 @@
       dom && dom.previewStage &&
       data.block.type !== "title"
     ) {
+      // Turn the preview card into a fixed 1280x720 canvas that scales to fit —
+      // identical geometry/type sizes to a host screen. ensure() first so the
+      // title-overlay + skeleton land inside the canvas, not the frame.
+      var wantScale = stageWantsScale(dom.previewStage);
+      if (wantScale) window.BeachTriviaSlideStage.ensure(dom.previewStage);
+      var paintHost = previewCanvasHost(dom.previewStage);
+
       // Make sure the title overlay in the stage is the WRITER's flavour (it has
       // the data-title-part hooks renderTitleSlide needs); otherwise the painter
       // would lazily create its own, host-flavoured one.
-      if (!dom.previewStage.querySelector(".slide-title-overlay")) {
+      if (!paintHost.querySelector(".slide-title-overlay")) {
         var wOverlay = _buildTitleOverlay();
         wOverlay.style.display = "none";
-        dom.previewStage.appendChild(wOverlay);
+        paintHost.appendChild(wOverlay);
       }
 
       var slide = formDataToSlide(data, mode, effectiveType, isDisplayBlock);
       window.BeachTriviaSlidePaint.paintSlide(
         dom.previewStage,
         slide,
-        String(mode).toLowerCase() === "reveal"
+        String(mode).toLowerCase() === "reveal",
+        { scaleToFit: wantScale }
       );
 
       // Writer-only layers on top of the shared visual:

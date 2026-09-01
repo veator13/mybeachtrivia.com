@@ -12,9 +12,14 @@
   /* Neutralise the old .preview-stage layout — content lives on the canvas now. */
   display: block;
   padding: 0;
+  border: 0;
+  box-shadow: none;
   container-type: normal;
 }
 .slide-stage-frame::after { content: none; }
+
+/* The writer's .preview-stage scrolls (overflow-y:auto); the canvas never does. */
+.slide-stage-frame.preview-stage { overflow: hidden; }
 
 /* The slide itself — always 1280x720. All .slide-* typography sizes with cqw of
    THIS box, so on a fixed 1280px canvas the clamps resolve to their max
