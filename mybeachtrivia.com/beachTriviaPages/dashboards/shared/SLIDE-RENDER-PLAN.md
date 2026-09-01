@@ -255,10 +255,25 @@ Recommend (a) — cleanest, and it belongs in the shared layer.
     a leaf loaded by `/cast-game` without slide-model.js; a 4-item literal isn't
     worth adding a dependency for.
 
+- 2026-09-01 — **Auto-fit + thumbnails DONE.** Commits `9a0f845`, `d297739`.
+  - `slide-paint.js`: `autoFitStageText` re-enabled (was a no-op). After paint
+    it measures `.slide-middle`; if content overflows the band it sets
+    `--fit-scale` + `.slide-middle--fitted` (floor 0.55), zooming the band to
+    fit instead of letting the canvas clip. Fixes the tall ordering /
+    long-feud-board / dense-rules cases on every surface at once. Rule added to
+    both stylesheet copies. `?v=20260831-autofit`.
+  - Writer filmstrip thumbs now render the constant **1280×720** canvas (was
+    synced from the ~490–870px frame), scaled by the existing
+    `.filmstrip-preview-inner` transform → exact miniatures of the host output,
+    autofit included. `syncFilmstripCanvasVars` sets the fixed size.
+
 ### Still open
 
-1. **`slide-paint.js` ordering-question fit.** A 5-item ordering slide with a
-   2-line question overflows the 1280×720 canvas (~37px) — same on host and
-   writer. Pre-existing `.slide-middle` grid fit issue, not a stage regression.
-2. Steps 4–5 (filmstrip thumbnails on the shared painter, PPTX reading the
-   shared model) per the migration list above — both low priority / cosmetic.
+1. **PPTX export → shared model** (plan step 5). `host/js/export-show-pptx.js`
+   has **uncommitted WIP** (ordering-item fallback, `<br>`→newline, logo
+   embedding, reveal-slide `alwaysReveal`) — converging its local flattener
+   onto `BeachTriviaSlideModel.flattenShow` now would clobber that. Commit the
+   WIP first, then do a focused pass (its *rendering* stays separate — pptxgenjs
+   objects, not DOM).
+2. **`slide-paint.js` local `DISPLAY_BLOCK_TYPES`** — still a 4-item literal
+   (leaf file, `/cast-game` loads it without slide-model.js). Low value.
