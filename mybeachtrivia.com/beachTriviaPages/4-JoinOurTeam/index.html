@@ -7,7 +7,7 @@
     <title>Beach Trivia - Join Our Team</title>
     <meta name="description" content="Apply to host trivia, music bingo, and Beach Feud events for Beach Trivia across Hampton Roads. Energetic hosts wanted — flexible hours, competitive pay." />
     <link rel="stylesheet" href="/nav-footer.css" />
-    <link rel="stylesheet" href="style.css?v=20260901-apply2">
+    <link rel="stylesheet" href="style.css?v=20260901-apply3">
 </head>
 <body>
       <header>
@@ -230,19 +230,19 @@
                     <div class="form-submit">
                         <button type="submit" class="submit-button">Submit Application</button>
                     </div>
-                    
-                    <!-- Loading Indicator -->
-                    <div id="formLoading" class="form-loading">
-                        <div class="spinner"></div>
-                        <p>Submitting your application...</p>
-                    </div>
-                    
-                    <!-- Success Message -->
-                    <div id="formSuccess" class="form-success">
-                        <h3>Thank you for your application!</h3>
-                        <p>We've received your information and will be in touch soon.</p>
-                    </div>
                 </form>
+
+                <!-- Loading + success live OUTSIDE the form so hiding the form
+                     on success doesn't also hide the confirmation. -->
+                <div id="formLoading" class="form-loading">
+                    <div class="spinner"></div>
+                    <p>Submitting your application...</p>
+                </div>
+
+                <div id="formSuccess" class="form-success">
+                    <h3>Thank you for your application!</h3>
+                    <p>We've received your information and will be in touch soon.</p>
+                </div>
 
                 <p class="email-alternative">If you prefer, you can also send your resume and a brief introduction to <a href="mailto:jobs@beachtrivia.com">jobs@beachtrivia.com</a>.</p>
             </div>
@@ -265,6 +265,6 @@
 
     <!-- Submission goes through the submitTeamApplication Cloud Function
          (POST /api/team-application) — no client Firebase needed. -->
-    <script src="script.js?v=20260901-apply2"></script>
+    <script src="script.js?v=20260901-apply3"></script>
 </body>
 </html>

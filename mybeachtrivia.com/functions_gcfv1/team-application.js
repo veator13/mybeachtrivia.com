@@ -259,10 +259,19 @@ exports.submitTeamApplication = functions
       return;
     }
 
-    // Heads-up email — best effort, never blocks the response.
-    channels
-      .sendEmail(alertEmail(app, id))
-      .catch((err) => console.error("[team-application] alert email failed:", err && err.message));
+    // Heads-up email — best effort, never blocks the response. One request per
+    // recipient so a single un-deliverable address (e.g. before the Resend
+    // domain is verified) can't suppress the others.
+    const mail = alertEmail(app, id);
+    ALERT_TO.forEach((addr) => {
+      channels
+        .sendEmail(Object.assign({}, mail, { to: addr }))
+        .then((r) => {
+          if (r && r.ok) console.log(`[team-application] alert emailed ${addr}`);
+          else console.warn(`[team-application] alert to ${addr} not sent:`, r && (r.error || r.skipped));
+        })
+        .catch((err) => console.error(`[team-application] alert to ${addr} failed:`, err && err.message));
+    });
 
     res.status(200).json({ ok: true, id });
   });
