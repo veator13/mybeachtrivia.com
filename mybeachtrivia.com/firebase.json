@@ -11,10 +11,7 @@
       "functions_gcfv1/**",
       "e2e/**",
       "tools/**",
-      "HANDOFF.md",
-      "SHIFT-SWAP-TIMEOFF-SPEC.md",
-      "CLAUDE.md",
-      "leads-research-task.md",
+      "**/*.md",
       "app.js",
       "app.js.*"
     ],
