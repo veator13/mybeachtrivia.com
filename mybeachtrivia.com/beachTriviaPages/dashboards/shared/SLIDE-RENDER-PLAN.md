@@ -289,6 +289,18 @@ Recommend (a) — cleanest, and it belongs in the shared layer.
    (e.g. round intro → all Qs → all reveals? / per-question live then reveal?
    / drop the answers-summary?) and reorder in `downloadEmergencyDeck` /
    `flattenSlidesForExport`. Get the target ordering from Josh first.
+
+0b. **Image questions — insertion + placement controls** (Josh, 2026-09-01).
+   - Test the existing image-question path end to end: upload → stored URL →
+     renders in writer preview / host stage / cast / PPTX. `renderMedia` in
+     slide-paint.js handles `questionType === "image-question"` with
+     `slide.imageUrl` (slide-model carries `imageUrl`? verify — it may need
+     adding to `flattenShow`). Check the writer upload UI actually persists.
+   - Add Google-Slides-style **resize + move** controls for the image on the
+     slide (drag to reposition, corner handles to scale), persisted per slide
+     (new fields e.g. `imageRect: {x,y,w,h}` or scale/offset). Both the writer
+     preview (interactive) and the read-only surfaces (host/cast/PPTX) must
+     honour the stored geometry. This is real feature work, not a tweak.
 1. **The two stylesheet copies** — `shared/preview-stage.css` and
    `writer/style.css` carry the same `.slide-*` rules and every change now has
    to be mirrored by hand (done 3× on 2026-09-01 alone). Make `writer.html`
