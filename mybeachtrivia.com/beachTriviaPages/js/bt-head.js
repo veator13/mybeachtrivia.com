@@ -21,7 +21,7 @@
 (function () {
   "use strict";
 
-  var V = "c829b51bf4"; // BT_ASSET_V — managed by tools/cachebust.mjs
+  var V = "a304230334"; // BT_ASSET_V — managed by tools/cachebust.mjs
   var base = "/beachTriviaPages/js/";
 
   document.write(

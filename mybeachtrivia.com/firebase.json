@@ -34,6 +34,10 @@
       {
         "source": "/api/scheduled-venues",
         "function": "publicGetScheduledVenues"
+      },
+      {
+        "source": "/api/team-application",
+        "function": "submitTeamApplication"
       }
     ],
     "headers": [

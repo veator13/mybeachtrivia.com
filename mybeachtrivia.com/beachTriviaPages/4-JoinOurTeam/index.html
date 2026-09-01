@@ -5,8 +5,9 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Beach Trivia - Join Our Team</title>
+    <meta name="description" content="Apply to host trivia, music bingo, and Beach Feud events for Beach Trivia across Hampton Roads. Energetic hosts wanted — flexible hours, competitive pay." />
     <link rel="stylesheet" href="/nav-footer.css" />
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=20260901-apply2">
 </head>
 <body>
       <header>
@@ -40,11 +41,9 @@
   </header>
 
   <div id="header-mask"></div>
-  <div id="js-barrier"></div>
 
     <main>
         <div class="details">
-            <div class="fade-overlay"></div>
             <div class="details-content">
                 <h1 style="color: black; text-decoration: underline; font-weight: bold; text-align: center;">JOIN OUR TEAM</h1>
                 
@@ -59,7 +58,13 @@
                 </ul>
                 
                 <!-- Application Form -->
-                <form id="teamApplicationForm">
+                <form id="teamApplicationForm" novalidate>
+                    <!-- Honeypot: hidden from people, catnip for bots. Must stay empty. -->
+                    <div class="hp-field" aria-hidden="true">
+                        <label for="companyWebsite">Company website</label>
+                        <input type="text" id="companyWebsite" name="companyWebsite" tabindex="-1" autocomplete="off" />
+                    </div>
+
                     <div class="form-section">
                         <h3>Personal Information</h3>
                         
@@ -258,11 +263,8 @@
         </div>
     </footer>
 
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-    
-    <!-- Your existing script file (now with Firebase config included) -->
-    <script src="script.js"></script>
+    <!-- Submission goes through the submitTeamApplication Cloud Function
+         (POST /api/team-application) — no client Firebase needed. -->
+    <script src="script.js?v=20260901-apply2"></script>
 </body>
 </html>

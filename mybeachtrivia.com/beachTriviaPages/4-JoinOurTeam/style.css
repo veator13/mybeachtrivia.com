@@ -9,9 +9,12 @@
 *, html, body {
   padding: 0;
   margin: 0;
-  height: 100%;
-  width: 100%;
   text-decoration: none;
+}
+
+html, body {
+  min-height: 100%;
+  width: 100%;
 }
 
 body {
@@ -41,11 +44,10 @@ main {
     padding-top: 70px;
     padding-bottom: 100px;
     position: relative;
-    min-height: calc(100% - 115px);
+    min-height: calc(100vh - 115px);
     height: auto;
     margin-bottom: 100px;
     z-index: 1;
-    overflow-x: auto; /* Enable horizontal scrolling for the main content area */
     width: 100%;
     box-sizing: border-box;
 }
@@ -53,9 +55,9 @@ main {
 .details {
     position: relative;
     width: 80%;
-    min-width: 600px; /* Ensures minimum width for horizontal scrolling */
+    max-width: 900px;
     height: auto;
-    padding: 40px; /* Increased padding */
+    padding: 40px;
     margin-left: auto;
     margin-right: auto;
     background-color: rgba(255, 255, 255, 0.5);
@@ -66,22 +68,17 @@ main {
     align-items: center;
     text-align: center;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-    overflow-x: auto; /* Enables horizontal scrolling */
-    overflow-y: hidden; /* Prevents vertical scrolling from the container itself */
-    will-change: transform, opacity;
     z-index: 1;
-    box-sizing: border-box; /* Include padding in width calculation */
+    box-sizing: border-box;
 }
 
-.fade-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 0;
-    z-index: 10;
-    pointer-events: none;
-    background-color: transparent;
+/* Honeypot — off-screen, no layout, invisible to people; bots fill it. */
+.hp-field {
+    position: absolute !important;
+    left: -9999px !important;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
 }
 
 .details-content {
@@ -342,6 +339,19 @@ main {
   background-color: rgba(231, 76, 60, 0.05) !important;
 }
 
+.details .field-error {
+  margin: 6px 0 0;
+  color: #c0392b;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.details .checkbox-group.error-field {
+  border-radius: 6px;
+  padding: 6px !important;
+}
+
 /* Responsive form adjustments */
 @media screen and (max-width: 768px) {
   .details .radio-group {
@@ -387,15 +397,22 @@ main {
   .details .form-field .checkbox-option {
     width: 48% !important; /* Just under 1/2 */
   }
-}.details .radio-group {
+
+  .details {
+    width: 94%;
+    padding: 22px 16px;
+  }
+
+  .details .form-section {
+    width: 100%;
+    max-width: 100%;
+    padding: 18px 14px;
+  }
+}
+
+.details .radio-group {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
   margin-top: 5px;
-}* {
-    color: white;
-    font-family: sans-serif;
-    text-decoration: none;
-    list-style-type: none;
-    max-width: 100%;
 }

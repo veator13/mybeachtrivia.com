@@ -589,6 +589,23 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    /* ========= Job Applications ("Join Our Team") =========
+       The public form POSTs to the submitTeamApplication Cloud Function, which
+       runs its spam checks then writes here with the Admin SDK (bypasses these
+       rules). No client may create — that is what keeps the collection
+       un-spammable. Admins review and move the pipeline stage from the
+       applications dashboard.
+    */
+    match /Applications/{appId} {
+      allow read, update, delete: if isAdmin();
+      allow create: if false;
+    }
+
+    // Per-IP rate-limit counters for the application form. Server-only.
+    match /applicationRateLimits/{ipHash} {
+      allow read, write: if false;
+    }
+
     /* ========= Companion Sessions (Music Bingo cross-device sync) =========
        Publicly readable — only contains song titles/artist names, nothing sensitive.
        Only hosts/admins can write (main player is always employee-authed).

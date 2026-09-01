@@ -1,0 +1,134 @@
+<!-- mybeachtrivia.com/beachTriviaPages/dashboards/admin/applications/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="color-scheme" content="light dark" />
+  <title>Applications Admin</title>
+
+  <link rel="stylesheet" href="style.css?v=20260901a"/>
+  <script src="/beachTriviaPages/js/bt-head.js"></script>
+
+  <!-- Firebase SDKs (compat) -->
+  <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.21.0/firebase-firestore-compat.js"></script>
+
+  <script src="/firebase-init.js"></script>
+  <script src="./auth-guard.js" defer></script>
+</head>
+
+<body data-page="applications-admin">
+  <div id="auth-loading" class="auth-overlay" aria-live="polite">
+    <div class="spinner" role="status" aria-label="Loading"></div>
+    <p>Verifying access...</p>
+  </div>
+
+  <div class="container" style="display:none;">
+    <header class="page-header">
+      <div>
+        <h1 class="page-title">Host Applications</h1>
+        <p class="page-subtitle">People who applied through the "Join Our Team" form. Review each one and move it along the pipeline.</p>
+      </div>
+    </header>
+
+    <section class="card card-table">
+      <div class="card-head">
+        <div class="head-top">
+          <div>
+            <h2 class="card-title">Applications</h2>
+            <div class="muted" id="apps-count" aria-live="polite"></div>
+          </div>
+        </div>
+
+        <div class="app-filter-bar">
+          <div class="seg" role="tablist" aria-label="Stage filter">
+            <button class="seg-btn is-active" data-view="open" type="button">Open <span class="seg-badge" id="badge-open">0</span></button>
+            <button class="seg-btn" data-view="new" type="button">New <span class="seg-badge" id="badge-new">0</span></button>
+            <button class="seg-btn" data-view="reviewing" type="button">Reviewing</button>
+            <button class="seg-btn" data-view="interview" type="button">Interview</button>
+            <button class="seg-btn" data-view="offer" type="button">Offer</button>
+            <button class="seg-btn" data-view="hired" type="button">Hired</button>
+            <button class="seg-btn" data-view="closed" type="button">Closed</button>
+            <button class="seg-btn" data-view="all" type="button">All</button>
+          </div>
+
+          <div class="field app-search">
+            <label for="appSearch" class="label">Search</label>
+            <input id="appSearch" type="text" class="input" placeholder="Name, email, phone, city…" autocomplete="off" aria-label="Search applications" />
+          </div>
+        </div>
+      </div>
+
+      <div class="card-body">
+        <div id="apps-empty" class="muted" style="display:none; margin:0 0 10px 0;" aria-live="polite"></div>
+
+        <div class="table-wrapper">
+          <table id="appsTable" class="table">
+            <thead>
+              <tr>
+                <th scope="col" class="col-name">Name</th>
+                <th scope="col">Applied</th>
+                <th scope="col">Availability</th>
+                <th scope="col">Shift Pref</th>
+                <th scope="col">Travel</th>
+                <th scope="col">Stage</th>
+              </tr>
+            </thead>
+            <tbody id="appsTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Detail modal -->
+  <div id="appModal" class="modal" aria-hidden="true" aria-labelledby="appModalTitle" role="dialog">
+    <div class="modal-content app-modal-content">
+      <button type="button" class="close-modal" aria-label="Close">&times;</button>
+
+      <h3 id="appModalTitle" class="modal-title">Application</h3>
+      <div class="muted" id="appModalSub" style="margin-top:-4px;"></div>
+
+      <div class="app-modal-tools">
+        <a id="appEmailBtn" class="btn btn-ghost btn-sm" href="#">✉️ Email</a>
+        <a id="appCallBtn" class="btn btn-ghost btn-sm" href="#">📞 Call</a>
+        <button type="button" id="appCopyBtn" class="btn btn-ghost btn-sm">📋 Copy details</button>
+        <button type="button" id="appDeleteBtn" class="btn btn-ghost btn-sm danger">🗑 Delete</button>
+      </div>
+
+      <div class="stage-bar">
+        <div class="field">
+          <label class="label" for="appStageSelect">Pipeline stage</label>
+          <select id="appStageSelect" class="input">
+            <option value="new">New</option>
+            <option value="reviewing">Reviewing</option>
+            <option value="interview">Interview</option>
+            <option value="offer">Offer</option>
+            <option value="hired">Hired</option>
+            <option value="rejected">Rejected</option>
+            <option value="withdrawn">Withdrawn</option>
+          </select>
+        </div>
+        <button type="button" id="appStageSave" class="btn btn-primary btn-sm">Save stage</button>
+        <span id="appStageMsg" class="muted"></span>
+      </div>
+
+      <div class="field" style="margin-top:12px;">
+        <label class="label" for="appNotes">Internal notes</label>
+        <textarea id="appNotes" rows="3" placeholder="Notes for the hiring team…"></textarea>
+        <button type="button" id="appNotesSave" class="btn btn-ghost btn-sm" style="justify-self:start;">Save notes</button>
+      </div>
+
+      <div id="appDetailBody" class="app-detail"></div>
+
+      <div id="appStageHistory" class="app-history"></div>
+    </div>
+  </div>
+
+  <script src="boot.js"></script>
+  <script src="./script.js" defer></script>
+  <script src="/beachTriviaPages/js/auth-route-guard.v2.js?v=2025-10-14a"></script>
+</body>
+</html>

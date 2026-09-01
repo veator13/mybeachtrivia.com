@@ -350,6 +350,12 @@ exports.ingestLeadResearch = leads.ingestLeadResearch;
 exports.leadsResearchQueue = leads.leadsResearchQueue;
 
 /** ------------------------------------------
+ * Beach Trivia: "Join Our Team" public application intake
+ * ----------------------------------------- */
+const teamApplication = require("./team-application");
+exports.submitTeamApplication = teamApplication.submitTeamApplication;
+
+/** ------------------------------------------
  * Beach Trivia: public Locations page — scheduled venues for the map
  * ----------------------------------------- */
 const publicLocations = require("./publicLocations");

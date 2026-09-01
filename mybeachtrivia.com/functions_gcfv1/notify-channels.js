@@ -62,7 +62,11 @@ function emailAllowlist() {
 }
 
 /**
- * @param {{to: string|string[], subject: string, text: string, html?: string}} msg
+ * @param {{to: string|string[], subject: string, text: string, html?: string,
+ *          force?: boolean}} msg
+ *   force: bypass the BT_NOTIFY_EMAIL test/live gate. Only for mail to a fixed
+ *   internal address (not a broadcast to employee inboxes) — e.g. the
+ *   "new job application" heads-up. A Resend key is still required.
  */
 async function sendEmail(msg) {
   const mode = emailMode();
@@ -71,7 +75,9 @@ async function sendEmail(msg) {
     .filter((e) => e && e.includes("@"));
   if (!to.length) return { ok: false, skipped: "no-recipients" };
 
-  if (mode === "test") {
+  if (msg.force) {
+    // skip the delivery gate entirely
+  } else if (mode === "test") {
     const allow = emailAllowlist();
     to = to.filter((e) => allow.includes(e));
     if (!to.length) {

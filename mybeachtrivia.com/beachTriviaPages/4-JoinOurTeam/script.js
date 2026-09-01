@@ -1,165 +1,164 @@
-// Form validation and submission handling
+// Join Our Team — application form.
+//
+// Posts to the submitTeamApplication Cloud Function (same-origin via
+// /api/team-application). The function does the spam checks + Firestore write +
+// the "new application" email, so this file only validates and submits.
 
-// Your web app's Firebase configuration
-const firebaseConfig = {
-    apiKey: "AIzaSyDBKCotY1F943DKfVQqKOGPPkAkQe2Zgog",
-    authDomain: "beach-trivia-website.firebaseapp.com",
-    projectId: "beach-trivia-website",
-    storageBucket: "beach-trivia-website.firebasestorage.app",
-    messagingSenderId: "459479368322",
-    appId: "1:459479368322:web:7bd3d080d3b9e77610aa9b",
-    measurementId: "G-24MQRKKDNY"
-  };
-  
-  // Initialize Firebase
-  firebase.initializeApp(firebaseConfig);
-  
-  // Initialize Firestore
-  const db = firebase.firestore();
-  
-  document.addEventListener('DOMContentLoaded', function() {
-      const form = document.getElementById('teamApplicationForm');
-      
-      // Form validation and submission
-      form.addEventListener('submit', function(e) {
-          e.preventDefault();
-          
-          if (validateForm()) {
-              // Show loading indicator
-              const loadingIndicator = document.getElementById('formLoading');
-              loadingIndicator.style.display = 'block';
-              
-              // Disable submit button during submission
-              const submitButton = document.querySelector('.submit-button');
-              submitButton.disabled = true;
-              
-              // Collect form data
-              const formData = new FormData(form);
-              
-              // Get availability checkboxes
-              const availabilityCheckboxes = document.querySelectorAll('input[name="availability"]:checked');
-              const availabilityValues = Array.from(availabilityCheckboxes).map(cb => cb.value);
-              
-              // Create an object to hold all form data
-              const formDataObj = {};
-              for (let [key, value] of formData.entries()) {
-                  if (key !== 'availability') { // Skip individual availability checkboxes
-                      formDataObj[key] = value;
-                  }
-              }
-              
-              // Add the availability array
-              formDataObj.availability = availabilityValues;
-              
-              // Add submission date and status
-              formDataObj.submissionDate = new Date();
-              formDataObj.status = "pending";
-              
-              // Submit to Firestore
-              db.collection("Applications").add(formDataObj)
-                  .then((docRef) => {
-                      console.log("Application submitted with ID: ", docRef.id);
-                      
-                      // Hide loading indicator
-                      loadingIndicator.style.display = 'none';
-                      
-                      // Show success message
-                      document.getElementById('formSuccess').style.display = 'block';
-                      document.getElementById('formSuccess').scrollIntoView({ behavior: 'smooth' });
-                      
-                      // Reset form
-                      form.reset();
-                      
-                      // Re-enable submit button
-                      submitButton.disabled = false;
-                  })
-                  .catch((error) => {
-                      console.error("Error adding document: ", error);
-                      
-                      // Hide loading indicator
-                      loadingIndicator.style.display = 'none';
-                      
-                      // Show error message
-                      alert('Error submitting application. Please try again later.');
-                      
-                      // Re-enable submit button
-                      submitButton.disabled = false;
-                  });
-          }
-      });
-      
-      // Form validation function
-      function validateForm() {
-          let isValid = true;
-          const requiredFields = form.querySelectorAll('[required]');
-          
-          // Clear previous error styling
-          const errorFields = form.querySelectorAll('.error-field');
-          errorFields.forEach(field => field.classList.remove('error-field'));
-          
-          // Check each required field
-          requiredFields.forEach(field => {
-              if (!field.value.trim()) {
-                  field.classList.add('error-field');
-                  isValid = false;
-              }
-          });
-          
-          // Check email format
-          const emailField = document.getElementById('email');
-          const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-          if (emailField.value && !emailPattern.test(emailField.value)) {
-              emailField.classList.add('error-field');
-              isValid = false;
-          }
-          
-          // Check phone format
-          const phoneField = document.getElementById('phone');
-          const phonePattern = /^[\d\s\-\(\)\.]+$/; // Basic phone validation
-          if (phoneField.value && !phonePattern.test(phoneField.value)) {
-              phoneField.classList.add('error-field');
-              isValid = false;
-          }
-          
-          // Check availability (at least one day must be selected)
-          const availabilityCheckboxes = form.querySelectorAll('input[name="availability"]:checked');
-          if (availabilityCheckboxes.length === 0) {
-              const availabilitySection = document.querySelector('.checkbox-group');
-              availabilitySection.classList.add('error-field');
-              isValid = false;
-          }
-          
-          // Check new required text areas
-          const textAreas = ['disputeHandling', 'techIssues', 'triviaEngagement'];
-          textAreas.forEach(id => {
-              const textArea = document.getElementById(id);
-              if (textArea && textArea.hasAttribute('required') && !textArea.value.trim()) {
-                  textArea.classList.add('error-field');
-                  isValid = false;
-              }
-          });
-          
-          // If form is invalid, show alert
-          if (!isValid) {
-              alert('Please complete all required fields correctly.');
-          }
-          
-          return isValid;
+(function () {
+  "use strict";
+
+  const ENDPOINT = "/api/team-application";
+  const ENDPOINT_FALLBACK =
+    "https://us-central1-beach-trivia-website.cloudfunctions.net/submitTeamApplication";
+
+  // When the page finished loading — used server-side as a bot signal
+  // (a form filled + submitted in under a few seconds isn't a person).
+  const startedAt = Date.now();
+
+  document.addEventListener("DOMContentLoaded", function () {
+    const form = document.getElementById("teamApplicationForm");
+    if (!form) return;
+
+    const loadingIndicator = document.getElementById("formLoading");
+    const successBox = document.getElementById("formSuccess");
+    const submitButton = form.querySelector(".submit-button");
+
+    // ── inline field errors ────────────────────────────────────────────────
+    function clearErrors() {
+      form.querySelectorAll(".error-field").forEach((el) => el.classList.remove("error-field"));
+      form.querySelectorAll(".field-error").forEach((el) => el.remove());
+    }
+
+    function markError(el, message) {
+      if (!el) return;
+      el.classList.add("error-field");
+      const field = el.closest(".form-field") || el.parentElement;
+      if (field && message && !field.querySelector(".field-error")) {
+        const note = document.createElement("p");
+        note.className = "field-error";
+        note.textContent = message;
+        field.appendChild(note);
       }
-      
-      // Format phone number as user types
-      const phoneInput = document.getElementById('phone');
-      phoneInput.addEventListener('input', function(e) {
-          let value = e.target.value.replace(/\D/g, '');
-          if (value.length > 0) {
-              if (value.length <= 3) {
-                  value = value;
-              } else if (value.length <= 6) {
-                  value = value.slice(0, 3) + '-' + value.slice(3);
-              } else {
-                  value = value.slice(0, 3) + '-' + value.slice(3, 6) + '-' + value.slice(6, 10);
-              }
-              e.target.value = value;
-          }
+    }
+
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    function validate() {
+      clearErrors();
+      let firstBad = null;
+
+      form.querySelectorAll("[required]").forEach((field) => {
+        const val = (field.value || "").trim();
+        if (!val) {
+          markError(field, "This field is required.");
+          firstBad = firstBad || field;
+        }
       });
+
+      const email = document.getElementById("email");
+      if (email && email.value && !EMAIL_RE.test(email.value.trim())) {
+        markError(email, "Enter a valid email address.");
+        firstBad = firstBad || email;
+      }
+
+      const phone = document.getElementById("phone");
+      if (phone && phone.value && !/\d/.test(phone.value)) {
+        markError(phone, "Enter a valid phone number.");
+        firstBad = firstBad || phone;
+      }
+
+      const availability = form.querySelectorAll('input[name="availability"]:checked');
+      if (!availability.length) {
+        const group = form.querySelector(".checkbox-group");
+        markError(group, "Pick at least one day.");
+        if (group) firstBad = firstBad || group;
+      }
+
+      if (firstBad) {
+        firstBad.scrollIntoView({ behavior: "smooth", block: "center" });
+        if (typeof firstBad.focus === "function") {
+          try { firstBad.focus({ preventScroll: true }); } catch (_) { firstBad.focus(); }
+        }
+      }
+      return !firstBad;
+    }
+
+    // ── collect ────────────────────────────────────────────────────────────
+    function collect() {
+      const data = {};
+      new FormData(form).forEach((value, key) => {
+        if (key === "availability") return; // handled as an array below
+        data[key] = value;
+      });
+      data.availability = Array.from(
+        form.querySelectorAll('input[name="availability"]:checked')
+      ).map((cb) => cb.value);
+      data.elapsedMs = Date.now() - startedAt;
+      return data;
+    }
+
+    async function post(url, payload) {
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await resp.json().catch(() => null);
+      return { status: resp.status, json };
+    }
+
+    // ── submit ─────────────────────────────────────────────────────────────
+    form.addEventListener("submit", async function (e) {
+      e.preventDefault();
+      if (!validate()) return;
+
+      if (loadingIndicator) loadingIndicator.style.display = "block";
+      if (submitButton) submitButton.disabled = true;
+
+      const payload = collect();
+
+      let result = null;
+      try {
+        result = await post(ENDPOINT, payload);
+        if (result.status === 404) result = await post(ENDPOINT_FALLBACK, payload);
+      } catch (err) {
+        console.error("[apply] network error:", err);
+      }
+
+      if (loadingIndicator) loadingIndicator.style.display = "none";
+
+      if (result && result.json && result.json.ok) {
+        form.style.display = "none";
+        if (successBox) {
+          successBox.style.display = "block";
+          successBox.scrollIntoView({ behavior: "smooth" });
+        }
+        return;
+      }
+
+      if (submitButton) submitButton.disabled = false;
+
+      if (result && result.status === 429) {
+        alert("You've submitted a few times already. Please wait a bit and try again, or email jobs@beachtrivia.com.");
+      } else if (result && result.json && result.json.error === "missing_fields") {
+        (result.json.fields || []).forEach((name) => {
+          markError(document.getElementById(name) || form.querySelector(`[name="${name}"]`), "Please complete this field.");
+        });
+        alert("Please complete all required fields correctly.");
+      } else {
+        alert("Something went wrong submitting your application. Please try again, or email jobs@beachtrivia.com.");
+      }
+    });
+
+    // ── phone formatting as you type ───────────────────────────────────────
+    const phoneInput = document.getElementById("phone");
+    if (phoneInput) {
+      phoneInput.addEventListener("input", function (e) {
+        let v = e.target.value.replace(/\D/g, "").slice(0, 10);
+        if (v.length > 6) v = v.slice(0, 3) + "-" + v.slice(3, 6) + "-" + v.slice(6);
+        else if (v.length > 3) v = v.slice(0, 3) + "-" + v.slice(3);
+        e.target.value = v;
+      });
+    }
   });
+})();
