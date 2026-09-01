@@ -1292,7 +1292,9 @@ textarea {
   margin: clamp(6px, 2.3cqw, 20px) 0;
   display: grid;
   gap: clamp(10px, 2.53cqw, 22px);
-  align-content: center;
+  /* "safe" so an over-tall slide (many options + answer panel) doesn't spill
+     upward past the round badge — it falls back to top-aligned instead. */
+  align-content: safe center;
   flex: 1;
   min-height: 0;
 }
