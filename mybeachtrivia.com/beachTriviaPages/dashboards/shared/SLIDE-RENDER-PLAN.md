@@ -282,6 +282,13 @@ Recommend (a) — cleanest, and it belongs in the shared layer.
 
 ### Still open
 
+0. **PPTX slide order for manual presentation** (Josh, 2026-09-01 — not now).
+   The backup `.pptx` currently emits slides in raw show order (with live +
+   reveal pairs). For actually running a show off the deck manually, the slide
+   sequence needs reorganizing — figure out the desired presentation order
+   (e.g. round intro → all Qs → all reveals? / per-question live then reveal?
+   / drop the answers-summary?) and reorder in `downloadEmergencyDeck` /
+   `flattenSlidesForExport`. Get the target ordering from Josh first.
 1. **The two stylesheet copies** — `shared/preview-stage.css` and
    `writer/style.css` carry the same `.slide-*` rules and every change now has
    to be mirrored by hand (done 3× on 2026-09-01 alone). Make `writer.html`
