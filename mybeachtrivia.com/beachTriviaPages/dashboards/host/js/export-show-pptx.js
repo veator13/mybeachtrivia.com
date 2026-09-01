@@ -20,11 +20,43 @@
     return [];
   }
 
+  /** Strip a leading "A) " / "B) " letter prefix if the source stored one. */
+  function stripOptionKey(str) {
+    return String(str).replace(/^[A-Za-z]\)\s*/, "");
+  }
+
   /**
-   * Same rules as host consoles: drop duplicate *.reveal after matching *.live;
-   * include feudAnswers for Feud / mixed shows.
+   * Backup-deck slide list. Shares the block→slide flattening + field
+   * resolution with the host players (dashboards/shared/slide-model.js) but
+   * layers on three things PowerPoint needs that the live players don't:
+   *   1. keep the writer's back-to-back live + reveal slides (no Reveal button)
+   *   2. show the answer on every ".reveal" slide
+   *   3. derive ordering items from the options array when a legacy show only
+   *      stored them there
    */
   function flattenSlidesForExport(data) {
+    var Model = global.BeachTriviaSlideModel;
+    var base = (Model && typeof Model.flattenShow === "function")
+      ? Model.flattenShow(data || {}, { keepRevealPairs: true })
+      : legacyFlattenForExport(data || {});
+
+    return base.map(function (slide) {
+      var qt = String(slide.questionType || "").toLowerCase();
+      var opts = (slide.options || []).map(String).filter(Boolean);
+      var ordering =
+        Array.isArray(slide.orderingItems) && slide.orderingItems.length
+          ? slide.orderingItems
+          : (qt === "ordering" ? opts.map(stripOptionKey) : []);
+      return Object.assign({}, slide, {
+        options: opts,
+        orderingItems: ordering,
+        alwaysReveal: !!(slide.alwaysReveal || /\.reveal$/i.test(String(slide.stateKey || ""))),
+      });
+    });
+  }
+
+  /** Fallback flattener for the (unexpected) case slide-model.js isn't loaded. */
+  function legacyFlattenForExport(data) {
     var blocks = Array.isArray(data.blocks) ? data.blocks : [];
     var slides = [];
     blocks.forEach(function (entry) {
@@ -32,19 +64,11 @@
       if (!block) return;
       var roundBadge = block.roundName || block.label || "";
       (Array.isArray(block.slides) ? block.slides : []).forEach(function (s) {
-        var sk = String(s.stateKey || "");
-        if (/\.reveal$/i.test(sk)) {
-          var liveKey = sk.replace(/\.reveal$/i, ".live");
-          if (slides.length) {
-            var prevKey = String(slides[slides.length - 1].stateKey || "");
-            if (prevKey === liveKey) return;
-          }
-        }
         var isTitle = s.kind === "title" || s.type === "title" || block.type === "title";
         var showTitle = (data.show && data.show.title) || "";
         var showDate = (data.show && data.show.dateLabel) || "";
-        var slideObj = {
-          stateKey: sk,
+        slides.push({
+          stateKey: String(s.stateKey || ""),
           stateLabel: s.stateLabel || (isTitle ? "Title Slide" : ""),
           roundBadge: s.title || roundBadge,
           category: s.categoryName || s.category || block.categoryName || (isTitle ? showDate : ""),
@@ -52,22 +76,15 @@
           options: normalizeOptionsRaw(s.options),
           matchingPairs: Array.isArray(s.matchingPairs) ? s.matchingPairs : [],
           orderingItems: Array.isArray(s.orderingItems) ? s.orderingItems : [],
-          feudAnswers: Array.isArray(s.feudAnswers)
-            ? s.feudAnswers
-            : Array.isArray(block.feudAnswers)
-              ? block.feudAnswers
-              : [],
+          feudAnswers: Array.isArray(s.feudAnswers) ? s.feudAnswers
+            : (Array.isArray(block.feudAnswers) ? block.feudAnswers : []),
           answer: s.answer || "",
           notes: s.notes || "",
           alwaysReveal: !!(s.answerVisibleByDefault || s.kind === "summary" || s.kind === "answers-summary"),
           kind: s.kind || s.type || (block.type === "title" ? "title" : "question"),
           blockType: block.type || "",
           questionType: s.questionType || block.questionType || "",
-        };
-        if (!slideObj.options.length && s.options && typeof s.options === "object" && !Array.isArray(s.options)) {
-          slideObj.options = normalizeOptionsRaw(s.options);
-        }
-        slides.push(slideObj);
+        });
       });
     });
     return slides;
@@ -75,9 +92,14 @@
 
   function stripHtml(html) {
     if (!html) return "";
+    // Preserve block-level line breaks before stripping tags.
+    var cleaned = String(html)
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<\/p>/gi, "\n")
+      .replace(/<\/div>/gi, "\n");
     var d = typeof document !== "undefined" ? document.createElement("div") : null;
-    if (!d) return String(html).replace(/<[^>]+>/g, " ").trim();
-    d.innerHTML = String(html);
+    if (!d) return cleaned.replace(/<[^>]+>/g, "").trim();
+    d.innerHTML = cleaned;
     return (d.textContent || d.innerText || "").trim();
   }
 
@@ -202,11 +224,11 @@
 
   // ── Title slide ──────────────────────────────────────────────────────────────
 
-  function paintTitleSlide(s, slide, showMeta) {
+  function paintTitleSlide(s, slide, showMeta, logoDataUrl) {
     fillBg(s);
     addTopStripe(s);
 
-    // Top accent stripe (thicker, branded)
+    // Top accent stripe (branded cyan)
     s.addShape("rect", {
       x: 0, y: 0, w: SW, h: 0.06,
       fill: { color: C.accent },
@@ -215,7 +237,7 @@
 
     // Eyebrow
     s.addText("BEACH TRIVIA PRESENTS", {
-      x: ML, y: 1.0, w: CW, h: 0.38,
+      x: ML, y: 0.45, w: CW, h: 0.36,
       fontSize: 10, bold: true, color: C.accent,
       align: "center", valign: "middle",
       charSpacing: 5,
@@ -223,16 +245,27 @@
 
     // Divider line beneath eyebrow
     s.addShape("rect", {
-      x: SW / 2 - 1.8, y: 1.48, w: 3.6, h: 0.025,
+      x: SW / 2 - 1.8, y: 0.89, w: 3.6, h: 0.025,
       fill: { color: C.accent },
       line: { color: C.accent, width: 0 },
     });
 
+    // Logo (centered, prominent — matches web title slide layout)
+    var logoSize = 1.9;
+    var logoX = (SW - logoSize) / 2;
+    if (logoDataUrl) {
+      s.addImage({
+        data: logoDataUrl,
+        x: logoX, y: 1.0,
+        w: logoSize, h: logoSize,
+      });
+    }
+
     // Show title
     var title = stripHtml(slide.question) || showMeta.title || "Trivia Night";
     s.addText(title, {
-      x: ML, y: 1.6, w: CW, h: 2.8,
-      fontSize: 52, bold: true, color: C.q,
+      x: ML, y: 3.05, w: CW, h: 1.7,
+      fontSize: 44, bold: true, color: C.q,
       align: "center", valign: "middle",
     });
 
@@ -240,7 +273,7 @@
     var dateLabel = stripHtml(slide.category || showMeta.dateLabel || "");
     if (dateLabel) {
       s.addText(dateLabel, {
-        x: ML, y: 4.55, w: CW, h: 0.52,
+        x: ML, y: 4.82, w: CW, h: 0.48,
         fontSize: 18, color: C.cat,
         align: "center", valign: "middle",
       });
@@ -414,7 +447,8 @@
                      || blockType === "info-slide";
     var isRoundStart = blockType === "round-start";
     var isCatSlide   = blockType === "category-slide";
-    var isCenter     = isRoundStart || isCatSlide;
+    var isHalftime   = blockType === "halftime-question";
+    var isCenter     = isRoundStart || isCatSlide || isHalftime;
     var isMC         = qType === "multiple-choice";
     var isFeud       = isFeudSlide(slide);
     var isSummary    = slide.kind === "answers-summary" || blockType === "answers-summary";
@@ -434,32 +468,75 @@
 
     var y = 0.62;
 
-    // — Display slides (intro-slide / info-slide): heading + content box —
-    // These are handled completely separately so the content box gets full height.
+    // — Display slides (intro-slide / info-slide): centered heading + 2-col content box —
     if (isDisp && !isCenter) {
       var heading = stripHtml(slide.question || "");
       if (heading) {
         s.addText(heading, {
           x: ML, y: y, w: CW, h: 0.50,
           fontSize: 20, bold: true, color: C.q,
-          valign: "middle",
+          align: "center", valign: "middle",
         });
         y += 0.56;
       }
+
       var dispText = stripHtml(slide.answer || "");
       if (dispText) {
-        var boxH = Math.max(1.0, SH - y - 0.20);
+        // Split into individual lines (one rule per line after <br> → \n fix).
+        var allLines = dispText.split("\n").map(function (l) { return l.trim(); }).filter(Boolean);
+
+        // Separate out a "Scoring:" line — rendered as its own highlighted row at bottom.
+        var scoringLine = "";
+        var ruleLines = allLines.filter(function (l) {
+          var bare = l.replace(/^[•\-]\s*/, "");
+          if (/^Scoring:/i.test(bare)) { scoringLine = bare; return false; }
+          return true;
+        });
+
+        // ONE unified box fills all remaining height — scoring pinned inside at bottom (matches web layout)
+        var scoreH = scoringLine ? 0.52 : 0;
+        var totalH = SH - y - 0.15;
+        var pad = 0.22;
+        var colGap = 0.28;
+
         s.addShape("roundRect", {
-          x: ML, y: y, w: CW, h: boxH,
+          x: ML, y: y, w: CW, h: totalH,
           rectRadius: 0.08,
           fill: { color: C.disp_bg },
           line: { color: C.disp_line, width: 1 },
         });
-        s.addText(dispText, {
-          x: ML + 0.22, y: y + 0.18, w: CW - 0.44, h: boxH - 0.30,
-          fontSize: 14, color: C.disp_text,
-          valign: "top",
+
+        // 2-column rule grid — interleaved row-by-row to match web layout
+        var colW = (CW - pad * 2 - colGap) / 2;
+        var colY = y + 0.18;
+        var colH = totalH - 0.18 - (scoringLine ? scoreH + 0.20 : 0.14);
+        var leftCol = ruleLines.filter(function (_, i) { return i % 2 === 0; });
+        var rightCol = ruleLines.filter(function (_, i) { return i % 2 === 1; });
+        [leftCol, rightCol].forEach(function (col, ci) {
+          var cx = ML + pad + ci * (colW + colGap);
+          s.addText(col.join("\n"), {
+            x: cx, y: colY, w: colW, h: colH,
+            fontSize: 18, color: C.disp_text,
+            valign: "top",
+            lineSpacingMultiple: 1.35,
+            paraSpaceBefore: 0,
+            paraSpaceAfter: 2,
+          });
         });
+
+        // Scoring pinned to bottom inside the same box, with a subtle divider line
+        if (scoringLine) {
+          var scoreY = y + totalH - scoreH - 0.08;
+          s.addShape("line", {
+            x: ML + pad, y: scoreY - 0.10, w: CW - pad * 2, h: 0,
+            line: { color: C.disp_line, width: 0.75 },
+          });
+          s.addText("• " + scoringLine, {
+            x: ML + pad, y: scoreY, w: CW - pad * 2, h: scoreH,
+            fontSize: 16, bold: true, color: C.disp_text,
+            align: "center", valign: "middle",
+          });
+        }
       }
       return;
     }
@@ -486,9 +563,17 @@
       return;
     }
 
-    // — Category (normal question slides) —
+    // — Category label —
     var cat = stripHtml(slide.category || "");
-    if (cat && !isDisp) {
+    if (isCatSlide) {
+      // Always render "CATEGORIES" header on category slides — unconditionally.
+      s.addText("CATEGORIES", {
+        x: ML, y: y, w: CW, h: 0.37,
+        fontSize: 14, bold: true, color: C.cat,
+        align: "center", charSpacing: 2,
+      });
+      y += 0.44;
+    } else if (cat && !isDisp) {
       s.addText(cat.toUpperCase(), {
         x: ML, y: y, w: CW, h: 0.37,
         fontSize: 14, bold: true, color: C.cat,
@@ -518,8 +603,9 @@
 
     var qH = Math.max(0.7, SH - y - reservedBelow - 0.18);
     if (isCenter) {
-      // Reserve bottom space for round-start CTA pill
-      qH = SH - y - (isRoundStart ? 1.15 : 0.30);
+      // Reserve bottom for round-start pill; halftime reserves space for answer panel.
+      var bottomReserve = isRoundStart ? 1.15 : (isHalftime && showAnswer && slide.answer ? 1.10 : 0.30);
+      qH = SH - y - bottomReserve;
     }
 
     s.addText(qText, {
@@ -533,7 +619,6 @@
     // — Round-start: "GET READY!" CTA pill —
     if (isRoundStart) {
       var ctaRaw = stripHtml(slide.answer || "").toUpperCase() || "GET READY!";
-      // Clean up the text to make it CTA-style
       if (ctaRaw.toLowerCase() === "get ready!") ctaRaw = "GET READY!";
       var ctaW = Math.min(4.5, Math.max(2.4, ctaRaw.length * 0.16 + 1.0));
       var ctaX = (SW - ctaW) / 2;
@@ -546,6 +631,15 @@
         align: "center", valign: "middle",
         charSpacing: 2,
       });
+      return;
+    }
+
+    // — Halftime question: centered display — show answer panel on reveal slides —
+    if (isHalftime) {
+      var hAns = stripHtml(slide.answer || "");
+      if (showAnswer && hAns && y < SH - 0.45) {
+        paintAnswerPanel(s, hAns, Math.min(y, SH - 0.95));
+      }
       return;
     }
 
@@ -636,13 +730,26 @@
       throw new Error("PptxGenJS failed to load.");
     }
 
+    // Pre-fetch the Beach Trivia logo as a base64 data URL for the title slide.
+    var logoDataUrl = null;
+    try {
+      var logoResp = await fetch("/beachTriviaPages/images/BTlogo.png");
+      var logoBlob = await logoResp.blob();
+      logoDataUrl = await new Promise(function (resolve, reject) {
+        var reader = new FileReader();
+        reader.onloadend = function () { resolve(reader.result); };
+        reader.onerror = reject;
+        reader.readAsDataURL(logoBlob);
+      });
+    } catch (e) {
+      console.warn("BeachTriviaExportPPTX: logo fetch failed, title slide will have no logo.", e);
+    }
+
     var flat      = flattenSlidesForExport(rawShow || {});
     var showMeta  = (rawShow && rawShow.show) || {};
     var deckTitle = showMeta.title || "Untitled Show";
 
     var pptx = new PptxGen();
-    // Define an explicit 13.333"×7.5" layout — LAYOUT_WIDE string may not be
-    // recognized in all CDN builds; defineLayout is always reliable.
     pptx.defineLayout({ name: "WIDE_1333", width: 13.333, height: 7.5 });
     pptx.layout  = "WIDE_1333";
     pptx.author  = "My Beach Trivia";
@@ -655,7 +762,7 @@
       var isTitle = String(slide.kind || "").toLowerCase() === "title";
 
       if (isTitle) {
-        paintTitleSlide(s, slide, showMeta);
+        paintTitleSlide(s, slide, showMeta, logoDataUrl);
       } else {
         // Only reveal answers on summary/answers slides — question slides stay clean
         paintQuestionSlide(s, slide, !!slide.alwaysReveal);
