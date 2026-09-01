@@ -9,9 +9,11 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js" defer></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js" defer></script>
   <script src="/beachTriviaPages/js/firebase-init-compat.js?v=1" defer></script>
-  <script src="/beachTriviaPages/dashboards/shared/slide-paint.js?v=20260513-cat-vertical" defer></script>
+  <script src="/beachTriviaPages/dashboards/shared/slide-stage.js?v=20260831-stage2" defer></script>
+  <script src="/beachTriviaPages/dashboards/shared/slide-paint.js?v=20260831-scalefit" defer></script>
 
   <link rel="stylesheet" href="/beachTriviaPages/dashboards/shared/preview-stage.css?v=20260513-cat-header2" />
+  <link rel="stylesheet" href="/beachTriviaPages/dashboards/shared/slide-stage.css?v=20260831-stage2" />
 
   <style>
     *, *::before, *::after { box-sizing: border-box; }
@@ -76,21 +78,19 @@
     }
 
     /*
-      Reference size matches the host live-console cast column (~700px wide).
-      A JS snippet below sets --cast-scale so the stage fills the viewport
-      at the same proportions the host sees in their console preview.
+      The frame fills the whole viewport; slide-stage.js paints into a fixed
+      1280x720 .slide-canvas inside it and scales that to fit — identical
+      geometry/type sizes to the writer preview and the host stage.
     */
     .viewer-shell .preview-stage {
-      width: 700px;
-      height: 393.75px;
-      flex-shrink: 0;
+      width: 100%;
+      height: 100%;
+      flex: 1 1 auto;
       max-width: none;
       max-height: none;
       aspect-ratio: unset;
       border-radius: 0;
       border: none;
-      transform: scale(var(--cast-scale, 1));
-      transform-origin: center center;
     }
 
     .viewer-shell .preview-stage::after {
@@ -287,13 +287,10 @@
         if (statusFloating) statusFloating.style.display = "none";
       }
 
-      var REF_W = 700, REF_H = 393.75;
-      function updateCastScale() {
-        var scale = Math.min(window.innerWidth / REF_W, window.innerHeight / REF_H);
-        document.documentElement.style.setProperty("--cast-scale", scale);
-      }
-      updateCastScale();
-      window.addEventListener("resize", updateCastScale);
+      // slide-stage.js owns the scaling now (fixed 1280x720 canvas -> fit the
+      // frame, on any screen / aspect ratio). Kept as a no-op so the existing
+      // call sites don't need touching.
+      function updateCastScale() {}
 
       function showViewer() {
         if (loadingScreen) loadingScreen.style.display = "none";
@@ -506,7 +503,7 @@
             // Reveal next — deferred flip animation
             var deferIdx = totalFilled - newCount;
             var paintData = Object.assign({}, slide, { feudRevealDeferIndex: deferIdx });
-            window.BeachTriviaSlidePaint.paintSlide(castStage, paintData, reveal);
+            window.BeachTriviaSlidePaint.paintSlide(castStage, paintData, reveal, { scaleToFit: true });
             requestAnimationFrame(function () {
               requestAnimationFrame(function () {
                 var row = castStage.querySelector("[data-feud-defer-flip]");
@@ -524,7 +521,7 @@
               var reducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
               if (reducedMotion) {
                 row.classList.remove("revealed");
-                window.BeachTriviaSlidePaint.paintSlide(castStage, slide, reveal);
+                window.BeachTriviaSlidePaint.paintSlide(castStage, slide, reveal, { scaleToFit: true });
                 return;
               }
               var inner = row.querySelector(".slide-feud-row-flip-inner");
@@ -534,7 +531,7 @@
                 if (done) return; done = true;
                 if (tid) { clearTimeout(tid); tid = null; }
                 _castPendingHide = null;
-                if (!aborted) window.BeachTriviaSlidePaint.paintSlide(castStage, s, r);
+                if (!aborted) window.BeachTriviaSlidePaint.paintSlide(castStage, s, r, { scaleToFit: true });
               }
               _castPendingHide = {
                 abort: function () {
@@ -560,7 +557,7 @@
           }
         }
 
-        window.BeachTriviaSlidePaint.paintSlide(castStage, slide, reveal);
+        window.BeachTriviaSlidePaint.paintSlide(castStage, slide, reveal, { scaleToFit: true });
       }
 
       if (castStage && typeof ResizeObserver !== "undefined") {
