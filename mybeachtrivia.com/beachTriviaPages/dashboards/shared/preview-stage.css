@@ -92,6 +92,15 @@
       min-height: 0;
     }
 
+    /* slide-paint.js measures the middle band after painting; if the content
+       (long question + many options + answer panel) is taller than the band it
+       sets --fit-scale and this class, zooming the whole band down to fit
+       instead of clipping. Shared by every surface via the 1280x720 canvas. */
+    .slide-middle--fitted {
+      transform: scale(var(--fit-scale, 1));
+      transform-origin: top center;
+    }
+
     .slide-category {
       font-size: clamp(11px, 2.53cqw, 22px);
       font-weight: 800;

@@ -158,27 +158,40 @@
     }
   }
 
+  // The slide layout is designed for a full 1280x720 canvas, so the type clamps
+  // resolve to their max sizes. Some slides (a 2-line question + 5 ordering
+  // items + answer panel, a long feud board, a dense rules list) still overflow
+  // the middle band. Rather than clip, scale the middle band down to fit — a
+  // uniform "zoom out" that reads the same on every surface because they all
+  // share this canvas now.
+  var MIN_FIT_SCALE = 0.55;
+
   function autoFitStageText(stageEl) {
     if (!stageEl) return;
-    // Keep this disabled for parity with writer preview rendering.
-    resetStageAutoFit(stageEl);
-  }
+    var mid = stageEl.querySelector('.slide-middle');
+    if (!mid) return;
 
-  function applyFontScale(nodes, scale) {
-    for (var i = 0; i < nodes.length; i++) {
-      var node = nodes[i];
-      var basePx = parseFloat(node.getAttribute('data-fit-base-px'));
-      if (!basePx || !isFinite(basePx)) {
-        basePx = parseFloat(window.getComputedStyle(node).fontSize);
-        if (!basePx || !isFinite(basePx)) continue;
-        node.setAttribute('data-fit-base-px', String(basePx));
-      }
-      node.style.fontSize = (basePx * scale).toFixed(2) + 'px';
-    }
+    resetStageAutoFit(stageEl);
+
+    // Reading scrollHeight forces a synchronous layout, so the measurement
+    // reflects the just-painted content.
+    var avail = mid.clientHeight;
+    var content = mid.scrollHeight;
+    if (!avail || content <= avail + 1) return;
+
+    var scale = Math.max(MIN_FIT_SCALE, avail / content);
+    mid.style.setProperty('--fit-scale', scale.toFixed(4));
+    mid.classList.add('slide-middle--fitted');
   }
 
   function resetStageAutoFit(stageEl) {
     if (!stageEl) return;
+    var mid = stageEl.querySelector('.slide-middle');
+    if (mid) {
+      mid.classList.remove('slide-middle--fitted');
+      mid.style.removeProperty('--fit-scale');
+    }
+    // Legacy per-node font scaling (pre-canvas) — clear if any lingers.
     var fitted = stageEl.querySelectorAll('[data-fit-base-px]');
     for (var i = 0; i < fitted.length; i++) {
       fitted[i].style.fontSize = '';
