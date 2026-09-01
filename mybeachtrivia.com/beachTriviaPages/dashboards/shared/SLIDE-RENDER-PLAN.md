@@ -167,10 +167,32 @@ block at a time** as you type. Everything visual goes through `slide-paint.js`.
   the deferred-flip animation field (`feudRevealDeferIndex`) isn't wired — the
   writer's step-reveal buttons animate via preview.js's own feud fns still.
 
-### Next session starts here — step 3
+- 2026-08-31 — **overlap fixed.** `.slide-middle { align-content: safe center }`
+  (both stylesheet copies) — a tall slide's content was overflowing UPWARD past
+  the round badge. Verified on host live-console + writer preview: badge / meta /
+  category / question now stack cleanly. Commit `133ad19`.
+  Also: firebase.json `**/` → no-cache (directory URLs weren't covered by
+  `**/*.html`, so stale index.html kept pointing at old `?v=` for ~1h).
 
-1. Fix the category/badge overlap in `slide-paint.js` (CSS or paint order).
-   Verify on both writer preview and live-console.
+### Still open — "slide content runs off the box"
+
+Separate, pre-existing issue (NOT a regression). The live-console **HOST VIEW**
+mini-preview card is only ~240px tall; a full MC slide (question + 4 options +
+answer panel) needs ~330px at the *minimum* clamp font sizes, so options C/D get
+clipped. Font sizes use `cqw` (container **width**) units — a wide-but-short
+stage doesn't shrink them. `autoFitStageText` in slide-paint.js is deliberately
+disabled ("for parity with writer preview").
+The CAST preview + real TV cast are fine (full-size). The writer preview is fine
+(taller area).
+**Fix options:** (a) scale the whole `.preview-stage` with `transform: scale()`
+to fit its container — a true proportional thumbnail, shared by writer thumbs /
+host preview / cast; (b) switch the slide font `clamp()`s from `cqw` to `cqmin`
+so short stages shrink text; (c) re-enable a working `autoFitStageText`.
+Recommend (a) — cleanest, and it belongs in the shared layer.
+
+### Next session — step 3
+
+1. Decide + implement the "scale slide to fit its box" fix (see above).
 2. Once step 2 has been exercised on real shows for a bit: delete the now-dead
    writer-only renderers from `preview.js` — `renderRoundBadge`,
    `renderCategory`, `renderQuestion`, `renderOptions`, `renderAnswer`,
