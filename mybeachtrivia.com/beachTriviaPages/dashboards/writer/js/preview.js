@@ -12,7 +12,6 @@
   const PREVIEW = {
     init,
     renderFromFormData,
-    renderBlock,
     renderTitleSlide,
     setMode,
     nextMode,
@@ -34,7 +33,6 @@
   const MODES = ["live", "reveal"];
   let currentModeIndex = 0;
   let dom = null;
-  let _basePreviewPx = null; // cached default font size from CSS clamp, used to anchor scaling
   let _lastFormData = null;  // cached so mode changes can trigger a full re-render
   let _lastRenderedQuestionType = "";
   let _feudRevealCount = 0;  // # of filled answers revealed, lowest points first
@@ -640,13 +638,11 @@
   // ───────────────────────────────────────────────────────────────
 
   // Block types that are display-only and never need a reveal interaction.
-  const DISPLAY_BLOCK_TYPES = ["intro-slide", "info-slide", "round-start", "category-slide"];
-
-  // Step 2 of the shared-renderer plan (dashboards/shared/SLIDE-RENDER-PLAN.md):
-  // route the writer preview's slide *visuals* through the same painter the host
-  // playback screens use, so they can't drift. The writer keeps ownership of the
-  // editing chrome, media, theme class, mode toolbar and title overlay.
-  const USE_SHARED_PAINT = true;
+  // Shared with the host players via BeachTriviaSlideModel (local list is a
+  // fallback for the unlikely case slide-model.js hasn't loaded yet).
+  const DISPLAY_BLOCK_TYPES =
+    (window.BeachTriviaSlideModel && window.BeachTriviaSlideModel.DISPLAY_BLOCK_TYPES) ||
+    ["intro-slide", "info-slide", "round-start", "category-slide"];
 
   // normalized writer formData  ->  the flat `slide` shape BeachTriviaSlidePaint
   // consumes. Mirrors BeachTriviaSlideModel.flattenShow but for a single, being-
@@ -714,139 +710,61 @@
     const effectiveType = isDisplayBlock ? "display" : String(data.block.questionType || "").trim().toLowerCase();
     _lastRenderedQuestionType = effectiveType;
 
+    if (!dom || !dom.previewStage) return;
+
     // Stamp block type so CSS can apply block-specific layouts (e.g. round-start facelift)
-    if (dom && dom.previewStage) {
-      dom.previewStage.setAttribute("data-block-type", data.block.type || "");
+    dom.previewStage.setAttribute("data-block-type", data.block.type || "");
+
+    if (!window.BeachTriviaSlidePaint) {
+      showMessage("Slide renderer failed to load — refresh the page.");
+      return;
     }
-
-    // ── Shared painter path (see SLIDE-RENDER-PLAN.md step 2) ────────────────
-    if (
-      USE_SHARED_PAINT &&
-      window.BeachTriviaSlidePaint &&
-      dom && dom.previewStage &&
-      data.block.type !== "title"
-    ) {
-      // Turn the preview card into a fixed 1280x720 canvas that scales to fit —
-      // identical geometry/type sizes to a host screen. ensure() first so the
-      // title-overlay + skeleton land inside the canvas, not the frame.
-      var wantScale = stageWantsScale(dom.previewStage);
-      if (wantScale) window.BeachTriviaSlideStage.ensure(dom.previewStage);
-      var paintHost = previewCanvasHost(dom.previewStage);
-
-      // Make sure the title overlay in the stage is the WRITER's flavour (it has
-      // the data-title-part hooks renderTitleSlide needs); otherwise the painter
-      // would lazily create its own, host-flavoured one.
-      if (!paintHost.querySelector(".slide-title-overlay")) {
-        var wOverlay = _buildTitleOverlay();
-        wOverlay.style.display = "none";
-        paintHost.appendChild(wOverlay);
-      }
-
-      var slide = formDataToSlide(data, mode, effectiveType, isDisplayBlock);
-      window.BeachTriviaSlidePaint.paintSlide(
-        dom.previewStage,
-        slide,
-        String(mode).toLowerCase() === "reveal",
-        { scaleToFit: wantScale }
-      );
-
-      // Writer-only layers on top of the shared visual:
-      applyThemeClass(data.block.themeStyle || "Standard Trivia");
-      renderMedia(effectiveType, data.block.imageUrl, data.block.audioUrl);
-      renderNotes("");
-      syncAnswerPreviewToMode(mode);
-      if (!renderOpts.skipToolbar) {
-        syncRevealToolbarToMode(getMode());
-      }
-
-      var isAnsSummaryP = String(data.block.type || "").toLowerCase() === "answers-summary";
-      var inlineEnabledP = !renderOpts.skipToolbar;
-      if (isAnsSummaryP && !data.block.manualAnswers) inlineEnabledP = false;
-      applyPreviewInlineChrome(inlineEnabledP, data, effectiveType, mode, isDisplayBlock);
+    if (data.block.type === "title") {
+      renderTitleSlide();
       return;
     }
 
-    renderRoundBadge(data.block.roundName || "Round");
-    renderCategory(data.block.categoryName || "Category");
+    // The slide *visuals* go through the same painter the host playback screens
+    // use (dashboards/shared/slide-paint.js), inside a fixed 1280x720
+    // `.slide-canvas` that scales to fit the preview card — so the writer sees
+    // the exact geometry/type sizes a host screen gets and the two can't drift.
+    // The writer keeps ownership of the editing chrome, media, theme class,
+    // mode toolbar and title overlay, layered on top. ensure() runs first so
+    // the title overlay + skeleton land inside the canvas, not the frame.
+    var wantScale = stageWantsScale(dom.previewStage);
+    if (wantScale) window.BeachTriviaSlideStage.ensure(dom.previewStage);
+    var paintHost = previewCanvasHost(dom.previewStage);
 
-    var isCatSlide = data.block.type === "category-slide";
-    var catSlideCategories = data.block.categories || [];
-    var rawQText = data.block.questionText || "";
-    // Fall back to parsing •-separated question text when categories array is absent
-    if (isCatSlide && !catSlideCategories.length && rawQText.indexOf("•") !== -1) {
-      catSlideCategories = rawQText.split("•").map(function (s) { return s.trim(); }).filter(Boolean);
+    // Seed the WRITER's title overlay (it has the data-title-part hooks
+    // renderTitleSlide needs) so the painter doesn't lazily create a
+    // host-flavoured one.
+    if (!paintHost.querySelector(".slide-title-overlay")) {
+      var wOverlay = _buildTitleOverlay();
+      wOverlay.style.display = "none";
+      paintHost.appendChild(wOverlay);
     }
 
-    renderQuestion(
-      isCatSlide ? "" : (rawQText || "Your question will appear here."),
-      data.block.questionAlign,
-      data.block.questionFontScale,
-      isCatSlide ? catSlideCategories : null
+    var slide = formDataToSlide(data, mode, effectiveType, isDisplayBlock);
+    window.BeachTriviaSlidePaint.paintSlide(
+      dom.previewStage,
+      slide,
+      String(mode).toLowerCase() === "reveal",
+      { scaleToFit: wantScale }
     );
-    renderOptions(
-      effectiveType,
-      data.block.options || [],
-      data.block.matchingPairs || [],
-      data.block.orderingItems || [],
-      mode,
-      data.block.answerText || "",
-      data.block.feudAnswers || [],
-      { blockType: data.block.type || "", categories: isCatSlide ? [] : (data.block.categories || []) }
-    );
-    renderAnswer(data.block.answerText || "", effectiveType);
-    renderNotes(data.block.questionNotes || "");
-    renderMeta(mode, data);
+
+    // Writer-only layers on top of the shared visual:
     applyThemeClass(data.block.themeStyle || "Standard Trivia");
-
-    // Answer-review slides: full recap is in question text.
-    var isAnsSummary = String(data.block.type || "").toLowerCase() === "answers-summary";
-    if (dom && dom.previewQuestion) {
-      dom.previewQuestion.removeAttribute("data-font-mode");
-      if (isAnsSummary) {
-        dom.previewQuestion.style.whiteSpace = "pre-wrap";
-        dom.previewQuestion.style.fontSize = "";
-        dom.previewQuestion.style.lineHeight = "";
-        dom.previewQuestion.setAttribute("data-font-mode", "summary");
-      } else if (isDisplayBlock) {
-        dom.previewQuestion.style.whiteSpace = "";
-        dom.previewQuestion.style.fontSize = "";
-        dom.previewQuestion.style.lineHeight = "";
-        dom.previewQuestion.setAttribute("data-font-mode", "display");
-      } else {
-        dom.previewQuestion.style.whiteSpace = "";
-        dom.previewQuestion.style.fontSize = "";
-        dom.previewQuestion.style.lineHeight = "";
-      }
-    }
-
-    // Hide the category label on display slides — the badge + title already identify
-    // the slide, and the category text overlaps the badge in compact previews.
-    if (dom && dom.previewCategory) {
-      dom.previewCategory.style.display = isDisplayBlock ? "none" : "";
-    }
-
     renderMedia(effectiveType, data.block.imageUrl, data.block.audioUrl);
-    enforceInfoSlideTopClearance(data.block.type);
+    renderNotes("");
     syncAnswerPreviewToMode(mode);
     if (!renderOpts.skipToolbar) {
       syncRevealToolbarToMode(getMode());
     }
 
-    if (isAnsSummary && dom) {
-      var ansParts = getAnswerPreviewParts();
-      if (ansParts.wrap) ansParts.wrap.style.display = "none";
-    }
-
-    // Answers-summary: only allow inline editing when manual mode is explicitly on.
-    var inlineEnabled = !renderOpts.skipToolbar;
-    if (isAnsSummary && !data.block.manualAnswers) inlineEnabled = false;
-    applyPreviewInlineChrome(
-      inlineEnabled,
-      data,
-      effectiveType,
-      mode,
-      isDisplayBlock
-    );
+    var isAnsSummaryP = String(data.block.type || "").toLowerCase() === "answers-summary";
+    var inlineEnabledP = !renderOpts.skipToolbar;
+    if (isAnsSummaryP && !data.block.manualAnswers) inlineEnabledP = false;
+    applyPreviewInlineChrome(inlineEnabledP, data, effectiveType, mode, isDisplayBlock);
   }
 
   function renderMedia(questionType, imageUrl, audioUrl) {
@@ -872,134 +790,6 @@
       el.appendChild(audioEl);
       el.style.display = "";
     }
-  }
-
-  function renderBlock(block) {
-    if (!block || !Array.isArray(block.slides) || !block.slides.length) {
-      showMessage("No slides available for preview.");
-      return;
-    }
-
-    clearMessage();
-
-    const mode = getMode();
-    const preferredSlide = block.slides.find(function (slide) {
-      return String(slide.audienceMode || "").toLowerCase() === mode;
-    }) || block.slides[0];
-
-    // Slides with revealable:false are display-only — treat as "display" type
-    // regardless of what questionType the block was saved with.
-    const isNonRevealable = preferredSlide.revealable === false;
-    const effectiveType = isNonRevealable
-      ? "display"
-      : String(preferredSlide.questionType || block.questionType || "multiple-choice").trim().toLowerCase();
-
-    _lastRenderedQuestionType = effectiveType;
-
-    renderRoundBadge(preferredSlide.title || block.roundName || "Round");
-    renderCategory(preferredSlide.categoryName || block.categoryName || "Category");
-    renderQuestion(
-      preferredSlide.prompt || "Your question will appear here.",
-      preferredSlide.questionAlign || block.questionAlign || "left",
-      typeof preferredSlide.questionFontScale === "number"
-        ? preferredSlide.questionFontScale
-        : (typeof block.questionFontScale === "number" ? block.questionFontScale : 1.6)
-    );
-    renderOptions(
-      effectiveType,
-      preferredSlide.options || [],
-      preferredSlide.matchingPairs || [],
-      preferredSlide.orderingItems || [],
-      mode,
-      preferredSlide.answer || "",
-      (Array.isArray(preferredSlide.feudAnswers) && preferredSlide.feudAnswers.length
-        ? preferredSlide.feudAnswers
-        : (block.feudAnswers || []))
-    );
-    renderAnswer(preferredSlide.answer || "", effectiveType);
-    renderNotes(preferredSlide.notes || block.notes || "");
-    renderMeta(mode, {
-      block: {
-        questionType: effectiveType,
-        themeStyle: preferredSlide.themeStyle || block.themeStyle || "Standard Trivia",
-        fontSizeMode: preferredSlide.fontSizeMode || block.fontSizeMode || "Auto Fit",
-      },
-      stateKey: preferredSlide.stateKey || "",
-      stateLabel: preferredSlide.stateLabel || "",
-    });
-    applyThemeClass(preferredSlide.themeStyle || block.themeStyle || "Standard Trivia");
-    enforceInfoSlideTopClearance(block.type || preferredSlide.blockType || "");
-    updateRevealVisibility();
-  }
-
-  function enforceInfoSlideTopClearance(blockType) {
-    if (!dom || !dom.previewStage || !dom.previewQuestion) return;
-    dom.previewQuestion.style.marginTop = "";
-    if (String(blockType || "").toLowerCase() !== "info-slide") return;
-
-    var topRow = dom.previewStage.querySelector(".slide-top");
-    if (!topRow) return;
-
-    var topRect = topRow.getBoundingClientRect();
-    var qRect = dom.previewQuestion.getBoundingClientRect();
-    var minGap = Math.max(12, Math.round((dom.previewStage.clientWidth || 0) * 0.012));
-    var overlapPx = (topRect.bottom + minGap) - qRect.top;
-    if (overlapPx > 0) {
-      dom.previewQuestion.style.marginTop = overlapPx.toFixed(2) + "px";
-    }
-  }
-
-  function renderRoundBadge(text) {
-    if (dom && dom.previewRoundBadge) {
-      dom.previewRoundBadge.textContent = text || "Round";
-    }
-  }
-
-  function renderCategory(text) {
-    if (dom && dom.previewCategory) {
-      dom.previewCategory.textContent = text || "Category";
-    }
-  }
-
-  function renderQuestion(text, align, fontScale, catList) {
-    if (!dom || !dom.previewQuestion) return;
-
-    var el = dom.previewQuestion;
-
-    if (Array.isArray(catList) && catList.length) {
-      el.innerHTML = "";
-      catList.forEach(function (cat) {
-        var row = document.createElement("div");
-        row.className = "cat-list-item";
-        var dot = document.createElement("span");
-        dot.className = "cat-list-bullet";
-        dot.textContent = "•";
-        var label = document.createElement("span");
-        label.textContent = String(cat).trim();
-        row.appendChild(dot);
-        row.appendChild(label);
-        el.appendChild(row);
-      });
-    } else {
-      el.innerHTML = sanitizeHtml(text || "Your question will appear here.");
-    }
-    el.style.textAlign = align === "center" ? "center" : align === "right" ? "right" : "";
-
-    // Always clear the inline style so the CSS clamp can resolve first.
-    el.style.fontSize = "";
-    if (typeof fontScale === "number" && fontScale !== 1.0) {
-      // Use the cached base px so scaling always anchors to the default CSS size,
-      // avoiding stale getComputedStyle reads within the same JS frame.
-      if (!_basePreviewPx) {
-        _basePreviewPx = parseFloat(window.getComputedStyle(el).fontSize) || 38;
-      }
-      el.style.fontSize = String(_basePreviewPx * fontScale) + "px";
-    } else {
-      // At default scale, refresh the cached base from the live CSS clamp value.
-      _basePreviewPx = parseFloat(window.getComputedStyle(el).fontSize) || 38;
-    }
-    el.style.transform = "";
-    el.style.transformOrigin = "";
   }
 
   function sanitizeHtml(html) {
@@ -1236,288 +1026,11 @@
     if (prevBtn) prevBtn.disabled = _feudRevealCount <= 0;
   }
 
-  function renderOptions(questionType, options, matchingPairs, orderingItems, mode, answerText, feudAnswers, extra) {
-    if (!dom || !dom.previewOptions) return;
-
-    var extraOpts = extra || {};
-    var blockType = String(extraOpts.blockType || "").toLowerCase();
-    var categories = Array.isArray(extraOpts.categories) ? extraOpts.categories : [];
-
-    const normalizedType = String(questionType || "").trim().toLowerCase();
-    const isReveal = String(mode || "").toLowerCase() === "reveal";
-    dom.previewOptions.innerHTML = "";
-    dom.previewOptions.classList.remove("slide-options-matching");
-    dom.previewOptions.classList.remove("slide-options-display");
-    dom.previewOptions.classList.remove("slide-options--dense");
-    dom.previewOptions.classList.remove("slide-options-feud");
-
-    // Category slides: render vertical bullet list
-    if (blockType === "category-slide" && normalizedType === "display") {
-      var filledCats = categories.filter(function (c) { return String(c || "").trim(); });
-      if (!filledCats.length) {
-        dom.previewOptions.style.display = "none";
-        return;
-      }
-      dom.previewOptions.style.display = "";
-      dom.previewOptions.classList.add("slide-options-display");
-      var grid = document.createElement("div");
-      grid.className = "cat-chips-grid";
-      filledCats.forEach(function (cat) {
-        var row = document.createElement("div");
-        row.className = "cat-list-item";
-        var dot = document.createElement("span");
-        dot.className = "cat-list-bullet";
-        dot.textContent = "•";
-        var label = document.createElement("span");
-        label.textContent = String(cat).trim();
-        row.appendChild(dot);
-        row.appendChild(label);
-        grid.appendChild(row);
-      });
-      dom.previewOptions.appendChild(grid);
-      return;
-    }
-
-    if (normalizedType === "multiple-choice") {
-      const normalizedOptions = Array.isArray(options) ? options.filter(Boolean) : [];
-      if (!normalizedOptions.length) {
-        dom.previewOptions.style.display = "none";
-        return;
-      }
-      dom.previewOptions.style.display = "";
-      dom.previewOptions.classList.toggle("slide-options--dense", normalizedOptions.length >= 5);
-      normalizedOptions.forEach(function (option, index) {
-        const row = document.createElement("div");
-        const isCorrect = isReveal && option === answerText;
-        row.className = "slide-option" + (isReveal ? (isCorrect ? " correct" : " incorrect") : "");
-
-        const key = document.createElement("span");
-        key.className = "slide-option-key";
-        key.textContent = String.fromCharCode(65 + index);
-
-        const text = document.createElement("span");
-        text.className = "slide-option-body";
-        text.textContent = option;
-
-        if (isCorrect) {
-          const tick = document.createElement("span");
-          tick.className = "slide-option-tick";
-          tick.textContent = "\u2713";
-          row.appendChild(key);
-          row.appendChild(text);
-          row.appendChild(tick);
-        } else {
-          row.appendChild(key);
-          row.appendChild(text);
-        }
-        dom.previewOptions.appendChild(row);
-      });
-
-    } else if (normalizedType === "matching") {
-      const pairs = Array.isArray(matchingPairs)
-        ? matchingPairs.filter(function (p) { return p.left || p.right; })
-        : [];
-      if (!pairs.length) {
-        dom.previewOptions.style.display = "none";
-        return;
-      }
-      dom.previewOptions.style.display = "";
-      dom.previewOptions.classList.add("slide-options-matching");
-
-      pairs.forEach(function (pair) {
-        const row = document.createElement("div");
-        row.className = "slide-option slide-option-pair";
-
-        const left = document.createElement("span");
-        left.className = "slide-option-pair-left";
-        left.textContent = pair.left || "";
-
-        const arrow = document.createElement("span");
-        arrow.className = "slide-option-pair-arrow";
-        arrow.textContent = "→";
-
-        const right = document.createElement("span");
-        right.className = "slide-option-pair-right";
-        right.textContent = pair.right || "";
-
-        row.appendChild(left);
-        row.appendChild(arrow);
-        row.appendChild(right);
-        dom.previewOptions.appendChild(row);
-      });
-
-    } else if (normalizedType === "ordering") {
-      const items = Array.isArray(orderingItems) ? orderingItems.filter(Boolean) : [];
-      if (!items.length) {
-        dom.previewOptions.style.display = "none";
-        return;
-      }
-      dom.previewOptions.style.display = "";
-      // Shuffle a copy so the preview shows scrambled order (correct order stays in the form)
-      // Re-shuffle until the result is guaranteed to differ from the original order
-      var shuffled;
-      var attempts = 0;
-      do {
-        shuffled = items.slice();
-        for (var i = shuffled.length - 1; i > 0; i--) {
-          var j = Math.floor(Math.random() * (i + 1));
-          var tmp = shuffled[i]; shuffled[i] = shuffled[j]; shuffled[j] = tmp;
-        }
-        attempts++;
-      } while (
-        attempts < 10 &&
-        shuffled.every(function (v, idx) { return v === items[idx]; })
-      );
-      shuffled.forEach(function (item, index) {
-        const row = document.createElement("div");
-        row.className = "slide-option";
-
-        const key = document.createElement("span");
-        key.className = "slide-option-key";
-        key.textContent = String(index + 1);
-
-        const text = document.createElement("span");
-        text.textContent = item;
-
-        row.appendChild(key);
-        row.appendChild(text);
-        dom.previewOptions.appendChild(row);
-      });
-
-    } else if (normalizedType === "feud-question") {
-      var feudArr = Array.isArray(feudAnswers) ? feudAnswers : [];
-      var filledOrder = getFeudFilledRevealOrder(getFeudSlots8(feudArr));
-      if (_feudRevealCount > filledOrder.length) {
-        _feudRevealCount = filledOrder.length;
-      }
-      dom.previewOptions.style.display = "";
-      renderFeudAnswerGrid(feudArr, isReveal);
-      _syncFeudRevealButtons();
-      return;
-
-    } else if (normalizedType === "display") {
-      const text = String(answerText || "").trim();
-      if (!text) {
-        dom.previewOptions.style.display = "none";
-        return;
-      }
-      dom.previewOptions.style.display = "";
-      dom.previewOptions.classList.add("slide-options-display");
-      const body = document.createElement("div");
-      body.className = "slide-display-content";
-
-      function stripLeadingBullet(line) {
-        const c = line.charAt(0);
-        if (c === "\u2022" || c === "\u2023" || c === "•" || c === "*") {
-          return line.substring(1).trim();
-        }
-        return line;
-      }
-
-      function appendBulletRow(target, line, scoringClass) {
-        const item = document.createElement("div");
-        const lineText = stripLeadingBullet(line);
-        item.className = "slide-rules-item" + (scoringClass ? " " + scoringClass : "");
-        const c0 = line.charAt(0);
-        const hasBullet = c0 === "\u2022" || c0 === "\u2023" || c0 === "•" || c0 === "*";
-        if (hasBullet) {
-          const bullet = document.createElement("span");
-          bullet.className = "slide-rules-bullet";
-          bullet.textContent = "\u2022";
-          const span = document.createElement("span");
-          span.className = "slide-rules-text";
-          span.textContent = lineText;
-          item.appendChild(bullet);
-          item.appendChild(span);
-        } else {
-          item.textContent = line;
-        }
-        target.appendChild(item);
-      }
-
-      const lines = text.split("\n").map(function (l) { return l.trim(); }).filter(Boolean);
-      if (lines.length > 1) {
-        const bodyLines = [];
-        const scoringLines = [];
-        lines.forEach(function (line) {
-          const plain = stripLeadingBullet(line);
-          if (/^\s*Scoring\s*:/i.test(plain)) {
-            scoringLines.push(line);
-          } else {
-            bodyLines.push(line);
-          }
-        });
-
-        const grid = document.createElement("div");
-        grid.className = "slide-rules-grid";
-        bodyLines.forEach(function (line) {
-          appendBulletRow(grid, line, "");
-        });
-        if (bodyLines.length) {
-          body.appendChild(grid);
-        }
-
-        if (scoringLines.length) {
-          const footer = document.createElement("div");
-          footer.className = "slide-rules-scoring";
-          scoringLines.forEach(function (line) {
-            appendBulletRow(footer, line, "slide-rules-item--scoring");
-          });
-          body.appendChild(footer);
-        }
-      } else {
-        body.textContent = text;
-      }
-
-      dom.previewOptions.appendChild(body);
-    } else {
-      dom.previewOptions.style.display = "none";
-    }
-  }
-
-  function renderAnswer(text, questionType) {
-    if (!dom) return;
-    var parts = getAnswerPreviewParts();
-    if (!parts.value) return;
-    if (parts.label) parts.label.textContent = "Answer";
-    parts.value.textContent = text || "Answer";
-    // For MC and display/info slides, answer panel should stay hidden.
-    var isMC = String(questionType || "").trim().toLowerCase() === "multiple-choice";
-    var isDisplay = String(questionType || "").trim().toLowerCase() === "display";
-    if (parts.wrap) {
-      parts.wrap.setAttribute("data-hide-for-mc", isMC ? "true" : "false");
-      parts.wrap.setAttribute("data-hide-always", isDisplay ? "true" : "false");
-    }
-  }
-
   function renderNotes(text) {
     if (!dom || !dom.previewNotes) return;
     // Host notes are for the form only — keep them off the slide preview UI.
     dom.previewNotes.textContent = "";
     dom.previewNotes.style.display = "none";
-  }
-
-  function renderMeta(mode, data) {
-    if (!dom || !dom.previewStateMeta) return;
-
-    const stateLabel = data && data.stateLabel
-      ? data.stateLabel
-      : (mode === "reveal" ? "Reveal Mode" : "Live Question");
-
-    const themeStyle = data && data.block && data.block.themeStyle
-      ? data.block.themeStyle
-      : "Standard Trivia";
-
-    dom.previewStateMeta.innerHTML = "";
-
-    const stateEl = document.createElement("span");
-    stateEl.textContent = "Slide State: " + stateLabel;
-
-    const themeEl = document.createElement("span");
-    themeEl.textContent = "Theme: " + themeStyle;
-
-    dom.previewStateMeta.appendChild(stateEl);
-    dom.previewStateMeta.appendChild(themeEl);
   }
 
   function syncAnswerPreviewToMode(mode) {
