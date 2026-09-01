@@ -236,14 +236,29 @@ Recommend (a) — cleanest, and it belongs in the shared layer.
   **All 4 renderer surfaces — writer preview, host consoles, `/cast-game` —
   now run the one shared painter + stage. Piece 1 of the plan is complete.**
 
-### Next — cleanup (no user-visible change)
+- 2026-08-31 — **Cleanup DONE.** Commits `ba2c43b`, `3935e38`.
+  - `preview.js`: dropped the `USE_SHARED_PAINT` flag + the whole pre-painter
+    fallback branch in `renderFromFormData`; deleted `renderBlock` (exported,
+    never called), `renderRoundBadge`, `renderCategory`, `renderQuestion`,
+    `renderOptions`, `renderAnswer`, `renderMeta`, `enforceInfoSlideTopClearance`,
+    `_basePreviewPx`. ~360 lines gone (1558 → 1199). Title blocks now delegate
+    to `renderTitleSlide`; a missing painter shows an error, not a half-render.
+    **Kept** `renderFeudAnswerGrid` + `getFeudSlots8` / `getFeudFilledRevealOrder`
+    — they're the writer's *live* feud step-reveal / hide-flip path
+    (`feudRevealNext` / `feudHidePrev`), never part of the dead set.
+  - 4 host apps: `slideRevealApplicable` now delegates to
+    `BeachTriviaSlideModel.slideRevealApplicable`; local `DISPLAY_BLOCK_TYPES`
+    removed. host-feud keeps its `&& !isFeudSlide(s)` carve-out.
+  - `preview.js` `DISPLAY_BLOCK_TYPES` also comes from the model now (local
+    literal kept as a load-order fallback).
+  - **Not converged:** `slide-paint.js`'s own local `DISPLAY_BLOCK_TYPES` — it's
+    a leaf loaded by `/cast-game` without slide-model.js; a 4-item literal isn't
+    worth adding a dependency for.
 
-1. Once the writer canvas has been exercised on real shows for a bit: delete the now-dead
-   writer-only renderers from `preview.js` — `renderRoundBadge`,
-   `renderCategory`, `renderQuestion`, `renderOptions`, `renderAnswer`,
-   `renderFeudAnswerGrid`, `renderMeta` — and drop the `USE_SHARED_PAINT` flag
-   (keep the old code in git history).
-3. Converge the leftover local `DISPLAY_BLOCK_TYPES` / `slideRevealApplicable`
-   copies (4 host apps + slide-paint.js + preview.js) onto
-   `BeachTriviaSlideModel`.
-4. Then steps 4–5 (thumbnails, PPTX) per the migration list above.
+### Still open
+
+1. **`slide-paint.js` ordering-question fit.** A 5-item ordering slide with a
+   2-line question overflows the 1280×720 canvas (~37px) — same on host and
+   writer. Pre-existing `.slide-middle` grid fit issue, not a stage regression.
+2. Steps 4–5 (filmstrip thumbnails on the shared painter, PPTX reading the
+   shared model) per the migration list above — both low priority / cosmetic.
