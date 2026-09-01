@@ -512,7 +512,6 @@
       authorUid: user ? user.uid : null,
       status: showMeta.status || "draft",
       lastTouchedAt: firebase.firestore.FieldValue.serverTimestamp(),
-      expiresAfterDays: 90,
     };
   }
 
@@ -1071,7 +1070,6 @@
         // Override fields for a published show
         data.status = "published";
         data.publishedAt = firebase.firestore.FieldValue.serverTimestamp();
-        delete data.expiresAfterDays; // published shows don't expire
 
         btnPublish.disabled = true;
 
@@ -3065,19 +3063,9 @@
   // ─── Draft action buttons ──────────────────────────────────────
 
   function bindDraftButtons() {
-    var btnSaveBlock = $("#btn-save-block");
     var btnAddToShow = $("#btn-add-to-show");
     var btnDuplicate = $("#btn-duplicate-block");
     var btnClearForm = $("#btn-clear-form");
-
-    if (btnSaveBlock) {
-      btnSaveBlock.addEventListener("click", function () {
-        if (!window.WriterQuestionForm || !window.WriterBlockBuilder) return;
-        var formData = WriterQuestionForm.getFormData();
-        var block = WriterBlockBuilder.createBlockFromFormData(formData);
-        console.log("[writer] block saved", block);
-      });
-    }
 
     if (btnAddToShow) {
       btnAddToShow.addEventListener("click", function () {
@@ -5605,80 +5593,6 @@
     });
   }
 
-  // ─── Dev: one-shot Feud fill (see dev-feud-paste.js for console drop-in) ─
-
-  function buildFeudAnswerRowsFromSurvey(answers) {
-    if (!Array.isArray(answers) || !answers.length) {
-      var empty = [];
-      for (var e = 0; e < 8; e++) {
-        empty.push({ text: "", points: 8 - e });
-      }
-      return empty;
-    }
-    var sorted = answers
-      .filter(function (a) {
-        return a && String(a.text || "").trim();
-      })
-      .sort(function (a, b) {
-        return (Number(b.points) || 0) - (Number(a.points) || 0);
-      });
-    var row = [];
-    for (var r = 0; r < 8; r++) {
-      row.push({
-        text: sorted[r] ? String(sorted[r].text || "").trim() : "",
-        points: 8 - r,
-      });
-    }
-    return row;
-  }
-
-  function installWriterDevFillFeud() {
-    /**
-     * Fills 20 regular Feud round questions (Full Feud template). Halftime + final Feud stay blank.
-     * Used by the dev console drop-in in dev-feud-paste.js
-     * @param {{ fills: Array<{ question: string, answers: Array<{ text: string, points?: number }> }> }} payload
-     */
-    window.WriterDevFillFeud = function (payload) {
-      if (!window.WriterQuestionForm || !window.WriterBlockBuilder) {
-        console.error("[WriterDevFillFeud] Question form or block builder not ready.");
-        return;
-      }
-      if (!payload || !Array.isArray(payload.fills) || payload.fills.length !== 20) {
-        console.error("[WriterDevFillFeud] Expected { fills: Array(20) }.");
-        return;
-      }
-      applyTemplate("feud-show");
-      var list = payload.fills;
-      var n = 0;
-      showState.blocks.forEach(function (entry) {
-        var t = (entry.block && entry.block.type) || "";
-        if (t === "feud-single-question" && n < 20) {
-          var f = list[n];
-          n += 1;
-          entry.formData = entry.formData || {};
-          entry.formData.block = entry.formData.block || {};
-          entry.formData.block.questionText = f.question || "";
-          entry.formData.block.feudAnswers = buildFeudAnswerRowsFromSurvey(f.answers);
-          entry.block = window.WriterBlockBuilder.createBlockByType("feud-single-question", entry.formData);
-        }
-      });
-      if (n !== 20) {
-        console.warn("[WriterDevFillFeud] Matched " + n + " round slots (expected 20).");
-      }
-      rebuildFlatSlides();
-      renderFilmstrip();
-      updateStatCounters();
-      markDirty();
-      renderTemplateBuilderList();
-      navigateToSlide(0);
-      if (n === 20) {
-        console.log(
-          "[WriterDevFillFeud] Populated 20 Feud questions. Halftime + final Feud left blank."
-        );
-      }
-    };
-  }
-
   function bindFeudRevealControls() {
     var nextBtn = $("#feud-reveal-next-btn");
     var prevBtn = $("#feud-hide-prev-btn");
@@ -5732,8 +5646,6 @@
 
     // Auto-insert the title slide as the first block on every session load
     insertDefaultTitleSlide();
-
-    installWriterDevFillFeud();
 
     // Mark app as ready — dirty tracking + autosave are now active
     appReady = true;
