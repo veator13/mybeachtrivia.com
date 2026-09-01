@@ -88,7 +88,11 @@ document.addEventListener("DOMContentLoaded", function () {
   const overlayStatus = document.getElementById("locationsOverlayStatus");
   const overlayBody = document.getElementById("locationsOverlayBody");
 
-  const FUNCTION_URL =
+  // Same-origin via a hosting rewrite (firebase.json) -> the
+  // publicGetScheduledVenues Cloud Function. Falls back to the raw function URL
+  // if the rewrite 404s (e.g. an old cached firebase.json).
+  const FUNCTION_URL = "/api/scheduled-venues";
+  const FUNCTION_URL_FALLBACK =
     "https://us-central1-beach-trivia-website.cloudfunctions.net/publicGetScheduledVenues";
 
   function pad2(n) {
@@ -357,7 +361,6 @@ document.addEventListener("DOMContentLoaded", function () {
   let gInfoWindow = null;
   let gMarkers = [];
   let gMapClass = null;
-  let gAdvancedMarkerElement = null;
   let gMarkerByVenueKey = new Map();
   let gHighlightedMarker = null;
 
@@ -453,7 +456,6 @@ document.addEventListener("DOMContentLoaded", function () {
         `?key=${encodeURIComponent(k)}` +
         `&v=weekly` +
         `&loading=async` +
-        `&libraries=marker` +
         `&callback=${cbName}`;
 
       document.head.appendChild(s);
@@ -631,7 +633,19 @@ document.addEventListener("DOMContentLoaded", function () {
     gHighlightedMarker = null;
   }
 
+  function showMapError(msg) {
+    const mapDiv = document.getElementById("map");
+    if (!mapDiv) return;
+    mapDiv.innerHTML =
+      '<div style="display:flex;align-items:center;justify-content:center;' +
+      'height:100%;padding:24px;text-align:center;color:#555;font:14px/1.5 sans-serif;">' +
+      escapeHtml(msg) +
+      "</div>";
+  }
+
   async function initMapIfPossible() {
+    if (gMap) return true;
+
     const finalKey = window.__GMAPS_API_KEY__;
 
     try {
@@ -640,48 +654,32 @@ document.addEventListener("DOMContentLoaded", function () {
       const mapDiv = ensureMapDivExists();
       if (!mapDiv) throw new Error("missing map wrapper");
 
+      let MapCtor = null;
+      if (typeof google.maps.importLibrary === "function") {
+        ({ Map: MapCtor } = await google.maps.importLibrary("maps"));
+      } else if (typeof google.maps.Map === "function") {
+        MapCtor = google.maps.Map;
+      }
+      if (!MapCtor) throw new Error("Maps API loaded but no map constructor found");
+
+      gMapClass = MapCtor;
       gGeocoder = gGeocoder || new google.maps.Geocoder();
       gInfoWindow = gInfoWindow || new google.maps.InfoWindow({ disableAutoPan: true });
 
-      if (typeof google.maps.importLibrary === "function") {
-        const { Map } = await google.maps.importLibrary("maps");
+      gMap = new gMapClass(mapDiv, {
+        center: HAMPTON_ROADS_CENTER,
+        zoom: 10,
+        zoomControl: true,
+        gestureHandling: "greedy",
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: true,
+      });
 
-        gMapClass = Map;
-        gAdvancedMarkerElement = null;
-
-        gMap = gMap || new gMapClass(mapDiv, {
-          center: HAMPTON_ROADS_CENTER,
-          zoom: 10,
-          zoomControl: true,
-          gestureHandling: "greedy",
-          mapTypeControl: false,
-          streetViewControl: false,
-          fullscreenControl: true,
-        });
-
-        return true;
-      }
-
-      if (typeof google.maps.Map === "function") {
-        gMapClass = google.maps.Map;
-        gAdvancedMarkerElement = null;
-
-        gMap = gMap || new gMapClass(mapDiv, {
-          center: HAMPTON_ROADS_CENTER,
-          zoom: 10,
-          zoomControl: true,
-          gestureHandling: "greedy",
-          mapTypeControl: false,
-          streetViewControl: false,
-          fullscreenControl: true,
-        });
-
-        return true;
-      }
-
-      throw new Error("Maps API loaded but no usable map constructor found");
+      return true;
     } catch (e) {
-      console.warn("[locations] maps init skipped:", e?.message || e);
+      console.warn("[locations] maps init failed:", e?.message || e);
+      showMapError("Map unavailable right now — the event list below still works.");
       return false;
     }
   }
@@ -768,44 +766,22 @@ document.addEventListener("DOMContentLoaded", function () {
       if (!geo) continue;
 
       const pos = { lat: geo.lat, lng: geo.lng };
-      let marker;
-      const isAdvanced = !!gAdvancedMarkerElement;
-
-      if (isAdvanced) {
-        marker = new gAdvancedMarkerElement({
-          position: pos,
-          map: gMap,
-          title: safeText(v?.name) || "Venue",
-        });
-      } else {
-        marker = new google.maps.Marker({
-          position: pos,
-          map: gMap,
-          title: safeText(v?.name) || "Venue",
-        });
-      }
+      const marker = new google.maps.Marker({
+        position: pos,
+        map: gMap,
+        title: safeText(v?.name) || "Venue",
+      });
 
       marker.__btVenueRef = v;
       marker.__btVenueKey = getVenueKey(v?.name, v?.address);
 
-      if (isAdvanced && typeof marker.addEventListener === "function") {
-        marker.gmpClickable = true;
-        marker.addEventListener("gmp-click", () => {
-          openVenueInfo(marker, v);
-        });
-      } else if (typeof marker.addListener === "function") {
-        marker.addListener("mouseover", () => {
-          openVenueInfo(marker, v);
-        });
-        marker.addListener("mouseout", () => {
-          try {
-            gInfoWindow.close();
-          } catch {}
-        });
-        marker.addListener("click", () => {
-          openVenueInfo(marker, v);
-        });
-      }
+      marker.addListener("click", () => openVenueInfo(marker, v));
+      marker.addListener("mouseover", () => openVenueInfo(marker, v));
+      marker.addListener("mouseout", () => {
+        try {
+          gInfoWindow.close();
+        } catch {}
+      });
 
       gMarkers.push(marker);
       gMarkerByVenueKey.set(marker.__btVenueKey, marker);
@@ -844,18 +820,35 @@ document.addEventListener("DOMContentLoaded", function () {
     qs.set("end", endExclusiveStr);
     qs.set("type", type && type !== "all" ? type : "all");
 
+    async function fetchVenues(base) {
+      const resp = await fetch(`${base}?${qs.toString()}`, { method: "GET" });
+      const json = await resp.json().catch(() => null);
+      if (!resp.ok || !json || json.ok !== true) {
+        const msg = json?.error || json?.message || `HTTP ${resp.status}`;
+        const err = new Error(String(msg));
+        err.status = resp.status;
+        throw err;
+      }
+      return json;
+    }
+
     let data;
     try {
-      const url = `${FUNCTION_URL}?${qs.toString()}`;
-      const resp = await fetch(url, { method: "GET" });
-      data = await resp.json().catch(() => null);
-
-      if (!resp.ok || !data || data.ok !== true) {
-        const msg = data?.error || data?.message || "bad response";
-        throw new Error(String(msg));
-      }
+      data = await fetchVenues(FUNCTION_URL);
     } catch (e) {
-      console.warn("[locations] fetch failed:", e);
+      // Rewrite missing / 404 → try the raw function URL once.
+      if (e.status === 404) {
+        try {
+          data = await fetchVenues(FUNCTION_URL_FALLBACK);
+        } catch (e2) {
+          console.warn("[locations] fetch failed (fallback):", e2);
+        }
+      } else {
+        console.warn("[locations] fetch failed:", e);
+      }
+    }
+
+    if (!data) {
       setStatus("Could not load venues right now. Please try again.");
       return;
     }

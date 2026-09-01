@@ -350,6 +350,12 @@ exports.ingestLeadResearch = leads.ingestLeadResearch;
 exports.leadsResearchQueue = leads.leadsResearchQueue;
 
 /** ------------------------------------------
+ * Beach Trivia: public Locations page — scheduled venues for the map
+ * ----------------------------------------- */
+const publicLocations = require("./publicLocations");
+exports.publicGetScheduledVenues = publicLocations.publicGetScheduledVenues;
+
+/** ------------------------------------------
  * Beach Trivia: nav-bell notifications (Phase 0 of shift-swap feature)
  * Materialises the `notifications` collection from shift events.
  * ----------------------------------------- */
