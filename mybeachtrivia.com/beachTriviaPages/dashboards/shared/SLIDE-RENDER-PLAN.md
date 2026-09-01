@@ -205,23 +205,35 @@ Recommend (a) — cleanest, and it belongs in the shared layer.
   host-themed-trivia (same edit pattern, not separately clicked).
   Commits `1ec9048`, `0330f69`. `slide-paint.js?v=20260831-scalefit`,
   `slide-stage*?v=20260831-stage1`, host `app.js?v=20260831-scalefit`.
-  **Not yet migrated:** `/cast-game` (has its own bespoke `--cast-scale`
-  700×394 scheme — works, converging it is a behaviour change on the live
-  audience TV view, do carefully); writer preview + writer filmstrip thumbs
-  (see step 3.1 below).
+
+- 2026-08-31 — **Writer main preview → the shared canvas DONE.** Commit
+  `4f62054`. `preview.js` shared-paint branch passes `{ scaleToFit: true }`
+  for the main Slide Preview; filmstrip thumbnails stay on the flat stage
+  (gated on `.thumb-preview-stage` via `stageWantsScale()`). Title overlay +
+  slide skeleton now build inside `.slide-canvas`
+  (`previewCanvasHost()` helper); `ensurePreviewSlideSkeleton` writes into the
+  canvas when present so it can't clobber it. `writer.html` now loads
+  `slide-stage.js/.css` and the `20260831-scalefit` `slide-paint.js` build
+  (was the stale May `cat-vertical` one). `slide-stage*` bumped to `stage2`
+  everywhere; `.slide-stage-frame` gets `border:0; box-shadow:none` and keeps
+  the writer's scrolling `.preview-stage` clipped.
+  Staging-verified on 2 published shows across title / short-response /
+  MC (live+reveal) / answers-summary / intro / round-start / category / feud
+  board — all scale, no overflow; inline editing still round-trips; thumbs
+  unaffected; no console errors. **The writer preview and the host stage are
+  now the same renderer end to end.**
+  **Not yet migrated:** `/cast-game` (its own bespoke `--cast-scale` 700×394
+  scheme — works; converging it is a behaviour change on the live audience TV
+  view, do carefully); writer filmstrip thumbs (deliberately left flat — a
+  1280px canvas scaled into a ~120px thumb is wasteful; revisit only if the
+  thumbs visibly drift from the real slide).
 
 ### Next session — step 3
 
-1. **Writer preview + thumbnails → the shared stage.** `preview.js` already
-   goes through `paintSlide` (flag `USE_SHARED_PAINT`) but WITHOUT
-   `{ scaleToFit: true }`. Adding it is fiddly here: `preview.js` pokes
-   `dom.previewStage` directly a lot (`_buildTitleOverlay` appendChild, inline
-   chrome, `ensurePreviewSlideSkeleton`, `autoFitStageText`, the
-   `thumb-preview-stage` path). `ensure()` reparents the frame's children into
-   `.slide-canvas`, so `appendChild` targets and `.slide-canvas > x` CSS need a
-   re-check. Also decide whether thumb stages want the full canvas or stay as-is.
-   Then `/cast-game`.
-2. Once step 2 has been exercised on real shows for a bit: delete the now-dead
+1. **`/cast-game` → the shared stage** (last renderer surface). Replace its
+   `--cast-scale` CSS-var scheme with `{ scaleToFit: true }` + the two tags.
+   Test carefully on a real cast session — this is the audience TV view.
+2. Once the writer canvas has been exercised on real shows for a bit: delete the now-dead
    writer-only renderers from `preview.js` — `renderRoundBadge`,
    `renderCategory`, `renderQuestion`, `renderOptions`, `renderAnswer`,
    `renderFeudAnswerGrid`, `renderMeta` — and drop the `USE_SHARED_PAINT` flag
