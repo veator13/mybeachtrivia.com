@@ -119,3 +119,11 @@ functions_gcfv1/firestore.rules
 .DS_Store
 **/.DS_Store
 ../.backups/
+
+# Claude Code local tooling / worktrees
+.claude/
+**/.claude/
+
+# FUSE / network-drive hidden temp files
+.fuse_hidden*
+**/.fuse_hidden*
