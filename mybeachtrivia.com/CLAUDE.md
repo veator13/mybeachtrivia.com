@@ -171,3 +171,25 @@ Opportunity → Evidence/Research History → Sales Pipeline.
 2. Build the admin Leads tab (`beachTriviaPages/dashboards/admin/leads/`).
 3. Set up the scheduled Claude task (3/day) that calls the endpoint.
 4. Run the first real Virginia Beach research batch through the live system.
+
+## Free-tier / cost watch (added 2026-09-01)
+
+Everything is well inside Firebase no-cost limits as of 2026-09-01. Re-check via
+Cloud Monitoring (`monitoring.googleapis.com/v3/.../timeSeries`) every month or
+so, especially once the public **Locations** page gets real traffic:
+
+- **Firestore reads** — free 50k/day. Peak seen 22.9k (2026-08-31, a heavy
+  dev/deploy day); normal ~1–3k. ~99% are QUERY-type (collection scans).
+- **Firestore writes/deletes** — free 20k/day each. Peak <1k. Not a concern.
+- **Cloud Functions invocations** — free 2M/month. Using ~2k/month (0.1%).
+- **RTDB egress** — free 10 GB/month. ~0 (music bingo idle).
+- **Stored data** — free 1 GiB. A few hundred docs. Negligible.
+
+Biggest scaling risk = `publicGetScheduledVenues` (Locations API): one
+~135-doc query (all in-window `shifts` + all `locations`) per CDN cache miss.
+Mitigated 2026-09-01 by raising the CDN cache 5 min → 30 min +
+`stale-while-revalidate=86400` (`functions_gcfv1/publicLocations.js`). If reads
+climb again, next levers: longer `s-maxage`, cap the `shifts` date range
+server-side, or precompute the venue list into one doc on a cron.
+Minor: `geocodeVenuesCron` reads 17 `locations` every 30 min even when all are
+already geocoded (~800 reads/day) — could drop to hourly.
