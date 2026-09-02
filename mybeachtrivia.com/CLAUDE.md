@@ -125,18 +125,18 @@ rechecks on existing strong prospects.
   the new `ingestLeadResearch` uses `onRequest` + a shared-secret header instead, since
   it's called by the scheduled task, not a logged-in browser user.
 
-### Sourceless functions — recovered 2026-09-01
+### Sourceless functions — recovered + verified 2026-09-01
 
 `hostGetCalendarMonth` (host calendar month fetch) and `spotifyTokenExchange`
-(Music Bingo Spotify auth) were live in prod but had **no source in the repo** —
+(Music Bingo Spotify auth) were live in prod with **no source in the repo** —
 dropped from `index.js` in an earlier refactor, never re-added, function never
-deleted. Source was recovered verbatim from
-`gs://gcf-sources-459479368322-us-central1/` and re-committed as
+deleted. Source recovered verbatim from
+`gs://gcf-sources-459479368322-us-central1/`, committed as
 `functions_gcfv1/host-calendar.js` + `functions_gcfv1/spotify.js`, wired into
-`index.js`. **PENDING:** a `firebase deploy --only functions:hostGetCalendarMonth`
-+ `:spotifyTokenExchange` from the recovered source to confirm byte-parity with
-what's running, then remove this "pending" note. Until verified, the recovered
-source is believed-correct but untested against a real deploy.
+`index.js`, **redeployed and smoke-tested green** (spotify: OPTIONS/GET/POST +
+real Spotify handshake; hostGetCalendarMonth: clean UNAUTHENTICATED on an
+unauthed call, and prod logs show authed calls returning 200 with data).
+A bare `firebase deploy --only functions` no longer deletes anything.
 
 ## Research methodology (for the scheduled task — learned from the first real batch)
 
