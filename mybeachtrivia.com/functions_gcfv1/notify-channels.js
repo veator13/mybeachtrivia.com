@@ -4,8 +4,7 @@
 // bell (`notifications` collection, see notifications.js):
 //
 //   sendEmail({ to, subject, text, html })      — Resend HTTP API. Key from
-//                                                 RESEND_API_KEY (functions_gcfv1/.env)
-//                                                 or functions.config().resend.key.
+//                                                 RESEND_API_KEY (functions_gcfv1/.env).
 //                                                 No-ops if no key is configured.
 //   sendPushToUsers(uids, { title, body, link }) — FCM web push to every token in
 //                                                 employees/{uid}.fcmTokens.
@@ -15,7 +14,6 @@
 // All three are best-effort: failures are logged, never thrown, so a flaky
 // Resend / FCM call can't roll back the Firestore write that triggered it.
 
-const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
 
 const SITE = "https://mybeachtrivia.com";
@@ -35,11 +33,7 @@ function db() {
 /* ── Resend ────────────────────────────────────────────────────────────── */
 
 function resendKey() {
-  return String(
-    process.env.RESEND_API_KEY ||
-    (functions.config().resend && functions.config().resend.key) ||
-    ""
-  ).trim();
+  return String(process.env.RESEND_API_KEY || "").trim();
 }
 
 // Delivery gate. Staging shares the real `employees` emails, so a broadcast

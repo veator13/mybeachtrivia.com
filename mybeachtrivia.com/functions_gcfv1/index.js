@@ -13,20 +13,6 @@ try {
 const db = admin.firestore();
 
 /** --------------------------------
- * Optional: SendGrid (only used if a key is configured)
- * --------------------------------*/
-let sgMail = null;
-const SENDGRID_API_KEY =
-  process.env.SENDGRID_API_KEY ||
-  (functions.config().sendgrid && functions.config().sendgrid.key) ||
-  "";
-
-if (SENDGRID_API_KEY) {
-  sgMail = require("@sendgrid/mail");
-  sgMail.setApiKey(SENDGRID_API_KEY);
-}
-
-/** --------------------------------
  * Roles: canonicalization & sanitize
  * --------------------------------*/
 const ALLOWED_ROLES = new Set(["host", "admin", "regional", "supply", "writer", "social"]);
@@ -208,33 +194,11 @@ exports.adminCreateEmployee = functions
       );
     }
 
-    // Optionally send the email via SendGrid
-    let emailSent = false;
-    if (sgMail) {
-      try {
-        await sgMail.send({
-          to: email,
-          from: { email: "mybeachtrivia@gmail.com", name: "Beach Trivia" },
-          subject: "Set up your Beach Trivia account",
-          text: `Welcome!\n\nClick this link to set your password:\n${resetLink}\n\nIf you didn’t expect this, ignore this email.`,
-          html: `
-            <p>Welcome!</p>
-            <p>Click this link to set your password:</p>
-            <p><a href="${resetLink}" target="_blank" rel="noopener">${resetLink}</a></p>
-            <p>If you didn’t expect this, ignore this email.</p>
-          `,
-          // Prevent SendGrid from mangling the long querystring
-          trackingSettings: { clickTracking: { enable: false, enableText: false } },
-          tracking_settings: { click_tracking: { enable: false, enable_text: false } },
-        });
-        emailSent = true;
-      } catch (e) {
-        console.error("[adminCreateEmployee] SendGrid send failed:", e);
-        // Non-fatal: we still return the link
-      }
-    }
-
-    return { uid, resetLink, emailSent };
+    // The admin UI shows `resetLink` for the admin to hand off. No mail is sent
+    // from here (the old SendGrid path was never configured; wire it to
+    // notify-channels/Resend if a welcome email is wanted later). `emailSent`
+    // kept in the response shape for backward compatibility with the caller.
+    return { uid, resetLink, emailSent: false };
   });
 
 /** -----------------------------

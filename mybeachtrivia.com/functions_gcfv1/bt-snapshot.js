@@ -1,4 +1,4 @@
-const functions = require("firebase-functions");
+const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
 try { admin.app(); } catch { admin.initializeApp(); }
 const db = admin.firestore();
