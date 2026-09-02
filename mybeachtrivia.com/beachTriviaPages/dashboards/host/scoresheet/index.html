@@ -7,11 +7,11 @@
 
     <!-- ✅ ONE place to change cache-bust version (keep in sync with sw.js ASSET_V) -->
     <script>
-      window.__SCORESHEET_ASSET_V__ = "20260831-bthead";
+      window.__SCORESHEET_ASSET_V__ = "20260902-standings-labels";
     </script>
 
     <!-- Main stylesheet (versioned) -->
-    <link rel="stylesheet" href="style.css?v=20260831-bthead" />
+    <link rel="stylesheet" href="style.css?v=20260902-standings-labels" />
   <!-- Unified nav bar -->
   <script src="/beachTriviaPages/js/bt-head.js"></script>
 
@@ -47,7 +47,7 @@
 
     <script src="js/scoring.js?v=20260821-feud-cap" defer></script>
     <script src="js/search.js?v=20260218-04" defer></script>
-    <script src="js/standings-modal.js?v=20260828-popout5" defer></script>
+    <script src="js/standings-modal.js?v=20260902-labels" defer></script>
 
     <!-- TEAM # modal -->
     <script src="js/team-number-modal.js?v=20260302-01" defer></script>
@@ -344,16 +344,16 @@
     >
       <div class="modal-content">
         <button type="button" id="btnCloseStandings" class="close" aria-label="Close standings">
-          &times;
+          <span class="sb-ico" aria-hidden="true">&times;</span><span class="sb-lbl">Close</span>
         </button>
         <button type="button" id="btnFullscreenStandings" aria-label="Toggle fullscreen standings" aria-pressed="false">
-          ⛶
+          <span class="sb-ico" aria-hidden="true">⛶</span><span class="sb-lbl">Screen</span>
         </button>
         <button type="button" id="btnPopoutStandings" aria-label="Open standings in a separate window for a projector or TV" title="Open in a separate window (drag to projector / TV)">
-          ⧉
+          <span class="sb-ico" aria-hidden="true">⧉</span><span class="sb-lbl">Pop-out</span>
         </button>
-        <button type="button" id="btnAutoScrollStandings" aria-pressed="true" aria-label="Toggle auto-scroll" title="Auto-scroll on — click to stop">
-          ⏸
+        <button type="button" id="btnAutoScrollStandings" aria-pressed="false" aria-label="Toggle auto-scroll" title="Auto-scroll off — click to start">
+          <span class="sb-ico" aria-hidden="true">▶</span><span class="sb-lbl">Play</span>
         </button>
 
         <h2 id="standingsTitle">Team Standings</h2>

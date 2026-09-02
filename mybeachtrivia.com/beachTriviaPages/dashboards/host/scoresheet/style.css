@@ -1580,8 +1580,39 @@ body.modal-open #teamTable th {
     outline: 2px solid rgba(0, 255, 204, 0.75);
     outline-offset: 3px;
 }
-#btnAutoScrollStandings[aria-pressed="false"] {
+#btnAutoScrollStandings[aria-pressed="false"] .sb-ico {
     color: rgba(255, 255, 255, 0.45);
+}
+
+/* ===== Icon + tiny label inside each standings control button ===== */
+#btnCloseStandings,
+#btnFullscreenStandings,
+#btnPopoutStandings,
+#btnAutoScrollStandings {
+    flex-direction: column;
+    gap: 2px;
+    padding: 0;
+}
+#btnFullscreenStandings .sb-ico,
+#btnPopoutStandings .sb-ico,
+#btnAutoScrollStandings .sb-ico {
+    font-size: 20px;
+    line-height: 1;
+}
+#btnCloseStandings .sb-ico {
+    font-size: 24px;
+    line-height: 1;
+}
+#btnCloseStandings .sb-lbl,
+#btnFullscreenStandings .sb-lbl,
+#btnPopoutStandings .sb-lbl,
+#btnAutoScrollStandings .sb-lbl {
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    line-height: 1;
+    opacity: 0.85;
 }
 
 @media (max-width: 640px) {
@@ -1652,8 +1683,8 @@ body.modal-open #teamTable th {
     justify-content: space-between;
     gap: 14px;
 
-    padding: 16px 18px;
-    margin: 12px 0;
+    padding: 20px 24px;
+    margin: 14px 0;
 
     border-radius: 16px;
     border: 1px solid rgba(255, 255, 255, 0.10);
@@ -1667,7 +1698,7 @@ body.modal-open #teamTable th {
         inset 0 1px 0 rgba(255,255,255,0.06);
 
     color: #ffffff;
-    font-size: 20px;
+    font-size: 28px;
     font-weight: 800;
     text-shadow: 0 10px 24px rgba(0,0,0,0.55);
 

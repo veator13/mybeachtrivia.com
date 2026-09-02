@@ -221,6 +221,15 @@ already geocoded (~800 reads/day) — could drop to hourly.
 
 ## Ideas / backlog
 
+### Standings: manual scroll control (requested 2026-09-01)
+
+The Team Standings modal / pop-out (`host/scoresheet/js/standings-modal.js`) has
+an auto-scroll bounce. Default is now **paused** (2026-09-01). Hosts who don't
+want auto-scroll need an easy way to **manually advance the standings** from the
+host console — e.g. next/prev buttons, page-down, or a drag handle — especially
+for the pop-out projector window where the host isn't scrolling that window
+directly. Add alongside the existing Play/Pause control.
+
 ### Attendance early-warning agent (requested 2026-09-01)
 
 Josh wants a **weekly scheduled task/agent** that scans all `scores` data for

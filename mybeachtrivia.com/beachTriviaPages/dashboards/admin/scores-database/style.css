@@ -1306,6 +1306,17 @@ transition: all 0.3s ease;
 cursor: pointer;
 margin-top: -10px;
 line-height: 1;
+display: inline-flex;
+flex-direction: column;
+align-items: center;
+}
+.sd-modal-close .sb-ico { font-size: 32px; line-height: 1; }
+.sd-modal-close .sb-lbl {
+font-size: 9px;
+font-weight: 800;
+letter-spacing: 0.3px;
+text-transform: uppercase;
+opacity: 0.85;
 }
 
 .sd-modal-close:hover {

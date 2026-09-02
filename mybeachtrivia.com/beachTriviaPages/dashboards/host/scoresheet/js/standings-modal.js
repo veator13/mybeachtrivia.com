@@ -221,7 +221,8 @@
     const fsBtn = $("#btnFullscreenStandings");
     if (fsBtn) {
       fsBtn.setAttribute("aria-pressed", "false");
-      fsBtn.textContent = "⛶";
+      setBtnIconLabel(fsBtn, "⛶", "Screen");
+      fsBtn.title = "Full screen";
     }
     try {
       window.parent.postMessage({ type: 'BT_STANDINGS_CLOSE' }, '*');
@@ -237,7 +238,7 @@
     const isFullscreen = content.classList.toggle("standings-fullscreen");
     if (fsBtn) {
       fsBtn.setAttribute("aria-pressed", isFullscreen ? "true" : "false");
-      fsBtn.textContent = isFullscreen ? "⛶" : "⛶";
+      setBtnIconLabel(fsBtn, "⛶", isFullscreen ? "Exit" : "Screen");
       fsBtn.title = isFullscreen ? "Exit full screen" : "Full screen";
     }
     // Fullscreen changes how much fits — re-evaluate auto-scroll.
@@ -302,16 +303,19 @@
       ".row .score{flex:0 0 auto;color:#00ffcc;font-weight:800;font-variant-numeric:tabular-nums;}",
       ".row.leader{background:rgba(0,255,204,.14);border-color:rgba(0,255,204,.4);}",
       ".empty{text-align:center;color:rgba(255,255,255,.4);font-size:clamp(16px,2.4vw,32px);}",
-      ".ctl{position:fixed;top:12px;width:44px;height:44px;border-radius:10px;z-index:5;",
-      "border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);color:#00ffcc;font-size:20px;cursor:pointer;}",
+      ".ctl{position:fixed;top:12px;width:58px;height:50px;border-radius:10px;z-index:5;",
+      "display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;",
+      "border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);color:#00ffcc;cursor:pointer;}",
+      ".ctl .sb-ico{font-size:19px;line-height:1;}",
+      ".ctl .sb-lbl{font-size:8px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;line-height:1;opacity:.85;}",
       ".ctl:hover{background:rgba(255,255,255,.16);}",
-      "#asBtn{right:118px;}#flipBtn{right:66px;}#fsBtn{right:14px;}",
-      ".ctl[aria-pressed=\"false\"]{color:rgba(255,255,255,.45);}",
+      "#asBtn{right:150px;}#flipBtn{right:84px;}#fsBtn{right:14px;}",
+      ".ctl[aria-pressed=\"false\"] .sb-ico{color:rgba(255,255,255,.45);}",
       "body.is-fs .ctl{opacity:.2;}body.is-fs .ctl:hover{opacity:1;}",
       "</style></head><body>",
-      '<button id="asBtn" class="ctl" type="button" aria-pressed="true" title="Auto-scroll">&#9208;</button>',
-      '<button id="flipBtn" class="ctl" type="button" title="Flip order (high &harr; low)">&#8645;</button>',
-      '<button id="fsBtn" class="ctl" type="button" title="Full screen">&#9082;</button>',
+      '<button id="asBtn" class="ctl" type="button" aria-pressed="false" title="Auto-scroll off — click to start"><span class="sb-ico" aria-hidden="true">&#9654;</span><span class="sb-lbl">Play</span></button>',
+      '<button id="flipBtn" class="ctl" type="button" title="Flip order (high &harr; low)"><span class="sb-ico" aria-hidden="true">&#8645;</span><span class="sb-lbl">Flip</span></button>',
+      '<button id="fsBtn" class="ctl" type="button" title="Full screen"><span class="sb-ico" aria-hidden="true">&#9082;</span><span class="sb-lbl">Screen</span></button>',
       '<header><h1>Team Standings</h1><div class="mode" id="mode"></div></header>',
       '<div id="stage"><div id="rows"></div></div>',
       "</body></html>"
@@ -324,9 +328,11 @@
   const AUTOSCROLL_LS_KEY = "bt_standings_autoscroll";
 
   // Shared on/off for BOTH the in-page modal list and the pop-out window.
-  let autoScrollOn = true;
+  // Default OFF (paused) — auto-scroll only turns on if the host has explicitly
+  // enabled it before (stored "1").
+  let autoScrollOn = false;
   try {
-    autoScrollOn = window.localStorage.getItem(AUTOSCROLL_LS_KEY) !== "0";
+    autoScrollOn = window.localStorage.getItem(AUTOSCROLL_LS_KEY) === "1";
   } catch (_) {}
 
   /* A gentle top<->bottom bounce-scroller for whichever element resolveEl()
@@ -415,13 +421,28 @@
     isModalOpen() ? $("#modalRankingList") : null
   );
 
+  // Set a standings-button's icon + small label without clobbering the other span.
+  function setBtnIconLabel(btn, icon, label) {
+    if (!btn) return;
+    const ico = btn.querySelector(".sb-ico");
+    const lbl = btn.querySelector(".sb-lbl");
+    if (ico) ico.textContent = icon; else btn.textContent = icon;
+    if (lbl) lbl.textContent = label;
+  }
+
   function syncAutoScrollButtons() {
+    const icon = autoScrollOn ? "⏸" : "▶";
+    const label = autoScrollOn ? "Pause" : "Play";
+    const title = autoScrollOn
+      ? "Auto-scroll on — click to stop"
+      : "Auto-scroll off — click to start";
+
     // Modal toggle
     const mBtn = $("#btnAutoScrollStandings");
     if (mBtn) {
       mBtn.setAttribute("aria-pressed", autoScrollOn ? "true" : "false");
-      mBtn.textContent = autoScrollOn ? "⏸" : "▶";
-      mBtn.title = autoScrollOn ? "Auto-scroll on — click to stop" : "Auto-scroll off — click to start";
+      setBtnIconLabel(mBtn, icon, label);
+      mBtn.title = title;
     }
     // Pop-out toggle (lives in the other window)
     if (isPopoutOpen()) {
@@ -429,8 +450,8 @@
         const b = popoutWin.document.getElementById("asBtn");
         if (b) {
           b.setAttribute("aria-pressed", autoScrollOn ? "true" : "false");
-          b.textContent = autoScrollOn ? "⏸" : "▶";
-          b.title = autoScrollOn ? "Auto-scroll on — click to stop" : "Auto-scroll off — click to start";
+          setBtnIconLabel(b, icon, label);
+          b.title = title;
         }
       } catch (_) {}
     }
