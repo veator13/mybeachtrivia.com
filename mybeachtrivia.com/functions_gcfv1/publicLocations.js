@@ -190,7 +190,10 @@ exports.publicGetScheduledVenues = functions
     res.set("Access-Control-Allow-Origin", "*");
     res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
     res.set("Access-Control-Allow-Headers", "Content-Type");
-    res.set("Cache-Control", "public, max-age=300, s-maxage=300");
+    // Event schedules don't change intra-day. Browser holds 5 min; the CDN
+    // holds 30 min and may serve stale for a day while it refreshes in the
+    // background — keeps this ~135-doc query off Firestore on public traffic.
+    res.set("Cache-Control", "public, max-age=300, s-maxage=1800, stale-while-revalidate=86400");
 
     if (req.method === "OPTIONS") {
       res.status(204).send("");
