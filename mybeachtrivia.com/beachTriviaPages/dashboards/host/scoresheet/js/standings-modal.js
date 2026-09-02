@@ -339,7 +339,9 @@
   const POPOUT_FS_MAX = 4.4; // vw — biggest row text (few teams)
   const POPOUT_FS_MIN = 1.5; // vw — smallest readable before we let it scroll
   const AUTOSCROLL_MANUAL_PAUSE_MS = 5000; // hands-off window after a manual scroll
-  const AUTOSCROLL_LS_KEY = "bt_standings_autoscroll";
+  // v2: switched the default to OFF (paused). New key so hosts who had the old
+  // default (on) saved as "1" also start paused now.
+  const AUTOSCROLL_LS_KEY = "bt_standings_autoscroll_v2";
 
   // Shared on/off for BOTH the in-page modal list and the pop-out window.
   // Default OFF (paused) — auto-scroll only turns on if the host has explicitly
