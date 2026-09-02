@@ -221,6 +221,19 @@ already geocoded (~800 reads/day) — could drop to hourly.
 
 ## Ideas / backlog
 
+### Scoresheet: open the same sheet on a phone via QR (requested 2026-09-01)
+
+A host on a laptop should be able to scan a QR (or short link) to open the
+**same in-progress scoresheet** on their phone — for walking the room. Must NOT
+hammer Firestore reads/writes (no naive per-keystroke sync). Options to weigh:
+a shared draft doc with debounced/throttled writes + one snapshot listener;
+BroadcastChannel only works same-device; WebRTC/PeerJS peer sync avoids Firestore
+entirely; or a periodic "push to draft" button rather than live sync. The
+scoresheet already autosaves to `localStorage` — the phone needs to read that
+draft state somehow. Cheapest is probably: laptop writes the draft to one
+`scoresheetDrafts/{id}` doc on a debounce (~2–5s / on blur), phone opens
+`?draft=<id>` and listens. One doc, few writes.
+
 ### Standings: manual scroll control (requested 2026-09-01)
 
 The Team Standings modal / pop-out (`host/scoresheet/js/standings-modal.js`) has

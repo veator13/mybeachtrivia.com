@@ -52,8 +52,11 @@
   function setButtonText(btn) {
     if (!btn) return;
     const asc = getStandingsAscending();
-    // Show CURRENT mode
-    btn.textContent = asc ? "Low → High" : "High → Low";
+    // Show CURRENT mode. Prefer the small label span (button is now icon+label).
+    const label = asc ? "Low→High" : "High→Low";
+    const lbl = btn.querySelector(".sb-lbl");
+    if (lbl) lbl.textContent = label;
+    else btn.textContent = label;
     btn.setAttribute("aria-pressed", asc ? "true" : "false");
   }
 
@@ -131,6 +134,24 @@
     }
   }
 
+  // Standard competition ranking: tied scores share a place, the next place
+  // skips (2 teams tied 3rd -> both "3rd", next team "5th"). Returns a Map
+  // keyed by the list item -> { place, tied }.
+  function computeRanks(list) {
+    const desc = [...list].sort((a, b) => (b.total || 0) - (a.total || 0));
+    const out = new Map();
+    const counts = {};
+    desc.forEach((t) => { counts[t.total] = (counts[t.total] || 0) + 1; });
+    desc.forEach((t, idx) => {
+      const place =
+        idx > 0 && desc[idx - 1].total === t.total
+          ? out.get(desc[idx - 1]).place
+          : idx + 1;
+      out.set(t, { place, tied: counts[t.total] > 1 });
+    });
+    return out;
+  }
+
   function renderStandings(list) {
     const ul = getStandingsListEl();
     if (!ul) return;
@@ -138,8 +159,8 @@
     const prevScroll = ul.scrollTop; // keep our place through the rebuild
     ul.innerHTML = "";
 
-    const asc = getStandingsAscending();
     const n = list.length;
+    const ranks = computeRanks(list);
 
     for (let i = 0; i < n; i++) {
       const item = list[i];
@@ -147,15 +168,20 @@
       const li = document.createElement("li");
       li.className = "standings-item";
 
-      // ✅ Rank numbers stay "highest score is #1" even when viewing Low → High
-      const rankNum = asc ? n - i : i + 1;
+      const r = ranks.get(item) || { place: i + 1, tied: false };
 
       // "#1  Team Name        SCORE" — score as its own standout chip, no parens.
       const left = document.createElement("span");
       left.className = "si-left";
       const rankEl = document.createElement("span");
       rankEl.className = "si-rank";
-      rankEl.textContent = `#${rankNum}`;
+      rankEl.textContent = `#${r.place}`;
+      if (r.tied) {
+        const tag = document.createElement("span");
+        tag.className = "si-tied";
+        tag.textContent = "tied";
+        rankEl.appendChild(tag);
+      }
       const nameEl = document.createElement("span");
       nameEl.className = "si-name";
       nameEl.textContent = item.name;
@@ -184,6 +210,8 @@
     // Harmless; helps if some CSS accidentally forced height:0 earlier
     ul.style.height = "";
     ul.scrollTop = Math.min(prevScroll, ul.scrollHeight);
+
+    try { $("#btnStandingsToTop")?.__sync?.(); } catch (_) {}
   }
 
   function isModalOpen() {
@@ -300,38 +328,44 @@
       "html,body{height:100%;}",
       "body{background:#0b0f14;color:#fff;overflow:hidden;display:flex;flex-direction:column;",
       'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}',
-      "header{flex:0 0 auto;text-align:center;padding:2.5vh 2vw 1.5vh;border-bottom:2px solid rgba(0,255,204,.25);}",
-      "header h1{font-size:clamp(24px,5vw,72px);letter-spacing:.5px;text-transform:uppercase;color:#00ffcc;}",
+      "header{flex:0 0 auto;text-align:center;padding:2.5vh 2vw 1.5vh;border-bottom:2px solid rgba(85,218,255,.25);}",
+      "header h1{font-size:clamp(24px,5vw,72px);letter-spacing:.5px;text-transform:uppercase;color:#55daff;}",
       "header .mode{margin-top:.4vh;font-size:clamp(12px,1.6vw,22px);color:rgba(255,255,255,.55);}",
       "#stage{flex:1 1 auto;overflow-y:auto;overflow-x:hidden;padding:2vh 4vw;scrollbar-width:thin;",
-      "scrollbar-color:rgba(0,255,204,.4) transparent;}",
+      "scrollbar-color:rgba(85,218,255,.4) transparent;}",
       "#stage.center{display:flex;flex-direction:column;justify-content:center;}",
       "#stage::-webkit-scrollbar{width:10px;}",
-      "#stage::-webkit-scrollbar-thumb{background:rgba(0,255,204,.35);border-radius:6px;}",
+      "#stage::-webkit-scrollbar-thumb{background:rgba(85,218,255,.35);border-radius:6px;}",
       "#rows{display:flex;flex-direction:column;gap:calc(var(--rowfs) * .32);}",
       ".row{display:flex;align-items:center;gap:1.1em;background:rgba(255,255,255,.05);",
       "border:1px solid rgba(255,255,255,.08);border-radius:.35em;padding:.4em .7em;font-size:var(--rowfs);line-height:1.15;}",
       ".row .rank{flex:0 0 auto;min-width:1.9em;height:1.7em;display:inline-flex;align-items:center;justify-content:center;",
-      "background:#00ffcc;color:#062a24;border-radius:.22em;font-weight:800;}",
+      "background:#55daff;color:#08283a;border-radius:.22em;font-weight:800;}",
       ".row .name{flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;}",
-      ".row .score{flex:0 0 auto;color:#00ffcc;font-weight:800;font-variant-numeric:tabular-nums;}",
-      ".row.leader{background:rgba(0,255,204,.14);border-color:rgba(0,255,204,.4);}",
+      ".row .score{flex:0 0 auto;color:#55daff;font-weight:800;font-variant-numeric:tabular-nums;}",
+      ".row.leader{background:rgba(85,218,255,.14);border-color:rgba(85,218,255,.4);}",
       ".empty{text-align:center;color:rgba(255,255,255,.4);font-size:clamp(16px,2.4vw,32px);}",
       ".ctl{position:fixed;top:12px;width:58px;height:50px;border-radius:10px;z-index:5;",
       "display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;",
-      "border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);color:#00ffcc;cursor:pointer;}",
+      "border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);color:#55daff;cursor:pointer;}",
       ".ctl .sb-ico{font-size:19px;line-height:1;}",
       ".ctl .sb-lbl{font-size:8px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;line-height:1;opacity:.85;}",
       ".ctl:hover{background:rgba(255,255,255,.16);}",
       "#asBtn{right:150px;}#flipBtn{right:84px;}#fsBtn{right:14px;}",
       ".ctl[aria-pressed=\"false\"] .sb-ico{color:rgba(255,255,255,.45);}",
       "body.is-fs .ctl{opacity:.2;}body.is-fs .ctl:hover{opacity:1;}",
+      "#toTop{position:fixed;left:50%;bottom:2.5vh;transform:translateX(-50%);z-index:6;",
+      "padding:.7em 1.6em;border-radius:999px;border:1px solid rgba(85,218,255,.5);",
+      "background:rgba(85,218,255,.16);color:#55daff;font-weight:900;font-size:clamp(12px,1.5vw,20px);",
+      "letter-spacing:.5px;text-transform:uppercase;cursor:pointer;box-shadow:0 12px 30px rgba(0,0,0,.5);}",
+      "#toTop[hidden]{display:none;}#toTop:hover{background:rgba(85,218,255,.26);}",
       "</style></head><body>",
       '<button id="asBtn" class="ctl" type="button" aria-pressed="false" title="Auto-scroll off — click to start"><span class="sb-ico" aria-hidden="true">&#9654;</span><span class="sb-lbl">Play</span></button>',
       '<button id="flipBtn" class="ctl" type="button" title="Flip order (high &harr; low)"><span class="sb-ico" aria-hidden="true">&#8645;</span><span class="sb-lbl">Flip</span></button>',
       '<button id="fsBtn" class="ctl" type="button" title="Full screen"><span class="sb-ico" aria-hidden="true">&#9082;</span><span class="sb-lbl">Screen</span></button>',
       '<header><h1>Team Standings</h1><div class="mode" id="mode"></div></header>',
       '<div id="stage"><div id="rows"></div></div>',
+      '<button id="toTop" type="button" hidden>&#8593;&nbsp;Top</button>',
       "</body></html>"
     ].join("");
   }
@@ -533,6 +567,7 @@
     const list = buildRankings();
     const asc = getStandingsAscending();
     const n = list.length;
+    const ranks = computeRanks(list);
 
     if (modeEl) modeEl.textContent = asc ? "Low → High" : "High → Low";
 
@@ -544,17 +579,17 @@
     const frag = doc.createDocumentFragment();
     for (let i = 0; i < n; i++) {
       const item = list[i];
-      const rankNum = asc ? n - i : i + 1;
+      const rk = ranks.get(item) || { place: i + 1, tied: false };
       const row = doc.createElement("div");
-      row.className = "row" + (rankNum === 1 ? " leader" : "");
+      row.className = "row" + (rk.place === 1 ? " leader" : "");
 
       const r = doc.createElement("span");
       r.className = "rank";
-      r.textContent = "#" + rankNum;
+      r.textContent = "#" + rk.place;
 
       const nm = doc.createElement("span");
       nm.className = "name";
-      nm.textContent = item.name;
+      nm.textContent = item.name + (rk.tied ? " (tied)" : "");
 
       const sc = doc.createElement("span");
       sc.className = "score";
@@ -611,8 +646,19 @@
     // If someone scrolls the list by hand, auto-scroll backs off for a few
     // seconds, then picks up from where they stopped.
     const stage = doc.getElementById("stage");
+    const toTop = doc.getElementById("toTop");
     if (stage) {
-      stage.addEventListener("scroll", () => popoutAutoScroll.noteScroll(), { passive: true });
+      stage.addEventListener("scroll", () => {
+        popoutAutoScroll.noteScroll();
+        if (toTop) toTop.hidden = stage.scrollTop < 120;
+      }, { passive: true });
+    }
+    if (stage && toTop) {
+      toTop.addEventListener("click", () => {
+        popoutAutoScroll.noteScroll();
+        try { stage.scrollTo({ top: 0, behavior: "smooth" }); }
+        catch (_) { stage.scrollTop = 0; }
+      });
     }
 
     try {
@@ -760,6 +806,28 @@
     if (rankList && !rankList.dataset.boundAutoScrollNote) {
       rankList.addEventListener("scroll", () => modalAutoScroll.noteScroll(), { passive: true });
       rankList.dataset.boundAutoScrollNote = "1";
+    }
+
+    // Back-to-top button — shows once the list is scrolled down a bit.
+    const toTopBtn = $("#btnStandingsToTop");
+    if (rankList && toTopBtn && !toTopBtn.dataset.boundToTop) {
+      const syncToTop = () => {
+        toTopBtn.hidden = rankList.scrollTop < 120;
+      };
+      rankList.addEventListener("scroll", syncToTop, { passive: true });
+      toTopBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        modalAutoScroll.noteScroll();
+        try {
+          rankList.scrollTo({ top: 0, behavior: "smooth" });
+        } catch (_) {
+          rankList.scrollTop = 0;
+        }
+      });
+      toTopBtn.dataset.boundToTop = "1";
+      toTopBtn.__sync = syncToTop;
+      syncToTop();
     }
 
     syncAutoScrollButtons();

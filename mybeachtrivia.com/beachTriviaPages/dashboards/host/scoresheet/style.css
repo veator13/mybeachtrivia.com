@@ -1387,11 +1387,11 @@ body.modal-open #teamTable th {
     background: linear-gradient(135deg, #222, #333);
     margin: auto;
     padding: 28px 26px;
-    border: 2px solid #00ffcc;
+    border: 2px solid #55daff;
     width: 50%;
     height: 80%;
     border-radius: 16px;
-    box-shadow: 0 0 25px rgba(0, 255, 204, 0.4);
+    box-shadow: 0 0 25px rgba(85, 218, 255, 0.4);
     animation: slideDown 0.4s ease-out;
     overflow-y: auto;
 }
@@ -1465,7 +1465,7 @@ body.modal-open #teamTable th {
 }
 #btnCloseStandings:focus-visible,
 .modal-content .close:focus-visible {
-    outline: 2px solid rgba(0, 255, 204, 0.75);
+    outline: 2px solid rgba(85, 218, 255, 0.75);
     outline-offset: 3px;
 }
 
@@ -1486,7 +1486,7 @@ body.modal-open #teamTable th {
     border: 1px solid rgba(255, 255, 255, 0.12);
 
     background: rgba(255, 255, 255, 0.07);
-    color: #00ffcc;
+    color: #55daff;
     font-size: 26px;
     line-height: 1;
 
@@ -1501,7 +1501,7 @@ body.modal-open #teamTable th {
     transform: translateY(0) scale(0.99);
 }
 #btnFullscreenStandings:focus-visible {
-    outline: 2px solid rgba(0, 255, 204, 0.75);
+    outline: 2px solid rgba(85, 218, 255, 0.75);
     outline-offset: 3px;
 }
 
@@ -1522,7 +1522,7 @@ body.modal-open #teamTable th {
     border: 1px solid rgba(255, 255, 255, 0.12);
 
     background: rgba(255, 255, 255, 0.07);
-    color: #00ffcc;
+    color: #55daff;
     font-size: 24px;
     line-height: 1;
 
@@ -1537,12 +1537,12 @@ body.modal-open #teamTable th {
     transform: translateY(0) scale(0.99);
 }
 #btnPopoutStandings:focus-visible {
-    outline: 2px solid rgba(0, 255, 204, 0.75);
+    outline: 2px solid rgba(85, 218, 255, 0.75);
     outline-offset: 3px;
 }
 #btnPopoutStandings[aria-pressed="true"] {
-    background: rgba(0, 255, 204, 0.18);
-    border-color: rgba(0, 255, 204, 0.5);
+    background: rgba(85, 218, 255, 0.18);
+    border-color: rgba(85, 218, 255, 0.5);
 }
 
 /* ===== Auto-scroll on/off toggle ===== */
@@ -1562,7 +1562,7 @@ body.modal-open #teamTable th {
     border: 1px solid rgba(255, 255, 255, 0.12);
 
     background: rgba(255, 255, 255, 0.07);
-    color: #00ffcc;
+    color: #55daff;
     font-size: 22px;
     line-height: 1;
 
@@ -1577,7 +1577,7 @@ body.modal-open #teamTable th {
     transform: translateY(0) scale(0.99);
 }
 #btnAutoScrollStandings:focus-visible {
-    outline: 2px solid rgba(0, 255, 204, 0.75);
+    outline: 2px solid rgba(85, 218, 255, 0.75);
     outline-offset: 3px;
 }
 #btnAutoScrollStandings[aria-pressed="false"] .sb-ico {
@@ -1616,8 +1616,21 @@ body.modal-open #teamTable th {
 }
 
 @media (max-width: 640px) {
-    #btnPopoutStandings { left: 78px; width: 52px; height: 52px; border-radius: 14px; }
-    #btnAutoScrollStandings { left: 138px; width: 52px; height: 52px; border-radius: 14px; }
+    #btnCloseStandings { top: 12px; right: 12px; width: 46px; height: 46px; border-radius: 12px; }
+    #btnFullscreenStandings { top: 12px; left: 10px; width: 46px; height: 46px; border-radius: 12px; }
+    #btnPopoutStandings { top: 12px; left: 60px; width: 46px; height: 46px; border-radius: 12px; }
+    #btnAutoScrollStandings { top: 12px; left: 110px; width: 46px; height: 46px; border-radius: 12px; }
+    #btnInvertStandings { top: 12px; left: 160px; width: 58px; height: 46px; border-radius: 12px; }
+    #btnCloseStandings .sb-ico,
+    #btnFullscreenStandings .sb-ico,
+    #btnPopoutStandings .sb-ico,
+    #btnAutoScrollStandings .sb-ico,
+    #btnInvertStandings .sb-ico { font-size: 17px; }
+    #btnCloseStandings .sb-lbl,
+    #btnFullscreenStandings .sb-lbl,
+    #btnPopoutStandings .sb-lbl,
+    #btnAutoScrollStandings .sb-lbl,
+    #btnInvertStandings .sb-lbl { font-size: 7px; }
 }
 
 /* ===== Standings modal: fixed header/controls, the list scrolls ===== */
@@ -1633,13 +1646,13 @@ body.modal-open #teamTable th {
     overflow-y: auto;
     overflow-x: hidden;
     scrollbar-width: thin;
-    scrollbar-color: rgba(0, 255, 204, 0.4) transparent;
+    scrollbar-color: rgba(85, 218, 255, 0.4) transparent;
 }
 #standingsModal #modalRankingList::-webkit-scrollbar {
     width: 10px;
 }
 #standingsModal #modalRankingList::-webkit-scrollbar-thumb {
-    background: rgba(0, 255, 204, 0.35);
+    background: rgba(85, 218, 255, 0.35);
     border-radius: 6px;
 }
 
@@ -1660,10 +1673,7 @@ body.modal-open #teamTable th {
     margin: 16px 0;
     border-radius: 20px;
 }
-#standingsModal .modal-content.standings-fullscreen #btnInvertStandings {
-    font-size: 22px;
-    padding: 12px 28px;
-}
+#standingsModal .modal-content.standings-fullscreen #btnInvertStandings .sb-ico { font-size: 24px; }
 
 /* =========================
    STANDINGS LIST (Modern)
@@ -1671,7 +1681,7 @@ body.modal-open #teamTable th {
 
 #modalRankingList {
     list-style: none;
-    padding: 0;
+    padding: 0 0 64px;
     margin: 18px auto 0;
     width: min(700px, 92%);
 }
@@ -1714,8 +1724,8 @@ body.modal-open #teamTable th {
     bottom: 10px;
     width: 4px;
     border-radius: 999px;
-    background: rgba(0, 255, 204, 0.45);
-    filter: drop-shadow(0 0 10px rgba(0,255,204,0.18));
+    background: rgba(85, 218, 255, 0.45);
+    filter: drop-shadow(0 0 10px rgba(85,218,255,0.18));
     opacity: 0.8;
 }
 
@@ -1728,9 +1738,19 @@ body.modal-open #teamTable th {
 }
 #modalRankingList li .si-rank {
     flex: 0 0 auto;
-    color: rgba(0, 255, 204, 0.9);
+    color: rgba(85, 218, 255, 0.9);
     font-weight: 900;
     font-size: 0.8em;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+}
+#modalRankingList li .si-tied {
+    font-size: 0.5em;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.6);
 }
 #modalRankingList li .si-name {
     overflow: hidden;
@@ -1744,9 +1764,9 @@ body.modal-open #teamTable th {
     margin-left: 18px;
     padding: 8px 20px;
     border-radius: 14px;
-    background: rgba(0, 255, 204, 0.16);
-    border: 1px solid rgba(0, 255, 204, 0.45);
-    color: #00ffcc;
+    background: rgba(85, 218, 255, 0.16);
+    border: 1px solid rgba(85, 218, 255, 0.45);
+    color: #55daff;
     font-weight: 900;
     font-variant-numeric: tabular-nums;
     font-size: 1.05em;
@@ -1760,7 +1780,7 @@ body.modal-open #teamTable th {
 
 #modalRankingList li:hover {
     transform: translateY(-2px);
-    border-color: rgba(0, 255, 204, 0.28);
+    border-color: rgba(85, 218, 255, 0.28);
     background:
         linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03)),
         rgba(0,0,0,0.28);
@@ -1784,8 +1804,8 @@ body.modal-open #teamTable th {
 #modalRankingList li .rank-score {
     min-width: 74px;
     text-align: right;
-    color: #00ffcc;
-    text-shadow: 0 0 12px rgba(0, 255, 204, 0.45);
+    color: #55daff;
+    text-shadow: 0 0 12px rgba(85, 218, 255, 0.45);
 }
 #modalRankingList li { letter-spacing: 0.2px; }
 
@@ -1940,12 +1960,12 @@ body.modal-open #teamTable th {
    ========================= */
 .modal-content {
     scrollbar-width: thin;
-    scrollbar-color: rgba(0,255,204,0.35) rgba(255,255,255,0.06);
+    scrollbar-color: rgba(85,218,255,0.35) rgba(255,255,255,0.06);
 }
 .modal-content::-webkit-scrollbar { width: 10px; }
 .modal-content::-webkit-scrollbar-track { background: rgba(255,255,255,0.06); border-radius: 999px; }
-.modal-content::-webkit-scrollbar-thumb { background: rgba(0,255,204,0.30); border-radius: 999px; }
-.modal-content::-webkit-scrollbar-thumb:hover { background: rgba(0,255,204,0.40); }
+.modal-content::-webkit-scrollbar-thumb { background: rgba(85,218,255,0.30); border-radius: 999px; }
+.modal-content::-webkit-scrollbar-thumb:hover { background: rgba(85,218,255,0.40); }
 
 /* FIX: missing fadeIn keyframes */
 @keyframes fadeIn {
@@ -2177,12 +2197,6 @@ body.modal-open #teamTable th {
     font-size: 20px !important;
     line-height: 44px !important;
     margin: 0 112px 6px 4px !important;
-  }
-  #standingsModal #btnInvertStandings {
-    margin: 2px auto 10px !important;
-    padding: 9px 22px !important;
-    font-size: 14px !important;
-    align-self: center;
   }
   #standingsModal #modalRankingList {
     width: 100% !important;
@@ -2488,68 +2502,77 @@ body.modal-open #teamTable th {
 }
 
 /* =========================
-   Invert Standings Button (icon style)
+   Flip / invert button — square, sits in the top control row
    ========================= */
 
 #btnInvertStandings {
-    position: relative;
+    position: absolute;
+    top: 18px;
+    left: 216px;
+
+    width: 84px;
+    height: 56px;
+
     display: inline-flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    margin: 5px auto 10px;
-    padding: 10px 30px;
-    border: none;
-    border-radius: 999px;
-    background: linear-gradient(135deg, #2b2b2b, #101010);
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.8);
+    gap: 2px;
+    padding: 0;
+
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.07);
+    color: #55daff;
     cursor: pointer;
     outline: none;
     text-transform: none;
     letter-spacing: 0;
+    transition: background 0.18s ease, transform 0.12s ease;
 }
-
-#btnInvertStandings::before,
-#btnInvertStandings::after {
-    font-size: 20px;
-    color: #ffffff;
-    text-shadow: 0 0 6px rgba(0, 0, 0, 0.8);
+#btnInvertStandings .sb-ico { font-size: 20px; line-height: 1; }
+#btnInvertStandings .sb-lbl {
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    line-height: 1;
+    opacity: 0.9;
 }
-
-#btnInvertStandings::before {
-    content: "↑";
-    margin-right: 4px;
-    transform: translateY(-1px);
-}
-
-#btnInvertStandings::after {
-    content: "↓";
-    margin-left: 4px;
-    transform: translateY(1px);
-}
-
 #btnInvertStandings:hover {
-    background: linear-gradient(135deg, #353535, #161616);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.9);
-    transform: translateY(-1px);
+    background: rgba(255, 255, 255, 0.14);
+    transform: translateY(-1px) scale(1.02);
+}
+#btnInvertStandings:active { transform: translateY(0) scale(0.99); }
+#btnInvertStandings:focus-visible {
+    outline: 2px solid rgba(85, 218, 255, 0.75);
+    outline-offset: 3px;
 }
 
-#btnInvertStandings:active {
-    transform: translateY(0);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.8);
-}
+/* ===== Back-to-top button — bottom of the standings list ===== */
+#btnStandingsToTop {
+    position: absolute;
+    left: 50%;
+    bottom: 18px;
+    transform: translateX(-50%);
+    z-index: 6;
 
-#btnInvertStandings[aria-pressed="true"] {
-    background: linear-gradient(135deg, #00ccaa, #008877);
+    padding: 10px 22px;
+    border-radius: 999px;
+    border: 1px solid rgba(85, 218, 255, 0.5);
+    background: rgba(85, 218, 255, 0.16);
+    color: #55daff;
+    font-weight: 900;
+    font-size: 14px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    cursor: pointer;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+    transition: background 0.18s ease, transform 0.12s ease;
 }
-
-/* ===== FIX: invert standings button text readability ===== */
-#btnInvertStandings{
-    color: rgba(255,255,255,0.92) !important;
-    text-shadow: 0 0 10px rgba(0,0,0,0.75) !important;
-}
-#btnInvertStandings[aria-pressed="true"]{
-    color: rgba(0,0,0,0.85) !important;
-    text-shadow: 0 0 8px rgba(255,255,255,0.25) !important;
+#btnStandingsToTop:hover {
+    background: rgba(85, 218, 255, 0.26);
+    transform: translateX(-50%) translateY(-2px);
 }
 
 /* ==========================================================
