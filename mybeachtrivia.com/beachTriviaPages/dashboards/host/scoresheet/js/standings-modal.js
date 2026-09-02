@@ -150,8 +150,22 @@
       // ✅ Rank numbers stay "highest score is #1" even when viewing Low → High
       const rankNum = asc ? n - i : i + 1;
 
-      // Match your screenshot style: "#1 name (score)"
-      li.textContent = `#${rankNum} ${item.name} (${item.total})`;
+      // "#1  Team Name        SCORE" — score as its own standout chip, no parens.
+      const left = document.createElement("span");
+      left.className = "si-left";
+      const rankEl = document.createElement("span");
+      rankEl.className = "si-rank";
+      rankEl.textContent = `#${rankNum}`;
+      const nameEl = document.createElement("span");
+      nameEl.className = "si-name";
+      nameEl.textContent = item.name;
+      left.append(rankEl, nameEl);
+
+      const scoreEl = document.createElement("span");
+      scoreEl.className = "si-score";
+      scoreEl.textContent = item.total;
+
+      li.append(left, scoreEl);
 
       // click an item -> scroll to that team row and highlight
       li.addEventListener("click", () => {
