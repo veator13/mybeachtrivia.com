@@ -138,6 +138,18 @@ real Spotify handshake; hostGetCalendarMonth: clean UNAUTHENTICATED on an
 unauthed call, and prod logs show authed calls returning 200 with data).
 A bare `firebase deploy --only functions` no longer deletes anything.
 
+### Functions stack upgrade — 2026-09-01
+
+`functions_gcfv1`: `firebase-functions` 4→7, `firebase-admin` 12→13, Node runtime
+20→**22** (Node 20 decommissions 2026-10-30). All 26 functions are on the
+`firebase-functions/v1` namespace, fully supported in v7. `@sendgrid/mail`
+dropped (the `adminCreateEmployee` welcome email was never configured — it just
+returns `resetLink` + `emailSent:false`). `functions.config()` removed (gone in
+v6+) — all keys come from `functions_gcfv1/.env` env vars now. Deployed + tested
+green (HTTP, callables, a scheduled fn, a Firestore trigger). `npm audit` prod:
+0 critical / 0 high (9 moderate remain — one `uuid<11` issue deep in
+`@google-cloud/*`, resolves upstream).
+
 ## Research methodology (for the scheduled task — learned from the first real batch)
 
 Venue websites only list events the **venue itself runs**. Recurring trivia / music
