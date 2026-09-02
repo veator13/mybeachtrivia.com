@@ -218,3 +218,24 @@ climb again, next levers: longer `s-maxage`, cap the `shifts` date range
 server-side, or precompute the venue list into one doc on a cron.
 Minor: `geocodeVenuesCron` reads 17 `locations` every 30 min even when all are
 already geocoded (~800 reads/day) — could drop to hourly.
+
+## Ideas / backlog
+
+### Attendance early-warning agent (requested 2026-09-01)
+
+Josh wants a **weekly scheduled task/agent** that scans all `scores` data for
+declining-attendance trends and flags venues that may need intervention. Signals
+to correlate:
+- team count per event over time, per venue — is it trending down?
+- is a dip tied to a specific **host** (host swapped in around the decline)?
+- **seasonality** — time of year / month-over-month
+- **weather** on event nights (rain, cold, heat)
+- day-of-week, competing events, venue changes
+
+Output = a short "warning bell" digest: which venues are slipping, the likeliest
+cause, and a suggested action. Delivery TBD (email like the leads/notify
+channels, or a new admin panel). Data lives in `scores` (`meta.eventDate`,
+`meta.venueId/venueName`, `meta.submitter*`, `teamCount`) — 270+ docs, one per
+event. Cross-ref `locations` for venue metadata and `shifts` for host history.
+Note: historical `scores` are uneven (some venues backfilled from spreadsheets,
+tagged `meta.imported: true` — Sly Clyde Feb–May 2026 was the first).
