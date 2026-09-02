@@ -343,6 +343,21 @@ exports.snapshotPlaylistOnCreate = btSnapshot.snapshotPlaylistOnCreate;
 exports.snapshotPlaylistOnUpdate = btSnapshot.snapshotPlaylistOnUpdate;
 
 /** ------------------------------------------
+ * Beach Trivia: host calendar month fetch (callable) — powers the host
+ * dashboard + employee-calendar. Recovered from the deployed artifact
+ * 2026-09-01 (was live but sourceless). See CLAUDE.md.
+ * ----------------------------------------- */
+const hostCalendar = require("./host-calendar");
+exports.hostGetCalendarMonth = hostCalendar.hostGetCalendarMonth;
+
+/** ------------------------------------------
+ * Beach Trivia: Spotify token exchange for Music Bingo. Recovered from the
+ * deployed artifact 2026-09-01 (was live but sourceless). See CLAUDE.md.
+ * ----------------------------------------- */
+const spotify = require("./spotify");
+exports.spotifyTokenExchange = spotify.spotifyTokenExchange;
+
+/** ------------------------------------------
  * Beach Trivia: Leads automation ingestion endpoint
  * ----------------------------------------- */
 const leads = require("./leads");

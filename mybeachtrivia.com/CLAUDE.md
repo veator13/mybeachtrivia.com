@@ -119,11 +119,24 @@ rechecks on existing strong prospects.
 - `locations` collection real fields (confirmed from code): name, address, contact,
   phone, email, isActive, createdAt, updatedAt.
 - Cloud Functions source: `functions_gcfv1/` (NOT the top-level `functions/` folder,
-  which only has 2 playlist-snapshot functions — `firebase.json` points
+  which is dead — a stale copy of 2 playlist-snapshot functions; `firebase.json` points
   `functions.source` at `functions_gcfv1`). Existing endpoints use
   `functions.https.onCall` with an admin-role check helper (`assertAdminFromCaller`);
   the new `ingestLeadResearch` uses `onRequest` + a shared-secret header instead, since
   it's called by the scheduled task, not a logged-in browser user.
+
+### Sourceless functions — recovered 2026-09-01
+
+`hostGetCalendarMonth` (host calendar month fetch) and `spotifyTokenExchange`
+(Music Bingo Spotify auth) were live in prod but had **no source in the repo** —
+dropped from `index.js` in an earlier refactor, never re-added, function never
+deleted. Source was recovered verbatim from
+`gs://gcf-sources-459479368322-us-central1/` and re-committed as
+`functions_gcfv1/host-calendar.js` + `functions_gcfv1/spotify.js`, wired into
+`index.js`. **PENDING:** a `firebase deploy --only functions:hostGetCalendarMonth`
++ `:spotifyTokenExchange` from the recovered source to confirm byte-parity with
+what's running, then remove this "pending" note. Until verified, the recovered
+source is believed-correct but untested against a real deploy.
 
 ## Research methodology (for the scheduled task — learned from the first real batch)
 

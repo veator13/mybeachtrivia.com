@@ -1,5 +1,12 @@
 # HANDOFF — branch `shift-swap-timeoff`
 
+> **SUPERSEDED 2026-09-01.** This branch was merged to `main` and the whole
+> thing (shift-swap/time-off, mobile nav, mobile calendar + scoresheet, plus the
+> later Locations + Join Our Team work) was **deployed to production** on
+> 2026-09-01. The "never deployed / do not deploy to the live site" warnings
+> below are no longer accurate. Kept for the feature notes + deploy-constraint
+> reference only.
+
 _Last updated: 2026-08-31. Written to continue this work in a fresh chat._
 
 ---
